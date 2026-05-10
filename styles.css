@@ -5231,61 +5231,52 @@ body.admin-dashboard-page .portal-class-empty p {
 }
 
 .focus-hero-content {
-  /* block flow — image floats inside this */
+  display: flex;
+  align-items: center;
+  gap: 60px;
 }
 
-.focus-hero-content .focus-kicker {
+.focus-hero-text {
+  flex: 1;
+}
+
+.focus-hero-text .focus-kicker {
   display: inline-flex;
 }
 
-.focus-hero-content h1 {
+.focus-hero-text h1 {
   margin: 18px 0 0;
   color: var(--navy-900);
   font-size: clamp(2.7rem, 5vw, 4.8rem);
   line-height: 0.98;
   letter-spacing: -0.05em;
-  max-width: 14ch;
 }
 
-.focus-hero-content p {
+.focus-hero-text p {
   margin: 20px 0 0;
-  max-width: 52ch;
   color: var(--navy-700);
   font-size: 1.08rem;
   line-height: 1.78;
 }
 
 .focus-hero-img {
-  float: right;
-  width: 38%;
-  max-width: 500px;
+  flex: 0 0 40%;
+  max-width: 480px;
+  width: 40%;
   aspect-ratio: 4 / 5;
   object-fit: cover;
   border-radius: 20px;
-  margin: 0 0 36px 52px;
   box-shadow: 0 28px 64px rgba(22, 59, 103, 0.16);
 }
 
-.focus-hero-clear {
-  clear: both;
-}
-
 @media (max-width: 860px) {
+  .focus-hero-content {
+    flex-direction: column;
+  }
+
   .focus-hero-img {
-    float: none;
-    display: block;
     width: 100%;
     max-width: 100%;
     aspect-ratio: 16 / 9;
-    margin: 0 0 32px;
-    border-radius: 16px;
-  }
-
-  .focus-hero-content h1 {
-    max-width: none;
-  }
-
-  .focus-hero-content p {
-    max-width: none;
   }
 }
