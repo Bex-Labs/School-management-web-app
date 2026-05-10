@@ -330,6 +330,67 @@ h3 {
   gap: 30px;
   align-items: center;
   overflow: hidden;
+
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+
+  padding: 90px 7%;
+  border-radius: 0;
+
+  background: linear-gradient(120deg, #eaf7ff, #dff3ff, #f8fcff);
+  background-size: 300% 300%;
+  animation: heroLightBlueFlow 10s ease infinite;
+
+  position: relative;
+}
+
+@keyframes heroLightBlueFlow {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.hero::before,
+.hero::after {
+  content: "";
+  position: absolute;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  background: rgba(56, 189, 248, 0.18);
+  filter: blur(70px);
+  z-index: 0;
+  animation: heroGlowFloat 8s ease-in-out infinite alternate;
+}
+
+.hero::before {
+  top: -120px;
+  left: -120px;
+}
+
+.hero::after {
+  right: -120px;
+  bottom: -120px;
+  animation-delay: 2s;
+}
+
+@keyframes heroGlowFloat {
+  from {
+    transform: translateY(0) scale(1);
+  }
+
+  to {
+    transform: translateY(35px) scale(1.12);
+  }
 }
 
 .hero-copy {
@@ -367,29 +428,43 @@ h3 {
 .hero-visual {
   position: relative;
   min-height: 620px;
+  z-index: 2;
 }
 
+/* Remove curved side shapes */
 .hero-shape {
-  position: absolute;
-  z-index: 0;
-  border-radius: 50%;
-  filter: blur(1px);
+  display: none;
 }
 
-.hero-shape-left {
-  left: 10px;
-  bottom: 18px;
-  width: 160px;
-  height: 160px;
-  background: rgba(89, 181, 255, 0.18);
+/* Make image blend better with the hero */
+.hero-visual img,
+.hero img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 0;
+  object-fit: cover;
 }
 
-.hero-shape-right {
-  top: 16px;
-  right: -18px;
-  width: 210px;
-  height: 210px;
-  background: rgba(16, 132, 255, 0.14);
+/* If your image is inside a card/container, remove the curves there too */
+.hero-card,
+.hero-panel,
+.hero-image,
+.hero-visual-card {
+  border-radius: 0;
+  overflow: hidden;
+}
+
+/* Mobile */
+@media (max-width: 900px) {
+  .hero {
+    grid-template-columns: 1fr;
+    padding: 70px 24px;
+  }
+
+  .hero-visual {
+    min-height: auto;
+  }
 }
 
 .dashboard-mockup {
@@ -5140,5 +5215,77 @@ body.admin-dashboard-page .portal-class-empty p {
   body.admin-dashboard-page .admin-dashboard-tools {
     flex-direction: column;
     align-items: stretch;
+  }
+}
+
+/* ── Hero: full-bleed strip with straight edges & text-wrap image ── */
+
+.focus-hero {
+  padding-top: 0;
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  border-top: 1px solid var(--line-strong);
+  border-bottom: 1px solid var(--line-strong);
+  background: linear-gradient(160deg, var(--sky-050) 0%, #eaf7ff 55%, #f4faff 100%);
+  padding: 70px 0 80px;
+}
+
+.focus-hero-content {
+  /* block flow — image floats inside this */
+}
+
+.focus-hero-content .focus-kicker {
+  display: inline-flex;
+}
+
+.focus-hero-content h1 {
+  margin: 18px 0 0;
+  color: var(--navy-900);
+  font-size: clamp(2.7rem, 5vw, 4.8rem);
+  line-height: 0.98;
+  letter-spacing: -0.05em;
+  max-width: 14ch;
+}
+
+.focus-hero-content p {
+  margin: 20px 0 0;
+  max-width: 52ch;
+  color: var(--navy-700);
+  font-size: 1.08rem;
+  line-height: 1.78;
+}
+
+.focus-hero-img {
+  float: right;
+  width: 38%;
+  max-width: 500px;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  border-radius: 20px;
+  margin: 0 0 36px 52px;
+  box-shadow: 0 28px 64px rgba(22, 59, 103, 0.16);
+}
+
+.focus-hero-clear {
+  clear: both;
+}
+
+@media (max-width: 860px) {
+  .focus-hero-img {
+    float: none;
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    aspect-ratio: 16 / 9;
+    margin: 0 0 32px;
+    border-radius: 16px;
+  }
+
+  .focus-hero-content h1 {
+    max-width: none;
+  }
+
+  .focus-hero-content p {
+    max-width: none;
   }
 }
