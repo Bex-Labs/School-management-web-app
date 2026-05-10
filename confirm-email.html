@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Confirm Email | SchoolSphere</title>
+    <meta
+      name="description"
+      content="Email confirmation page for the SchoolSphere authentication prototype."
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body data-page="confirm-email" class="utility-page">
+    <div class="site-bg" aria-hidden="true"></div>
+    <header id="site-header"></header>
+
+    <main class="page-shell utility-shell">
+      <section class="utility-card">
+        <div id="confirm-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+        <span class="focus-kicker">Email confirmation</span>
+        <h1 id="confirm-heading">Checking your confirmation link...</h1>
+        <p id="confirm-copy">
+          Please wait while we validate your registration link.
+        </p>
+
+        <div id="confirm-details" class="utility-grid"></div>
+
+        <div class="utility-actions">
+          <a class="button button-primary" href="./login.html">Go to Login</a>
+          <a class="button button-outline" href="./signup.html">Create Another Account</a>
+        </div>
+      </section>
+    </main>
+
+    <footer id="site-footer"></footer>
+    <script src="./app.js"></script>
+    <script src="./supabase-config.js"></script>
+    <script src="./auth.js"></script>
+  </body>
+</html>
