@@ -1,19 +1,17 @@
 const navMenus = [
+  { type: "link", label: "Products", href: "./products.html" },
   {
     type: "menu",
-    label: "Learn",
+    label: "Explore",
     items: [
-      { label: "Benefits", href: "./why-it-works.html" },
       { label: "Features", href: "./modules.html" },
+      { label: "Workflows", href: "./workflows.html" },
       { label: "School Types", href: "./school-types.html" },
-      { label: "Help Center", href: "#", placeholder: true },
-      { label: "About Us", href: "./in-practice.html" },
+      { label: "Why It Works", href: "./why-it-works.html" },
+      { label: "In Practice", href: "./in-practice.html" },
     ],
   },
-  { type: "link", label: "Pricing", href: "./products.html" },
-  { type: "link", label: "Pro Edition", href: "./school-types.html#university-mode" },
-  { type: "link", label: "Demo", href: "./workflows.html" },
-  { type: "link", label: "Affiliate", href: "#", placeholder: true },
+  { type: "link", label: "Contact", href: "#", placeholder: true },
 ];
 
 const signInLinks = [
