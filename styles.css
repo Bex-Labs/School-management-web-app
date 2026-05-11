@@ -5280,3 +5280,8 @@ body.admin-dashboard-page .portal-class-empty p {
     aspect-ratio: 16 / 9;
   }
 }
+
+/* ── Home page: hide nav auth buttons ─────────────────────────── */
+body[data-page="home"] .nav-auth {
+  display: none;
+}
