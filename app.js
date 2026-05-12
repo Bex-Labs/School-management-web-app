@@ -4,11 +4,11 @@ const navMenus = [
     type: "menu",
     label: "Explore",
     items: [
-      { label: "Features", href: "./modules.html" },
-      { label: "Workflows", href: "./workflows.html" },
+      { label: "Features",     href: "./modules.html" },
+      { label: "Workflows",    href: "./workflows.html" },
       { label: "School Types", href: "./school-types.html" },
       { label: "Why It Works", href: "./why-it-works.html" },
-      { label: "In Practice", href: "./in-practice.html" },
+      { label: "In Practice",  href: "./in-practice.html" },
     ],
   },
   { type: "link", label: "Contact", href: "#", placeholder: true },
@@ -773,18 +773,8 @@ function renderHeader() {
       </nav>
 
       <div class="nav-auth">
-        <details class="nav-menu nav-menu-signin">
-          <summary>Sign In</summary>
-          <div class="dropdown-panel dropdown-panel-right">
-            ${signInLinks
-              .map(
-                (item) =>
-                  `<a href="${item.href}" class="${hrefMatchesCurrentFile(item.href, currentFile) ? "is-active" : ""}">${item.label}</a>`,
-              )
-              .join("")}
-          </div>
-        </details>
-        <a class="button button-primary" href="./signup.html">Get Started</a>
+        <a class="button button-outline nav-login-btn" href="./login.html">Log In</a>
+        <a class="button button-primary nav-signup-btn" href="./signup.html">Sign Up</a>
       </div>
     </div>
     ${
