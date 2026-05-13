@@ -47,7 +47,7 @@
         <div class="admin-dashboard-greeting">
           <span class="admin-topline-chip" id="portal-last-updated">Last updated --</span>
           <h1 id="portal-heading">School Settings</h1>
-          <p id="portal-copy">Control school identity, academic-year dates, and which modules stay visible.</p>
+          <p id="portal-copy">Configure school profile, logo, campus details, and structure for your institution.</p>
         </div>
       </header>
 
@@ -55,13 +55,18 @@
         <article class="admin-surface-card">
           <div class="admin-surface-head">
             <h2>School Settings</h2>
-            <span>Brand the platform with your school details and term dates.</span>
+            <span>Set your school profile, campus context, and grade structure from one place.</span>
           </div>
           <div id="portal-school-settings-preview" class="portal-school-preview"></div>
           <form id="portal-school-settings-form" class="portal-settings-form" novalidate>
             <div id="portal-school-settings-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
 
             <div class="portal-settings-grid">
+              <div class="portal-settings-section-head">
+                <strong>School identity</strong>
+                <span>Name, profile, and logo</span>
+              </div>
+
               <label class="portal-field" for="school-name">
                 <span>School name</span>
                 <input id="school-name" name="schoolName" type="text" placeholder="Example Academy" />
@@ -79,16 +84,83 @@
                 <p class="portal-field-error" data-settings-error-for="logoUrl"></p>
               </label>
 
+              <label class="portal-field portal-field-span-2" for="school-profile">
+                <span>School profile</span>
+                <textarea
+                  id="school-profile"
+                  name="schoolProfile"
+                  rows="3"
+                  placeholder="Write a short profile that appears across the platform."
+                ></textarea>
+                <p class="portal-field-error" data-settings-error-for="schoolProfile"></p>
+              </label>
+
+              <div class="portal-settings-section-head">
+                <strong>Campus details</strong>
+                <span>Main office and branch campuses</span>
+              </div>
+
               <label class="portal-field portal-field-span-2" for="school-address">
                 <span>School address</span>
                 <textarea
                   id="school-address"
                   name="address"
                   rows="3"
-                  placeholder="Enter the school address shown across the platform"
+                  placeholder="Enter the main campus address shown across the platform"
                 ></textarea>
                 <p class="portal-field-error" data-settings-error-for="address"></p>
               </label>
+
+              <label class="portal-field" for="school-phone">
+                <span>School phone</span>
+                <input id="school-phone" name="phone" type="text" placeholder="+234 800 000 0000" />
+                <p class="portal-field-error" data-settings-error-for="phone"></p>
+              </label>
+
+              <label class="portal-field" for="school-website">
+                <span>School website</span>
+                <input id="school-website" name="website" type="text" placeholder="www.schoolname.edu.ng" />
+                <p class="portal-field-error" data-settings-error-for="website"></p>
+              </label>
+
+              <label class="portal-field portal-field-span-2" for="campus-details">
+                <span>Campus details</span>
+                <textarea
+                  id="campus-details"
+                  name="campusDetails"
+                  rows="3"
+                  placeholder="Example: Main Campus - Ikeja, Annex Campus - Yaba"
+                ></textarea>
+                <p class="portal-field-error" data-settings-error-for="campusDetails"></p>
+              </label>
+
+              <div class="portal-settings-section-head">
+                <strong>School structure</strong>
+                <span>Primary 1-6, JSS 1-3, SS 1-3, plus optional Nursery and Higher Institution</span>
+              </div>
+
+              <div class="portal-structure-block portal-field-span-2">
+                <div class="portal-structure-fixed">
+                  <span class="portal-structure-chip">Primary 1-6</span>
+                  <span class="portal-structure-chip">JSS 1-3</span>
+                  <span class="portal-structure-chip">SS 1-3</span>
+                </div>
+                <div class="portal-structure-options">
+                  <label class="portal-structure-toggle" for="has-nursery">
+                    <input id="has-nursery" name="hasNursery" type="checkbox" />
+                    <span>Enable Nursery section</span>
+                  </label>
+                  <label class="portal-structure-toggle" for="has-higher-institution">
+                    <input id="has-higher-institution" name="hasHigherInstitution" type="checkbox" />
+                    <span>Enable Higher Institution (Polytechnic / University)</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="portal-settings-section-head">
+                <strong>Academic year</strong>
+                <span>Session start and end dates</span>
+              </div>
 
               <label class="portal-field" for="academic-year-start">
                 <span>Academic year start</span>
@@ -108,6 +180,20 @@
               <button class="button button-outline" type="button" data-reset-school-settings>Reset to default</button>
             </div>
           </form>
+        </article>
+
+        <article class="admin-surface-card">
+          <div class="admin-surface-head">
+            <h2>Role Permissions</h2>
+            <span>Configure what each standard role can access in your institution.</span>
+          </div>
+          <div id="portal-role-permission-summary" class="portal-role-permission-summary"></div>
+          <div id="portal-role-permission-grid" class="portal-role-permission-grid"></div>
+          <div class="utility-actions">
+            <button class="button button-outline" type="button" data-reset-role-permissions>
+              Reset role permissions
+            </button>
+          </div>
         </article>
       </section>
     </section>

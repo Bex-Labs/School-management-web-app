@@ -45,11 +45,47 @@ The backend schema is ready for these next steps:
 1. Replace localStorage-based class loading with `public.classes`.
 2. Replace localStorage-based school settings with `public.institutions`.
 3. Replace localStorage-based feature toggles with `public.feature_modules`.
-4. Add a first-run onboarding flow so the first admin creates the institution record and joins it automatically.
+4. Replace localStorage-based role permissions with `public.role_permissions`.
+5. Add a first-run onboarding flow so the first admin creates the institution record and joins it automatically.
+
+The `public.institutions` table now includes:
+
+- `name`
+- `logo_url`
+- `school_profile`
+- `address`
+- `campus_details`
+- `phone`
+- `website`
+- `has_nursery`
+- `has_higher_institution`
+- `academic_year_start`
+- `academic_year_end`
+
+School structure now assumes these always exist:
+- `Primary 1-6`
+- `JSS 1-3`
+- `SS 1-3`
+
+And these are optional toggles:
+- `Nursery`
+- `Higher Institution (Polytechnic/University)`
+
+Role permission storage is ready in `public.role_permissions` with:
+- `role_key` (`Administrator`, `Teacher`, `Parent`, `Student`)
+- `permission_key` (dashboard, students, staff, classes, attendance, results, fees, reports, settings)
+- `enabled`
+
+Class management storage in `public.classes` also supports:
+- `class_teacher`
+- `arms` (text array)
+- `subjects` (text array)
+- `teacher_assignments` (JSON array of `{ subject, teacher }`)
 
 ## Recommended next implementation order
 
 1. Connect school settings to `public.institutions`
 2. Connect feature modules to `public.feature_modules`
-3. Connect class management to `public.classes`
-4. Add student, teacher, and attendance tables after that
+3. Connect role permissions to `public.role_permissions`
+4. Connect class management to `public.classes`
+5. Add student, teacher, and attendance tables after that

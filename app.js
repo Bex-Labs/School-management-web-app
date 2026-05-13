@@ -218,9 +218,15 @@ const DEFAULT_PLATFORM_NAME = "SchoolSphere";
 const DEFAULT_SCHOOL_SETTINGS = {
   schoolName: DEFAULT_PLATFORM_NAME,
   logoUrl: "",
+  schoolProfile: "",
   address: "",
+  campusDetails: "",
   academicYearStart: "",
   academicYearEnd: "",
+  phone: "",
+  website: "",
+  hasNursery: false,
+  hasHigherInstitution: false,
 };
 const SCHOOL_SETTINGS_STORAGE_KEY = "schoolsphere.schoolSettings.v1";
 const SCHOOL_SETTINGS_EVENT = "schoolsphere:school-settings-updated";
@@ -230,6 +236,14 @@ const DEFAULT_CLASS_RECORDS = [
     name: "Tulip",
     level: "Nursery 2",
     capacity: 24,
+    classTeacher: "Mrs. Ojo",
+    arms: ["A", "B"],
+    subjects: ["Literacy", "Numeracy", "Creative Art"],
+    teacherAssignments: [
+      { subject: "Literacy", teacher: "Mrs. Ojo" },
+      { subject: "Numeracy", teacher: "Mr. Bello" },
+      { subject: "Creative Art", teacher: "Ms. Kemi" },
+    ],
     status: "active",
     createdAt: "2026-04-02T08:00:00.000Z",
     updatedAt: "2026-05-08T09:10:00.000Z",
@@ -240,6 +254,14 @@ const DEFAULT_CLASS_RECORDS = [
     name: "Coral",
     level: "Primary 3",
     capacity: 32,
+    classTeacher: "Mr. Ade",
+    arms: ["North", "South"],
+    subjects: ["English", "Mathematics", "Basic Science"],
+    teacherAssignments: [
+      { subject: "English", teacher: "Mr. Ade" },
+      { subject: "Mathematics", teacher: "Mrs. Hassan" },
+      { subject: "Basic Science", teacher: "Mr. Taiwo" },
+    ],
     status: "active",
     createdAt: "2026-03-15T08:00:00.000Z",
     updatedAt: "2026-05-08T10:20:00.000Z",
@@ -250,6 +272,14 @@ const DEFAULT_CLASS_RECORDS = [
     name: "North",
     level: "JSS 1",
     capacity: 36,
+    classTeacher: "Mrs. Chukwu",
+    arms: ["A", "B", "C"],
+    subjects: ["English", "Mathematics", "Business Studies"],
+    teacherAssignments: [
+      { subject: "English", teacher: "Mrs. Chukwu" },
+      { subject: "Mathematics", teacher: "Mr. Musa" },
+      { subject: "Business Studies", teacher: "Mrs. Jonah" },
+    ],
     status: "active",
     createdAt: "2026-01-18T08:00:00.000Z",
     updatedAt: "2026-05-08T11:05:00.000Z",
@@ -260,6 +290,14 @@ const DEFAULT_CLASS_RECORDS = [
     name: "Science",
     level: "SS 2",
     capacity: 28,
+    classTeacher: "Mr. Idowu",
+    arms: ["A"],
+    subjects: ["Chemistry", "Physics", "Biology"],
+    teacherAssignments: [
+      { subject: "Chemistry", teacher: "Mr. Idowu" },
+      { subject: "Physics", teacher: "Mrs. Danjuma" },
+      { subject: "Biology", teacher: "Mr. Oke" },
+    ],
     status: "archived",
     createdAt: "2025-09-01T08:00:00.000Z",
     updatedAt: "2026-04-30T13:40:00.000Z",
@@ -268,6 +306,66 @@ const DEFAULT_CLASS_RECORDS = [
 ];
 const SCHOOL_CLASSES_STORAGE_KEY = "schoolsphere.classes.v1";
 const SCHOOL_CLASSES_EVENT = "schoolsphere:classes-updated";
+const ROLE_PERMISSIONS_STORAGE_KEY = "schoolsphere.rolePermissions.v1";
+const ROLE_PERMISSIONS_EVENT = "schoolsphere:role-permissions-updated";
+const ROLE_PERMISSION_ROLES = ["Administrator", "Teacher", "Parent", "Student"];
+const ROLE_PERMISSION_OPTIONS = [
+  { key: "dashboard_view", label: "View dashboard" },
+  { key: "students_manage", label: "Manage students" },
+  { key: "teachers_manage", label: "Manage staff and teachers" },
+  { key: "classes_manage", label: "Manage classes" },
+  { key: "attendance_manage", label: "Manage attendance" },
+  { key: "results_manage", label: "Manage exams and results" },
+  { key: "fees_manage", label: "Manage fees and bursary" },
+  { key: "reports_view", label: "View reports" },
+  { key: "settings_manage", label: "Manage school settings" },
+];
+const DEFAULT_ROLE_PERMISSIONS = {
+  Administrator: {
+    dashboard_view: true,
+    students_manage: true,
+    teachers_manage: true,
+    classes_manage: true,
+    attendance_manage: true,
+    results_manage: true,
+    fees_manage: true,
+    reports_view: true,
+    settings_manage: true,
+  },
+  Teacher: {
+    dashboard_view: true,
+    students_manage: false,
+    teachers_manage: false,
+    classes_manage: false,
+    attendance_manage: true,
+    results_manage: true,
+    fees_manage: false,
+    reports_view: true,
+    settings_manage: false,
+  },
+  Parent: {
+    dashboard_view: true,
+    students_manage: false,
+    teachers_manage: false,
+    classes_manage: false,
+    attendance_manage: false,
+    results_manage: false,
+    fees_manage: true,
+    reports_view: true,
+    settings_manage: false,
+  },
+  Student: {
+    dashboard_view: true,
+    students_manage: false,
+    teachers_manage: false,
+    classes_manage: false,
+    attendance_manage: false,
+    results_manage: false,
+    fees_manage: false,
+    reports_view: true,
+    settings_manage: false,
+  },
+};
 
 const schoolTypes = [
   {
@@ -381,14 +479,27 @@ function escapeHtml(value) {
 }
 
 function normalizeSchoolSettings(settings = {}) {
+  const hasNursery =
+    settings.hasNursery === true ||
+    settings.hasNursery === "true" ||
+    settings.hasNursery === "1";
+  const hasHigherInstitution =
+    settings.hasHigherInstitution === true ||
+    settings.hasHigherInstitution === "true" ||
+    settings.hasHigherInstitution === "1";
+
   return {
     schoolName: String(settings.schoolName || "").trim() || DEFAULT_SCHOOL_SETTINGS.schoolName,
     logoUrl: String(settings.logoUrl || "").trim(),
+    schoolProfile: String(settings.schoolProfile || "").trim(),
     address: String(settings.address || "").trim(),
+    campusDetails: String(settings.campusDetails || "").trim(),
     phone: String(settings.phone || "").trim(),
     website: String(settings.website || "").trim(),
     academicYearStart: String(settings.academicYearStart || "").trim(),
     academicYearEnd: String(settings.academicYearEnd || "").trim(),
+    hasNursery,
+    hasHigherInstitution,
   };
 }
 
@@ -433,6 +544,12 @@ function hasSchoolSettingsContext(settings = getSchoolSettings()) {
   return Boolean(
     settings.address ||
       settings.logoUrl ||
+      settings.schoolProfile ||
+      settings.campusDetails ||
+      settings.phone ||
+      settings.website ||
+      settings.hasNursery ||
+      settings.hasHigherInstitution ||
       settings.academicYearStart ||
       settings.academicYearEnd ||
       settings.schoolName !== DEFAULT_PLATFORM_NAME,
@@ -454,7 +571,18 @@ function buildBrandMarkHtml(settings, markClass) {
 function applySchoolSettingsBranding(settings = getSchoolSettings()) {
   const root = document.documentElement;
   const academicYearLabel = formatAcademicYearLabel(settings);
-  const schoolContext = [settings.address, academicYearLabel].filter(Boolean).join(" • ");
+  const schoolStructure = [
+    settings.hasNursery ? "Nursery" : null,
+    "Primary 1-6",
+    "JSS 1-3",
+    "SS 1-3",
+    settings.hasHigherInstitution ? "Higher Institution" : null,
+  ]
+    .filter(Boolean)
+    .join(" + ");
+  const schoolContext = [settings.address, academicYearLabel, schoolStructure]
+    .filter(Boolean)
+    .join(" • ");
 
   if (!root.dataset.baseTitle) {
     root.dataset.baseTitle = document.title;
@@ -521,12 +649,31 @@ function normalizeSchoolClass(record = {}) {
   const capacity = Number.parseInt(record.capacity, 10);
   const status = record.status === "archived" ? "archived" : "active";
   const timestamp = new Date().toISOString();
+  const normalizeList = (items) =>
+    Array.isArray(items)
+      ? items
+          .map((item) => String(item || "").trim())
+          .filter(Boolean)
+      : [];
+  const normalizeAssignments = (items) =>
+    Array.isArray(items)
+      ? items
+          .map((item) => ({
+            subject: String(item?.subject || "").trim(),
+            teacher: String(item?.teacher || "").trim(),
+          }))
+          .filter((item) => item.subject && item.teacher)
+      : [];
 
   return {
     id: String(record.id || createStorageId("class")),
     name: String(record.name || "").trim(),
     level: String(record.level || "").trim(),
     capacity: Number.isFinite(capacity) && capacity > 0 ? capacity : 0,
+    classTeacher: String(record.classTeacher || "").trim(),
+    arms: normalizeList(record.arms),
+    subjects: normalizeList(record.subjects),
+    teacherAssignments: normalizeAssignments(record.teacherAssignments),
     status,
     createdAt: record.createdAt || timestamp,
     updatedAt: record.updatedAt || timestamp,
@@ -619,12 +766,18 @@ function summarizeSchoolClasses() {
   const classes = getSchoolClasses();
   const active = classes.filter((record) => record.status !== "archived");
   const archived = classes.filter((record) => record.status === "archived");
+  const totalArms = active.reduce((sum, record) => sum + record.arms.length, 0);
+  const totalSubjects = active.reduce((sum, record) => sum + record.subjects.length, 0);
+  const totalAssignments = active.reduce((sum, record) => sum + record.teacherAssignments.length, 0);
 
   return {
     classes,
     activeCount: active.length,
     archivedCount: archived.length,
     totalCapacity: active.reduce((sum, record) => sum + record.capacity, 0),
+    totalArms,
+    totalSubjects,
+    totalAssignments,
   };
 }
 
@@ -678,6 +831,78 @@ function summarizeFeatureToggleState() {
   };
 }
 
+function normalizeRolePermissions(raw = {}) {
+  return ROLE_PERMISSION_ROLES.reduce((next, role) => {
+    const source = raw[role] && typeof raw[role] === "object" ? raw[role] : {};
+    next[role] = ROLE_PERMISSION_OPTIONS.reduce((rolePermissions, option) => {
+      const fallback = DEFAULT_ROLE_PERMISSIONS[role][option.key];
+      rolePermissions[option.key] =
+        typeof source[option.key] === "boolean" ? source[option.key] : fallback;
+      return rolePermissions;
+    }, {});
+    return next;
+  }, {});
+}
+
+function getRolePermissions() {
+  const stored = parseStoredJSON(localStorage.getItem(ROLE_PERMISSIONS_STORAGE_KEY), {});
+  return normalizeRolePermissions(stored);
+}
+
+function emitRolePermissionsUpdate(rolePermissions = getRolePermissions()) {
+  window.dispatchEvent(
+    new CustomEvent(ROLE_PERMISSIONS_EVENT, {
+      detail: { rolePermissions },
+    }),
+  );
+}
+
+function saveRolePermissions(rolePermissions) {
+  const normalized = normalizeRolePermissions(rolePermissions);
+  localStorage.setItem(ROLE_PERMISSIONS_STORAGE_KEY, JSON.stringify(normalized));
+  emitRolePermissionsUpdate(normalized);
+  return normalized;
+}
+
+function setRolePermission(role, permissionKey, enabled) {
+  if (!ROLE_PERMISSION_ROLES.includes(role)) {
+    return null;
+  }
+
+  if (!ROLE_PERMISSION_OPTIONS.some((option) => option.key === permissionKey)) {
+    return null;
+  }
+
+  const next = getRolePermissions();
+  next[role][permissionKey] = Boolean(enabled);
+  return saveRolePermissions(next);
+}
+
+function resetRolePermissions() {
+  localStorage.removeItem(ROLE_PERMISSIONS_STORAGE_KEY);
+  const normalized = getRolePermissions();
+  emitRolePermissionsUpdate(normalized);
+  return normalized;
+}
+
+function summarizeRolePermissions() {
+  const rolePermissions = getRolePermissions();
+  const total = ROLE_PERMISSION_OPTIONS.length;
+  const summary = ROLE_PERMISSION_ROLES.map((role) => {
+    const enabled = ROLE_PERMISSION_OPTIONS.filter(
+      (option) => rolePermissions[role][option.key],
+    ).length;
+    return { role, enabled, total };
+  });
+
+  return {
+    rolePermissions,
+    roles: ROLE_PERMISSION_ROLES,
+    options: ROLE_PERMISSION_OPTIONS,
+    summary,
+  };
+}
+
 window.SchoolSphereFeatureModules = {
   modules: features,
   getState: getFeatureToggleState,
@@ -685,6 +910,18 @@ window.SchoolSphereFeatureModules = {
   setFeatureEnabled,
   summarize: summarizeFeatureToggleState,
   eventName: FEATURE_TOGGLE_EVENT,
+};
+
+window.SchoolSphereRolePermissions = {
+  roles: ROLE_PERMISSION_ROLES,
+  permissions: ROLE_PERMISSION_OPTIONS,
+  defaults: DEFAULT_ROLE_PERMISSIONS,
+  getPermissions: getRolePermissions,
+  setPermission: setRolePermission,
+  savePermissions: saveRolePermissions,
+  resetPermissions: resetRolePermissions,
+  summarize: summarizeRolePermissions,
+  eventName: ROLE_PERMISSIONS_EVENT,
 };
 
 window.SchoolSphereSiteSettings = {
@@ -720,6 +957,10 @@ window.addEventListener("storage", (event) => {
   if (event.key === SCHOOL_CLASSES_STORAGE_KEY) {
     emitSchoolClassesUpdate(getSchoolClasses());
   }
+
+  if (event.key === ROLE_PERMISSIONS_STORAGE_KEY) {
+    emitRolePermissionsUpdate(getRolePermissions());
+  }
 });
 
 function currentPage() {
@@ -741,6 +982,16 @@ function renderHeader() {
   const currentFile = window.location.pathname.split("/").pop() || "index.html";
   const settings = getSchoolSettings();
   const academicYearLabel = formatAcademicYearLabel(settings);
+  const schoolStructureLabel = [
+    settings.hasNursery ? "Nursery" : null,
+    "Primary 1-6",
+    "JSS 1-3",
+    "SS 1-3",
+    settings.hasHigherInstitution ? "Higher Institution" : null,
+  ]
+    .filter(Boolean)
+    .join(" + ");
+  const campusDetailLabel = settings.campusDetails || "Campus details not added yet.";
   const showContext = hasSchoolSettingsContext(settings);
 
   header.innerHTML = `
@@ -803,6 +1054,11 @@ function renderHeader() {
             <div class="site-context-card">
               <span>Academic year</span>
               <strong>${escapeHtml(academicYearLabel || "Not set yet")}</strong>
+              <small>${escapeHtml(schoolStructureLabel)}</small>
+            </div>
+            <div class="site-context-card">
+              <span>Campus details</span>
+              <strong>${escapeHtml(campusDetailLabel)}</strong>
               <small>${settings.logoUrl ? "Custom logo active across the site." : "Default brand mark active."}</small>
             </div>
           </div>
@@ -821,6 +1077,15 @@ function renderFooter() {
 
   const settings = getSchoolSettings();
   const academicYearLabel = formatAcademicYearLabel(settings);
+  const schoolStructureLabel = [
+    settings.hasNursery ? "Nursery" : null,
+    "Primary 1-6",
+    "JSS 1-3",
+    "SS 1-3",
+    settings.hasHigherInstitution ? "Higher Institution" : null,
+  ]
+    .filter(Boolean)
+    .join(" + ");
 
   footer.innerHTML = `
     <div class="site-footer-shell">
@@ -837,6 +1102,8 @@ function renderFooter() {
         <div class="site-footer-school-meta">
           <span>${escapeHtml(settings.address || "School address not added yet.")}</span>
           <span>${escapeHtml(academicYearLabel || "Academic year dates not set yet.")}</span>
+          <span>${escapeHtml(settings.campusDetails || "Campus details not added yet.")}</span>
+          <span>${escapeHtml(schoolStructureLabel)}</span>
         </div>
         <a class="button button-primary" href="./signup.html">Get Started</a>
       </div>

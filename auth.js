@@ -7,6 +7,7 @@
   };
   const SUPABASE_SCRIPT_SRC = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
   const SUPABASE_STORAGE_KEY = "schoolsphere.supabase.auth.v1";
+  const ADMIN_SIDEBAR_STATE_KEY = "schoolsphere.admin.sidebar.collapsed.v1";
   const AUTH_PERSIST_LOCAL_KEY = "schoolsphere.auth.persistence.local.v1";
   const AUTH_PERSIST_SESSION_KEY = "schoolsphere.auth.persistence.session.v1";
   const AUTH_PENDING_ROLE_KEY = "schoolsphere.auth.pending.role.v1";
@@ -21,7 +22,7 @@
     {
       label: "Classes",
       href: "./admin-classes.html",
-      copy: "Create classes, adjust capacity, and keep timetable and course links aligned.",
+      copy: "Create classes, configure arms and subjects, and assign teachers in one flow.",
     },
     {
       label: "Teachers",
@@ -51,7 +52,7 @@
     {
       label: "Settings",
       href: "./admin-settings.html",
-      copy: "Update school identity, logo, address, and academic-year dates.",
+      copy: "Update school profile, logo, campus details, and structure settings.",
     },
   ];
 
@@ -121,6 +122,7 @@
 
   document.addEventListener("DOMContentLoaded", async () => {
     await initSupabaseAuthBridge();
+    initAdminSidebarUi();
     initPasswordToggles();
     initRoleButtons();
     initSignupFlow();
@@ -592,8 +594,60 @@
     return "Good evening";
   }
 
+  function initAdminSidebarUi() {
+    if (!document.body.classList.contains("admin-dashboard-page")) {
+      return;
+    }
+
+    const shell = document.querySelector(".admin-dashboard-shell");
+    const sidebar = document.querySelector(".admin-sidebar");
+
+    if (!shell || !sidebar) {
+      return;
+    }
+
+    const existingButton = document.querySelector("[data-sidebar-toggle]");
+    const toggleButton = existingButton || document.createElement("button");
+
+    if (!existingButton) {
+      toggleButton.type = "button";
+      toggleButton.className = "admin-sidebar-toggle";
+      toggleButton.setAttribute("data-sidebar-toggle", "");
+      toggleButton.setAttribute("aria-label", "Toggle sidebar");
+      toggleButton.innerHTML = `
+        <span class="admin-sidebar-toggle-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M4 7h16"></path>
+            <path d="M4 12h16"></path>
+            <path d="M4 17h16"></path>
+          </svg>
+        </span>
+      `;
+      document.body.append(toggleButton);
+    }
+
+    const setCollapsed = (collapsed) => {
+      document.body.classList.toggle("admin-sidebar-collapsed", collapsed);
+      toggleButton.setAttribute("aria-expanded", String(!collapsed));
+      toggleButton.setAttribute("aria-label", collapsed ? "Expand sidebar" : "Collapse sidebar");
+      localStorage.setItem(ADMIN_SIDEBAR_STATE_KEY, collapsed ? "1" : "0");
+    };
+
+    const persisted = localStorage.getItem(ADMIN_SIDEBAR_STATE_KEY) === "1";
+    setCollapsed(persisted);
+
+    toggleButton.addEventListener("click", () => {
+      const isCollapsed = document.body.classList.contains("admin-sidebar-collapsed");
+      setCollapsed(!isCollapsed);
+    });
+  }
+
   function getFeatureModuleManager() {
     return window.SchoolSphereFeatureModules || null;
+  }
+
+  function getRolePermissionManager() {
+    return window.SchoolSphereRolePermissions || null;
   }
 
   function getSchoolSettingsManager() {
@@ -608,11 +662,15 @@
     return {
       schoolName: "SchoolSphere",
       logoUrl: "",
+      schoolProfile: "",
       address: "",
+      campusDetails: "",
       phone: "",
       website: "",
       academicYearStart: "",
       academicYearEnd: "",
+      hasNursery: false,
+      hasHigherInstitution: false,
     };
   }
 
@@ -757,7 +815,12 @@
         name: form.elements.name.value.trim(),
         level: form.elements.level.value.trim(),
         capacity: form.elements.capacity.value,
+        classTeacher: form.elements.classTeacher.value.trim(),
+        arms: parseCommaSeparatedValues(form.elements.arms.value),
+        subjects: parseCommaSeparatedValues(form.elements.subjects.value),
       };
+      const assignmentParse = parseTeacherAssignments(form.elements.teacherAssignments.value);
+      payload.teacherAssignments = assignmentParse.items;
 
       let hasError = false;
 
@@ -776,6 +839,28 @@
         hasError = true;
       } else if (!Number.isInteger(Number(payload.capacity)) || Number(payload.capacity) < 1) {
         setPortalClassError(form, "capacity", "Capacity must be a whole number above zero.");
+        hasError = true;
+      }
+
+      if (!payload.arms.length) {
+        setPortalClassError(form, "arms", "Enter at least one arm.");
+        hasError = true;
+      }
+
+      if (!payload.subjects.length) {
+        setPortalClassError(form, "subjects", "Enter at least one subject.");
+        hasError = true;
+      }
+
+      if (assignmentParse.invalidLines.length) {
+        setPortalClassError(
+          form,
+          "teacherAssignments",
+          "Use one assignment per line in this format: Subject: Teacher.",
+        );
+        hasError = true;
+      } else if (!payload.teacherAssignments.length) {
+        setPortalClassError(form, "teacherAssignments", "Enter at least one teacher assignment.");
         hasError = true;
       }
 
@@ -817,7 +902,7 @@
         currentRecord
           ? `Class <strong>${escapeHtml(payload.level)} · ${escapeHtml(
               payload.name,
-            )}</strong> updated. Timetable and course links remain connected.`
+            )}</strong> updated with arms, subjects, and teacher assignments.`
           : `Class <strong>${escapeHtml(payload.level)} · ${escapeHtml(
               payload.name,
             )}</strong> created and ready for assignments.`,
@@ -942,13 +1027,17 @@
       setStatus(status, "", "");
 
       const payload = {
-        schoolName:        form.elements.schoolName.value.trim(),
-        logoUrl:           form.elements.logoUrl.value.trim(),
-        phone:             form.elements.phone.value.trim(),
-        website:           form.elements.website.value.trim(),
-        address:           form.elements.address.value.trim(),
-        academicYearStart: form.elements.academicYearStart.value,
-        academicYearEnd:   form.elements.academicYearEnd.value,
+        schoolName: (form.elements.schoolName?.value || "").trim(),
+        logoUrl: (form.elements.logoUrl?.value || "").trim(),
+        schoolProfile: (form.elements.schoolProfile?.value || "").trim(),
+        phone: (form.elements.phone?.value || "").trim(),
+        website: (form.elements.website?.value || "").trim(),
+        address: (form.elements.address?.value || "").trim(),
+        campusDetails: (form.elements.campusDetails?.value || "").trim(),
+        academicYearStart: form.elements.academicYearStart?.value || "",
+        academicYearEnd: form.elements.academicYearEnd?.value || "",
+        hasNursery: Boolean(form.elements.hasNursery?.checked),
+        hasHigherInstitution: Boolean(form.elements.hasHigherInstitution?.checked),
       };
 
       let hasError = false;
@@ -1043,6 +1132,100 @@
     window.addEventListener(manager.eventName, refreshFeatureToggleSection);
   }
 
+  function initRolePermissionControls({
+    isAdmin,
+    manager,
+    summaryTarget,
+    gridTarget,
+    resetButton,
+  }) {
+    if (!summaryTarget || !gridTarget) {
+      return;
+    }
+
+    const refreshRolePermissionSection = () => {
+      renderPortalRolePermissionSection({
+        isAdmin,
+        manager,
+        summaryTarget,
+        gridTarget,
+      });
+    };
+
+    refreshRolePermissionSection();
+
+    if (!manager) {
+      return;
+    }
+
+    gridTarget.addEventListener("change", (event) => {
+      const input = event.target;
+
+      if (!(input instanceof HTMLInputElement)) {
+        return;
+      }
+
+      if (!input.matches("[data-role-permission-role][data-role-permission-key]") || !isAdmin) {
+        return;
+      }
+
+      manager.setPermission(
+        input.dataset.rolePermissionRole,
+        input.dataset.rolePermissionKey,
+        input.checked,
+      );
+    });
+
+    if (resetButton) {
+      resetButton.disabled = !isAdmin;
+      resetButton.addEventListener("click", () => {
+        if (!isAdmin) {
+          return;
+        }
+        manager.resetPermissions();
+      });
+    }
+
+    window.addEventListener(manager.eventName, refreshRolePermissionSection);
+  }
+
+  function parseCommaSeparatedValues(rawValue) {
+    return String(rawValue || "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  function parseTeacherAssignments(rawValue) {
+    const lines = String(rawValue || "")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const items = [];
+    const invalidLines = [];
+
+    lines.forEach((line) => {
+      const match = line.match(/^(.+?)\s*[:\-]\s*(.+)$/);
+
+      if (!match) {
+        invalidLines.push(line);
+        return;
+      }
+
+      const subject = match[1].trim();
+      const teacher = match[2].trim();
+
+      if (!subject || !teacher) {
+        invalidLines.push(line);
+        return;
+      }
+
+      items.push({ subject, teacher });
+    });
+
+    return { items, invalidLines };
+  }
+
   function clearPortalSettingsErrors(form) {
     form.querySelectorAll(".portal-field").forEach((field) => field.classList.remove("is-invalid"));
     form.querySelectorAll("[data-settings-error-for]").forEach((error) => {
@@ -1096,6 +1279,18 @@
       form.elements.classId.value = "";
     }
 
+    if (form.elements.arms) {
+      form.elements.arms.value = "";
+    }
+
+    if (form.elements.subjects) {
+      form.elements.subjects.value = "";
+    }
+
+    if (form.elements.teacherAssignments) {
+      form.elements.teacherAssignments.value = "";
+    }
+
     const submitButton = form.querySelector("[data-class-submit]");
     const cancelButton = form.querySelector("[data-class-cancel]");
 
@@ -1123,6 +1318,12 @@
     form.elements.name.value = record.name;
     form.elements.level.value = record.level;
     form.elements.capacity.value = record.capacity;
+    form.elements.classTeacher.value = record.classTeacher || "";
+    form.elements.arms.value = (record.arms || []).join(", ");
+    form.elements.subjects.value = (record.subjects || []).join(", ");
+    form.elements.teacherAssignments.value = (record.teacherAssignments || [])
+      .map((item) => `${item.subject}: ${item.teacher}`)
+      .join("\n");
 
     const submitButton = form.querySelector("[data-class-submit]");
     const cancelButton = form.querySelector("[data-class-cancel]");
@@ -1149,6 +1350,15 @@
           ? `${settings.academicYearStart} – ${settings.academicYearEnd}`
           : `From ${settings.academicYearStart}`)
       : null;
+    const structureLabel = [
+      settings.hasNursery ? "Nursery" : null,
+      "Primary 1-6",
+      "JSS 1-3",
+      "SS 1-3",
+      settings.hasHigherInstitution ? "Higher Institution" : null,
+    ]
+      .filter(Boolean)
+      .join(" + ");
 
     const logoHtml = settings.logoUrl
       ? `<img src="${escapeHtml(settings.logoUrl)}" alt="${escapeHtml(settings.schoolName)} logo" onerror="this.parentElement.textContent='${escapeHtml(initial)}';this.parentElement.classList.remove('is-image')" />`
@@ -1169,7 +1379,9 @@
     const phoneIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.79 19.79 0 0 1 11.39 19a19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>`;
     const webIcon  = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>`;
     const addrIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>`;
+    const campusIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10h18"></path><path d="M5 10v9"></path><path d="M19 10v9"></path><path d="M8 19v-5"></path><path d="M12 19v-5"></path><path d="M16 19v-5"></path><path d="M2 19h20"></path><path d="M12 3l10 5H2l10-5z"></path></svg>`;
     const yearIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>`;
+    const structureIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-4 8 4-8 4-8-4z"></path><path d="M4 16l8 4 8-4"></path><path d="M4 6l8-4 8 4"></path></svg>`;
 
     const websiteHref = settings.website
       ? (settings.website.startsWith("http") ? settings.website : `https://${settings.website}`)
@@ -1184,11 +1396,18 @@
             <span style="font-size:.82rem;color:#8a93a8;font-weight:600;letter-spacing:.04em;text-transform:uppercase">School Profile</span>
           </div>
         </div>
+        ${
+          settings.schoolProfile
+            ? `<p style="margin:0;font-size:.92rem;color:#525f7b;line-height:1.6">${escapeHtml(settings.schoolProfile)}</p>`
+            : ""
+        }
         <div class="portal-school-detail-grid">
           ${detailRow(phoneIcon, settings.phone, null)}
           ${detailRow(webIcon,  settings.website, websiteHref)}
           ${detailRow(addrIcon, settings.address, null)}
+          ${detailRow(campusIcon, settings.campusDetails, null)}
           ${yearLabel ? detailRow(yearIcon, yearLabel, null) : ""}
+          ${detailRow(structureIcon, structureLabel, null)}
           ${!settings.phone && !settings.website && !settings.address && !yearLabel
             ? `<p style="margin:0;color:#8a93a8;font-size:.88rem">No contact details added yet. Fill in the form below to complete the school profile.</p>`
             : ""}
@@ -1229,11 +1448,19 @@
     // Populate form fields
     form.elements.schoolName.value       = settings.schoolName;
     form.elements.logoUrl.value          = settings.logoUrl;
+    form.elements.schoolProfile.value    = settings.schoolProfile || "";
     form.elements.phone.value            = settings.phone;
     form.elements.website.value          = settings.website;
     form.elements.address.value          = settings.address;
+    form.elements.campusDetails.value    = settings.campusDetails || "";
     form.elements.academicYearStart.value = settings.academicYearStart;
     form.elements.academicYearEnd.value   = settings.academicYearEnd;
+    if (form.elements.hasNursery) {
+      form.elements.hasNursery.checked = Boolean(settings.hasNursery);
+    }
+    if (form.elements.hasHigherInstitution) {
+      form.elements.hasHigherInstitution.checked = Boolean(settings.hasHigherInstitution);
+    }
 
     // Update the logo swatch preview
     updateLogoSwatch(form, settings.logoUrl, settings.schoolName);
@@ -1262,11 +1489,15 @@
     return buildSchoolPreviewHtml({
       schoolName:       form.elements.schoolName?.value.trim()        || "",
       logoUrl:          form.elements.logoUrl?.value.trim()           || "",
+      schoolProfile:    form.elements.schoolProfile?.value.trim()     || "",
       phone:            form.elements.phone?.value.trim()             || "",
       website:          form.elements.website?.value.trim()           || "",
       address:          form.elements.address?.value.trim()           || "",
+      campusDetails:    form.elements.campusDetails?.value.trim()     || "",
       academicYearStart: form.elements.academicYearStart?.value       || "",
       academicYearEnd:   form.elements.academicYearEnd?.value         || "",
+      hasNursery:       Boolean(form.elements.hasNursery?.checked),
+      hasHigherInstitution: Boolean(form.elements.hasHigherInstitution?.checked),
     }, isAdmin);
   }
 
@@ -1325,7 +1556,69 @@
       input.addEventListener("change", () => {
         manager.setFeatureEnabled(input.dataset.featureToggle, input.checked);
       });
-    });
+      });
+  }
+
+  function renderPortalRolePermissionSection({ isAdmin, manager, summaryTarget, gridTarget }) {
+    if (!summaryTarget || !gridTarget) {
+      return;
+    }
+
+    if (!manager) {
+      summaryTarget.innerHTML = `
+        <strong>Role permissions unavailable</strong>
+        <span>The shared role permission manager could not be loaded on this page.</span>
+      `;
+      gridTarget.innerHTML = "";
+      return;
+    }
+
+    const { roles, options, rolePermissions, summary } = manager.summarize();
+    const summaryText = summary
+      .map((item) => `${item.role}: ${item.enabled}/${item.total}`)
+      .join(" • ");
+
+    summaryTarget.innerHTML = `
+      <strong>Standard roles: ${roles.join(", ")}</strong>
+      <span>${
+        isAdmin
+          ? `Permission changes save instantly. ${escapeHtml(summaryText)}`
+          : "Only administrator accounts can change role permissions."
+      }</span>
+    `;
+
+    gridTarget.innerHTML = roles
+      .map((role) => {
+        const enabledForRole = options.filter((option) => rolePermissions[role][option.key]).length;
+
+        return `
+          <article class="portal-role-permission-card">
+            <header class="portal-role-permission-card-head">
+              <strong>${escapeHtml(role)}</strong>
+              <span>${enabledForRole} of ${options.length} enabled</span>
+            </header>
+            <div class="portal-role-permission-list">
+              ${options
+                .map(
+                  (option) => `
+                    <label class="portal-role-permission-item">
+                      <span>${escapeHtml(option.label)}</span>
+                      <input
+                        type="checkbox"
+                        data-role-permission-role="${escapeHtml(role)}"
+                        data-role-permission-key="${escapeHtml(option.key)}"
+                        ${rolePermissions[role][option.key] ? "checked" : ""}
+                        ${isAdmin ? "" : "disabled"}
+                      />
+                    </label>
+                  `,
+                )
+                .join("")}
+            </div>
+          </article>
+        `;
+      })
+      .join("");
   }
 
   function renderPortalClassManagementSection({
@@ -1354,7 +1647,8 @@
     }
 
     form.hidden = false;
-    const { classes, activeCount, archivedCount, totalCapacity } = manager.summarize();
+    const { classes, activeCount, archivedCount, totalCapacity, totalArms, totalSubjects, totalAssignments } =
+      manager.summarize();
 
     summaryTarget.innerHTML = `
       <article class="portal-class-stat portal-class-stat-blue">
@@ -1363,14 +1657,29 @@
         <p>${isAdmin ? "Ready for student and teacher assignment." : "Visible for reference only."}</p>
       </article>
       <article class="portal-class-stat portal-class-stat-violet">
-        <span>Archived classes</span>
-        <strong>${archivedCount}</strong>
-        <p>Keep past groups available without exposing them in live allocations.</p>
+        <span>Total arms</span>
+        <strong>${totalArms}</strong>
+        <p>Arms created across all active classes.</p>
       </article>
       <article class="portal-class-stat portal-class-stat-green">
+        <span>Subjects covered</span>
+        <strong>${totalSubjects}</strong>
+        <p>Total subject entries linked across active classes.</p>
+      </article>
+      <article class="portal-class-stat portal-class-stat-amber">
+        <span>Teacher assignments</span>
+        <strong>${totalAssignments}</strong>
+        <p>Subject-to-teacher links currently assigned.</p>
+      </article>
+      <article class="portal-class-stat portal-class-stat-slate">
         <span>Total active capacity</span>
         <strong>${totalCapacity.toLocaleString()}</strong>
         <p>Each class card links directly to the timetable and course views.</p>
+      </article>
+      <article class="portal-class-stat portal-class-stat-rose">
+        <span>Archived classes</span>
+        <strong>${archivedCount}</strong>
+        <p>Past classes kept for historical reference.</p>
       </article>
     `;
 
@@ -1412,8 +1721,34 @@
                   <strong>${Number(record.capacity).toLocaleString()} learners</strong>
                 </div>
                 <div class="portal-class-meta-item">
+                  <span>Class teacher</span>
+                  <strong>${escapeHtml(record.classTeacher || "Not assigned yet")}</strong>
+                </div>
+                <div class="portal-class-meta-item">
                   <span>Updated</span>
                   <strong>${escapeHtml(formatTimestamp(record.updatedAt))}</strong>
+                </div>
+              </div>
+
+              <div class="portal-class-extended">
+                <div class="portal-class-extended-item">
+                  <span>Arms</span>
+                  <strong>${escapeHtml((record.arms || []).join(", ") || "None")}</strong>
+                </div>
+                <div class="portal-class-extended-item">
+                  <span>Subjects</span>
+                  <strong>${escapeHtml((record.subjects || []).join(", ") || "None")}</strong>
+                </div>
+                <div class="portal-class-extended-item portal-class-extended-item-span">
+                  <span>Teacher assignments</span>
+                  <ul>
+                    ${(record.teacherAssignments || [])
+                      .map(
+                        (assignment) =>
+                          `<li>${escapeHtml(assignment.subject)}: ${escapeHtml(assignment.teacher)}</li>`,
+                      )
+                      .join("") || "<li>No assignments yet.</li>"}
+                  </ul>
                 </div>
               </div>
 
@@ -2335,9 +2670,13 @@
 
     const { isAdmin } = getAdminAccessContext();
     const schoolSettingsManager = getSchoolSettingsManager();
+    const rolePermissionManager = getRolePermissionManager();
     const schoolSettingsPreview = document.getElementById("portal-school-settings-preview");
     const schoolSettingsForm = document.getElementById("portal-school-settings-form");
     const schoolSettingsStatus = document.getElementById("portal-school-settings-status");
+    const rolePermissionSummary = document.getElementById("portal-role-permission-summary");
+    const rolePermissionGrid = document.getElementById("portal-role-permission-grid");
+    const resetRolePermissionsButton = document.querySelector("[data-reset-role-permissions]");
 
     initSchoolSettingsControls({
       isAdmin,
@@ -2351,6 +2690,14 @@
         const brandSubtitle = document.getElementById("admin-brand-subtitle");
         applyAdminBranding(brandMark, brandName, brandSubtitle, schoolSettingsManager);
       },
+    });
+
+    initRolePermissionControls({
+      isAdmin,
+      manager: rolePermissionManager,
+      summaryTarget: rolePermissionSummary,
+      gridTarget: rolePermissionGrid,
+      resetButton: resetRolePermissionsButton,
     });
   }
 
@@ -2403,9 +2750,15 @@
         : {
             schoolName: "SchoolSphere",
             logoUrl: "",
+            schoolProfile: "",
             address: "",
+            campusDetails: "",
+            phone: "",
+            website: "",
             academicYearStart: "",
             academicYearEnd: "",
+            hasNursery: false,
+            hasHigherInstitution: false,
           };
 
     const renderDashboardBrand = (settings) => {
