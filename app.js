@@ -1,17 +1,19 @@
 const navMenus = [
-  { type: "link", label: "Products", href: "./products.html" },
   {
     type: "menu",
-    label: "Explore",
+    label: "Learn",
     items: [
-      { label: "Features",     href: "./modules.html" },
-      { label: "Workflows",    href: "./workflows.html" },
+      { label: "Benefits", href: "./why-it-works.html" },
+      { label: "Features", href: "./modules.html" },
       { label: "School Types", href: "./school-types.html" },
-      { label: "Why It Works", href: "./why-it-works.html" },
-      { label: "In Practice",  href: "./in-practice.html" },
+      { label: "Help Center", href: "#", placeholder: true },
+      { label: "About Us", href: "./in-practice.html" },
     ],
   },
-  { type: "link", label: "Contact", href: "#", placeholder: true },
+  { type: "link", label: "Pricing", href: "./products.html" },
+  { type: "link", label: "Pro Edition", href: "./school-types.html#university-mode" },
+  { type: "link", label: "Demo", href: "./workflows.html" },
+  { type: "link", label: "Affiliate", href: "#", placeholder: true },
 ];
 
 const signInLinks = [
@@ -383,6 +385,8 @@ function normalizeSchoolSettings(settings = {}) {
     schoolName: String(settings.schoolName || "").trim() || DEFAULT_SCHOOL_SETTINGS.schoolName,
     logoUrl: String(settings.logoUrl || "").trim(),
     address: String(settings.address || "").trim(),
+    phone: String(settings.phone || "").trim(),
+    website: String(settings.website || "").trim(),
     academicYearStart: String(settings.academicYearStart || "").trim(),
     academicYearEnd: String(settings.academicYearEnd || "").trim(),
   };
@@ -773,8 +777,18 @@ function renderHeader() {
       </nav>
 
       <div class="nav-auth">
-        <a class="button button-outline nav-login-btn" href="./login.html">Log In</a>
-        <a class="button button-primary nav-signup-btn" href="./signup.html">Sign Up</a>
+        <details class="nav-menu nav-menu-signin">
+          <summary>Sign In</summary>
+          <div class="dropdown-panel dropdown-panel-right">
+            ${signInLinks
+              .map(
+                (item) =>
+                  `<a href="${item.href}" class="${hrefMatchesCurrentFile(item.href, currentFile) ? "is-active" : ""}">${item.label}</a>`,
+              )
+              .join("")}
+          </div>
+        </details>
+        <a class="button button-primary" href="./signup.html">Get Started</a>
       </div>
     </div>
     ${

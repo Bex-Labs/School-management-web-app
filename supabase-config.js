@@ -12,4 +12,27 @@ window.SchoolSphereSupabaseConfig = {
   siteUrl: window.location.origin,
   redirectPath: "/portal.html",
   emailRedirectPath: "/portal.html",
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // IMPORTANT — Supabase dashboard setup for password reset emails
+  // ─────────────────────────────────────────────────────────────────────────
+  //
+  // The reset-password email link will NOT work until you whitelist the
+  // redirect URL in your Supabase project dashboard:
+  //
+  //   1. Go to: Authentication → URL Configuration → Redirect URLs
+  //   2. Click "Add URL" and add ALL of the following:
+  //
+  //        http://localhost:8080/reset-password.html
+  //        http://127.0.0.1:8080/reset-password.html
+  //        http://localhost:5500/reset-password.html   (Live Server default)
+  //        http://127.0.0.1:5500/reset-password.html
+  //        https://yourdomain.com/reset-password.html  (your production URL)
+  //
+  //   3. Save, then test the flow again.
+  //
+  // Note: Use the exact URL your browser shows when you open forgot-password.html,
+  // but replace the filename with "reset-password.html".
+  //
+  // ─────────────────────────────────────────────────────────────────────────
 };

@@ -609,6 +609,8 @@
       schoolName: "SchoolSphere",
       logoUrl: "",
       address: "",
+      phone: "",
+      website: "",
       academicYearStart: "",
       academicYearEnd: "",
     };
@@ -905,10 +907,11 @@
 
     form.addEventListener("input", () => {
       clearPortalSettingsErrors(form);
-
-      if (isAdmin) {
-        setStatus(status, "", "");
-      }
+      if (isAdmin) setStatus(status, "", "");
+      // Live preview
+      if (previewTarget) previewTarget.innerHTML = buildLivePreviewFromForm(form, isAdmin);
+      // Live logo swatch
+      updateLogoSwatch(form, form.elements.logoUrl?.value.trim() || "", form.elements.schoolName?.value.trim() || "");
     });
 
     const refreshSchoolSettingsSection = () => {
@@ -939,11 +942,13 @@
       setStatus(status, "", "");
 
       const payload = {
-        schoolName: form.elements.schoolName.value.trim(),
-        logoUrl: form.elements.logoUrl.value.trim(),
-        address: form.elements.address.value.trim(),
+        schoolName:        form.elements.schoolName.value.trim(),
+        logoUrl:           form.elements.logoUrl.value.trim(),
+        phone:             form.elements.phone.value.trim(),
+        website:           form.elements.website.value.trim(),
+        address:           form.elements.address.value.trim(),
         academicYearStart: form.elements.academicYearStart.value,
-        academicYearEnd: form.elements.academicYearEnd.value,
+        academicYearEnd:   form.elements.academicYearEnd.value,
       };
 
       let hasError = false;
@@ -1137,6 +1142,65 @@
     });
   }
 
+  function buildSchoolPreviewHtml(settings, isAdmin) {
+    const initial = (settings.schoolName || "S").charAt(0).toUpperCase();
+    const yearLabel = settings.academicYearStart
+      ? (settings.academicYearEnd
+          ? `${settings.academicYearStart} – ${settings.academicYearEnd}`
+          : `From ${settings.academicYearStart}`)
+      : null;
+
+    const logoHtml = settings.logoUrl
+      ? `<img src="${escapeHtml(settings.logoUrl)}" alt="${escapeHtml(settings.schoolName)} logo" onerror="this.parentElement.textContent='${escapeHtml(initial)}';this.parentElement.classList.remove('is-image')" />`
+      : escapeHtml(initial);
+
+    const detailRow = (icon, text, href) => {
+      if (!text) return "";
+      const content = href
+        ? `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline;text-underline-offset:2px">${escapeHtml(text)}</a>`
+        : escapeHtml(text);
+      return `
+        <div class="portal-school-detail-row">
+          <span class="portal-school-detail-icon" aria-hidden="true">${icon}</span>
+          <span>${content}</span>
+        </div>`;
+    };
+
+    const phoneIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.79 19.79 0 0 1 11.39 19a19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>`;
+    const webIcon  = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>`;
+    const addrIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>`;
+    const yearIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>`;
+
+    const websiteHref = settings.website
+      ? (settings.website.startsWith("http") ? settings.website : `https://${settings.website}`)
+      : null;
+
+    return `
+      <div class="portal-school-preview-card">
+        <div class="portal-school-preview-brand">
+          <span class="portal-school-preview-mark ${settings.logoUrl ? "is-image" : ""}">${logoHtml}</span>
+          <div class="portal-school-preview-copy">
+            <strong>${escapeHtml(settings.schoolName || "School name not set")}</strong>
+            <span style="font-size:.82rem;color:#8a93a8;font-weight:600;letter-spacing:.04em;text-transform:uppercase">School Profile</span>
+          </div>
+        </div>
+        <div class="portal-school-detail-grid">
+          ${detailRow(phoneIcon, settings.phone, null)}
+          ${detailRow(webIcon,  settings.website, websiteHref)}
+          ${detailRow(addrIcon, settings.address, null)}
+          ${yearLabel ? detailRow(yearIcon, yearLabel, null) : ""}
+          ${!settings.phone && !settings.website && !settings.address && !yearLabel
+            ? `<p style="margin:0;color:#8a93a8;font-size:.88rem">No contact details added yet. Fill in the form below to complete the school profile.</p>`
+            : ""}
+        </div>
+        <p style="margin:0;font-size:.85rem;color:#8a93a8;border-top:1px solid #eef0f5;padding-top:12px">
+          ${isAdmin
+            ? "Saved changes update the shared site branding and school identity immediately."
+            : "Only administrators can edit these settings."}
+        </p>
+      </div>`;
+  }
+
   function renderPortalSchoolSettingsSection({
     isAdmin,
     manager,
@@ -1144,9 +1208,7 @@
     form,
     status,
   }) {
-    if (!previewTarget || !form) {
-      return;
-    }
+    if (!previewTarget || !form) return;
 
     if (!manager) {
       previewTarget.innerHTML = `
@@ -1155,59 +1217,57 @@
             <strong>School settings unavailable</strong>
             <span>The shared school settings manager could not be loaded on this page.</span>
           </div>
-        </div>
-      `;
+        </div>`;
       form.hidden = true;
       return;
     }
 
     form.hidden = false;
-
     const settings = manager.getSettings();
-    const academicYearLabel = manager.formatAcademicYearLabel(settings) || "Academic year dates not set yet";
-    const schoolInitial = (settings.schoolName || "S").charAt(0).toUpperCase();
+    previewTarget.innerHTML = buildSchoolPreviewHtml(settings, isAdmin);
 
-    previewTarget.innerHTML = `
-      <div class="portal-school-preview-card">
-        <div class="portal-school-preview-brand">
-          <span class="portal-school-preview-mark ${settings.logoUrl ? "is-image" : ""}">
-            ${
-              settings.logoUrl
-                ? `<img src="${escapeHtml(settings.logoUrl)}" alt="${escapeHtml(settings.schoolName)} logo" />`
-                : escapeHtml(schoolInitial)
-            }
-          </span>
-          <div class="portal-school-preview-copy">
-            <strong>${escapeHtml(settings.schoolName)}</strong>
-            <span>${escapeHtml(settings.address || "School address not added yet.")}</span>
-            <span>${escapeHtml(academicYearLabel)}</span>
-          </div>
-        </div>
-        <p>
-          ${
-            isAdmin
-              ? "Saved changes repaint the shared site branding, footer details, and academic-year context immediately."
-              : "Only administrators can edit these settings. The current institution identity is shown here for reference."
-          }
-        </p>
-      </div>
-    `;
-
-    form.elements.schoolName.value = settings.schoolName;
-    form.elements.logoUrl.value = settings.logoUrl;
-    form.elements.address.value = settings.address;
+    // Populate form fields
+    form.elements.schoolName.value       = settings.schoolName;
+    form.elements.logoUrl.value          = settings.logoUrl;
+    form.elements.phone.value            = settings.phone;
+    form.elements.website.value          = settings.website;
+    form.elements.address.value          = settings.address;
     form.elements.academicYearStart.value = settings.academicYearStart;
-    form.elements.academicYearEnd.value = settings.academicYearEnd;
+    form.elements.academicYearEnd.value   = settings.academicYearEnd;
+
+    // Update the logo swatch preview
+    updateLogoSwatch(form, settings.logoUrl, settings.schoolName);
 
     Array.from(form.elements).forEach((field) => {
-      if (field instanceof HTMLElement) {
-        field.disabled = !isAdmin;
-      }
+      if (field instanceof HTMLElement) field.disabled = !isAdmin;
     });
 
-    if (!isAdmin) {
-      setStatus(status, "info", "Switch to the administrator role to edit school settings.");
+    if (!isAdmin) setStatus(status, "info", "Switch to the administrator role to edit school settings.");
+  }
+
+  function updateLogoSwatch(form, logoUrl, schoolName) {
+    const swatch = form.querySelector("[data-logo-swatch]");
+    if (!swatch) return;
+    const initial = (schoolName || "S").charAt(0).toUpperCase();
+    if (logoUrl) {
+      swatch.innerHTML = `<img src="${escapeHtml(logoUrl)}" alt="Logo preview" style="width:100%;height:100%;object-fit:cover;border-radius:inherit" onerror="this.parentElement.innerHTML='${escapeHtml(initial)}';this.parentElement.classList.remove('is-image')" />`;
+      swatch.classList.add("is-image");
+    } else {
+      swatch.textContent = initial;
+      swatch.classList.remove("is-image");
     }
+  }
+
+  function buildLivePreviewFromForm(form, isAdmin) {
+    return buildSchoolPreviewHtml({
+      schoolName:       form.elements.schoolName?.value.trim()        || "",
+      logoUrl:          form.elements.logoUrl?.value.trim()           || "",
+      phone:            form.elements.phone?.value.trim()             || "",
+      website:          form.elements.website?.value.trim()           || "",
+      address:          form.elements.address?.value.trim()           || "",
+      academicYearStart: form.elements.academicYearStart?.value       || "",
+      academicYearEnd:   form.elements.academicYearEnd?.value         || "",
+    }, isAdmin);
   }
 
   function renderPortalFeatureToggleSection({ isAdmin, manager, summaryTarget, gridTarget }) {
