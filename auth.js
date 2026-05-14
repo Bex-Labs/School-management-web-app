@@ -58,28 +58,28 @@
 
   const DASHBOARD_EVENT_ITEMS = [
     {
-      time: "09:00 AM",
+      time: "Pending",
       title: "Staff Meeting",
       location: "Main Hall",
       tone: "amber",
       action: "Details",
     },
     {
-      time: "10:30 AM",
+      time: "Pending",
       title: "Parent-Teacher Conference",
       location: "Room 102",
       tone: "blue",
       action: "Details",
     },
     {
-      time: "01:15 PM",
+      time: "Pending",
       title: "Science Fair Prep",
       location: "Gymnasium",
       tone: "green",
       action: "Details",
     },
     {
-      time: "03:00 PM",
+      time: "Pending",
       title: "Bus Departure",
       location: "Front Gates",
       tone: "gold",
@@ -92,33 +92,34 @@
       person: "Mr. Davis",
       accent: "Math 101",
       message: "submitted grades for",
-      timeAgo: "10m ago",
+      timeAgo: "Recently",
       tone: "blue",
     },
     {
       person: "Mrs. Smith",
       accent: "Tommy Hill",
       message: "marked absent:",
-      timeAgo: "1h ago",
+      timeAgo: "Recently",
       tone: "violet",
     },
     {
       person: "Admin",
       accent: "Lunch Menu",
       message: "published new",
-      timeAgo: "2h ago",
+      timeAgo: "Recently",
       tone: "green",
     },
     {
       person: "Coach T.",
       accent: "Main Field",
       message: "reserved",
-      timeAgo: "3h ago",
+      timeAgo: "Recently",
       tone: "amber",
     },
   ];
 
   const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const DEFAULT_AUTH_ROLE = "Administrator";
 
   document.addEventListener("DOMContentLoaded", async () => {
     await initSupabaseAuthBridge();
@@ -131,6 +132,7 @@
     initConfirmPage();
     initPortalPage();
     initAdminShellPages();
+    initAdminStudentsPage();
     initAdminClassesPage();
     initAdminFeatureModulesPage();
     initAdminSettingsPage();
@@ -213,7 +215,7 @@
   }
 
   function rememberPendingRole(role) {
-    sessionStorage.setItem(AUTH_PENDING_ROLE_KEY, role || "Administrator");
+    sessionStorage.setItem(AUTH_PENDING_ROLE_KEY, normalizeRoleLabel(role));
   }
 
   function consumePendingRole() {
@@ -228,6 +230,34 @@
 
   function normalizeEmail(email) {
     return email.trim().toLowerCase();
+  }
+
+  function normalizeRoleLabel(rawRole) {
+    const normalized = String(rawRole || "")
+      .trim()
+      .toLowerCase();
+
+    if (normalized === "system" || normalized === "guest") {
+      return "System";
+    }
+
+    if (normalized === "administrator" || normalized === "admin") {
+      return "Administrator";
+    }
+
+    if (normalized === "employee" || normalized === "staff" || normalized === "teacher") {
+      return "Employee";
+    }
+
+    if (normalized === "student" || normalized === "learner") {
+      return "Student";
+    }
+
+    if (normalized === "parent" || normalized === "guardian") {
+      return "Parent";
+    }
+
+    return DEFAULT_AUTH_ROLE;
   }
 
   function getSupabaseConfig() {
@@ -397,12 +427,15 @@
       authUser.user_metadata?.full_name ||
       buildDisplayName(email) ||
       "School User";
-    const role =
-      roleOverride ||
-      authUser.user_metadata?.role ||
-      "Administrator";
     const users = getUsers();
     const existingIndex = users.findIndex((user) => user.id === authUser.id || user.normalizedEmail === normalizedEmail);
+    const existingRole = existingIndex >= 0 ? users[existingIndex].role : null;
+    const role = normalizeRoleLabel(
+      authUser.user_metadata?.role ||
+        existingRole ||
+        roleOverride ||
+        DEFAULT_AUTH_ROLE,
+    );
     const record = {
       id: authUser.id,
       email,
@@ -479,9 +512,10 @@
     }
 
     const localSession = getSession();
+    const pendingRole = consumePendingRole();
     const mirroredUser = upsertLocalUserFromSupabase(
       session.user,
-      preferredRole || consumePendingRole() || localSession?.role || null,
+      preferredRole || pendingRole || localSession?.role || null,
     );
     const remember = getAuthPersistencePreference() !== "session";
 
@@ -503,7 +537,7 @@
       window.location.assign("./portal.html");
     }
 
-    return session;
+    return { session, user: mirroredUser };
   }
 
   async function initSupabaseAuthBridge() {
@@ -551,10 +585,10 @@
 
   function getDashboardSnapshot() {
     return {
-      activeStudents: 1284,
-      staffCount: 86,
-      attendanceRate: 92,
-      activeIncidents: 3,
+      activeStudents: null,
+      staffCount: null,
+      attendanceRate: null,
+      activeIncidents: null,
       updatedAt: nowIso(),
     };
   }
@@ -658,6 +692,14 @@
     return window.SchoolSphereClasses || null;
   }
 
+  function getStudentManager() {
+    return window.SchoolSphereStudents || null;
+  }
+
+  function getAuditTrailManager() {
+    return window.SchoolSphereAuditTrail || null;
+  }
+
   function getDefaultAdminSchoolSettings() {
     return {
       schoolName: "SchoolSphere",
@@ -698,7 +740,7 @@
       };
     }
 
-    const roleLabel = session.role || user.role || "Administrator";
+    const roleLabel = normalizeRoleLabel(session.role || user.role || DEFAULT_AUTH_ROLE);
 
     return {
       session,
@@ -706,6 +748,31 @@
       roleLabel,
       isAdmin: /admin/i.test(roleLabel),
     };
+  }
+
+  function getAuditActorContext() {
+    const session = getSession();
+    const user = session ? getUsers().find((entry) => entry.id === session.userId) || null : null;
+
+    return {
+      actorName: user?.displayName || user?.email || "System",
+      actorRole: normalizeRoleLabel(session?.role || user?.role || "System"),
+    };
+  }
+
+  function recordAuditEvent(entry = {}) {
+    const manager = getAuditTrailManager();
+
+    if (!manager || typeof manager.record !== "function") {
+      return;
+    }
+
+    const actor = getAuditActorContext();
+    manager.record({
+      ...entry,
+      ...actor,
+      timestamp: nowIso(),
+    });
   }
 
   function applyAdminBranding(brandMark, brandName, brandSubtitle, manager) {
@@ -772,6 +839,35 @@
       return;
     }
 
+    const formToggleButton =
+      form.parentElement?.querySelector("[data-class-form-toggle]") ||
+      document.querySelector("[data-class-form-toggle]");
+
+    const setClassFormVisibility = (isVisible) => {
+      form.hidden = !isVisible;
+
+      if (formToggleButton) {
+        formToggleButton.textContent = isVisible ? "Hide class form" : "Create class";
+        formToggleButton.setAttribute("aria-expanded", String(isVisible));
+      }
+    };
+
+    const toggleClassFormVisibility = () => {
+      if (!isAdmin || !manager) {
+        return;
+      }
+
+      const shouldOpen = form.hidden;
+
+      setClassFormVisibility(shouldOpen);
+
+      if (!shouldOpen) {
+        clearPortalClassErrors(form);
+        resetPortalClassForm(form, isAdmin);
+        setStatus(status, "", "");
+      }
+    };
+
     form.addEventListener("input", () => {
       clearPortalClassErrors(form);
 
@@ -793,8 +889,15 @@
 
     refreshClassManagementSection();
     resetPortalClassForm(form, isAdmin);
+    setClassFormVisibility(false);
+
+    if (formToggleButton) {
+      formToggleButton.disabled = !isAdmin || !manager;
+      formToggleButton.addEventListener("click", toggleClassFormVisibility);
+    }
 
     if (!manager) {
+      setClassFormVisibility(false);
       return;
     }
 
@@ -894,8 +997,18 @@
         capacity: Number.parseInt(payload.capacity, 10),
         status: currentRecord ? currentRecord.status : "active",
       });
+      recordAuditEvent({
+        action: currentRecord ? "updated" : "created",
+        entityType: "class",
+        entityId: `${payload.level}-${payload.name}`,
+        summary: currentRecord
+          ? `Updated class ${payload.level} · ${payload.name}`
+          : `Created class ${payload.level} · ${payload.name}`,
+        details: `${payload.arms.length} arms • ${payload.subjects.length} subjects • ${payload.teacherAssignments.length} assignments`,
+      });
 
       resetPortalClassForm(form, isAdmin);
+      setClassFormVisibility(false);
       setStatus(
         status,
         "success",
@@ -915,6 +1028,7 @@
       classCancelButton.addEventListener("click", () => {
         clearPortalClassErrors(form);
         resetPortalClassForm(form, isAdmin);
+        setClassFormVisibility(false);
         setStatus(status, "", "");
       });
     }
@@ -938,6 +1052,7 @@
 
       if (action === "edit") {
         populatePortalClassForm(form, record, isAdmin);
+        setClassFormVisibility(true);
         setStatus(
           status,
           "info",
@@ -951,7 +1066,15 @@
 
       if (action === "archive") {
         manager.archiveClass(record.id);
+        recordAuditEvent({
+          action: "archived",
+          entityType: "class",
+          entityId: record.id,
+          summary: `Archived class ${record.level} · ${record.name}`,
+          details: `${record.capacity} capacity`,
+        });
         resetPortalClassForm(form, isAdmin);
+        setClassFormVisibility(false);
         setStatus(
           status,
           "success",
@@ -964,7 +1087,15 @@
 
       if (action === "activate") {
         manager.activateClass(record.id);
+        recordAuditEvent({
+          action: "reactivated",
+          entityType: "class",
+          entityId: record.id,
+          summary: `Reactivated class ${record.level} · ${record.name}`,
+          details: `${record.capacity} capacity`,
+        });
         resetPortalClassForm(form, isAdmin);
+        setClassFormVisibility(false);
         setStatus(
           status,
           "success",
@@ -1076,6 +1207,16 @@
       }
 
       manager.saveSettings(payload);
+      recordAuditEvent({
+        action: "updated",
+        entityType: "school-settings",
+        summary: `Updated school settings for ${payload.schoolName || "SchoolSphere"}`,
+        details: `Academic year: ${
+          payload.academicYearStart && payload.academicYearEnd
+            ? `${payload.academicYearStart} to ${payload.academicYearEnd}`
+            : "not set"
+        }`,
+      });
       setStatus(
         status,
         "success",
@@ -1094,6 +1235,12 @@
 
         clearPortalSettingsErrors(form);
         manager.resetSettings();
+        recordAuditEvent({
+          action: "reset",
+          entityType: "school-settings",
+          summary: "School settings reset to default branding",
+          details: "School identity and branding fields were restored to defaults.",
+        });
         setStatus(
           status,
           "success",
@@ -1174,6 +1321,14 @@
         input.dataset.rolePermissionKey,
         input.checked,
       );
+
+      recordAuditEvent({
+        action: input.checked ? "granted" : "revoked",
+        entityType: "role-permission",
+        entityId: `${input.dataset.rolePermissionRole}:${input.dataset.rolePermissionKey}`,
+        summary: `${input.dataset.rolePermissionRole} permission ${input.checked ? "enabled" : "disabled"}`,
+        details: input.dataset.rolePermissionKey || "",
+      });
     });
 
     if (resetButton) {
@@ -1183,6 +1338,12 @@
           return;
         }
         manager.resetPermissions();
+        recordAuditEvent({
+          action: "reset",
+          entityType: "role-permission",
+          summary: "Role permissions reset to defaults",
+          details: "All role permission toggles were restored to system defaults.",
+        });
       });
     }
 
@@ -1555,6 +1716,16 @@
     gridTarget.querySelectorAll("[data-feature-toggle]").forEach((input) => {
       input.addEventListener("change", () => {
         manager.setFeatureEnabled(input.dataset.featureToggle, input.checked);
+        if (isAdmin) {
+          const feature = manager.modules.find((module) => module.id === input.dataset.featureToggle);
+          recordAuditEvent({
+            action: input.checked ? "enabled" : "disabled",
+            entityType: "feature-module",
+            entityId: input.dataset.featureToggle,
+            summary: `${feature?.title || "Feature module"} ${input.checked ? "enabled" : "disabled"}`,
+            details: feature?.copy || "",
+          });
+        }
       });
       });
   }
@@ -1641,12 +1812,9 @@
           <p>The shared class registry could not be loaded on this page.</p>
         </article>
       `;
-      form.hidden = true;
       listTarget.innerHTML = "";
       return;
     }
-
-    form.hidden = false;
     const { classes, activeCount, archivedCount, totalCapacity, totalArms, totalSubjects, totalAssignments } =
       manager.summarize();
 
@@ -1700,84 +1868,84 @@
       listTarget.innerHTML = classes
         .map(
           (record) => `
-            <article class="portal-class-card ${record.status === "archived" ? "is-archived" : ""}">
-              <div class="portal-class-card-head">
-                <div class="portal-class-title">
+            <details class="portal-class-card portal-class-list-item ${record.status === "archived" ? "is-archived" : ""}">
+              <summary class="portal-class-list-summary">
+                <div class="portal-class-list-main">
                   <strong>${escapeHtml(record.level)} · ${escapeHtml(record.name)}</strong>
-                  <span>${
-                    record.status === "archived"
-                      ? "Archived from active assignment while keeping class history available."
-                      : "Open for live student placement, staff assignment, and daily scheduling."
-                  }</span>
+                  <span>${Number(record.capacity).toLocaleString()} learners • ${escapeHtml(
+                    record.classTeacher || "No class teacher yet",
+                  )}</span>
                 </div>
                 <span class="portal-class-status ${record.status === "archived" ? "is-archived" : "is-active"}">
                   ${record.status === "archived" ? "Archived" : "Active"}
                 </span>
-              </div>
+              </summary>
 
-              <div class="portal-class-meta">
-                <div class="portal-class-meta-item">
-                  <span>Capacity</span>
-                  <strong>${Number(record.capacity).toLocaleString()} learners</strong>
+              <div class="portal-class-list-body">
+                <div class="portal-class-meta">
+                  <div class="portal-class-meta-item">
+                    <span>Capacity</span>
+                    <strong>${Number(record.capacity).toLocaleString()} learners</strong>
+                  </div>
+                  <div class="portal-class-meta-item">
+                    <span>Class teacher</span>
+                    <strong>${escapeHtml(record.classTeacher || "Not assigned yet")}</strong>
+                  </div>
+                  <div class="portal-class-meta-item">
+                    <span>Updated</span>
+                    <strong>${escapeHtml(formatTimestamp(record.updatedAt))}</strong>
+                  </div>
                 </div>
-                <div class="portal-class-meta-item">
-                  <span>Class teacher</span>
-                  <strong>${escapeHtml(record.classTeacher || "Not assigned yet")}</strong>
-                </div>
-                <div class="portal-class-meta-item">
-                  <span>Updated</span>
-                  <strong>${escapeHtml(formatTimestamp(record.updatedAt))}</strong>
-                </div>
-              </div>
 
-              <div class="portal-class-extended">
-                <div class="portal-class-extended-item">
-                  <span>Arms</span>
-                  <strong>${escapeHtml((record.arms || []).join(", ") || "None")}</strong>
+                <div class="portal-class-extended">
+                  <div class="portal-class-extended-item">
+                    <span>Arms</span>
+                    <strong>${escapeHtml((record.arms || []).join(", ") || "None")}</strong>
+                  </div>
+                  <div class="portal-class-extended-item">
+                    <span>Subjects</span>
+                    <strong>${escapeHtml((record.subjects || []).join(", ") || "None")}</strong>
+                  </div>
+                  <div class="portal-class-extended-item portal-class-extended-item-span">
+                    <span>Teacher assignments</span>
+                    <ul>
+                      ${(record.teacherAssignments || [])
+                        .map(
+                          (assignment) =>
+                            `<li>${escapeHtml(assignment.subject)}: ${escapeHtml(assignment.teacher)}</li>`,
+                        )
+                        .join("") || "<li>No assignments yet.</li>"}
+                    </ul>
+                  </div>
                 </div>
-                <div class="portal-class-extended-item">
-                  <span>Subjects</span>
-                  <strong>${escapeHtml((record.subjects || []).join(", ") || "None")}</strong>
-                </div>
-                <div class="portal-class-extended-item portal-class-extended-item-span">
-                  <span>Teacher assignments</span>
-                  <ul>
-                    ${(record.teacherAssignments || [])
-                      .map(
-                        (assignment) =>
-                          `<li>${escapeHtml(assignment.subject)}: ${escapeHtml(assignment.teacher)}</li>`,
-                      )
-                      .join("") || "<li>No assignments yet.</li>"}
-                  </ul>
-                </div>
-              </div>
 
-              <div class="portal-class-route-links">
-                <a href="./workflows.html#classroom-rhythm">Timetable</a>
-                <a href="./modules.html">Courses</a>
-              </div>
+                <div class="portal-class-route-links">
+                  <a href="./workflows.html#classroom-rhythm">Timetable</a>
+                  <a href="./modules.html">Courses</a>
+                </div>
 
-              <div class="portal-class-actions">
-                <button
-                  class="portal-class-button"
-                  type="button"
-                  data-class-action="edit"
-                  data-class-id="${record.id}"
-                  ${isAdmin ? "" : "disabled"}
-                >
-                  Edit
-                </button>
-                <button
-                  class="portal-class-button ${record.status === "archived" ? "is-restore" : "is-archive"}"
-                  type="button"
-                  data-class-action="${record.status === "archived" ? "activate" : "archive"}"
-                  data-class-id="${record.id}"
-                  ${isAdmin ? "" : "disabled"}
-                >
-                  ${record.status === "archived" ? "Reactivate" : "Archive"}
-                </button>
+                <div class="portal-class-actions">
+                  <button
+                    class="portal-class-button"
+                    type="button"
+                    data-class-action="edit"
+                    data-class-id="${record.id}"
+                    ${isAdmin ? "" : "disabled"}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    class="portal-class-button ${record.status === "archived" ? "is-restore" : "is-archive"}"
+                    type="button"
+                    data-class-action="${record.status === "archived" ? "activate" : "archive"}"
+                    data-class-id="${record.id}"
+                    ${isAdmin ? "" : "disabled"}
+                  >
+                    ${record.status === "archived" ? "Reactivate" : "Archive"}
+                  </button>
+                </div>
               </div>
-            </article>
+            </details>
           `,
         )
         .join("");
@@ -1792,14 +1960,651 @@
     }
   }
 
+  function renderPortalStudentManagementSection({
+    isAdmin,
+    manager,
+    summaryTarget,
+    form,
+    status,
+    listTarget,
+  }) {
+    if (!summaryTarget || !form || !listTarget) {
+      return;
+    }
+
+    if (!manager) {
+      summaryTarget.innerHTML = `
+        <article class="portal-class-stat">
+          <span>Student tools unavailable</span>
+          <strong>0</strong>
+          <p>The shared student registry could not be loaded on this page.</p>
+        </article>
+      `;
+      listTarget.innerHTML = "";
+      return;
+    }
+
+    const { students, activeCount, archivedCount, guardianContacts, studentsWithMultipleGuardians } =
+      manager.summarize();
+
+    summaryTarget.innerHTML = `
+      <article class="portal-class-stat portal-class-stat-blue">
+        <span>Active students</span>
+        <strong>${activeCount}</strong>
+        <p>Students currently available for class and attendance operations.</p>
+      </article>
+      <article class="portal-class-stat portal-class-stat-violet">
+        <span>Guardian contacts</span>
+        <strong>${guardianContacts}</strong>
+        <p>Total guardian contact entries linked to active students.</p>
+      </article>
+      <article class="portal-class-stat portal-class-stat-green">
+        <span>Multiple guardians</span>
+        <strong>${studentsWithMultipleGuardians}</strong>
+        <p>Students with more than one guardian relationship on file.</p>
+      </article>
+      <article class="portal-class-stat portal-class-stat-rose">
+        <span>Archived students</span>
+        <strong>${archivedCount}</strong>
+        <p>Past records retained for historical continuity.</p>
+      </article>
+    `;
+
+    Array.from(form.elements).forEach((field) => {
+      if (field instanceof HTMLElement) {
+        field.disabled = !isAdmin;
+      }
+    });
+
+    if (!students.length) {
+      listTarget.innerHTML = `
+        <article class="portal-class-empty">
+          <strong>No students recorded yet</strong>
+          <p>Create a student and attach guardian relationships to start building the student ledger.</p>
+        </article>
+      `;
+    } else {
+      listTarget.innerHTML = students
+        .map(
+          (record) => `
+            <details class="portal-class-card portal-class-list-item ${record.status === "archived" ? "is-archived" : ""}">
+              <summary class="portal-class-list-summary">
+                <div class="portal-class-list-main">
+                  <strong>${escapeHtml(record.fullName)}</strong>
+                  <span>${escapeHtml(record.level)} • Admission ${escapeHtml(
+                    record.admissionNo,
+                  )} • ${record.guardians.length} guardian contact${record.guardians.length === 1 ? "" : "s"}</span>
+                </div>
+                <span class="portal-class-status ${record.status === "archived" ? "is-archived" : "is-active"}">
+                  ${record.status === "archived" ? "Archived" : "Active"}
+                </span>
+              </summary>
+              <div class="portal-class-list-body">
+                <div class="portal-class-meta">
+                  <div class="portal-class-meta-item">
+                    <span>Level</span>
+                    <strong>${escapeHtml(record.level)}</strong>
+                  </div>
+                  <div class="portal-class-meta-item">
+                    <span>Admission no.</span>
+                    <strong>${escapeHtml(record.admissionNo)}</strong>
+                  </div>
+                  <div class="portal-class-meta-item">
+                    <span>Updated</span>
+                    <strong>${escapeHtml(formatTimestamp(record.updatedAt))}</strong>
+                  </div>
+                </div>
+                <div class="portal-student-guardian-readonly">
+                  ${(record.guardians || [])
+                    .map(
+                      (guardian) => `
+                        <article class="portal-student-guardian-chip">
+                          <strong>${escapeHtml(guardian.name)}</strong>
+                          <span>${escapeHtml(guardian.relationship)}</span>
+                          <small>${escapeHtml(guardian.phone || "No phone")} • ${escapeHtml(
+                            guardian.email || "No email",
+                          )}</small>
+                        </article>
+                      `,
+                    )
+                    .join("")}
+                </div>
+                <div class="portal-class-actions">
+                  <button
+                    class="portal-class-button"
+                    type="button"
+                    data-student-action="edit"
+                    data-student-id="${record.id}"
+                    ${isAdmin ? "" : "disabled"}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    class="portal-class-button ${record.status === "archived" ? "is-restore" : "is-archive"}"
+                    type="button"
+                    data-student-action="${record.status === "archived" ? "activate" : "archive"}"
+                    data-student-id="${record.id}"
+                    ${isAdmin ? "" : "disabled"}
+                  >
+                    ${record.status === "archived" ? "Reactivate" : "Archive"}
+                  </button>
+                </div>
+              </div>
+            </details>
+          `,
+        )
+        .join("");
+    }
+
+    if (!isAdmin) {
+      setStatus(
+        status,
+        "info",
+        "Switch to the administrator role to create, edit, archive, or reactivate student records.",
+      );
+    }
+  }
+
+  function renderPortalAuditTrailSection({ manager, target }) {
+    if (!target) {
+      return;
+    }
+
+    if (!manager || typeof manager.getEntries !== "function") {
+      target.innerHTML = `
+        <article class="portal-class-empty">
+          <strong>Audit trail unavailable</strong>
+          <p>The audit trail manager could not be loaded on this page.</p>
+        </article>
+      `;
+      return;
+    }
+
+    const entries = manager.getEntries().slice(0, 20);
+
+    if (!entries.length) {
+      target.innerHTML = `
+        <article class="portal-class-empty">
+          <strong>No updates logged yet</strong>
+          <p>Important updates from settings, modules, classes, and students will appear here.</p>
+        </article>
+      `;
+      return;
+    }
+
+    target.innerHTML = entries
+      .map(
+        (entry) => `
+          <article class="portal-audit-entry">
+            <div class="portal-audit-entry-main">
+              <strong>${escapeHtml(entry.summary)}</strong>
+              <span>${escapeHtml(entry.entityType)} • ${escapeHtml(entry.action)}</span>
+              ${entry.details ? `<p>${escapeHtml(entry.details)}</p>` : ""}
+            </div>
+            <small>${escapeHtml(entry.actorName)} (${escapeHtml(entry.actorRole)}) • ${escapeHtml(
+              formatTimestamp(entry.timestamp),
+            )}</small>
+          </article>
+        `,
+      )
+      .join("");
+  }
+
+  function clearPortalStudentErrors(form) {
+    form.querySelectorAll(".portal-field").forEach((field) => field.classList.remove("is-invalid"));
+    form.querySelectorAll("[data-student-error-for]").forEach((error) => {
+      error.textContent = "";
+    });
+  }
+
+  function setPortalStudentError(form, fieldName, message) {
+    const error = form.querySelector(`[data-student-error-for="${fieldName}"]`);
+    const control = form.elements[fieldName];
+    const field = control ? control.closest(".portal-field") : null;
+
+    if (error) {
+      error.textContent = message;
+    }
+
+    if (field) {
+      field.classList.add("is-invalid");
+    }
+  }
+
+  function appendGuardianRow(container, guardian = {}, isAdmin = true) {
+    if (!container) {
+      return;
+    }
+
+    const row = document.createElement("div");
+    row.className = "portal-guardian-row";
+    row.dataset.guardianId = guardian.id || createId();
+    row.innerHTML = `
+      <input type="text" data-guardian-field="name" placeholder="Guardian name" value="${escapeHtml(
+        guardian.name || "",
+      )}" ${isAdmin ? "" : "disabled"} />
+      <input type="text" data-guardian-field="relationship" placeholder="Relationship (Mother, Uncle...)" value="${escapeHtml(
+        guardian.relationship || "",
+      )}" ${isAdmin ? "" : "disabled"} />
+      <input type="text" data-guardian-field="phone" placeholder="+234 800 000 0000" value="${escapeHtml(
+        guardian.phone || "",
+      )}" ${isAdmin ? "" : "disabled"} />
+      <input type="email" data-guardian-field="email" placeholder="guardian@email.com" value="${escapeHtml(
+        guardian.email || "",
+      )}" ${isAdmin ? "" : "disabled"} />
+      <button type="button" class="portal-guardian-remove" data-remove-guardian ${isAdmin ? "" : "disabled"}>Remove</button>
+    `;
+    container.appendChild(row);
+  }
+
+  function parseGuardianRows(container) {
+    const rows = Array.from(container.querySelectorAll(".portal-guardian-row"));
+    const guardians = [];
+    let hasInvalidRow = false;
+
+    rows.forEach((row) => {
+      const name = row.querySelector('[data-guardian-field="name"]')?.value.trim() || "";
+      const relationship = row.querySelector('[data-guardian-field="relationship"]')?.value.trim() || "";
+      const phone = row.querySelector('[data-guardian-field="phone"]')?.value.trim() || "";
+      const email = row.querySelector('[data-guardian-field="email"]')?.value.trim() || "";
+
+      if (!name && !relationship && !phone && !email) {
+        return;
+      }
+
+      if (!name || !relationship || (!phone && !email)) {
+        hasInvalidRow = true;
+        return;
+      }
+
+      guardians.push({
+        id: row.dataset.guardianId || createId(),
+        name,
+        relationship,
+        phone,
+        email,
+      });
+    });
+
+    return { guardians, hasInvalidRow };
+  }
+
+  function resetPortalStudentForm(form, guardianList, isAdmin) {
+    if (!form) {
+      return;
+    }
+
+    form.reset();
+
+    if (form.elements.studentId) {
+      form.elements.studentId.value = "";
+    }
+
+    if (guardianList) {
+      guardianList.innerHTML = "";
+      appendGuardianRow(guardianList, {}, isAdmin);
+    }
+
+    const submitButton = form.querySelector("[data-student-submit]");
+    const cancelButton = form.querySelector("[data-student-cancel]");
+
+    if (submitButton) {
+      submitButton.textContent = "Create student";
+    }
+
+    if (cancelButton) {
+      cancelButton.hidden = true;
+    }
+
+    Array.from(form.elements).forEach((field) => {
+      if (field instanceof HTMLElement) {
+        field.disabled = !isAdmin;
+      }
+    });
+  }
+
+  function populatePortalStudentForm(form, guardianList, record, isAdmin) {
+    if (!form || !record) {
+      return;
+    }
+
+    form.elements.studentId.value = record.id;
+    form.elements.fullName.value = record.fullName || "";
+    form.elements.admissionNo.value = record.admissionNo || "";
+    form.elements.level.value = record.level || "";
+
+    if (guardianList) {
+      guardianList.innerHTML = "";
+      (record.guardians || []).forEach((guardian) => {
+        appendGuardianRow(guardianList, guardian, isAdmin);
+      });
+
+      if (!record.guardians || !record.guardians.length) {
+        appendGuardianRow(guardianList, {}, isAdmin);
+      }
+    }
+
+    const submitButton = form.querySelector("[data-student-submit]");
+    const cancelButton = form.querySelector("[data-student-cancel]");
+
+    if (submitButton) {
+      submitButton.textContent = "Save changes";
+    }
+
+    if (cancelButton) {
+      cancelButton.hidden = !isAdmin;
+    }
+
+    Array.from(form.elements).forEach((field) => {
+      if (field instanceof HTMLElement) {
+        field.disabled = !isAdmin;
+      }
+    });
+  }
+
+  function initStudentManagementControls({
+    isAdmin,
+    manager,
+    auditManager,
+    summaryTarget,
+    form,
+    status,
+    listTarget,
+    guardianList,
+    formToggleButton,
+  }) {
+    if (!summaryTarget || !form || !status || !listTarget || !guardianList) {
+      return;
+    }
+
+    const addGuardianButton = form.querySelector("[data-add-guardian]");
+
+    const setStudentFormVisibility = (isVisible) => {
+      form.hidden = !isVisible;
+
+      if (formToggleButton) {
+        formToggleButton.textContent = isVisible ? "Hide student form" : "Create student";
+        formToggleButton.setAttribute("aria-expanded", String(isVisible));
+      }
+    };
+
+    const toggleStudentFormVisibility = () => {
+      if (!isAdmin || !manager) {
+        return;
+      }
+
+      const shouldOpen = form.hidden;
+      setStudentFormVisibility(shouldOpen);
+
+      if (!shouldOpen) {
+        clearPortalStudentErrors(form);
+        resetPortalStudentForm(form, guardianList, isAdmin);
+        setStatus(status, "", "");
+      }
+    };
+
+    const refreshStudentSection = () => {
+      renderPortalStudentManagementSection({
+        isAdmin,
+        manager,
+        summaryTarget,
+        form,
+        status,
+        listTarget,
+      });
+    };
+
+    refreshStudentSection();
+    resetPortalStudentForm(form, guardianList, isAdmin);
+    setStudentFormVisibility(false);
+
+    if (formToggleButton) {
+      formToggleButton.disabled = !isAdmin || !manager;
+      formToggleButton.addEventListener("click", toggleStudentFormVisibility);
+    }
+
+    if (!manager) {
+      setStudentFormVisibility(false);
+      renderPortalAuditTrailSection({ manager: auditManager, target: document.getElementById("portal-audit-trail") });
+      return;
+    }
+
+    if (addGuardianButton) {
+      addGuardianButton.disabled = !isAdmin;
+      addGuardianButton.addEventListener("click", () => {
+        appendGuardianRow(guardianList, {}, isAdmin);
+      });
+    }
+
+    guardianList.addEventListener("click", (event) => {
+      const removeButton = event.target.closest("[data-remove-guardian]");
+
+      if (!removeButton || !isAdmin) {
+        return;
+      }
+
+      const row = removeButton.closest(".portal-guardian-row");
+
+      if (!row) {
+        return;
+      }
+
+      row.remove();
+
+      if (!guardianList.children.length) {
+        appendGuardianRow(guardianList, {}, isAdmin);
+      }
+    });
+
+    form.addEventListener("input", () => {
+      clearPortalStudentErrors(form);
+
+      if (isAdmin) {
+        setStatus(status, "", "");
+      }
+    });
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+
+      if (!isAdmin) {
+        setStatus(status, "info", "Only administrators can manage student records.");
+        return;
+      }
+
+      clearPortalStudentErrors(form);
+      setStatus(status, "", "");
+
+      const studentId = form.elements.studentId.value;
+      const payload = {
+        id: studentId || undefined,
+        fullName: form.elements.fullName.value.trim(),
+        admissionNo: form.elements.admissionNo.value.trim(),
+        level: form.elements.level.value.trim(),
+      };
+      const guardianParse = parseGuardianRows(guardianList);
+      payload.guardians = guardianParse.guardians;
+
+      let hasError = false;
+
+      if (!payload.fullName) {
+        setPortalStudentError(form, "fullName", "Enter the student name.");
+        hasError = true;
+      }
+
+      if (!payload.admissionNo) {
+        setPortalStudentError(form, "admissionNo", "Enter the admission number.");
+        hasError = true;
+      }
+
+      if (!payload.level) {
+        setPortalStudentError(form, "level", "Enter the student level or class.");
+        hasError = true;
+      }
+
+      if (guardianParse.hasInvalidRow) {
+        setPortalStudentError(
+          form,
+          "guardians",
+          "Each guardian row needs name, relationship, and at least one contact (phone or email).",
+        );
+        hasError = true;
+      } else if (!payload.guardians.length) {
+        setPortalStudentError(form, "guardians", "Add at least one guardian contact.");
+        hasError = true;
+      }
+
+      const duplicateAdmission = manager
+        .getStudents()
+        .find(
+          (record) =>
+            record.id !== studentId &&
+            record.admissionNo.toLowerCase() === payload.admissionNo.toLowerCase(),
+        );
+
+      if (duplicateAdmission) {
+        setPortalStudentError(form, "admissionNo", "This admission number is already in use.");
+        hasError = true;
+      }
+
+      if (hasError) {
+        setStatus(status, "error", "Fix the highlighted student details and try again.");
+        return;
+      }
+
+      const currentRecord = manager.getStudents().find((record) => record.id === studentId) || null;
+      manager.upsertStudent({
+        ...currentRecord,
+        ...payload,
+        status: currentRecord ? currentRecord.status : "active",
+      });
+
+      recordAuditEvent({
+        action: currentRecord ? "updated" : "created",
+        entityType: "student",
+        entityId: payload.admissionNo,
+        summary: currentRecord
+          ? `Updated student record for ${payload.fullName}`
+          : `Created student record for ${payload.fullName}`,
+        details: `${payload.level} • ${payload.guardians.length} guardian contact(s)`,
+      });
+
+      resetPortalStudentForm(form, guardianList, isAdmin);
+      setStudentFormVisibility(false);
+      setStatus(
+        status,
+        "success",
+        currentRecord
+          ? `Student <strong>${escapeHtml(payload.fullName)}</strong> updated with guardian relationships.`
+          : `Student <strong>${escapeHtml(payload.fullName)}</strong> created with guardian relationships.`,
+      );
+    });
+
+    const cancelButton = form.querySelector("[data-student-cancel]");
+
+    if (cancelButton) {
+      cancelButton.addEventListener("click", () => {
+        clearPortalStudentErrors(form);
+        resetPortalStudentForm(form, guardianList, isAdmin);
+        setStudentFormVisibility(false);
+        setStatus(status, "", "");
+      });
+    }
+
+    listTarget.addEventListener("click", (event) => {
+      const actionButton = event.target.closest("[data-student-action]");
+
+      if (!actionButton || !isAdmin) {
+        return;
+      }
+
+      const studentId = actionButton.dataset.studentId;
+      const action = actionButton.dataset.studentAction;
+      const record = manager.getStudents().find((item) => item.id === studentId);
+
+      if (!record) {
+        return;
+      }
+
+      clearPortalStudentErrors(form);
+
+      if (action === "edit") {
+        populatePortalStudentForm(form, guardianList, record, isAdmin);
+        setStudentFormVisibility(true);
+        setStatus(
+          status,
+          "info",
+          `Editing <strong>${escapeHtml(record.fullName)}</strong>. Save to update this student record.`,
+        );
+        form.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+
+      if (action === "archive") {
+        manager.archiveStudent(record.id);
+        recordAuditEvent({
+          action: "archived",
+          entityType: "student",
+          entityId: record.admissionNo,
+          summary: `Archived student record for ${record.fullName}`,
+          details: `${record.level}`,
+        });
+        resetPortalStudentForm(form, guardianList, isAdmin);
+        setStudentFormVisibility(false);
+        setStatus(status, "success", `Student <strong>${escapeHtml(record.fullName)}</strong> archived.`);
+        return;
+      }
+
+      if (action === "activate") {
+        manager.activateStudent(record.id);
+        recordAuditEvent({
+          action: "reactivated",
+          entityType: "student",
+          entityId: record.admissionNo,
+          summary: `Reactivated student record for ${record.fullName}`,
+          details: `${record.level}`,
+        });
+        resetPortalStudentForm(form, guardianList, isAdmin);
+        setStudentFormVisibility(false);
+        setStatus(status, "success", `Student <strong>${escapeHtml(record.fullName)}</strong> reactivated.`);
+      }
+    });
+
+    window.addEventListener(manager.eventName, refreshStudentSection);
+
+    if (auditManager?.eventName) {
+      window.addEventListener(auditManager.eventName, () => {
+        renderPortalAuditTrailSection({
+          manager: auditManager,
+          target: document.getElementById("portal-audit-trail"),
+        });
+      });
+    }
+
+    renderPortalAuditTrailSection({
+      manager: auditManager,
+      target: document.getElementById("portal-audit-trail"),
+    });
+  }
+
   function findUserByEmail(email) {
     const normalized = normalizeEmail(email);
     return getUsers().find((user) => user.normalizedEmail === normalized) || null;
   }
 
   function getSelectedRole() {
-    const activeRole = document.querySelector(".auth-role.is-active .auth-role-label");
-    return activeRole ? activeRole.textContent.trim() : "Administrator";
+    const activeRole = document.querySelector(".auth-role.is-active");
+
+    if (!activeRole) {
+      return DEFAULT_AUTH_ROLE;
+    }
+
+    if (activeRole.dataset.authRole) {
+      return normalizeRoleLabel(activeRole.dataset.authRole);
+    }
+
+    const activeRoleLabel = activeRole.querySelector(".auth-role-label");
+    return normalizeRoleLabel(activeRoleLabel ? activeRoleLabel.textContent : DEFAULT_AUTH_ROLE);
   }
 
   function initRoleButtons() {
@@ -1927,6 +2732,7 @@
       const password = form.elements.password.value;
       const confirmPassword = form.elements.confirmPassword.value;
       const termsAccepted = form.elements.terms.checked;
+      const selectedRole = getSelectedRole();
 
       let hasError = false;
 
@@ -1985,7 +2791,7 @@
 
       if (isSupabaseConfigured()) {
         setAuthPersistencePreference(true);
-        rememberPendingRole("Administrator");
+        rememberPendingRole(selectedRole);
 
         const client = await getSupabaseClient();
         const { data, error } = await client.auth.signUp({
@@ -1995,7 +2801,7 @@
             emailRedirectTo: buildSupabaseEmailRedirectUrl(),
             data: {
               display_name: buildDisplayName(email) || "School User",
-              role: "Administrator",
+              role: selectedRole,
             },
           },
         });
@@ -2007,7 +2813,7 @@
 
         if (data?.session) {
           await syncSupabaseSessionToLocal({
-            preferredRole: "Administrator",
+            preferredRole: selectedRole,
             redirectAuthenticatedAuthPages: false,
           });
           window.location.assign("./portal.html");
@@ -2033,7 +2839,7 @@
         displayName: buildDisplayName(email) || "School User",
         passwordHash: await hashSecret(password),
         provider: "password",
-        role: "Administrator",
+        role: selectedRole,
         isConfirmed: false,
         confirmationToken,
         confirmationSentAt: nowIso(),
@@ -2084,6 +2890,7 @@
       const email = form.elements.email.value.trim();
       const password = form.elements.password.value;
       const remember = form.elements.remember.checked;
+      const selectedRole = getSelectedRole();
 
       let hasError = false;
 
@@ -2107,7 +2914,7 @@
 
       if (isSupabaseConfigured()) {
         setAuthPersistencePreference(remember);
-        rememberPendingRole(getSelectedRole());
+        rememberPendingRole(selectedRole);
 
         const client = await getSupabaseClient();
         const { error } = await client.auth.signInWithPassword({
@@ -2129,10 +2936,25 @@
           return;
         }
 
-        await syncSupabaseSessionToLocal({
-          preferredRole: getSelectedRole(),
+        const authResult = await syncSupabaseSessionToLocal({
+          preferredRole: null,
           redirectAuthenticatedAuthPages: false,
         });
+
+        const signedInRole = normalizeRoleLabel(authResult?.user?.role || selectedRole);
+
+        if (signedInRole !== selectedRole) {
+          await client.auth.signOut();
+          clearSession();
+          setStatus(
+            status,
+            "error",
+            `This account is registered as <strong>${escapeHtml(
+              signedInRole,
+            )}</strong>. Switch role to continue.`,
+          );
+          return;
+        }
         window.location.assign("./portal.html");
         return;
       }
@@ -2173,6 +2995,19 @@
         return;
       }
 
+      const userRole = normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE);
+
+      if (selectedRole !== userRole) {
+        setStatus(
+          status,
+          "error",
+          `This account is registered as <strong>${escapeHtml(
+            userRole,
+          )}</strong>. Switch role to continue.`,
+        );
+        return;
+      }
+
       const updatedUser = updateUser(user.id, (currentUser) => ({
         ...currentUser,
         lastLoginAt: nowIso(),
@@ -2183,7 +3018,7 @@
           userId: updatedUser.id,
           email: updatedUser.email,
           displayName: updatedUser.displayName,
-          role: getSelectedRole(),
+          role: userRole,
           provider: updatedUser.provider,
           persistence: remember ? "persistent" : "session",
           signedInAt: nowIso(),
@@ -2274,9 +3109,10 @@
     const status = document.getElementById(page === "signup" ? "signup-status" : "login-status");
     const rememberCheckbox = document.getElementById("login-remember");
     const remember = page === "login" ? Boolean(rememberCheckbox?.checked) : true;
+    const selectedRole = getSelectedRole();
 
     setAuthPersistencePreference(remember);
-    rememberPendingRole(page === "login" ? getSelectedRole() : "Administrator");
+    rememberPendingRole(selectedRole);
 
     const client = await getSupabaseClient();
     const { error } = await client.auth.signInWithOAuth({
@@ -2303,6 +3139,7 @@
     const error = modal.querySelector("#auth-google-error");
     const email = form.elements.email.value.trim();
     const mode = modal.dataset.mode || "login";
+    const selectedRole = getSelectedRole();
 
     error.textContent = "";
 
@@ -2335,7 +3172,7 @@
         displayName: buildDisplayName(email) || "School User",
         passwordHash: null,
         provider: "google",
-        role: "Administrator",
+        role: selectedRole,
         isConfirmed: true,
         confirmationToken: null,
         confirmationSentAt: null,
@@ -2376,6 +3213,13 @@
       return;
     }
 
+    const existingRole = normalizeRoleLabel(existingUser.role || DEFAULT_AUTH_ROLE);
+
+    if (selectedRole !== existingRole) {
+      error.textContent = `This account is registered as ${existingRole}. Switch role and try again.`;
+      return;
+    }
+
     existingUser.lastLoginAt = nowIso();
     saveUsers(users);
     setSession(
@@ -2383,7 +3227,7 @@
         userId: existingUser.id,
         email: existingUser.email,
         displayName: existingUser.displayName,
-        role: getSelectedRole(),
+        role: existingRole,
         provider: existingUser.provider,
         persistence: "persistent",
         signedInAt: nowIso(),
@@ -2472,8 +3316,8 @@
       {
         tone: "blue",
         label: "Active Students",
-        value: snapshot.activeStudents.toLocaleString(),
-        note: "+12 this month",
+        value: formatMetricValue(snapshot.activeStudents),
+        note: "Awaiting live data",
         icon: `
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
             <path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"></path>
@@ -2486,8 +3330,8 @@
       {
         tone: "violet",
         label: "Staff Count",
-        value: snapshot.staffCount.toLocaleString(),
-        note: "All positions filled",
+        value: formatMetricValue(snapshot.staffCount),
+        note: "Awaiting live data",
         icon: `
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
             <rect x="5" y="3" width="14" height="18" rx="2"></rect>
@@ -2499,8 +3343,8 @@
       {
         tone: "green",
         label: "Attendance Today",
-        value: `${snapshot.attendanceRate}%`,
-        note: "+1.2% from yesterday",
+        value: formatMetricValue(snapshot.attendanceRate, { suffix: "%" }),
+        note: "Awaiting live data",
         icon: `
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
             <rect x="3" y="4" width="18" height="18" rx="2"></rect>
@@ -2514,8 +3358,8 @@
       {
         tone: "rose",
         label: "Active Incidents",
-        value: snapshot.activeIncidents.toLocaleString(),
-        note: "Requires attention",
+        value: formatMetricValue(snapshot.activeIncidents),
+        note: "Awaiting live data",
         icon: `
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
             <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path>
@@ -2538,6 +3382,15 @@
         `,
       )
       .join("");
+  }
+
+  function formatMetricValue(value, options = {}) {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      return "—";
+    }
+
+    const suffix = options.suffix || "";
+    return `${value.toLocaleString()}${suffix}`;
   }
 
   function renderAdminEvents(target) {
@@ -2621,6 +3474,34 @@
     profileRole.textContent = roleLabel;
     gate.innerHTML = `<button class="admin-signout-button" type="button" data-signout>Log out</button>`;
     wireSignOutButton(gate);
+  }
+
+  function initAdminStudentsPage() {
+    if (getPage() !== "admin-students") {
+      return;
+    }
+
+    const { isAdmin } = getAdminAccessContext();
+    const studentManager = getStudentManager();
+    const auditManager = getAuditTrailManager();
+    const studentSummary = document.getElementById("portal-student-summary");
+    const studentForm = document.getElementById("portal-student-form");
+    const studentStatus = document.getElementById("portal-student-status");
+    const studentList = document.getElementById("portal-student-list");
+    const guardianList = document.getElementById("portal-guardian-list");
+    const studentFormToggle = document.querySelector("[data-student-form-toggle]");
+
+    initStudentManagementControls({
+      isAdmin,
+      manager: studentManager,
+      auditManager,
+      summaryTarget: studentSummary,
+      form: studentForm,
+      status: studentStatus,
+      listTarget: studentList,
+      guardianList,
+      formToggleButton: studentFormToggle,
+    });
   }
 
   function initAdminClassesPage() {
@@ -2861,7 +3742,7 @@
     }
 
     const snapshot = getDashboardSnapshot();
-    const roleLabel = session.role || user.role || "Administrator";
+    const roleLabel = normalizeRoleLabel(session.role || user.role || DEFAULT_AUTH_ROLE);
     const isAdmin = /admin/i.test(roleLabel);
 
     renderDashboardChrome(user, roleLabel, snapshot);
@@ -2894,7 +3775,7 @@
       </div>
       <div class="admin-session-card">
         <span>Selected role</span>
-        <strong>${escapeHtml(session.role || user.role || "Administrator")}</strong>
+        <strong>${escapeHtml(normalizeRoleLabel(session.role || user.role || DEFAULT_AUTH_ROLE))}</strong>
       </div>
       <div class="admin-session-card">
         <span>Session type</span>

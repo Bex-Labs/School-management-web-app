@@ -153,74 +153,80 @@
             <div id="portal-class-summary" class="portal-class-summary"></div>
 
             <div class="portal-class-layout">
-              <form id="portal-class-form" class="portal-class-form" novalidate>
-                <div id="portal-class-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
-                <input type="hidden" name="classId" />
+              <div class="portal-class-form-shell">
+                <button class="button button-primary" type="button" data-class-form-toggle>
+                  Create class
+                </button>
 
-                <div class="portal-settings-grid">
-                  <label class="portal-field" for="class-name">
-                    <span>Class name</span>
-                    <input id="class-name" name="name" type="text" placeholder="Blue, North, Science..." />
-                    <p class="portal-field-error" data-class-error-for="name"></p>
-                  </label>
+                <form id="portal-class-form" class="portal-class-form" novalidate data-class-form-shell hidden>
+                  <div id="portal-class-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+                  <input type="hidden" name="classId" />
 
-                  <label class="portal-field" for="class-level">
-                    <span>Level or grade</span>
-                    <input id="class-level" name="level" type="text" placeholder="Primary 3, JSS 1, SS 2..." />
-                    <p class="portal-field-error" data-class-error-for="level"></p>
-                  </label>
+                  <div class="portal-settings-grid">
+                    <label class="portal-field" for="class-name">
+                      <span>Class name</span>
+                      <input id="class-name" name="name" type="text" placeholder="Blue, North, Science..." />
+                      <p class="portal-field-error" data-class-error-for="name"></p>
+                    </label>
 
-                  <label class="portal-field portal-field-span-2" for="class-capacity">
-                    <span>Capacity</span>
-                    <input id="class-capacity" name="capacity" type="number" min="1" step="1" placeholder="30" />
-                    <p class="portal-field-error" data-class-error-for="capacity"></p>
-                  </label>
+                    <label class="portal-field" for="class-level">
+                      <span>Level or grade</span>
+                      <input id="class-level" name="level" type="text" placeholder="Primary 3, JSS 1, SS 2..." />
+                      <p class="portal-field-error" data-class-error-for="level"></p>
+                    </label>
 
-                  <label class="portal-field portal-field-span-2" for="class-teacher">
-                    <span>Class teacher</span>
-                    <input id="class-teacher" name="classTeacher" type="text" placeholder="Mrs. A. Yusuf" />
-                    <p class="portal-field-error" data-class-error-for="classTeacher"></p>
-                  </label>
+                    <label class="portal-field portal-field-span-2" for="class-capacity">
+                      <span>Capacity</span>
+                      <input id="class-capacity" name="capacity" type="number" min="1" step="1" placeholder="30" />
+                      <p class="portal-field-error" data-class-error-for="capacity"></p>
+                    </label>
 
-                  <label class="portal-field portal-field-span-2" for="class-arms">
-                    <span>Arms</span>
-                    <textarea
-                      id="class-arms"
-                      name="arms"
-                      rows="2"
-                      placeholder="A, B, C"
-                    ></textarea>
-                    <p class="portal-field-error" data-class-error-for="arms"></p>
-                  </label>
+                    <label class="portal-field portal-field-span-2" for="class-teacher">
+                      <span>Class teacher</span>
+                      <input id="class-teacher" name="classTeacher" type="text" placeholder="Mrs. A. Yusuf" />
+                      <p class="portal-field-error" data-class-error-for="classTeacher"></p>
+                    </label>
 
-                  <label class="portal-field portal-field-span-2" for="class-subjects">
-                    <span>Subjects</span>
-                    <textarea
-                      id="class-subjects"
-                      name="subjects"
-                      rows="3"
-                      placeholder="English, Mathematics, Basic Science"
-                    ></textarea>
-                    <p class="portal-field-error" data-class-error-for="subjects"></p>
-                  </label>
+                    <label class="portal-field portal-field-span-2" for="class-arms">
+                      <span>Arms</span>
+                      <textarea
+                        id="class-arms"
+                        name="arms"
+                        rows="2"
+                        placeholder="A, B, C"
+                      ></textarea>
+                      <p class="portal-field-error" data-class-error-for="arms"></p>
+                    </label>
 
-                  <label class="portal-field portal-field-span-2" for="teacher-assignments">
-                    <span>Teacher assignments (one per line)</span>
-                    <textarea
-                      id="teacher-assignments"
-                      name="teacherAssignments"
-                      rows="4"
-                      placeholder="English: Mrs. Adesina&#10;Mathematics: Mr. Bello"
-                    ></textarea>
-                    <p class="portal-field-error" data-class-error-for="teacherAssignments"></p>
-                  </label>
-                </div>
+                    <label class="portal-field portal-field-span-2" for="class-subjects">
+                      <span>Subjects</span>
+                      <textarea
+                        id="class-subjects"
+                        name="subjects"
+                        rows="3"
+                        placeholder="English, Mathematics, Basic Science"
+                      ></textarea>
+                      <p class="portal-field-error" data-class-error-for="subjects"></p>
+                    </label>
 
-                <div class="utility-actions">
-                  <button class="button button-primary" type="submit" data-class-submit>Create class</button>
-                  <button class="button button-outline" type="button" data-class-cancel hidden>Cancel edit</button>
-                </div>
-              </form>
+                    <label class="portal-field portal-field-span-2" for="teacher-assignments">
+                      <span>Teacher assignments (one per line)</span>
+                      <textarea
+                        id="teacher-assignments"
+                        name="teacherAssignments"
+                        rows="4"
+                        placeholder="English: Mrs. Adesina&#10;Mathematics: Mr. Bello"
+                      ></textarea>
+                      <p class="portal-field-error" data-class-error-for="teacherAssignments"></p>
+                    </label>
+                  </div>
+
+                  <div class="utility-actions">
+                    <button class="button button-primary" type="submit" data-class-submit>Create class</button>
+                    <button class="button button-outline" type="button" data-class-cancel hidden>Cancel edit</button>
+                  </div>
+                </form>
+              </div>
 
               <div id="portal-class-list" class="portal-class-list"></div>
             </div>

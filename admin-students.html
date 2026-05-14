@@ -141,61 +141,77 @@
           </div>
         </header>
 
-       <!-- <section class="admin-secondary-grid">
-          <article class="admin-surface-card">
+        <section class="admin-class-grid">
+          <article class="admin-surface-card admin-class-management-card">
             <div class="admin-surface-head">
-              <h2>Student Record Overview</h2>
-              <span>Admissions to progression</span>
+              <div>
+                <h2>Student Records and Guardian Contacts</h2>
+                <span>Maintain multiple guardian contacts and relationship types for every student profile.</span>
+              </div>
             </div>
-            <div class="admin-link-grid">
-              <a class="admin-link-card" href="./workflows.html#admissions-desk">
-                <strong>Admissions Queue</strong>
-                <p>Check incoming applicants, document review, and class placement work.</p>
-                <span>Open admissions</span>
-              </a>
-              <a class="admin-link-card" href="./modules.html">
-                <strong>Active Student Files</strong>
-                <p>Track biodata, guardian links, previous classes, and current status.</p>
-                <span>Open student records</span>
-              </a>
-              <a class="admin-link-card" href="./modules.html">
-                <strong>Parents and Guardians</strong>
-                <p>Confirm contact details, relationship mapping, and notification reach.</p>
-                <span>Open parent portal</span>
-              </a>
-              <a class="admin-link-card" href="./school-types.html">
-                <strong>Transfers and Promotion</strong>
-                <p>See how pupils move between preschool, primary, secondary, or university structures.</p>
-                <span>Review transitions</span>
-              </a>
+
+            <div id="portal-student-summary" class="portal-class-summary"></div>
+
+            <div class="portal-class-layout">
+              <div class="portal-class-form-shell">
+                <button class="button button-primary" type="button" data-student-form-toggle>
+                  Create student
+                </button>
+
+                <form id="portal-student-form" class="portal-class-form" novalidate hidden>
+                  <div id="portal-student-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+                  <input type="hidden" name="studentId" />
+
+                  <div class="portal-settings-grid">
+                    <label class="portal-field" for="student-full-name">
+                      <span>Student full name</span>
+                      <input id="student-full-name" name="fullName" type="text" placeholder="Amina Yusuf" />
+                      <p class="portal-field-error" data-student-error-for="fullName"></p>
+                    </label>
+
+                    <label class="portal-field" for="student-admission-no">
+                      <span>Admission number</span>
+                      <input id="student-admission-no" name="admissionNo" type="text" placeholder="SCH-2026-001" />
+                      <p class="portal-field-error" data-student-error-for="admissionNo"></p>
+                    </label>
+
+                    <label class="portal-field portal-field-span-2" for="student-level">
+                      <span>Level / class</span>
+                      <input id="student-level" name="level" type="text" placeholder="Primary 4, JSS 2, SS 1..." />
+                      <p class="portal-field-error" data-student-error-for="level"></p>
+                    </label>
+
+                    <div class="portal-guardian-stack portal-field-span-2">
+                      <div class="portal-guardian-head">
+                        <strong>Guardian contacts</strong>
+                        <button class="button button-outline" type="button" data-add-guardian>
+                          Add guardian
+                        </button>
+                      </div>
+                      <div id="portal-guardian-list" class="portal-guardian-list"></div>
+                      <p class="portal-field-error" data-student-error-for="guardians"></p>
+                    </div>
+                  </div>
+
+                  <div class="utility-actions">
+                    <button class="button button-primary" type="submit" data-student-submit>Create student</button>
+                    <button class="button button-outline" type="button" data-student-cancel hidden>Cancel edit</button>
+                  </div>
+                </form>
+              </div>
+
+              <div id="portal-student-list" class="portal-class-list"></div>
             </div>
           </article>
 
           <article class="admin-surface-card">
             <div class="admin-surface-head">
-              <h2>Linked Actions</h2>
-              <span>Next pages admins usually open from student records</span>
+              <h2>Audit Trail</h2>
+              <span>Important updates are captured for review and accountability.</span>
             </div>
-            <div class="admin-session-grid">
-              <div class="admin-session-card">
-                <span>Class assignment</span>
-                <strong><a href="./admin-classes.html">Manage class capacity and placement</a></strong>
-              </div>
-              <div class="admin-session-card">
-                <span>Attendance follow-up</span>
-                <strong><a href="./admin-attendance.html">Open daily attendance review</a></strong>
-              </div>
-              <div class="admin-session-card">
-                <span>Fee clearance</span>
-                <strong><a href="./products.html">Check bursary and payment-linked access</a></strong>
-              </div>
-              <div class="admin-session-card">
-                <span>Results and reports</span>
-                <strong><a href="./admin-reports.html">Open reporting outputs</a></strong>
-              </div>
-            </div>
+            <div id="portal-audit-trail" class="portal-audit-list"></div>
           </article>
-        </section> -->
+        </section>
       </section>
     </main>
 

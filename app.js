@@ -230,85 +230,24 @@ const DEFAULT_SCHOOL_SETTINGS = {
 };
 const SCHOOL_SETTINGS_STORAGE_KEY = "schoolsphere.schoolSettings.v1";
 const SCHOOL_SETTINGS_EVENT = "schoolsphere:school-settings-updated";
-const DEFAULT_CLASS_RECORDS = [
-  {
-    id: "class-nursery-2-tulip",
-    name: "Tulip",
-    level: "Nursery 2",
-    capacity: 24,
-    classTeacher: "Mrs. Ojo",
-    arms: ["A", "B"],
-    subjects: ["Literacy", "Numeracy", "Creative Art"],
-    teacherAssignments: [
-      { subject: "Literacy", teacher: "Mrs. Ojo" },
-      { subject: "Numeracy", teacher: "Mr. Bello" },
-      { subject: "Creative Art", teacher: "Ms. Kemi" },
-    ],
-    status: "active",
-    createdAt: "2026-04-02T08:00:00.000Z",
-    updatedAt: "2026-05-08T09:10:00.000Z",
-    archivedAt: null,
-  },
-  {
-    id: "class-primary-3-coral",
-    name: "Coral",
-    level: "Primary 3",
-    capacity: 32,
-    classTeacher: "Mr. Ade",
-    arms: ["North", "South"],
-    subjects: ["English", "Mathematics", "Basic Science"],
-    teacherAssignments: [
-      { subject: "English", teacher: "Mr. Ade" },
-      { subject: "Mathematics", teacher: "Mrs. Hassan" },
-      { subject: "Basic Science", teacher: "Mr. Taiwo" },
-    ],
-    status: "active",
-    createdAt: "2026-03-15T08:00:00.000Z",
-    updatedAt: "2026-05-08T10:20:00.000Z",
-    archivedAt: null,
-  },
-  {
-    id: "class-jss-1-north",
-    name: "North",
-    level: "JSS 1",
-    capacity: 36,
-    classTeacher: "Mrs. Chukwu",
-    arms: ["A", "B", "C"],
-    subjects: ["English", "Mathematics", "Business Studies"],
-    teacherAssignments: [
-      { subject: "English", teacher: "Mrs. Chukwu" },
-      { subject: "Mathematics", teacher: "Mr. Musa" },
-      { subject: "Business Studies", teacher: "Mrs. Jonah" },
-    ],
-    status: "active",
-    createdAt: "2026-01-18T08:00:00.000Z",
-    updatedAt: "2026-05-08T11:05:00.000Z",
-    archivedAt: null,
-  },
-  {
-    id: "class-ss2-science",
-    name: "Science",
-    level: "SS 2",
-    capacity: 28,
-    classTeacher: "Mr. Idowu",
-    arms: ["A"],
-    subjects: ["Chemistry", "Physics", "Biology"],
-    teacherAssignments: [
-      { subject: "Chemistry", teacher: "Mr. Idowu" },
-      { subject: "Physics", teacher: "Mrs. Danjuma" },
-      { subject: "Biology", teacher: "Mr. Oke" },
-    ],
-    status: "archived",
-    createdAt: "2025-09-01T08:00:00.000Z",
-    updatedAt: "2026-04-30T13:40:00.000Z",
-    archivedAt: "2026-04-30T13:40:00.000Z",
-  },
-];
+const DEFAULT_CLASS_RECORDS = [];
 const SCHOOL_CLASSES_STORAGE_KEY = "schoolsphere.classes.v1";
 const SCHOOL_CLASSES_EVENT = "schoolsphere:classes-updated";
+const DEFAULT_STUDENT_RECORDS = [];
+const SCHOOL_STUDENTS_STORAGE_KEY = "schoolsphere.students.v1";
+const SCHOOL_STUDENTS_EVENT = "schoolsphere:students-updated";
+const LEGACY_MOCK_CLASS_IDS = new Set([
+  "class-nursery-2-tulip",
+  "class-primary-3-coral",
+  "class-jss-1-north",
+  "class-ss2-science",
+]);
+const AUDIT_TRAIL_STORAGE_KEY = "schoolsphere.auditTrail.v1";
+const AUDIT_TRAIL_EVENT = "schoolsphere:audit-trail-updated";
+const MAX_AUDIT_TRAIL_ENTRIES = 300;
 const ROLE_PERMISSIONS_STORAGE_KEY = "schoolsphere.rolePermissions.v1";
 const ROLE_PERMISSIONS_EVENT = "schoolsphere:role-permissions-updated";
-const ROLE_PERMISSION_ROLES = ["Administrator", "Teacher", "Parent", "Student"];
+const ROLE_PERMISSION_ROLES = ["Administrator", "Employee", "Parent", "Student"];
 const ROLE_PERMISSION_OPTIONS = [
   { key: "dashboard_view", label: "View dashboard" },
   { key: "students_manage", label: "Manage students" },
@@ -332,7 +271,7 @@ const DEFAULT_ROLE_PERMISSIONS = {
     reports_view: true,
     settings_manage: true,
   },
-  Teacher: {
+  Employee: {
     dashboard_view: true,
     students_manage: false,
     teachers_manage: false,
@@ -698,8 +637,15 @@ function compareSchoolClasses(left, right) {
 function getSchoolClasses() {
   const stored = parseStoredJSON(localStorage.getItem(SCHOOL_CLASSES_STORAGE_KEY), DEFAULT_CLASS_RECORDS);
   const source = Array.isArray(stored) && stored.length ? stored : DEFAULT_CLASS_RECORDS;
+  const withoutLegacyMockData = source.filter(
+    (record) => !LEGACY_MOCK_CLASS_IDS.has(String(record?.id || "")),
+  );
 
-  return source.map((record) => normalizeSchoolClass(record)).sort(compareSchoolClasses);
+  if (withoutLegacyMockData.length !== source.length) {
+    localStorage.setItem(SCHOOL_CLASSES_STORAGE_KEY, JSON.stringify(withoutLegacyMockData));
+  }
+
+  return withoutLegacyMockData.map((record) => normalizeSchoolClass(record)).sort(compareSchoolClasses);
 }
 
 function emitSchoolClassesUpdate(classes = getSchoolClasses()) {
@@ -781,6 +727,195 @@ function summarizeSchoolClasses() {
   };
 }
 
+function normalizeGuardianContact(contact = {}) {
+  return {
+    id: String(contact.id || createStorageId("guardian")),
+    name: String(contact.name || "").trim(),
+    relationship: String(contact.relationship || "").trim(),
+    phone: String(contact.phone || "").trim(),
+    email: String(contact.email || "").trim(),
+  };
+}
+
+function normalizeStudentRecord(record = {}) {
+  const timestamp = new Date().toISOString();
+  const status = record.status === "archived" ? "archived" : "active";
+  const guardians = Array.isArray(record.guardians)
+    ? record.guardians
+        .map((guardian) => normalizeGuardianContact(guardian))
+        .filter(
+          (guardian) =>
+            guardian.name &&
+            guardian.relationship &&
+            (guardian.phone || guardian.email),
+        )
+    : [];
+
+  return {
+    id: String(record.id || createStorageId("student")),
+    fullName: String(record.fullName || "").trim(),
+    admissionNo: String(record.admissionNo || "").trim(),
+    level: String(record.level || "").trim(),
+    guardians,
+    status,
+    createdAt: record.createdAt || timestamp,
+    updatedAt: record.updatedAt || timestamp,
+    archivedAt: status === "archived" ? record.archivedAt || timestamp : null,
+  };
+}
+
+function compareSchoolStudents(left, right) {
+  if (left.status !== right.status) {
+    return left.status === "active" ? -1 : 1;
+  }
+
+  const levelComparison = left.level.localeCompare(right.level, undefined, { numeric: true });
+
+  if (levelComparison !== 0) {
+    return levelComparison;
+  }
+
+  return left.fullName.localeCompare(right.fullName, undefined, { numeric: true });
+}
+
+function getSchoolStudents() {
+  const stored = parseStoredJSON(localStorage.getItem(SCHOOL_STUDENTS_STORAGE_KEY), DEFAULT_STUDENT_RECORDS);
+  const source = Array.isArray(stored) ? stored : DEFAULT_STUDENT_RECORDS;
+
+  return source.map((record) => normalizeStudentRecord(record)).sort(compareSchoolStudents);
+}
+
+function emitSchoolStudentsUpdate(students = getSchoolStudents()) {
+  window.dispatchEvent(
+    new CustomEvent(SCHOOL_STUDENTS_EVENT, {
+      detail: { students },
+    }),
+  );
+}
+
+function saveSchoolStudents(students) {
+  const normalized = students.map((record) => normalizeStudentRecord(record)).sort(compareSchoolStudents);
+  localStorage.setItem(SCHOOL_STUDENTS_STORAGE_KEY, JSON.stringify(normalized));
+  emitSchoolStudentsUpdate(normalized);
+  return normalized;
+}
+
+function upsertSchoolStudent(record) {
+  const students = getSchoolStudents();
+  const timestamp = new Date().toISOString();
+  const nextRecord = normalizeStudentRecord({
+    ...record,
+    updatedAt: timestamp,
+  });
+  const existingIndex = students.findIndex((item) => item.id === nextRecord.id);
+
+  if (existingIndex === -1) {
+    students.push({
+      ...nextRecord,
+      createdAt: nextRecord.createdAt || timestamp,
+    });
+  } else {
+    students[existingIndex] = {
+      ...students[existingIndex],
+      ...nextRecord,
+      createdAt: students[existingIndex].createdAt,
+      archivedAt: nextRecord.status === "archived" ? nextRecord.archivedAt || timestamp : null,
+      updatedAt: timestamp,
+    };
+  }
+
+  return saveSchoolStudents(students);
+}
+
+function setSchoolStudentArchived(studentId, archived) {
+  const students = getSchoolStudents();
+  const nextStudents = students.map((record) => {
+    if (record.id !== studentId) {
+      return record;
+    }
+
+    return {
+      ...record,
+      status: archived ? "archived" : "active",
+      archivedAt: archived ? new Date().toISOString() : null,
+      updatedAt: new Date().toISOString(),
+    };
+  });
+
+  return saveSchoolStudents(nextStudents);
+}
+
+function summarizeSchoolStudents() {
+  const students = getSchoolStudents();
+  const active = students.filter((record) => record.status !== "archived");
+  const archived = students.filter((record) => record.status === "archived");
+  const guardianContacts = active.reduce((sum, record) => sum + record.guardians.length, 0);
+  const studentsWithMultipleGuardians = active.filter((record) => record.guardians.length > 1).length;
+
+  return {
+    students,
+    activeCount: active.length,
+    archivedCount: archived.length,
+    guardianContacts,
+    studentsWithMultipleGuardians,
+  };
+}
+
+function normalizeAuditTrailEntry(entry = {}) {
+  return {
+    id: String(entry.id || createStorageId("audit")),
+    timestamp: entry.timestamp || new Date().toISOString(),
+    actorName: String(entry.actorName || "System").trim() || "System",
+    actorRole: String(entry.actorRole || "System").trim() || "System",
+    action: String(entry.action || "updated").trim() || "updated",
+    entityType: String(entry.entityType || "record").trim() || "record",
+    entityId: String(entry.entityId || "").trim(),
+    summary: String(entry.summary || "Update recorded").trim() || "Update recorded",
+    details: String(entry.details || "").trim(),
+  };
+}
+
+function getAuditTrailEntries() {
+  const stored = parseStoredJSON(localStorage.getItem(AUDIT_TRAIL_STORAGE_KEY), []);
+  const source = Array.isArray(stored) ? stored : [];
+  return source
+    .map((entry) => normalizeAuditTrailEntry(entry))
+    .sort((left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime());
+}
+
+function emitAuditTrailUpdate(entries = getAuditTrailEntries()) {
+  window.dispatchEvent(
+    new CustomEvent(AUDIT_TRAIL_EVENT, {
+      detail: { entries },
+    }),
+  );
+}
+
+function saveAuditTrailEntries(entries) {
+  const normalized = entries
+    .map((entry) => normalizeAuditTrailEntry(entry))
+    .sort((left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime())
+    .slice(0, MAX_AUDIT_TRAIL_ENTRIES);
+  localStorage.setItem(AUDIT_TRAIL_STORAGE_KEY, JSON.stringify(normalized));
+  emitAuditTrailUpdate(normalized);
+  return normalized;
+}
+
+function recordAuditTrailEntry(entry) {
+  const entries = getAuditTrailEntries();
+  const nextEntry = normalizeAuditTrailEntry(entry);
+  entries.unshift(nextEntry);
+  saveAuditTrailEntries(entries);
+  return nextEntry;
+}
+
+function clearAuditTrailEntries() {
+  localStorage.removeItem(AUDIT_TRAIL_STORAGE_KEY);
+  const cleared = getAuditTrailEntries();
+  emitAuditTrailUpdate(cleared);
+  return cleared;
+}
+
 function getFeatureToggleDefaults() {
   return Object.fromEntries(features.map((feature) => [feature.id, true]));
 }
@@ -833,7 +968,9 @@ function summarizeFeatureToggleState() {
 
 function normalizeRolePermissions(raw = {}) {
   return ROLE_PERMISSION_ROLES.reduce((next, role) => {
-    const source = raw[role] && typeof raw[role] === "object" ? raw[role] : {};
+    const legacyRoleSource =
+      role === "Employee" && raw.Teacher && typeof raw.Teacher === "object" ? raw.Teacher : null;
+    const source = raw[role] && typeof raw[role] === "object" ? raw[role] : legacyRoleSource || {};
     next[role] = ROLE_PERMISSION_OPTIONS.reduce((rolePermissions, option) => {
       const fallback = DEFAULT_ROLE_PERMISSIONS[role][option.key];
       rolePermissions[option.key] =
@@ -945,6 +1082,25 @@ window.SchoolSphereClasses = {
   eventName: SCHOOL_CLASSES_EVENT,
 };
 
+window.SchoolSphereStudents = {
+  defaults: DEFAULT_STUDENT_RECORDS,
+  getStudents: getSchoolStudents,
+  summarize: summarizeSchoolStudents,
+  saveStudents: saveSchoolStudents,
+  upsertStudent: upsertSchoolStudent,
+  archiveStudent: (studentId) => setSchoolStudentArchived(studentId, true),
+  activateStudent: (studentId) => setSchoolStudentArchived(studentId, false),
+  eventName: SCHOOL_STUDENTS_EVENT,
+};
+
+window.SchoolSphereAuditTrail = {
+  getEntries: getAuditTrailEntries,
+  saveEntries: saveAuditTrailEntries,
+  record: recordAuditTrailEntry,
+  clear: clearAuditTrailEntries,
+  eventName: AUDIT_TRAIL_EVENT,
+};
+
 window.addEventListener("storage", (event) => {
   if (event.key === FEATURE_TOGGLE_STORAGE_KEY) {
     emitFeatureToggleUpdate(getFeatureToggleState());
@@ -956,6 +1112,14 @@ window.addEventListener("storage", (event) => {
 
   if (event.key === SCHOOL_CLASSES_STORAGE_KEY) {
     emitSchoolClassesUpdate(getSchoolClasses());
+  }
+
+  if (event.key === SCHOOL_STUDENTS_STORAGE_KEY) {
+    emitSchoolStudentsUpdate(getSchoolStudents());
+  }
+
+  if (event.key === AUDIT_TRAIL_STORAGE_KEY) {
+    emitAuditTrailUpdate(getAuditTrailEntries());
   }
 
   if (event.key === ROLE_PERMISSIONS_STORAGE_KEY) {
