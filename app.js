@@ -21,6 +21,12 @@ const signInLinks = [
   { label: "To Subscriber / Affiliate Account", href: "./login.html" },
 ];
 
+const homeNavLinks = [
+  { label: "Products", href: "./products.html" },
+  { label: "Explore", href: "./workflows.html" },
+  { label: "Contact", href: "#site-footer" },
+];
+
 const whyCards = [
   {
     title: "One student record from admission to report card",
@@ -230,6 +236,12 @@ const DEFAULT_SCHOOL_SETTINGS = {
 };
 const SCHOOL_SETTINGS_STORAGE_KEY = "schoolsphere.schoolSettings.v1";
 const SCHOOL_SETTINGS_EVENT = "schoolsphere:school-settings-updated";
+const DEFAULT_ACADEMIC_CYCLES = {
+  sessions: [],
+  terms: [],
+};
+const SCHOOL_ACADEMIC_CYCLES_STORAGE_KEY = "schoolsphere.academicCycles.v1";
+const SCHOOL_ACADEMIC_CYCLES_EVENT = "schoolsphere:academic-cycles-updated";
 const DEFAULT_CLASS_RECORDS = [];
 const SCHOOL_CLASSES_STORAGE_KEY = "schoolsphere.classes.v1";
 const SCHOOL_CLASSES_EVENT = "schoolsphere:classes-updated";
@@ -582,6 +594,265 @@ function createStorageId(prefix) {
   }
 
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+}
+
+function normalizeAcademicSession(record = {}) {
+  const timestamp = new Date().toISOString();
+  const status = record.status === "open" ? "open" : "closed";
+
+  return {
+    id: String(record.id || createStorageId("session")),
+    name: String(record.name || "").trim(),
+    startDate: String(record.startDate || "").trim(),
+    endDate: String(record.endDate || "").trim(),
+    status,
+    createdAt: record.createdAt || timestamp,
+    updatedAt: record.updatedAt || timestamp,
+  };
+}
+
+function normalizeAcademicTerm(record = {}) {
+  const timestamp = new Date().toISOString();
+  const status = record.status === "open" ? "open" : "closed";
+
+  return {
+    id: String(record.id || createStorageId("term")),
+    sessionId: String(record.sessionId || "").trim(),
+    name: String(record.name || "").trim(),
+    startDate: String(record.startDate || "").trim(),
+    endDate: String(record.endDate || "").trim(),
+    status,
+    createdAt: record.createdAt || timestamp,
+    updatedAt: record.updatedAt || timestamp,
+  };
+}
+
+function normalizeAcademicCycles(state = {}) {
+  const sessions = Array.isArray(state.sessions)
+    ? state.sessions.map((session) => normalizeAcademicSession(session)).filter((session) => session.name)
+    : [];
+  const sessionIds = new Set(sessions.map((session) => session.id));
+  const terms = Array.isArray(state.terms)
+    ? state.terms
+        .map((term) => normalizeAcademicTerm(term))
+        .filter((term) => term.name && term.sessionId && sessionIds.has(term.sessionId))
+    : [];
+
+  return { sessions, terms };
+}
+
+function getAcademicCycles() {
+  const stored = parseStoredJSON(
+    localStorage.getItem(SCHOOL_ACADEMIC_CYCLES_STORAGE_KEY),
+    DEFAULT_ACADEMIC_CYCLES,
+  );
+  return normalizeAcademicCycles(stored);
+}
+
+function emitAcademicCyclesUpdate(state = getAcademicCycles()) {
+  window.dispatchEvent(
+    new CustomEvent(SCHOOL_ACADEMIC_CYCLES_EVENT, {
+      detail: { state },
+    }),
+  );
+}
+
+function saveAcademicCycles(state) {
+  const normalized = normalizeAcademicCycles(state);
+  localStorage.setItem(SCHOOL_ACADEMIC_CYCLES_STORAGE_KEY, JSON.stringify(normalized));
+  emitAcademicCyclesUpdate(normalized);
+  return normalized;
+}
+
+function upsertAcademicSession(record) {
+  const state = getAcademicCycles();
+  const timestamp = new Date().toISOString();
+  const nextSession = normalizeAcademicSession({
+    ...record,
+    updatedAt: timestamp,
+  });
+  const existingIndex = state.sessions.findIndex((session) => session.id === nextSession.id);
+
+  if (existingIndex === -1) {
+    state.sessions.push({
+      ...nextSession,
+      createdAt: nextSession.createdAt || timestamp,
+    });
+  } else {
+    state.sessions[existingIndex] = {
+      ...state.sessions[existingIndex],
+      ...nextSession,
+      createdAt: state.sessions[existingIndex].createdAt,
+      updatedAt: timestamp,
+    };
+  }
+
+  if (nextSession.status === "open") {
+    state.sessions = state.sessions.map((session) =>
+      session.id === nextSession.id
+        ? session
+        : {
+            ...session,
+            status: "closed",
+            updatedAt: timestamp,
+          },
+    );
+  }
+
+  return saveAcademicCycles(state);
+}
+
+function setAcademicSessionStatus(sessionId, status) {
+  const state = getAcademicCycles();
+  const timestamp = new Date().toISOString();
+
+  state.sessions = state.sessions.map((session) => {
+    if (session.id === sessionId) {
+      return {
+        ...session,
+        status: status === "open" ? "open" : "closed",
+        updatedAt: timestamp,
+      };
+    }
+
+    if (status === "open") {
+      return {
+        ...session,
+        status: "closed",
+        updatedAt: timestamp,
+      };
+    }
+
+    return session;
+  });
+
+  if (status !== "open") {
+    state.terms = state.terms.map((term) =>
+      term.sessionId === sessionId && term.status === "open"
+        ? {
+            ...term,
+            status: "closed",
+            updatedAt: timestamp,
+          }
+        : term,
+    );
+  }
+
+  return saveAcademicCycles(state);
+}
+
+function upsertAcademicTerm(record) {
+  const state = getAcademicCycles();
+  const timestamp = new Date().toISOString();
+  const nextTerm = normalizeAcademicTerm({
+    ...record,
+    updatedAt: timestamp,
+  });
+  const existingIndex = state.terms.findIndex((term) => term.id === nextTerm.id);
+
+  if (existingIndex === -1) {
+    state.terms.push({
+      ...nextTerm,
+      createdAt: nextTerm.createdAt || timestamp,
+    });
+  } else {
+    state.terms[existingIndex] = {
+      ...state.terms[existingIndex],
+      ...nextTerm,
+      createdAt: state.terms[existingIndex].createdAt,
+      updatedAt: timestamp,
+    };
+  }
+
+  if (nextTerm.status === "open") {
+    state.sessions = state.sessions.map((session) =>
+      session.id === nextTerm.sessionId
+        ? {
+            ...session,
+            status: "open",
+            updatedAt: timestamp,
+          }
+        : {
+            ...session,
+            status: "closed",
+            updatedAt: timestamp,
+          },
+    );
+    state.terms = state.terms.map((term) =>
+      term.sessionId === nextTerm.sessionId
+        ? {
+            ...term,
+            status: term.id === nextTerm.id ? "open" : "closed",
+            updatedAt: timestamp,
+          }
+        : {
+            ...term,
+            status: "closed",
+            updatedAt: timestamp,
+          },
+    );
+  }
+
+  return saveAcademicCycles(state);
+}
+
+function setAcademicTermStatus(termId, status) {
+  const state = getAcademicCycles();
+  const timestamp = new Date().toISOString();
+  const targetTerm = state.terms.find((term) => term.id === termId);
+
+  if (!targetTerm) {
+    return saveAcademicCycles(state);
+  }
+
+  if (status === "open") {
+    state.sessions = state.sessions.map((session) =>
+      session.id === targetTerm.sessionId
+        ? {
+            ...session,
+            status: "open",
+            updatedAt: timestamp,
+          }
+        : {
+            ...session,
+            status: "closed",
+            updatedAt: timestamp,
+          },
+    );
+  }
+
+  state.terms = state.terms.map((term) => {
+    if (term.id === termId) {
+      return {
+        ...term,
+        status: status === "open" ? "open" : "closed",
+        updatedAt: timestamp,
+      };
+    }
+
+    if (status === "open") {
+      return {
+        ...term,
+        status: "closed",
+        updatedAt: timestamp,
+      };
+    }
+
+    return term;
+  });
+
+  return saveAcademicCycles(state);
+}
+
+function summarizeAcademicCycles() {
+  const state = getAcademicCycles();
+  const openSession = state.sessions.find((session) => session.status === "open") || null;
+  const openTerm = state.terms.find((term) => term.status === "open") || null;
+  return {
+    ...state,
+    openSession,
+    openTerm,
+  };
 }
 
 function normalizeSchoolClass(record = {}) {
@@ -1071,6 +1342,18 @@ window.SchoolSphereSiteSettings = {
   eventName: SCHOOL_SETTINGS_EVENT,
 };
 
+window.SchoolSphereAcademicCycles = {
+  defaults: DEFAULT_ACADEMIC_CYCLES,
+  getState: getAcademicCycles,
+  summarize: summarizeAcademicCycles,
+  saveState: saveAcademicCycles,
+  upsertSession: upsertAcademicSession,
+  setSessionStatus: setAcademicSessionStatus,
+  upsertTerm: upsertAcademicTerm,
+  setTermStatus: setAcademicTermStatus,
+  eventName: SCHOOL_ACADEMIC_CYCLES_EVENT,
+};
+
 window.SchoolSphereClasses = {
   defaults: DEFAULT_CLASS_RECORDS,
   getClasses: getSchoolClasses,
@@ -1110,6 +1393,10 @@ window.addEventListener("storage", (event) => {
     emitSchoolSettingsUpdate(getSchoolSettings());
   }
 
+  if (event.key === SCHOOL_ACADEMIC_CYCLES_STORAGE_KEY) {
+    emitAcademicCyclesUpdate(getAcademicCycles());
+  }
+
   if (event.key === SCHOOL_CLASSES_STORAGE_KEY) {
     emitSchoolClassesUpdate(getSchoolClasses());
   }
@@ -1144,6 +1431,8 @@ function renderHeader() {
   }
 
   const currentFile = window.location.pathname.split("/").pop() || "index.html";
+  const page = currentPage();
+  const isHomePage = page === "home";
   const settings = getSchoolSettings();
   const academicYearLabel = formatAcademicYearLabel(settings);
   const schoolStructureLabel = [
@@ -1158,6 +1447,37 @@ function renderHeader() {
   const campusDetailLabel = settings.campusDetails || "Campus details not added yet.";
   const showContext = hasSchoolSettingsContext(settings);
 
+  const primaryNavHtml = isHomePage
+    ? homeNavLinks
+        .map(
+          (item) =>
+            `<a class="nav-direct-link ${hrefMatchesCurrentFile(item.href, currentFile) ? "is-active" : ""}" href="${item.href}">${item.label}</a>`,
+        )
+        .join("")
+    : navMenus
+        .map(
+          (menu) =>
+            menu.type === "menu"
+              ? `
+                  <details class="nav-menu">
+                    <summary>${menu.label}</summary>
+                    <div class="dropdown-panel">
+                      ${menu.items
+                        .map((item) =>
+                          item.placeholder
+                            ? `<span class="dropdown-placeholder">${item.label}</span>`
+                            : `<a href="${item.href}" class="${hrefMatchesCurrentFile(item.href, currentFile) ? "is-active" : ""}">${item.label}</a>`,
+                        )
+                        .join("")}
+                    </div>
+                  </details>
+                `
+              : menu.placeholder
+                ? `<span class="nav-direct-link nav-direct-link-muted">${menu.label}</span>`
+                : `<a class="nav-direct-link ${hrefMatchesCurrentFile(menu.href, currentFile) ? "is-active" : ""}" href="${menu.href}">${menu.label}</a>`,
+        )
+        .join("");
+
   header.innerHTML = `
     <div class="site-header-shell">
       <a class="logo-link logo-link-full" href="./index.html" aria-label="${escapeHtml(settings.schoolName)} home">
@@ -1166,29 +1486,7 @@ function renderHeader() {
       </a>
 
       <nav class="nav-center" aria-label="Primary">
-        ${navMenus
-          .map(
-            (menu) =>
-              menu.type === "menu"
-                ? `
-                    <details class="nav-menu">
-                      <summary>${menu.label}</summary>
-                      <div class="dropdown-panel">
-                        ${menu.items
-                          .map((item) =>
-                            item.placeholder
-                              ? `<span class="dropdown-placeholder">${item.label}</span>`
-                              : `<a href="${item.href}" class="${hrefMatchesCurrentFile(item.href, currentFile) ? "is-active" : ""}">${item.label}</a>`,
-                          )
-                          .join("")}
-                      </div>
-                    </details>
-                  `
-                : menu.placeholder
-                  ? `<span class="nav-direct-link nav-direct-link-muted">${menu.label}</span>`
-                  : `<a class="nav-direct-link ${hrefMatchesCurrentFile(menu.href, currentFile) ? "is-active" : ""}" href="${menu.href}">${menu.label}</a>`,
-          )
-          .join("")}
+        ${primaryNavHtml}
       </nav>
 
       <div class="nav-auth">

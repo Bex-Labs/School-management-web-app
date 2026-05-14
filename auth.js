@@ -11,6 +11,8 @@
   const AUTH_PERSIST_LOCAL_KEY = "schoolsphere.auth.persistence.local.v1";
   const AUTH_PERSIST_SESSION_KEY = "schoolsphere.auth.persistence.session.v1";
   const AUTH_PENDING_ROLE_KEY = "schoolsphere.auth.pending.role.v1";
+  const ACCESS_GRANTS_STORAGE_KEY = "schoolsphere.access.grants.v1";
+  const ACCESS_GUARD_NOTICE_KEY = "schoolsphere.access.guard.notice.v1";
   let supabaseClientPromise = null;
 
   const DASHBOARD_SECTION_LINKS = [
@@ -120,6 +122,17 @@
 
   const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const DEFAULT_AUTH_ROLE = "Administrator";
+  const GUARDIAN_RELATIONSHIP_TYPES = [
+    "Mother",
+    "Father",
+    "Guardian",
+    "Grandparent",
+    "Aunt",
+    "Uncle",
+    "Sibling",
+    "Sponsor",
+    "Other",
+  ];
 
   document.addEventListener("DOMContentLoaded", async () => {
     await initSupabaseAuthBridge();
@@ -260,6 +273,168 @@
     return DEFAULT_AUTH_ROLE;
   }
 
+  function getAccessGuardNotice() {
+    const notice = sessionStorage.getItem(ACCESS_GUARD_NOTICE_KEY);
+
+    if (notice) {
+      sessionStorage.removeItem(ACCESS_GUARD_NOTICE_KEY);
+    }
+
+    return notice;
+  }
+
+  function setAccessGuardNotice(message) {
+    if (!message) {
+      sessionStorage.removeItem(ACCESS_GUARD_NOTICE_KEY);
+      return;
+    }
+
+    sessionStorage.setItem(ACCESS_GUARD_NOTICE_KEY, message);
+  }
+
+  function normalizeAccessMethod(value) {
+    const normalized = String(value || "").trim().toLowerCase();
+
+    if (normalized === "password") {
+      return "password";
+    }
+
+    if (normalized === "google") {
+      return "google";
+    }
+
+    return "any";
+  }
+
+  function normalizeAccessStatus(value) {
+    return String(value || "").trim().toLowerCase() === "revoked" ? "revoked" : "active";
+  }
+
+  function normalizeAccessGrant(record = {}) {
+    const timestamp = nowIso();
+
+    return {
+      id: String(record.id || createId()),
+      email: String(record.email || "").trim(),
+      normalizedEmail: normalizeEmail(record.email || record.normalizedEmail || ""),
+      role: normalizeRoleLabel(record.role || DEFAULT_AUTH_ROLE),
+      authMethod: normalizeAccessMethod(record.authMethod),
+      status: normalizeAccessStatus(record.status),
+      createdAt: record.createdAt || timestamp,
+      updatedAt: record.updatedAt || timestamp,
+      claimedAt: record.claimedAt || null,
+      claimedByUserId: record.claimedByUserId || null,
+    };
+  }
+
+  function getAccessGrants() {
+    const stored = parseJSON(localStorage.getItem(ACCESS_GRANTS_STORAGE_KEY), []);
+
+    if (!Array.isArray(stored)) {
+      return [];
+    }
+
+    return stored
+      .map((record) => normalizeAccessGrant(record))
+      .filter((record) => record.email && record.normalizedEmail)
+      .sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)));
+  }
+
+  function saveAccessGrants(grants) {
+    const normalized = Array.isArray(grants) ? grants.map((record) => normalizeAccessGrant(record)) : [];
+    localStorage.setItem(ACCESS_GRANTS_STORAGE_KEY, JSON.stringify(normalized));
+    return normalized;
+  }
+
+  function upsertAccessGrant(record) {
+    const grants = getAccessGrants();
+    const normalizedEmail = normalizeEmail(record.email || record.normalizedEmail || "");
+    const role = normalizeRoleLabel(record.role || DEFAULT_AUTH_ROLE);
+    const id = record.id || null;
+    const existingIndex =
+      id
+        ? grants.findIndex((entry) => entry.id === id)
+        : grants.findIndex(
+            (entry) =>
+              entry.normalizedEmail === normalizedEmail &&
+              normalizeRoleLabel(entry.role) === role,
+          );
+    const next = normalizeAccessGrant({
+      ...(existingIndex >= 0 ? grants[existingIndex] : {}),
+      ...record,
+      email: record.email || (existingIndex >= 0 ? grants[existingIndex].email : ""),
+      role,
+      updatedAt: nowIso(),
+    });
+
+    if (existingIndex >= 0) {
+      grants[existingIndex] = next;
+    } else {
+      grants.unshift(next);
+    }
+
+    return saveAccessGrants(grants);
+  }
+
+  function setAccessGrantStatus(grantId, status) {
+    const grants = getAccessGrants();
+    const targetIndex = grants.findIndex((entry) => entry.id === grantId);
+
+    if (targetIndex < 0) {
+      return grants;
+    }
+
+    grants[targetIndex] = normalizeAccessGrant({
+      ...grants[targetIndex],
+      status: normalizeAccessStatus(status),
+      updatedAt: nowIso(),
+    });
+
+    return saveAccessGrants(grants);
+  }
+
+  function removeAccessGrant(grantId) {
+    const grants = getAccessGrants().filter((entry) => entry.id !== grantId);
+    return saveAccessGrants(grants);
+  }
+
+  function getProvisioningGrant(email, role, provider = "password") {
+    const normalizedEmail = normalizeEmail(email || "");
+    const normalizedRole = normalizeRoleLabel(role || DEFAULT_AUTH_ROLE);
+    const normalizedProvider = provider === "google" ? "google" : "password";
+
+    return (
+      getAccessGrants().find(
+        (entry) =>
+          entry.status === "active" &&
+          entry.normalizedEmail === normalizedEmail &&
+          normalizeRoleLabel(entry.role) === normalizedRole &&
+          (entry.authMethod === "any" || entry.authMethod === normalizedProvider),
+      ) || null
+    );
+  }
+
+  function markAccessGrantClaimed(email, role, provider = "password", userId = null) {
+    const grant = getProvisioningGrant(email, role, provider);
+
+    if (!grant) {
+      return null;
+    }
+
+    const updatedGrants = upsertAccessGrant({
+      ...grant,
+      claimedAt: nowIso(),
+      claimedByUserId: userId || grant.claimedByUserId || null,
+      status: "active",
+    });
+
+    return updatedGrants.find((entry) => entry.id === grant.id) || null;
+  }
+
+  function hasAdministratorAccount() {
+    return getUsers().some((entry) => normalizeRoleLabel(entry.role) === "Administrator");
+  }
+
   function getSupabaseConfig() {
     return window.SchoolSphereSupabaseConfig || null;
   }
@@ -279,7 +454,7 @@
 
   function buildSupabaseEmailRedirectUrl() {
     const config = getSupabaseConfig();
-    return buildSupabaseRedirectUrl(config?.emailRedirectPath || config?.redirectPath || "/portal.html");
+    return buildSupabaseRedirectUrl(config?.emailRedirectPath || "/login.html");
   }
 
   async function loadSupabaseLibrary() {
@@ -406,6 +581,15 @@
     return btoa(unescape(encodeURIComponent(secret)));
   }
 
+  function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("Could not read file."));
+      reader.readAsDataURL(file);
+    });
+  }
+
   function buildDisplayName(email) {
     const localPart = normalizeEmail(email).split("@")[0];
     return localPart
@@ -513,10 +697,48 @@
 
     const localSession = getSession();
     const pendingRole = consumePendingRole();
+    const provider =
+      session.user.app_metadata?.provider ||
+      session.user.identities?.[0]?.provider ||
+      "password";
+    const providerKey = provider === "google" ? "google" : "password";
+    const roleToApply = normalizeRoleLabel(preferredRole || pendingRole || localSession?.role || DEFAULT_AUTH_ROLE);
+    const usersBeforeSync = getUsers();
+    const existingLocalUser =
+      usersBeforeSync.find(
+        (entry) =>
+          entry.id === session.user.id ||
+          entry.normalizedEmail === normalizeEmail(session.user.email || ""),
+      ) || null;
+    const bootstrapAdminAllowed = roleToApply === "Administrator" && !hasAdministratorAccount();
+
+    if (!existingLocalUser && !bootstrapAdminAllowed) {
+      const grant = getProvisioningGrant(session.user.email || "", roleToApply, providerKey);
+
+      if (!grant) {
+        await client.auth.signOut();
+        clearSession();
+        setAccessGuardNotice(
+          "Only administrators can grant new account access. Contact your school administrator first.",
+        );
+
+        if (getPage() !== "login") {
+          window.location.assign("./login.html");
+        }
+
+        return null;
+      }
+    }
+
     const mirroredUser = upsertLocalUserFromSupabase(
       session.user,
-      preferredRole || pendingRole || localSession?.role || null,
+      roleToApply,
     );
+
+    if (!existingLocalUser) {
+      markAccessGrantClaimed(mirroredUser.email, mirroredUser.role, providerKey, mirroredUser.id);
+    }
+
     const remember = getAuthPersistencePreference() !== "session";
 
     setSession(
@@ -686,6 +908,10 @@
 
   function getSchoolSettingsManager() {
     return window.SchoolSphereSiteSettings || null;
+  }
+
+  function getAcademicCycleManager() {
+    return window.SchoolSphereAcademicCycles || null;
   }
 
   function getClassManager() {
@@ -1121,6 +1347,9 @@
       return;
     }
 
+    const logoFileInput = form.querySelector('input[name="logoFile"]');
+    const clearLogoButton = form.querySelector("[data-clear-logo]");
+
     form.addEventListener("input", () => {
       clearPortalSettingsErrors(form);
       if (isAdmin) setStatus(status, "", "");
@@ -1129,6 +1358,74 @@
       // Live logo swatch
       updateLogoSwatch(form, form.elements.logoUrl?.value.trim() || "", form.elements.schoolName?.value.trim() || "");
     });
+
+    if (logoFileInput) {
+      logoFileInput.addEventListener("change", async () => {
+        if (!isAdmin) {
+          return;
+        }
+
+        clearPortalSettingsErrors(form);
+
+        const selectedFile = logoFileInput.files?.[0] || null;
+
+        if (!selectedFile) {
+          return;
+        }
+
+        if (!selectedFile.type.startsWith("image/")) {
+          setPortalSettingsError(form, "logoFile", "Choose a valid image file.");
+          setStatus(status, "error", "Only image files are allowed for school logos.");
+          return;
+        }
+
+        if (selectedFile.size > 2 * 1024 * 1024) {
+          setPortalSettingsError(form, "logoFile", "Logo file must be 2MB or smaller.");
+          setStatus(status, "error", "Logo file is too large. Use an image up to 2MB.");
+          return;
+        }
+
+        try {
+          const dataUrl = await readFileAsDataUrl(selectedFile);
+          form.elements.logoUrl.value = dataUrl;
+          if (previewTarget) previewTarget.innerHTML = buildLivePreviewFromForm(form, isAdmin);
+          updateLogoSwatch(
+            form,
+            form.elements.logoUrl?.value.trim() || "",
+            form.elements.schoolName?.value.trim() || "",
+          );
+          setStatus(
+            status,
+            "info",
+            "Logo selected from your computer. Click Save settings to apply it site-wide.",
+          );
+        } catch {
+          setPortalSettingsError(form, "logoFile", "Could not read this file. Try another image.");
+          setStatus(status, "error", "Could not read the selected logo file.");
+        }
+      });
+    }
+
+    if (clearLogoButton) {
+      clearLogoButton.addEventListener("click", () => {
+        if (!isAdmin) {
+          return;
+        }
+
+        if (logoFileInput) {
+          logoFileInput.value = "";
+        }
+
+        form.elements.logoUrl.value = "";
+        if (previewTarget) previewTarget.innerHTML = buildLivePreviewFromForm(form, isAdmin);
+        updateLogoSwatch(
+          form,
+          form.elements.logoUrl?.value.trim() || "",
+          form.elements.schoolName?.value.trim() || "",
+        );
+        setStatus(status, "info", "Logo removed. Save settings to apply the change.");
+      });
+    }
 
     const refreshSchoolSettingsSection = () => {
       renderPortalSchoolSettingsSection({
@@ -1350,6 +1647,432 @@
     window.addEventListener(manager.eventName, refreshRolePermissionSection);
   }
 
+  function initAcademicCycleControls({
+    isAdmin,
+    manager,
+    summaryTarget,
+    sessionForm,
+    sessionStatus,
+    sessionListTarget,
+    termForm,
+    termStatus,
+    termListTarget,
+  }) {
+    if (
+      !summaryTarget ||
+      !sessionForm ||
+      !sessionStatus ||
+      !sessionListTarget ||
+      !termForm ||
+      !termStatus ||
+      !termListTarget
+    ) {
+      return;
+    }
+
+    const resetSessionForm = () => {
+      sessionForm.reset();
+      if (sessionForm.elements.sessionId) sessionForm.elements.sessionId.value = "";
+      if (sessionForm.elements.status) sessionForm.elements.status.value = "closed";
+      const submitButton = sessionForm.querySelector("[data-session-submit]");
+      const cancelButton = sessionForm.querySelector("[data-session-cancel]");
+      if (submitButton) submitButton.textContent = "Save session";
+      if (cancelButton) cancelButton.hidden = true;
+      Array.from(sessionForm.elements).forEach((field) => {
+        if (field instanceof HTMLElement) field.disabled = !isAdmin;
+      });
+    };
+
+    const resetTermForm = () => {
+      termForm.reset();
+      if (termForm.elements.termId) termForm.elements.termId.value = "";
+      if (termForm.elements.status) termForm.elements.status.value = "closed";
+      const submitButton = termForm.querySelector("[data-term-submit]");
+      const cancelButton = termForm.querySelector("[data-term-cancel]");
+      if (submitButton) submitButton.textContent = "Save term";
+      if (cancelButton) cancelButton.hidden = true;
+      Array.from(termForm.elements).forEach((field) => {
+        if (field instanceof HTMLElement) field.disabled = !isAdmin;
+      });
+    };
+
+    const renderSessionOptionsForTerm = (sessions, selectedSessionId = "") => {
+      const optionsHtml = sessions
+        .map(
+          (session) =>
+            `<option value="${escapeHtml(session.id)}" ${
+              selectedSessionId === session.id ? "selected" : ""
+            }>${escapeHtml(session.name)} ${session.status === "open" ? "(Open)" : ""}</option>`,
+        )
+        .join("");
+
+      termForm.elements.sessionId.innerHTML = optionsHtml;
+    };
+
+    const refreshAcademicCyclesSection = () => {
+      if (!manager) {
+        summaryTarget.innerHTML = `
+          <strong>Academic cycle controls unavailable</strong>
+          <span>The shared academic cycle manager could not be loaded on this page.</span>
+        `;
+        sessionListTarget.innerHTML = "";
+        termListTarget.innerHTML = "";
+        return;
+      }
+
+      const { sessions, terms, openSession, openTerm } = manager.summarize();
+
+      summaryTarget.innerHTML = `
+        <strong>Open session: ${escapeHtml(openSession?.name || "None")}</strong>
+        <span>Open term: ${escapeHtml(openTerm?.name || "None")} • Total sessions: ${
+          sessions.length
+        } • Total terms: ${terms.length}</span>
+      `;
+
+      renderSessionOptionsForTerm(
+        sessions,
+        termForm.elements.sessionId?.value ||
+          openSession?.id ||
+          sessions[0]?.id ||
+          "",
+      );
+
+      sessionListTarget.innerHTML = sessions.length
+        ? sessions
+            .map(
+              (session) => `
+                <article class="portal-class-card">
+                  <div class="portal-class-meta">
+                    <div class="portal-class-meta-item">
+                      <span>Session</span>
+                      <strong>${escapeHtml(session.name)}</strong>
+                    </div>
+                    <div class="portal-class-meta-item">
+                      <span>Dates</span>
+                      <strong>${escapeHtml(session.startDate || "—")} to ${escapeHtml(
+                        session.endDate || "—",
+                      )}</strong>
+                    </div>
+                    <div class="portal-class-meta-item">
+                      <span>Status</span>
+                      <strong>${session.status === "open" ? "Open" : "Closed"}</strong>
+                    </div>
+                  </div>
+                  <div class="portal-class-actions">
+                    <button class="portal-class-button" type="button" data-session-action="edit" data-session-id="${session.id}" ${
+                isAdmin ? "" : "disabled"
+              }>Edit</button>
+                    <button class="portal-class-button ${
+                      session.status === "open" ? "is-archive" : "is-restore"
+                    }" type="button" data-session-action="${
+                      session.status === "open" ? "close" : "open"
+                    }" data-session-id="${session.id}" ${isAdmin ? "" : "disabled"}>
+                      ${session.status === "open" ? "Close session" : "Open session"}
+                    </button>
+                  </div>
+                </article>
+              `,
+            )
+            .join("")
+        : `
+            <article class="portal-class-empty">
+              <strong>No academic sessions yet</strong>
+              <p>Create your first session to start controlling open or closed session windows.</p>
+            </article>
+          `;
+
+      termListTarget.innerHTML = terms.length
+        ? terms
+            .map((term) => {
+              const termSession = sessions.find((session) => session.id === term.sessionId);
+              return `
+                <article class="portal-class-card">
+                  <div class="portal-class-meta">
+                    <div class="portal-class-meta-item">
+                      <span>Term</span>
+                      <strong>${escapeHtml(term.name)}</strong>
+                    </div>
+                    <div class="portal-class-meta-item">
+                      <span>Session</span>
+                      <strong>${escapeHtml(termSession?.name || "Unknown session")}</strong>
+                    </div>
+                    <div class="portal-class-meta-item">
+                      <span>Status</span>
+                      <strong>${term.status === "open" ? "Open" : "Closed"}</strong>
+                    </div>
+                  </div>
+                  <div class="portal-class-actions">
+                    <button class="portal-class-button" type="button" data-term-action="edit" data-term-id="${term.id}" ${
+                isAdmin ? "" : "disabled"
+              }>Edit</button>
+                    <button class="portal-class-button ${
+                      term.status === "open" ? "is-archive" : "is-restore"
+                    }" type="button" data-term-action="${
+                      term.status === "open" ? "close" : "open"
+                    }" data-term-id="${term.id}" ${isAdmin ? "" : "disabled"}>
+                      ${term.status === "open" ? "Close term" : "Open term"}
+                    </button>
+                  </div>
+                </article>
+              `;
+            })
+            .join("")
+        : `
+            <article class="portal-class-empty">
+              <strong>No terms yet</strong>
+              <p>Create terms inside sessions and mark a term open when it becomes active.</p>
+            </article>
+          `;
+
+      if (!isAdmin) {
+        setStatus(
+          sessionStatus,
+          "info",
+          "Switch to the administrator role to open or close sessions and terms.",
+        );
+      }
+    };
+
+    clearPortalSessionErrors(sessionForm);
+    clearPortalTermErrors(termForm);
+    resetSessionForm();
+    resetTermForm();
+    refreshAcademicCyclesSection();
+
+    sessionForm.addEventListener("input", () => {
+      clearPortalSessionErrors(sessionForm);
+      if (isAdmin) setStatus(sessionStatus, "", "");
+    });
+
+    termForm.addEventListener("input", () => {
+      clearPortalTermErrors(termForm);
+      if (isAdmin) setStatus(termStatus, "", "");
+    });
+
+    if (!manager) {
+      return;
+    }
+
+    sessionForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+
+      if (!isAdmin) {
+        setStatus(sessionStatus, "info", "Only administrators can manage academic sessions.");
+        return;
+      }
+
+      clearPortalSessionErrors(sessionForm);
+      setStatus(sessionStatus, "", "");
+
+      const payload = {
+        id: sessionForm.elements.sessionId.value || undefined,
+        name: sessionForm.elements.name.value.trim(),
+        startDate: sessionForm.elements.startDate.value || "",
+        endDate: sessionForm.elements.endDate.value || "",
+        status: sessionForm.elements.status.value === "open" ? "open" : "closed",
+      };
+
+      let hasError = false;
+
+      if (!payload.name) {
+        setPortalSessionError(sessionForm, "name", "Enter the academic session name.");
+        hasError = true;
+      }
+
+      if (payload.endDate && payload.startDate && payload.endDate < payload.startDate) {
+        setPortalSessionError(
+          sessionForm,
+          "endDate",
+          "Session end date must be after the session start date.",
+        );
+        hasError = true;
+      }
+
+      if (hasError) {
+        setStatus(sessionStatus, "error", "Fix the highlighted session details and try again.");
+        return;
+      }
+
+      const existing = manager.getState().sessions.find((session) => session.id === payload.id) || null;
+      manager.upsertSession(payload);
+      recordAuditEvent({
+        action: existing ? "updated" : "created",
+        entityType: "academic-session",
+        entityId: payload.name,
+        summary: `${existing ? "Updated" : "Created"} session ${payload.name}`,
+        details: `Status: ${payload.status}`,
+      });
+      setStatus(
+        sessionStatus,
+        "success",
+        `Session <strong>${escapeHtml(payload.name)}</strong> saved as ${
+          payload.status === "open" ? "open" : "closed"
+        }.`,
+      );
+      clearPortalSessionErrors(sessionForm);
+      resetSessionForm();
+    });
+
+    termForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+
+      if (!isAdmin) {
+        setStatus(termStatus, "info", "Only administrators can manage academic terms.");
+        return;
+      }
+
+      clearPortalTermErrors(termForm);
+      setStatus(termStatus, "", "");
+
+      const payload = {
+        id: termForm.elements.termId.value || undefined,
+        sessionId: termForm.elements.sessionId.value || "",
+        name: termForm.elements.name.value.trim(),
+        startDate: termForm.elements.startDate.value || "",
+        endDate: termForm.elements.endDate.value || "",
+        status: termForm.elements.status.value === "open" ? "open" : "closed",
+      };
+
+      let hasError = false;
+
+      if (!payload.sessionId) {
+        setPortalTermError(termForm, "sessionId", "Select a session for this term.");
+        hasError = true;
+      }
+
+      if (!payload.name) {
+        setPortalTermError(termForm, "name", "Enter the term name.");
+        hasError = true;
+      }
+
+      if (payload.endDate && payload.startDate && payload.endDate < payload.startDate) {
+        setPortalTermError(termForm, "endDate", "Term end date must be after the term start date.");
+        hasError = true;
+      }
+
+      if (hasError) {
+        setStatus(termStatus, "error", "Fix the highlighted term details and try again.");
+        return;
+      }
+
+      const existing = manager.getState().terms.find((term) => term.id === payload.id) || null;
+      manager.upsertTerm(payload);
+      recordAuditEvent({
+        action: existing ? "updated" : "created",
+        entityType: "academic-term",
+        entityId: payload.name,
+        summary: `${existing ? "Updated" : "Created"} term ${payload.name}`,
+        details: `Status: ${payload.status}`,
+      });
+      setStatus(
+        termStatus,
+        "success",
+        `Term <strong>${escapeHtml(payload.name)}</strong> saved as ${
+          payload.status === "open" ? "open" : "closed"
+        }.`,
+      );
+      clearPortalTermErrors(termForm);
+      resetTermForm();
+    });
+
+    sessionListTarget.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-session-action]");
+
+      if (!button || !isAdmin) {
+        return;
+      }
+
+      const action = button.dataset.sessionAction;
+      const sessionId = button.dataset.sessionId;
+      const session = manager.getState().sessions.find((item) => item.id === sessionId);
+
+      if (!session) {
+        return;
+      }
+
+      if (action === "edit") {
+        sessionForm.elements.sessionId.value = session.id;
+        sessionForm.elements.name.value = session.name;
+        sessionForm.elements.startDate.value = session.startDate || "";
+        sessionForm.elements.endDate.value = session.endDate || "";
+        sessionForm.elements.status.value = session.status;
+        const submitButton = sessionForm.querySelector("[data-session-submit]");
+        const cancelButton = sessionForm.querySelector("[data-session-cancel]");
+        if (submitButton) submitButton.textContent = "Save changes";
+        if (cancelButton) cancelButton.hidden = false;
+        return;
+      }
+
+      manager.setSessionStatus(session.id, action === "open" ? "open" : "closed");
+      recordAuditEvent({
+        action: action === "open" ? "opened" : "closed",
+        entityType: "academic-session",
+        entityId: session.name,
+        summary: `${action === "open" ? "Opened" : "Closed"} session ${session.name}`,
+        details: "",
+      });
+    });
+
+    termListTarget.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-term-action]");
+
+      if (!button || !isAdmin) {
+        return;
+      }
+
+      const action = button.dataset.termAction;
+      const termId = button.dataset.termId;
+      const term = manager.getState().terms.find((item) => item.id === termId);
+
+      if (!term) {
+        return;
+      }
+
+      if (action === "edit") {
+        termForm.elements.termId.value = term.id;
+        termForm.elements.sessionId.value = term.sessionId;
+        termForm.elements.name.value = term.name;
+        termForm.elements.startDate.value = term.startDate || "";
+        termForm.elements.endDate.value = term.endDate || "";
+        termForm.elements.status.value = term.status;
+        const submitButton = termForm.querySelector("[data-term-submit]");
+        const cancelButton = termForm.querySelector("[data-term-cancel]");
+        if (submitButton) submitButton.textContent = "Save changes";
+        if (cancelButton) cancelButton.hidden = false;
+        return;
+      }
+
+      manager.setTermStatus(term.id, action === "open" ? "open" : "closed");
+      recordAuditEvent({
+        action: action === "open" ? "opened" : "closed",
+        entityType: "academic-term",
+        entityId: term.name,
+        summary: `${action === "open" ? "Opened" : "Closed"} term ${term.name}`,
+        details: "",
+      });
+    });
+
+    const sessionCancel = sessionForm.querySelector("[data-session-cancel]");
+    if (sessionCancel) {
+      sessionCancel.addEventListener("click", () => {
+        clearPortalSessionErrors(sessionForm);
+        resetSessionForm();
+        setStatus(sessionStatus, "", "");
+      });
+    }
+
+    const termCancel = termForm.querySelector("[data-term-cancel]");
+    if (termCancel) {
+      termCancel.addEventListener("click", () => {
+        clearPortalTermErrors(termForm);
+        resetTermForm();
+        setStatus(termStatus, "", "");
+      });
+    }
+
+    window.addEventListener(manager.eventName, refreshAcademicCyclesSection);
+  }
+
   function parseCommaSeparatedValues(rawValue) {
     return String(rawValue || "")
       .split(",")
@@ -1396,6 +2119,48 @@
 
   function setPortalSettingsError(form, fieldName, message) {
     const error = form.querySelector(`[data-settings-error-for="${fieldName}"]`);
+    const control = form.elements[fieldName];
+    const field = control ? control.closest(".portal-field") : null;
+
+    if (error) {
+      error.textContent = message;
+    }
+
+    if (field) {
+      field.classList.add("is-invalid");
+    }
+  }
+
+  function clearPortalSessionErrors(form) {
+    form.querySelectorAll(".portal-field").forEach((field) => field.classList.remove("is-invalid"));
+    form.querySelectorAll("[data-session-error-for]").forEach((error) => {
+      error.textContent = "";
+    });
+  }
+
+  function setPortalSessionError(form, fieldName, message) {
+    const error = form.querySelector(`[data-session-error-for="${fieldName}"]`);
+    const control = form.elements[fieldName];
+    const field = control ? control.closest(".portal-field") : null;
+
+    if (error) {
+      error.textContent = message;
+    }
+
+    if (field) {
+      field.classList.add("is-invalid");
+    }
+  }
+
+  function clearPortalTermErrors(form) {
+    form.querySelectorAll(".portal-field").forEach((field) => field.classList.remove("is-invalid"));
+    form.querySelectorAll("[data-term-error-for]").forEach((error) => {
+      error.textContent = "";
+    });
+  }
+
+  function setPortalTermError(form, fieldName, message) {
+    const error = form.querySelector(`[data-term-error-for="${fieldName}"]`);
     const control = form.elements[fieldName];
     const field = control ? control.closest(".portal-field") : null;
 
@@ -1609,6 +2374,9 @@
     // Populate form fields
     form.elements.schoolName.value       = settings.schoolName;
     form.elements.logoUrl.value          = settings.logoUrl;
+    if (form.elements.logoFile) {
+      form.elements.logoFile.value = "";
+    }
     form.elements.schoolProfile.value    = settings.schoolProfile || "";
     form.elements.phone.value            = settings.phone;
     form.elements.website.value          = settings.website;
@@ -1660,6 +2428,378 @@
       hasNursery:       Boolean(form.elements.hasNursery?.checked),
       hasHigherInstitution: Boolean(form.elements.hasHigherInstitution?.checked),
     }, isAdmin);
+  }
+
+  function clearPortalAccessErrors(form) {
+    form.querySelectorAll(".portal-field").forEach((field) => field.classList.remove("is-invalid"));
+    form.querySelectorAll("[data-access-error-for]").forEach((error) => {
+      error.textContent = "";
+    });
+  }
+
+  function setPortalAccessError(form, fieldName, message) {
+    const error = form.querySelector(`[data-access-error-for="${fieldName}"]`);
+    const control = form.elements[fieldName];
+    const field = control ? control.closest(".portal-field") : null;
+
+    if (error) {
+      error.textContent = message;
+    }
+
+    if (field) {
+      field.classList.add("is-invalid");
+    }
+  }
+
+  function resetPortalAccessForm(form, isAdmin) {
+    if (!form) {
+      return;
+    }
+
+    form.reset();
+
+    if (form.elements.accessId) {
+      form.elements.accessId.value = "";
+    }
+
+    if (form.elements.role) {
+      form.elements.role.value = "Employee";
+    }
+
+    if (form.elements.authMethod) {
+      form.elements.authMethod.value = "any";
+    }
+
+    if (form.elements.status) {
+      form.elements.status.value = "active";
+    }
+
+    const submitButton = form.querySelector("[data-access-submit]");
+    const cancelButton = form.querySelector("[data-access-cancel]");
+
+    if (submitButton) {
+      submitButton.textContent = "Grant access";
+    }
+
+    if (cancelButton) {
+      cancelButton.hidden = true;
+    }
+
+    Array.from(form.elements).forEach((field) => {
+      if (field instanceof HTMLElement) {
+        field.disabled = !isAdmin;
+      }
+    });
+  }
+
+  function populatePortalAccessForm(form, grant, isAdmin) {
+    if (!form || !grant) {
+      return;
+    }
+
+    form.elements.accessId.value = grant.id;
+    form.elements.email.value = grant.email;
+    form.elements.role.value = normalizeRoleLabel(grant.role);
+    form.elements.authMethod.value = normalizeAccessMethod(grant.authMethod);
+    form.elements.status.value = normalizeAccessStatus(grant.status);
+
+    const submitButton = form.querySelector("[data-access-submit]");
+    const cancelButton = form.querySelector("[data-access-cancel]");
+
+    if (submitButton) {
+      submitButton.textContent = "Save access";
+    }
+
+    if (cancelButton) {
+      cancelButton.hidden = !isAdmin;
+    }
+
+    Array.from(form.elements).forEach((field) => {
+      if (field instanceof HTMLElement) {
+        field.disabled = !isAdmin;
+      }
+    });
+  }
+
+  function renderPortalAccessProvisioningSection({ isAdmin, summaryTarget, listTarget }) {
+    if (!summaryTarget || !listTarget) {
+      return;
+    }
+
+    const grants = getAccessGrants();
+    const users = getUsers();
+    const activeCount = grants.filter((entry) => entry.status === "active").length;
+    const revokedCount = grants.filter((entry) => entry.status === "revoked").length;
+    const claimedCount = grants.filter((entry) => entry.claimedAt).length;
+
+    summaryTarget.innerHTML = `
+      <strong>${activeCount} active access grants</strong>
+      <span>${
+        isAdmin
+          ? `${claimedCount} claimed • ${revokedCount} revoked. Users can only register when a matching grant exists.`
+          : "Only administrators can create or update access grants."
+      }</span>
+    `;
+
+    if (!grants.length) {
+      listTarget.innerHTML = `
+        <article class="portal-class-empty">
+          <strong>No access grants yet</strong>
+          <p>Add staff, student, parent, or administrator emails here to control who can sign up.</p>
+        </article>
+      `;
+      return;
+    }
+
+    listTarget.innerHTML = grants
+      .map((grant) => {
+        const existingUser =
+          users.find((entry) => entry.normalizedEmail === grant.normalizedEmail) || null;
+        const claimLabel = grant.claimedAt
+          ? `Claimed ${escapeHtml(formatTimestamp(grant.claimedAt))}`
+          : "Not claimed yet";
+        const statusLabel = grant.status === "active" ? "Active" : "Revoked";
+
+        return `
+          <article class="portal-class-card">
+            <div class="portal-class-meta">
+              <div class="portal-class-meta-item">
+                <span>Email</span>
+                <strong>${escapeHtml(grant.email)}</strong>
+              </div>
+              <div class="portal-class-meta-item">
+                <span>Role</span>
+                <strong>${escapeHtml(grant.role)}</strong>
+              </div>
+              <div class="portal-class-meta-item">
+                <span>Method</span>
+                <strong>${escapeHtml(grant.authMethod)}</strong>
+              </div>
+              <div class="portal-class-meta-item">
+                <span>Status</span>
+                <strong>${escapeHtml(statusLabel)}</strong>
+              </div>
+            </div>
+            <div class="portal-class-extended">
+              <div class="portal-class-extended-item">
+                <span>Grant state</span>
+                <strong>${escapeHtml(claimLabel)}</strong>
+              </div>
+              <div class="portal-class-extended-item">
+                <span>Account record</span>
+                <strong>${
+                  existingUser
+                    ? `${escapeHtml(normalizeRoleLabel(existingUser.role))} (${escapeHtml(
+                        existingUser.provider || "password",
+                      )})`
+                    : "No account yet"
+                }</strong>
+              </div>
+            </div>
+            <div class="portal-class-actions">
+              <button class="portal-class-button" type="button" data-access-action="edit" data-access-id="${grant.id}" ${
+          isAdmin ? "" : "disabled"
+        }>
+                Edit
+              </button>
+              <button
+                class="portal-class-button ${grant.status === "active" ? "is-archive" : "is-restore"}"
+                type="button"
+                data-access-action="${grant.status === "active" ? "revoke" : "activate"}"
+                data-access-id="${grant.id}"
+                ${isAdmin ? "" : "disabled"}
+              >
+                ${grant.status === "active" ? "Revoke" : "Activate"}
+              </button>
+              <button
+                class="portal-class-button"
+                type="button"
+                data-access-action="delete"
+                data-access-id="${grant.id}"
+                ${isAdmin ? "" : "disabled"}
+              >
+                Delete
+              </button>
+            </div>
+          </article>
+        `;
+      })
+      .join("");
+  }
+
+  function initAccessProvisioningControls({
+    isAdmin,
+    summaryTarget,
+    form,
+    status,
+    listTarget,
+  }) {
+    if (!summaryTarget || !form || !status || !listTarget) {
+      return;
+    }
+
+    const refreshAccessProvisioning = () => {
+      renderPortalAccessProvisioningSection({
+        isAdmin,
+        summaryTarget,
+        listTarget,
+      });
+    };
+
+    form.addEventListener("input", () => {
+      clearPortalAccessErrors(form);
+
+      if (isAdmin) {
+        setStatus(status, "", "");
+      }
+    });
+
+    refreshAccessProvisioning();
+    resetPortalAccessForm(form, isAdmin);
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+
+      if (!isAdmin) {
+        setStatus(status, "info", "Only administrators can grant user access.");
+        return;
+      }
+
+      clearPortalAccessErrors(form);
+      setStatus(status, "", "");
+
+      const accessId = form.elements.accessId.value || "";
+      const payload = {
+        id: accessId || undefined,
+        email: form.elements.email.value.trim(),
+        role: normalizeRoleLabel(form.elements.role.value),
+        authMethod: normalizeAccessMethod(form.elements.authMethod.value),
+        status: normalizeAccessStatus(form.elements.status.value),
+      };
+
+      let hasError = false;
+
+      if (!payload.email) {
+        setPortalAccessError(form, "email", "Enter a valid email to grant access.");
+        hasError = true;
+      } else if (!EMAIL_REGEX.test(payload.email)) {
+        setPortalAccessError(form, "email", "Enter a valid email format.");
+        hasError = true;
+      }
+
+      if (hasError) {
+        setStatus(status, "error", "Fix the highlighted access fields and try again.");
+        return;
+      }
+
+      const grants = getAccessGrants();
+      const duplicate = grants.find(
+        (entry) =>
+          entry.id !== accessId &&
+          entry.normalizedEmail === normalizeEmail(payload.email) &&
+          normalizeRoleLabel(entry.role) === payload.role,
+      );
+
+      if (duplicate) {
+        setPortalAccessError(form, "email", "This email already has an access grant for that role.");
+        setStatus(status, "error", "An access grant already exists for that email and role.");
+        return;
+      }
+
+      const currentGrant = grants.find((entry) => entry.id === accessId) || null;
+      upsertAccessGrant({
+        ...currentGrant,
+        ...payload,
+      });
+      recordAuditEvent({
+        action: currentGrant ? "updated" : "granted",
+        entityType: "user-access",
+        entityId: payload.email,
+        summary: currentGrant
+          ? `Updated access for ${payload.email}`
+          : `Granted ${payload.role} access to ${payload.email}`,
+        details: `Method: ${payload.authMethod} • Status: ${payload.status}`,
+      });
+
+      resetPortalAccessForm(form, isAdmin);
+      refreshAccessProvisioning();
+      setStatus(
+        status,
+        "success",
+        `Access saved for <strong>${escapeHtml(payload.email)}</strong> as <strong>${escapeHtml(
+          payload.role,
+        )}</strong>.`,
+      );
+    });
+
+    listTarget.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-access-action]");
+
+      if (!button || !isAdmin) {
+        return;
+      }
+
+      const action = button.dataset.accessAction;
+      const accessId = button.dataset.accessId;
+      const grant = getAccessGrants().find((entry) => entry.id === accessId);
+
+      if (!grant) {
+        return;
+      }
+
+      if (action === "edit") {
+        clearPortalAccessErrors(form);
+        populatePortalAccessForm(form, grant, isAdmin);
+        setStatus(
+          status,
+          "info",
+          `Editing access for <strong>${escapeHtml(grant.email)}</strong>.`,
+        );
+        return;
+      }
+
+      if (action === "revoke" || action === "activate") {
+        const nextStatus = action === "revoke" ? "revoked" : "active";
+        setAccessGrantStatus(grant.id, nextStatus);
+        recordAuditEvent({
+          action: nextStatus,
+          entityType: "user-access",
+          entityId: grant.email,
+          summary: `${nextStatus === "active" ? "Activated" : "Revoked"} access for ${grant.email}`,
+          details: `Role: ${grant.role}`,
+        });
+        refreshAccessProvisioning();
+        setStatus(
+          status,
+          "success",
+          `Access is now <strong>${escapeHtml(nextStatus)}</strong> for ${escapeHtml(grant.email)}.`,
+        );
+        return;
+      }
+
+      if (action === "delete") {
+        removeAccessGrant(grant.id);
+        recordAuditEvent({
+          action: "deleted",
+          entityType: "user-access",
+          entityId: grant.email,
+          summary: `Deleted access grant for ${grant.email}`,
+          details: `Role: ${grant.role}`,
+        });
+        refreshAccessProvisioning();
+        resetPortalAccessForm(form, isAdmin);
+        setStatus(status, "success", `Deleted access grant for <strong>${escapeHtml(grant.email)}</strong>.`);
+      }
+    });
+
+    const cancelButton = form.querySelector("[data-access-cancel]");
+    if (cancelButton) {
+      cancelButton.addEventListener("click", () => {
+        clearPortalAccessErrors(form);
+        resetPortalAccessForm(form, isAdmin);
+        setStatus(status, "", "");
+      });
+    }
   }
 
   function renderPortalFeatureToggleSection({ isAdmin, manager, summaryTarget, gridTarget }) {
@@ -2171,10 +3311,68 @@
     }
   }
 
+  function resolveGuardianRelationshipFields(row) {
+    const relationshipType =
+      row.querySelector('[data-guardian-field="relationshipType"]')?.value.trim() || "";
+    const relationshipOther =
+      row.querySelector('[data-guardian-field="relationshipOther"]')?.value.trim() || "";
+    const relationship =
+      relationshipType === "Other" ? relationshipOther : relationshipType;
+
+    return {
+      relationshipType,
+      relationshipOther,
+      relationship,
+    };
+  }
+
+  function updateGuardianRelationshipCustomField(row) {
+    if (!row) {
+      return;
+    }
+
+    const relationshipTypeControl = row.querySelector('[data-guardian-field="relationshipType"]');
+    const relationshipOtherControl = row.querySelector('[data-guardian-field="relationshipOther"]');
+
+    if (!(relationshipTypeControl instanceof HTMLSelectElement) || !(relationshipOtherControl instanceof HTMLInputElement)) {
+      return;
+    }
+
+    const isOther = relationshipTypeControl.value === "Other";
+    relationshipOtherControl.classList.toggle("is-hidden", !isOther);
+    relationshipOtherControl.disabled = !isOther;
+
+    if (!isOther) {
+      relationshipOtherControl.value = "";
+    }
+  }
+
   function appendGuardianRow(container, guardian = {}, isAdmin = true) {
     if (!container) {
       return;
     }
+
+    const relationshipValue = String(guardian.relationship || "").trim();
+    const hasPresetRelationship = GUARDIAN_RELATIONSHIP_TYPES
+      .filter((type) => type !== "Other")
+      .some((type) => type.toLowerCase() === relationshipValue.toLowerCase());
+    const selectedRelationshipType = relationshipValue
+      ? hasPresetRelationship
+        ? GUARDIAN_RELATIONSHIP_TYPES.find(
+            (type) => type.toLowerCase() === relationshipValue.toLowerCase(),
+          ) || ""
+        : "Other"
+      : "";
+    const customRelationship = selectedRelationshipType === "Other" ? relationshipValue : "";
+    const relationshipOptions = [
+      '<option value="">Relationship type</option>',
+      ...GUARDIAN_RELATIONSHIP_TYPES.map(
+        (type) =>
+          `<option value="${escapeHtml(type)}" ${
+            selectedRelationshipType === type ? "selected" : ""
+          }>${escapeHtml(type)}</option>`,
+      ),
+    ].join("");
 
     const row = document.createElement("div");
     row.className = "portal-guardian-row";
@@ -2183,9 +3381,17 @@
       <input type="text" data-guardian-field="name" placeholder="Guardian name" value="${escapeHtml(
         guardian.name || "",
       )}" ${isAdmin ? "" : "disabled"} />
-      <input type="text" data-guardian-field="relationship" placeholder="Relationship (Mother, Uncle...)" value="${escapeHtml(
-        guardian.relationship || "",
-      )}" ${isAdmin ? "" : "disabled"} />
+      <select data-guardian-field="relationshipType" ${isAdmin ? "" : "disabled"}>
+        ${relationshipOptions}
+      </select>
+      <input
+        type="text"
+        data-guardian-field="relationshipOther"
+        class="${selectedRelationshipType === "Other" ? "" : "is-hidden"}"
+        placeholder="Enter relationship type"
+        value="${escapeHtml(customRelationship)}"
+        ${isAdmin && selectedRelationshipType === "Other" ? "" : "disabled"}
+      />
       <input type="text" data-guardian-field="phone" placeholder="+234 800 000 0000" value="${escapeHtml(
         guardian.phone || "",
       )}" ${isAdmin ? "" : "disabled"} />
@@ -2195,6 +3401,7 @@
       <button type="button" class="portal-guardian-remove" data-remove-guardian ${isAdmin ? "" : "disabled"}>Remove</button>
     `;
     container.appendChild(row);
+    updateGuardianRelationshipCustomField(row);
   }
 
   function parseGuardianRows(container) {
@@ -2204,7 +3411,7 @@
 
     rows.forEach((row) => {
       const name = row.querySelector('[data-guardian-field="name"]')?.value.trim() || "";
-      const relationship = row.querySelector('[data-guardian-field="relationship"]')?.value.trim() || "";
+      const { relationshipType, relationship } = resolveGuardianRelationshipFields(row);
       const phone = row.querySelector('[data-guardian-field="phone"]')?.value.trim() || "";
       const email = row.querySelector('[data-guardian-field="email"]')?.value.trim() || "";
 
@@ -2212,7 +3419,12 @@
         return;
       }
 
-      if (!name || !relationship || (!phone && !email)) {
+      if (
+        !name ||
+        !relationship ||
+        (relationshipType === "Other" && !relationship) ||
+        (!phone && !email)
+      ) {
         hasInvalidRow = true;
         return;
       }
@@ -2375,6 +3587,17 @@
         appendGuardianRow(guardianList, {}, isAdmin);
       });
     }
+
+    guardianList.addEventListener("change", (event) => {
+      const relationshipControl = event.target.closest('[data-guardian-field="relationshipType"]');
+
+      if (!(relationshipControl instanceof HTMLSelectElement)) {
+        return;
+      }
+
+      const row = relationshipControl.closest(".portal-guardian-row");
+      updateGuardianRelationshipCustomField(row);
+    });
 
     guardianList.addEventListener("click", (event) => {
       const removeButton = event.target.closest("[data-remove-guardian]");
@@ -2717,6 +3940,12 @@
       return;
     }
 
+    const guardNotice = getAccessGuardNotice();
+
+    if (guardNotice) {
+      setStatus(status, "info", guardNotice);
+    }
+
     form.addEventListener("input", () => {
       clearFieldErrors(form);
       setStatus(status, "", "");
@@ -2733,6 +3962,8 @@
       const confirmPassword = form.elements.confirmPassword.value;
       const termsAccepted = form.elements.terms.checked;
       const selectedRole = getSelectedRole();
+      const bootstrapAdminAllowed = selectedRole === "Administrator" && !hasAdministratorAccount();
+      const accessGrant = getProvisioningGrant(email, selectedRole, "password");
 
       let hasError = false;
 
@@ -2781,6 +4012,16 @@
         hasError = true;
       }
 
+      if (!bootstrapAdminAllowed && !accessGrant) {
+        setFieldError(form, "email", "Ask an administrator to grant this email access first.");
+        setStatus(
+          status,
+          "error",
+          "This email does not have admin-granted sign-up access yet.",
+        );
+        hasError = true;
+      }
+
       if (hasError) {
         if (!status.hidden || status.innerHTML) {
           return;
@@ -2821,6 +4062,7 @@
         }
 
         form.reset();
+        markAccessGrantClaimed(email, selectedRole, "password", data?.user?.id || null);
         setStatus(
           status,
           "success",
@@ -2852,6 +4094,7 @@
       users.push(user);
       saveUsers(users);
       storeConfirmationMail(user);
+      markAccessGrantClaimed(user.email, user.role, "password", user.id);
 
       form.reset();
       setStatus(
@@ -2874,6 +4117,12 @@
 
     if (!form || !status) {
       return;
+    }
+
+    const guardNotice = getAccessGuardNotice();
+
+    if (guardNotice) {
+      setStatus(status, "info", guardNotice);
     }
 
     form.addEventListener("input", () => {
@@ -3155,6 +4404,7 @@
 
     const users = getUsers();
     const existingUser = users.find((user) => user.normalizedEmail === normalizeEmail(email)) || null;
+    const bootstrapAdminAllowed = selectedRole === "Administrator" && !hasAdministratorAccount();
 
     if (mode === "signup") {
       if (existingUser) {
@@ -3162,6 +4412,13 @@
           existingUser.provider === "google"
             ? "This Google account is already registered. Use login instead."
             : "This email already uses email and password. Sign in with that method instead.";
+        return;
+      }
+
+      const accessGrant = getProvisioningGrant(email, selectedRole, "google");
+
+      if (!bootstrapAdminAllowed && !accessGrant) {
+        error.textContent = "This Google email has no administrator-granted access yet.";
         return;
       }
 
@@ -3185,6 +4442,7 @@
 
       user.lastLoginAt = nowIso();
       saveUsers(users);
+      markAccessGrantClaimed(user.email, user.role, "google", user.id);
       setSession(
         {
           userId: user.id,
@@ -3294,7 +4552,7 @@
 
     setStatus(status, "success", "Your email address is now confirmed.");
     heading.textContent = "Account confirmed.";
-    copy.textContent = "You can now sign in with your email and password.";
+    copy.textContent = "You can now sign in with your email and password. Redirecting to login...";
     details.innerHTML = `
       <div class="utility-item">
         <span>Confirmed account</span>
@@ -3305,6 +4563,10 @@
         <strong>Email and password</strong>
       </div>
     `;
+
+    window.setTimeout(() => {
+      window.location.assign("./login.html");
+    }, 1400);
   }
 
   function renderAdminMetricCards(target, snapshot) {
@@ -3552,12 +4814,24 @@
     const { isAdmin } = getAdminAccessContext();
     const schoolSettingsManager = getSchoolSettingsManager();
     const rolePermissionManager = getRolePermissionManager();
+    const academicCycleManager = getAcademicCycleManager();
     const schoolSettingsPreview = document.getElementById("portal-school-settings-preview");
     const schoolSettingsForm = document.getElementById("portal-school-settings-form");
     const schoolSettingsStatus = document.getElementById("portal-school-settings-status");
+    const accessSummary = document.getElementById("portal-access-summary");
+    const accessForm = document.getElementById("portal-access-form");
+    const accessStatus = document.getElementById("portal-access-status");
+    const accessList = document.getElementById("portal-access-list");
     const rolePermissionSummary = document.getElementById("portal-role-permission-summary");
     const rolePermissionGrid = document.getElementById("portal-role-permission-grid");
     const resetRolePermissionsButton = document.querySelector("[data-reset-role-permissions]");
+    const academicCycleSummary = document.getElementById("portal-academic-cycle-summary");
+    const sessionForm = document.getElementById("portal-session-form");
+    const sessionStatus = document.getElementById("portal-session-status");
+    const sessionList = document.getElementById("portal-session-list");
+    const termForm = document.getElementById("portal-term-form");
+    const termStatus = document.getElementById("portal-term-status");
+    const termList = document.getElementById("portal-term-list");
 
     initSchoolSettingsControls({
       isAdmin,
@@ -3579,6 +4853,26 @@
       summaryTarget: rolePermissionSummary,
       gridTarget: rolePermissionGrid,
       resetButton: resetRolePermissionsButton,
+    });
+
+    initAccessProvisioningControls({
+      isAdmin,
+      summaryTarget: accessSummary,
+      form: accessForm,
+      status: accessStatus,
+      listTarget: accessList,
+    });
+
+    initAcademicCycleControls({
+      isAdmin,
+      manager: academicCycleManager,
+      summaryTarget: academicCycleSummary,
+      sessionForm,
+      sessionStatus,
+      sessionListTarget: sessionList,
+      termForm,
+      termStatus,
+      termListTarget: termList,
     });
   }
 

@@ -11,7 +11,7 @@ window.SchoolSphereSupabaseConfig = {
   // Update these if your app lives on another origin or route.
   siteUrl: window.location.origin,
   redirectPath: "/portal.html",
-  emailRedirectPath: "/portal.html",
+  emailRedirectPath: "/login.html",
 
   // ─────────────────────────────────────────────────────────────────────────
   // IMPORTANT — Supabase dashboard setup for password reset emails

@@ -73,16 +73,29 @@
                 <p class="portal-field-error" data-settings-error-for="schoolName"></p>
               </label>
 
-              <label class="portal-field" for="school-logo-url">
-                <span>Logo image URL or local path</span>
-                <input
-                  id="school-logo-url"
-                  name="logoUrl"
-                  type="text"
-                  placeholder="./logo.png or https://example.com/logo.png"
-                />
-                <p class="portal-field-error" data-settings-error-for="logoUrl"></p>
-              </label>
+              <div class="portal-logo-row portal-field-span-2">
+                <span class="portal-logo-swatch" data-logo-swatch>S</span>
+                <div class="portal-logo-field">
+                  <label class="portal-field" for="school-logo-url">
+                    <span>Logo image URL (optional)</span>
+                    <input
+                      id="school-logo-url"
+                      name="logoUrl"
+                      type="text"
+                      placeholder="./logo.png or https://example.com/logo.png"
+                    />
+                    <p class="portal-field-error" data-settings-error-for="logoUrl"></p>
+                  </label>
+                  <label class="portal-field" for="school-logo-file">
+                    <span>Or upload logo from this computer</span>
+                    <input id="school-logo-file" name="logoFile" type="file" accept="image/*" />
+                    <p class="portal-field-error" data-settings-error-for="logoFile"></p>
+                  </label>
+                  <div class="utility-actions">
+                    <button class="button button-outline" type="button" data-clear-logo>Remove logo</button>
+                  </div>
+                </div>
+              </div>
 
               <label class="portal-field portal-field-span-2" for="school-profile">
                 <span>School profile</span>
@@ -184,6 +197,57 @@
 
         <article class="admin-surface-card">
           <div class="admin-surface-head">
+            <h2>User Access Provisioning</h2>
+            <span>Only administrators can grant sign-up access for staff, students, and parents.</span>
+          </div>
+          <div id="portal-access-summary" class="portal-role-permission-summary"></div>
+          <form id="portal-access-form" class="portal-settings-form" novalidate>
+            <div id="portal-access-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+            <input type="hidden" name="accessId" />
+            <div class="portal-settings-grid">
+              <label class="portal-field" for="access-email">
+                <span>User email</span>
+                <input id="access-email" name="email" type="email" placeholder="user@example.com" />
+                <p class="portal-field-error" data-access-error-for="email"></p>
+              </label>
+              <label class="portal-field" for="access-role">
+                <span>Role</span>
+                <select id="access-role" name="role">
+                  <option value="Employee">Employee</option>
+                  <option value="Student">Student</option>
+                  <option value="Parent">Parent</option>
+                  <option value="Administrator">Administrator</option>
+                </select>
+                <p class="portal-field-error" data-access-error-for="role"></p>
+              </label>
+              <label class="portal-field" for="access-method">
+                <span>Auth method</span>
+                <select id="access-method" name="authMethod">
+                  <option value="any">Any (Google or Password)</option>
+                  <option value="password">Email and Password only</option>
+                  <option value="google">Google only</option>
+                </select>
+                <p class="portal-field-error" data-access-error-for="authMethod"></p>
+              </label>
+              <label class="portal-field" for="access-status-select">
+                <span>Access status</span>
+                <select id="access-status-select" name="status">
+                  <option value="active">Active</option>
+                  <option value="revoked">Revoked</option>
+                </select>
+                <p class="portal-field-error" data-access-error-for="status"></p>
+              </label>
+            </div>
+            <div class="utility-actions">
+              <button class="button button-primary" type="submit" data-access-submit>Grant access</button>
+              <button class="button button-outline" type="button" data-access-cancel hidden>Cancel edit</button>
+            </div>
+          </form>
+          <div id="portal-access-list" class="portal-class-list"></div>
+        </article>
+
+        <article class="admin-surface-card">
+          <div class="admin-surface-head">
             <h2>Role Permissions</h2>
             <span>Configure what each standard role can access in your institution.</span>
           </div>
@@ -194,6 +258,100 @@
               Reset role permissions
             </button>
           </div>
+        </article>
+
+        <article class="admin-surface-card">
+          <div class="admin-surface-head">
+            <h2>Academic Sessions and Terms</h2>
+            <span>Open and close sessions or terms as the school calendar changes.</span>
+          </div>
+
+          <div id="portal-academic-cycle-summary" class="portal-role-permission-summary"></div>
+
+          <form id="portal-session-form" class="portal-settings-form" novalidate>
+            <div id="portal-session-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+            <input type="hidden" name="sessionId" />
+            <div class="portal-settings-grid">
+              <div class="portal-settings-section-head">
+                <strong>Academic session</strong>
+                <span>Create a session and mark it open or closed</span>
+              </div>
+              <label class="portal-field" for="session-name">
+                <span>Session name</span>
+                <input id="session-name" name="name" type="text" placeholder="2026/2027" />
+                <p class="portal-field-error" data-session-error-for="name"></p>
+              </label>
+              <label class="portal-field" for="session-start-date">
+                <span>Start date</span>
+                <input id="session-start-date" name="startDate" type="date" />
+                <p class="portal-field-error" data-session-error-for="startDate"></p>
+              </label>
+              <label class="portal-field" for="session-end-date">
+                <span>End date</span>
+                <input id="session-end-date" name="endDate" type="date" />
+                <p class="portal-field-error" data-session-error-for="endDate"></p>
+              </label>
+              <label class="portal-field" for="session-status-select">
+                <span>Status</span>
+                <select id="session-status-select" name="status">
+                  <option value="closed">Closed</option>
+                  <option value="open">Open</option>
+                </select>
+                <p class="portal-field-error" data-session-error-for="status"></p>
+              </label>
+            </div>
+            <div class="utility-actions">
+              <button class="button button-primary" type="submit" data-session-submit>Save session</button>
+              <button class="button button-outline" type="button" data-session-cancel hidden>Cancel edit</button>
+            </div>
+          </form>
+
+          <div id="portal-session-list" class="portal-class-list"></div>
+
+          <form id="portal-term-form" class="portal-settings-form" novalidate>
+            <div id="portal-term-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+            <input type="hidden" name="termId" />
+            <div class="portal-settings-grid">
+              <div class="portal-settings-section-head">
+                <strong>Academic term</strong>
+                <span>Create terms and open/close each term in the active session</span>
+              </div>
+              <label class="portal-field" for="term-session-id">
+                <span>Session</span>
+                <select id="term-session-id" name="sessionId"></select>
+                <p class="portal-field-error" data-term-error-for="sessionId"></p>
+              </label>
+              <label class="portal-field" for="term-name">
+                <span>Term name</span>
+                <input id="term-name" name="name" type="text" placeholder="First Term" />
+                <p class="portal-field-error" data-term-error-for="name"></p>
+              </label>
+              <label class="portal-field" for="term-start-date">
+                <span>Start date</span>
+                <input id="term-start-date" name="startDate" type="date" />
+                <p class="portal-field-error" data-term-error-for="startDate"></p>
+              </label>
+              <label class="portal-field" for="term-end-date">
+                <span>End date</span>
+                <input id="term-end-date" name="endDate" type="date" />
+                <p class="portal-field-error" data-term-error-for="endDate"></p>
+              </label>
+              <label class="portal-field" for="term-status-select">
+                <span>Status</span>
+                <select id="term-status-select" name="status">
+                  <option value="closed">Closed</option>
+                  <option value="open">Open</option>
+                </select>
+                <p class="portal-field-error" data-term-error-for="status"></p>
+              </label>
+            </div>
+            <div class="utility-actions">
+              <button class="button button-primary" type="submit" data-term-submit>Save term</button>
+              <button class="button button-outline" type="button" data-term-cancel hidden>Cancel edit</button>
+            </div>
+          </form>
+
+          <div id="portal-term-list" class="portal-class-list"></div>
         </article>
       </section>
     </section>
