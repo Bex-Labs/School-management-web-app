@@ -4022,6 +4022,11 @@
         hasError = true;
       }
 
+      if (payload.role === "Super Admin") {
+        setPortalAccessError(form, "role", "Super Admin cannot be assigned through signup access.");
+        hasError = true;
+      }
+
       if (hasError) {
         setStatus(status, "error", "Fix the highlighted access fields and try again.");
         return;
