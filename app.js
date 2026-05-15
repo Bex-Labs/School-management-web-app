@@ -1478,18 +1478,12 @@ function renderHeader() {
         )
         .join("");
 
-  header.innerHTML = `
-    <div class="site-header-shell">
-      <a class="logo-link logo-link-full" href="./index.html" aria-label="${escapeHtml(settings.schoolName)} home">
-        ${buildBrandMarkHtml(settings, "logo-mark")}
-        <span class="logo-word">${escapeHtml(settings.schoolName)}</span>
-      </a>
-
-      <nav class="nav-center" aria-label="Primary">
-        ${primaryNavHtml}
-      </nav>
-
-      <div class="nav-auth">
+  const navAuthHtml = isHomePage
+    ? `
+        <a class="button button-outline" href="./login.html">Login</a>
+        <a class="button button-primary" href="./signup.html">Get Started</a>
+      `
+    : `
         <details class="nav-menu nav-menu-signin">
           <summary>Sign In</summary>
           <div class="dropdown-panel dropdown-panel-right">
@@ -1502,6 +1496,21 @@ function renderHeader() {
           </div>
         </details>
         <a class="button button-primary" href="./signup.html">Get Started</a>
+      `;
+
+  header.innerHTML = `
+    <div class="site-header-shell">
+      <a class="logo-link logo-link-full" href="./index.html" aria-label="${escapeHtml(settings.schoolName)} home">
+        ${buildBrandMarkHtml(settings, "logo-mark")}
+        <span class="logo-word">${escapeHtml(settings.schoolName)}</span>
+      </a>
+
+      <nav class="nav-center" aria-label="Primary">
+        ${primaryNavHtml}
+      </nav>
+
+      <div class="nav-auth">
+        ${navAuthHtml}
       </div>
     </div>
     ${
