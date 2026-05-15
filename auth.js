@@ -21,49 +21,71 @@
     {
       label: "Students",
       href: "./admin-students.html",
+      permissionKey: "students_manage",
       copy: "Open the student records page for admissions, guardian links, and roster checks.",
     },
     {
       label: "Classes",
       href: "./admin-classes.html",
+      permissionKey: "classes_manage",
       copy: "Create classes, configure arms and subjects, and assign teachers in one flow.",
     },
     {
       label: "Courses",
       href: "./admin-courses.html",
+      permissionKey: "courses_manage",
       copy: "Define course catalog, manage codes and levels, and control teacher/student assignment from one source.",
     },
     {
       label: "Teachers",
       href: "./admin-teachers.html",
+      permissionKey: "teachers_manage",
       copy: "Review staff deployment, homeroom assignment, and teaching coverage.",
     },
     {
       label: "Schedule",
       href: "./admin-schedule.html",
+      permissionKey: "classes_manage",
       copy: "Manage timetable windows, room usage, and class-day sequencing.",
     },
     {
       label: "Attendance",
       href: "./admin-attendance.html",
+      permissionKey: "attendance_manage",
       copy: "Track daily attendance snapshots, exceptions, and follow-up actions.",
     },
     {
       label: "Reports",
       href: "./admin-reports.html",
+      permissionKey: "reports_view",
       copy: "Review printable summaries, exports, and school-wide reporting outputs.",
     },
     {
       label: "Feature Modules",
       href: "./admin-feature-modules.html",
+      permissionKey: "settings_manage",
       copy: "Turn major platform modules on or off without redeploying the application.",
     },
     {
       label: "Settings",
       href: "./admin-settings.html",
+      permissionKey: "settings_manage",
       copy: "Update school profile, logo, campus details, and structure settings.",
     },
   ];
+
+  const PAGE_PERMISSION_KEYS = {
+    portal: "dashboard_view",
+    "admin-students": "students_manage",
+    "admin-teachers": "teachers_manage",
+    "admin-classes": "classes_manage",
+    "admin-courses": "courses_manage",
+    "admin-schedule": "classes_manage",
+    "admin-attendance": "attendance_manage",
+    "admin-reports": "reports_view",
+    "admin-feature-modules": "settings_manage",
+    "admin-settings": "settings_manage",
+  };
 
   const DASHBOARD_EVENT_ITEMS = [
     {
@@ -128,7 +150,7 @@
   ];
 
   const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  const DEFAULT_AUTH_ROLE = "Administrator";
+  const DEFAULT_AUTH_ROLE = "Admin";
   const GUARDIAN_RELATIONSHIP_TYPES = [
     "Mother",
     "Father",
@@ -349,7 +371,9 @@
     });
 
     if (!matched) {
-      const defaultButton = document.querySelector('.auth-role[data-auth-role="administrator"]');
+      const defaultButton =
+        document.querySelector('.auth-role[data-auth-role="admin"]') ||
+        document.querySelector('.auth-role[data-auth-role="super-admin"]');
       if (defaultButton) {
         defaultButton.classList.add("is-active");
       }
@@ -529,11 +553,19 @@
   }
 
   function getUsers() {
-    return parseJSON(localStorage.getItem(STORAGE_KEYS.users), []);
+    const records = parseJSON(localStorage.getItem(STORAGE_KEYS.users), []);
+    if (!Array.isArray(records)) {
+      return [];
+    }
+
+    return records.map((record) => normalizeUserRecord(record));
   }
 
   function saveUsers(users) {
-    localStorage.setItem(STORAGE_KEYS.users, JSON.stringify(users));
+    const normalizedUsers = Array.isArray(users)
+      ? users.map((record) => normalizeUserRecord(record))
+      : [];
+    localStorage.setItem(STORAGE_KEYS.users, JSON.stringify(normalizedUsers));
   }
 
   function getMailLog() {
@@ -615,12 +647,21 @@
       return "System";
     }
 
+    if (
+      normalized === "super admin" ||
+      normalized === "super-admin" ||
+      normalized === "superadmin" ||
+      normalized === "super_administrator"
+    ) {
+      return "Super Admin";
+    }
+
     if (normalized === "administrator" || normalized === "admin") {
-      return "Administrator";
+      return "Admin";
     }
 
     if (normalized === "employee" || normalized === "staff" || normalized === "teacher") {
-      return "Employee";
+      return "Teacher";
     }
 
     if (normalized === "student" || normalized === "learner") {
@@ -632,6 +673,27 @@
     }
 
     return DEFAULT_AUTH_ROLE;
+  }
+
+  function normalizeUserStatus(value) {
+    const normalized = String(value || "")
+      .trim()
+      .toLowerCase();
+    return normalized === "deactivated" || normalized === "inactive" || normalized === "disabled"
+      ? "deactivated"
+      : "active";
+  }
+
+  function normalizeUserRecord(record = {}) {
+    return {
+      ...record,
+      role: normalizeRoleLabel(record.role || DEFAULT_AUTH_ROLE),
+      status: normalizeUserStatus(record.status),
+    };
+  }
+
+  function isUserDeactivated(user) {
+    return normalizeUserStatus(user?.status) === "deactivated";
   }
 
   function getAccessGuardNotice() {
@@ -717,8 +779,7 @@
         ? grants.findIndex((entry) => entry.id === id)
         : grants.findIndex(
             (entry) =>
-              entry.normalizedEmail === normalizedEmail &&
-              normalizeRoleLabel(entry.role) === role,
+              entry.normalizedEmail === normalizedEmail,
           );
     const next = normalizeAccessGrant({
       ...(existingIndex >= 0 ? grants[existingIndex] : {}),
@@ -761,7 +822,7 @@
 
   function getProvisioningGrant(email, role, provider = "password") {
     const normalizedEmail = normalizeEmail(email || "");
-    const normalizedRole = normalizeRoleLabel(role || DEFAULT_AUTH_ROLE);
+    const normalizedRole = role ? normalizeRoleLabel(role) : null;
     const normalizedProvider = provider === "google" ? "google" : "password";
 
     return (
@@ -769,7 +830,7 @@
         (entry) =>
           entry.status === "active" &&
           entry.normalizedEmail === normalizedEmail &&
-          normalizeRoleLabel(entry.role) === normalizedRole &&
+          (normalizedRole ? normalizeRoleLabel(entry.role) === normalizedRole : true) &&
           (entry.authMethod === "any" || entry.authMethod === normalizedProvider),
       ) || null
     );
@@ -790,10 +851,6 @@
     });
 
     return updatedGrants.find((entry) => entry.id === grant.id) || null;
-  }
-
-  function hasAdministratorAccount() {
-    return getUsers().some((entry) => normalizeRoleLabel(entry.role) === "Administrator");
   }
 
   function getSupabaseConfig() {
@@ -995,6 +1052,7 @@
       confirmedAt: authUser.email_confirmed_at || nowIso(),
       createdAt: authUser.created_at || (existingIndex >= 0 ? users[existingIndex].createdAt : nowIso()),
       lastLoginAt: nowIso(),
+      status: existingIndex >= 0 ? normalizeUserStatus(users[existingIndex].status) : "active",
     };
 
     if (existingIndex >= 0) {
@@ -1067,7 +1125,6 @@
       session.user.identities?.[0]?.provider ||
       "password";
     const providerKey = provider === "google" ? "google" : "password";
-    const roleToApply = normalizeRoleLabel(preferredRole || pendingRole || localSession?.role || DEFAULT_AUTH_ROLE);
     const usersBeforeSync = getUsers();
     const existingLocalUser =
       usersBeforeSync.find(
@@ -1075,24 +1132,41 @@
           entry.id === session.user.id ||
           entry.normalizedEmail === normalizeEmail(session.user.email || ""),
       ) || null;
-    const bootstrapAdminAllowed = roleToApply === "Administrator" && !hasAdministratorAccount();
+    const activeGrant = getProvisioningGrant(session.user.email || "", null, providerKey);
+    const roleToApply = normalizeRoleLabel(
+      preferredRole ||
+        pendingRole ||
+        existingLocalUser?.role ||
+        session.user.user_metadata?.role ||
+        activeGrant?.role ||
+        localSession?.role ||
+        DEFAULT_AUTH_ROLE,
+    );
 
-    if (!existingLocalUser && !bootstrapAdminAllowed) {
-      const grant = getProvisioningGrant(session.user.email || "", roleToApply, providerKey);
+    if (!existingLocalUser && !activeGrant) {
+      await client.auth.signOut();
+      clearSession();
+      setAccessGuardNotice(
+        "Only administrators can grant new account access. Contact your school administrator first.",
+      );
 
-      if (!grant) {
-        await client.auth.signOut();
-        clearSession();
-        setAccessGuardNotice(
-          "Only administrators can grant new account access. Contact your school administrator first.",
-        );
-
-        if (getPage() !== "login") {
-          window.location.assign("./login.html");
-        }
-
-        return null;
+      if (getPage() !== "login") {
+        window.location.assign("./login.html");
       }
+
+      return null;
+    }
+
+    if (existingLocalUser && isUserDeactivated(existingLocalUser)) {
+      await client.auth.signOut();
+      clearSession();
+      setAccessGuardNotice("This account is deactivated. Contact an administrator for reactivation.");
+
+      if (getPage() !== "login") {
+        window.location.assign("./login.html");
+      }
+
+      return null;
     }
 
     const mirroredUser = upsertLocalUserFromSupabase(
@@ -1302,6 +1376,32 @@
 
   function getRolePermissionManager() {
     return window.SchoolSphereRolePermissions || null;
+  }
+
+  function getRolePermissionSnapshot(roleLabel) {
+    const manager = getRolePermissionManager();
+
+    if (!manager || typeof manager.getPermissions !== "function") {
+      return null;
+    }
+
+    const normalizedRole = normalizeRoleLabel(roleLabel || DEFAULT_AUTH_ROLE);
+    const permissions = manager.getPermissions();
+    return permissions[normalizedRole] || permissions.Admin || null;
+  }
+
+  function canAccessPermission(roleLabel, permissionKey) {
+    if (!permissionKey) {
+      return true;
+    }
+
+    const permissionSnapshot = getRolePermissionSnapshot(roleLabel);
+
+    if (!permissionSnapshot) {
+      return /admin/i.test(normalizeRoleLabel(roleLabel));
+    }
+
+    return Boolean(permissionSnapshot[permissionKey]);
   }
 
   function getSchoolSettingsManager() {
@@ -2822,7 +2922,7 @@
         setStatus(
           sessionStatus,
           "info",
-          "Switch to the administrator role to open or close sessions and terms.",
+          "Only admin accounts with settings permission can open or close sessions and terms.",
         );
       }
     };
@@ -3633,7 +3733,7 @@
       if (field instanceof HTMLElement) field.disabled = !isAdmin;
     });
 
-    if (!isAdmin) setStatus(status, "info", "Switch to the administrator role to edit school settings.");
+    if (!isAdmin) setStatus(status, "info", "Only admin accounts with settings permission can edit school settings.");
   }
 
   function updateLogoSwatch(form, logoUrl, schoolName) {
@@ -3698,7 +3798,7 @@
     }
 
     if (form.elements.role) {
-      form.elements.role.value = "Employee";
+      form.elements.role.value = "Teacher";
     }
 
     if (form.elements.authMethod) {
@@ -3771,7 +3871,7 @@
       <strong>${activeCount} active access grants</strong>
       <span>${
         isAdmin
-          ? `${claimedCount} claimed • ${revokedCount} revoked. Users can only register when a matching grant exists.`
+          ? `${claimedCount} claimed • ${revokedCount} revoked. Users can only create accounts when a matching grant exists.`
           : "Only administrators can create or update access grants."
       }</span>
     `;
@@ -3780,7 +3880,7 @@
       listTarget.innerHTML = `
         <article class="portal-class-empty">
           <strong>No access grants yet</strong>
-          <p>Add staff, student, parent, or administrator emails here to control who can sign up.</p>
+          <p>Add teacher, student, parent, admin, or super admin emails here to control who can create accounts.</p>
         </article>
       `;
       return;
@@ -3931,13 +4031,12 @@
       const duplicate = grants.find(
         (entry) =>
           entry.id !== accessId &&
-          entry.normalizedEmail === normalizeEmail(payload.email) &&
-          normalizeRoleLabel(entry.role) === payload.role,
+          entry.normalizedEmail === normalizeEmail(payload.email),
       );
 
       if (duplicate) {
-        setPortalAccessError(form, "email", "This email already has an access grant for that role.");
-        setStatus(status, "error", "An access grant already exists for that email and role.");
+        setPortalAccessError(form, "email", "This email already has an access grant. Edit the existing grant instead.");
+        setStatus(status, "error", "An access grant already exists for that email.");
         return;
       }
 
@@ -3955,6 +4054,21 @@
           : `Granted ${payload.role} access to ${payload.email}`,
         details: `Method: ${payload.authMethod} • Status: ${payload.status}`,
       });
+      const linkedUser = updateUserByEmail(payload.email, (currentUser) => ({
+        ...currentUser,
+        role: payload.role,
+        status: payload.status === "revoked" ? "deactivated" : "active",
+      }));
+
+      if (linkedUser) {
+        recordAuditEvent({
+          action: "updated",
+          entityType: "user-account",
+          entityId: linkedUser.email,
+          summary: `Updated account role/status for ${linkedUser.email}`,
+          details: `Role: ${linkedUser.role} • Status: ${linkedUser.status}`,
+        });
+      }
 
       resetPortalAccessForm(form, isAdmin);
       clearFormDraftFor(form);
@@ -3997,6 +4111,10 @@
       if (action === "revoke" || action === "activate") {
         const nextStatus = action === "revoke" ? "revoked" : "active";
         setAccessGrantStatus(grant.id, nextStatus);
+        const linkedUser = updateUserByEmail(grant.email, (currentUser) => ({
+          ...currentUser,
+          status: nextStatus === "active" ? "active" : "deactivated",
+        }));
         recordAuditEvent({
           action: nextStatus,
           entityType: "user-access",
@@ -4004,6 +4122,15 @@
           summary: `${nextStatus === "active" ? "Activated" : "Revoked"} access for ${grant.email}`,
           details: `Role: ${grant.role}`,
         });
+        if (linkedUser) {
+          recordAuditEvent({
+            action: nextStatus === "active" ? "activated" : "deactivated",
+            entityType: "user-account",
+            entityId: linkedUser.email,
+            summary: `${nextStatus === "active" ? "Activated" : "Deactivated"} account ${linkedUser.email}`,
+            details: `Role: ${normalizeRoleLabel(linkedUser.role)} • Status: ${normalizeUserStatus(linkedUser.status)}`,
+          });
+        }
         refreshAccessProvisioning();
         setStatus(
           status,
@@ -4015,6 +4142,10 @@
 
       if (action === "delete") {
         removeAccessGrant(grant.id);
+        const linkedUser = updateUserByEmail(grant.email, (currentUser) => ({
+          ...currentUser,
+          status: "deactivated",
+        }));
         recordAuditEvent({
           action: "deleted",
           entityType: "user-access",
@@ -4022,6 +4153,15 @@
           summary: `Deleted access grant for ${grant.email}`,
           details: `Role: ${grant.role}`,
         });
+        if (linkedUser) {
+          recordAuditEvent({
+            action: "deactivated",
+            entityType: "user-account",
+            entityId: linkedUser.email,
+            summary: `Deactivated account ${linkedUser.email} after grant deletion`,
+            details: `Role: ${normalizeRoleLabel(linkedUser.role)}`,
+          });
+        }
         refreshAccessProvisioning();
         resetPortalAccessForm(form, isAdmin);
         setStatus(status, "success", `Deleted access grant for <strong>${escapeHtml(grant.email)}</strong>.`);
@@ -4331,7 +4471,7 @@
       setStatus(
         status,
         "info",
-        "Switch to the administrator role to create, edit, archive, or reactivate classes.",
+        "Only admin accounts with class permission can create, edit, archive, or reactivate classes.",
       );
     }
   }
@@ -4499,7 +4639,7 @@
       setStatus(
         status,
         "info",
-        "Switch to the administrator role to create, edit, archive, or reactivate courses.",
+        "Only admin accounts with course permission can create, edit, archive, or reactivate courses.",
       );
     }
   }
@@ -4542,7 +4682,7 @@
       <article class="portal-class-stat portal-class-stat-blue">
         <span>Active events</span>
         <strong>${activeCount}</strong>
-        <p>Visible to Administrator, Employee, Student, and Parent roles.</p>
+        <p>Visible to Super Admin, Admin, Teacher, Student, and Parent roles.</p>
       </article>
       <article class="portal-class-stat portal-class-stat-violet">
         <span>Terms</span>
@@ -4628,7 +4768,7 @@
                   </div>
                   <div class="portal-class-extended-item">
                     <span>Visibility</span>
-                    <strong>Administrator, Employee, Student, Parent</strong>
+                    <strong>Super Admin, Admin, Teacher, Student, Parent</strong>
                   </div>
                 </div>
 
@@ -4804,7 +4944,7 @@
       setStatus(
         status,
         "info",
-        "Switch to the administrator role to create, edit, archive, or reactivate student records.",
+        "Only admin accounts with student permission can create, edit, archive, or reactivate student records.",
       );
     }
   }
@@ -5493,6 +5633,21 @@
     return updatedUser;
   }
 
+  function updateUserByEmail(email, updater) {
+    const normalized = normalizeEmail(email || "");
+    const users = getUsers();
+    const index = users.findIndex((user) => user.normalizedEmail === normalized);
+
+    if (index === -1) {
+      return null;
+    }
+
+    const updatedUser = normalizeUserRecord(updater({ ...users[index] }));
+    users[index] = updatedUser;
+    saveUsers(users);
+    return updatedUser;
+  }
+
   function initSignupFlow() {
     if (getPage() !== "signup") {
       return;
@@ -5526,9 +5681,8 @@
       const password = form.elements.password.value;
       const confirmPassword = form.elements.confirmPassword.value;
       const termsAccepted = form.elements.terms.checked;
-      const selectedRole = getSelectedRole();
-      const bootstrapAdminAllowed = selectedRole === "Administrator" && !hasAdministratorAccount();
-      const accessGrant = getProvisioningGrant(email, selectedRole, "password");
+      const accessGrant = getProvisioningGrant(email, null, "password");
+      const grantedRole = accessGrant ? normalizeRoleLabel(accessGrant.role) : null;
 
       let hasError = false;
 
@@ -5577,7 +5731,7 @@
         hasError = true;
       }
 
-      if (!bootstrapAdminAllowed && !accessGrant) {
+      if (!accessGrant) {
         setFieldError(form, "email", "Ask an administrator to grant this email access first.");
         setStatus(
           status,
@@ -5597,7 +5751,7 @@
 
       if (isSupabaseConfigured()) {
         setAuthPersistencePreference(true);
-        rememberPendingRole(selectedRole);
+        rememberPendingRole(grantedRole || DEFAULT_AUTH_ROLE);
 
         const client = await getSupabaseClient();
         let data;
@@ -5612,7 +5766,7 @@
                 emailRedirectTo: buildSupabaseEmailRedirectUrl(),
                 data: {
                   display_name: buildDisplayName(email) || "School User",
-                  role: selectedRole,
+                  role: grantedRole || DEFAULT_AUTH_ROLE,
                 },
               },
             }),
@@ -5633,7 +5787,7 @@
 
         if (data?.session) {
           await syncSupabaseSessionToLocal({
-            preferredRole: selectedRole,
+            preferredRole: grantedRole || DEFAULT_AUTH_ROLE,
             redirectAuthenticatedAuthPages: false,
           });
           clearFormDraftFor(form);
@@ -5643,7 +5797,7 @@
 
         form.reset();
         clearFormDraftFor(form);
-        markAccessGrantClaimed(email, selectedRole, "password", data?.user?.id || null);
+        markAccessGrantClaimed(email, grantedRole || DEFAULT_AUTH_ROLE, "password", data?.user?.id || null);
         setStatus(
           status,
           "success",
@@ -5662,13 +5816,14 @@
         displayName: buildDisplayName(email) || "School User",
         passwordHash: await hashSecret(password),
         provider: "password",
-        role: selectedRole,
+        role: grantedRole || DEFAULT_AUTH_ROLE,
         isConfirmed: false,
         confirmationToken,
         confirmationSentAt: nowIso(),
         confirmedAt: null,
         createdAt: nowIso(),
         lastLoginAt: null,
+        status: "active",
       };
 
       const users = getUsers();
@@ -5785,6 +5940,11 @@
           redirectAuthenticatedAuthPages: false,
         });
 
+        if (!authResult?.user) {
+          setStatus(status, "error", "Sign-in could not be completed. Confirm your role and account access.");
+          return;
+        }
+
         const signedInRole = normalizeRoleLabel(authResult?.user?.role || selectedRole);
 
         if (signedInRole !== selectedRole) {
@@ -5809,6 +5969,11 @@
       if (!user) {
         setFieldError(form, "email", "No account was found with that email.");
         setStatus(status, "error", "We could not find an account with those credentials.");
+        return;
+      }
+
+      if (isUserDeactivated(user)) {
+        setStatus(status, "error", "This account is deactivated. Contact an administrator for reactivation.");
         return;
       }
 
@@ -5955,10 +6120,12 @@
     const status = document.getElementById(page === "signup" ? "signup-status" : "login-status");
     const rememberCheckbox = document.getElementById("login-remember");
     const remember = page === "login" ? Boolean(rememberCheckbox?.checked) : true;
-    const selectedRole = getSelectedRole();
+    const selectedRole = page === "login" ? getSelectedRole() : null;
 
     setAuthPersistencePreference(remember);
-    rememberPendingRole(selectedRole);
+    if (selectedRole) {
+      rememberPendingRole(selectedRole);
+    }
 
     const client = await getSupabaseClient();
     let error;
@@ -5993,7 +6160,7 @@
     const error = modal.querySelector("#auth-google-error");
     const email = form.elements.email.value.trim();
     const mode = modal.dataset.mode || "login";
-    const selectedRole = getSelectedRole();
+    const selectedRole = mode === "login" ? getSelectedRole() : null;
 
     error.textContent = "";
 
@@ -6009,7 +6176,6 @@
 
     const users = getUsers();
     const existingUser = users.find((user) => user.normalizedEmail === normalizeEmail(email)) || null;
-    const bootstrapAdminAllowed = selectedRole === "Administrator" && !hasAdministratorAccount();
 
     if (mode === "signup") {
       if (existingUser) {
@@ -6020,9 +6186,10 @@
         return;
       }
 
-      const accessGrant = getProvisioningGrant(email, selectedRole, "google");
+      const accessGrant = getProvisioningGrant(email, null, "google");
+      const grantedRole = accessGrant ? normalizeRoleLabel(accessGrant.role) : null;
 
-      if (!bootstrapAdminAllowed && !accessGrant) {
+      if (!accessGrant) {
         error.textContent = "This Google email has no administrator-granted access yet.";
         return;
       }
@@ -6034,13 +6201,14 @@
         displayName: buildDisplayName(email) || "School User",
         passwordHash: null,
         provider: "google",
-        role: selectedRole,
+        role: grantedRole || DEFAULT_AUTH_ROLE,
         isConfirmed: true,
         confirmationToken: null,
         confirmationSentAt: null,
         confirmedAt: nowIso(),
         createdAt: nowIso(),
         lastLoginAt: null,
+        status: "active",
       };
 
       users.push(user);
@@ -6076,6 +6244,11 @@
 
     if (existingUser.provider !== "google") {
       error.textContent = "This account was created with email and password. Use that login method instead.";
+      return;
+    }
+
+    if (isUserDeactivated(existingUser)) {
+      error.textContent = "This account is deactivated. Contact an administrator for reactivation.";
       return;
     }
 
@@ -6385,7 +6558,8 @@
       return;
     }
 
-    const { isAdmin } = getAdminAccessContext();
+    const { isAdmin, roleLabel } = getAdminAccessContext();
+    const canManageStudents = isAdmin && canAccessPermission(roleLabel, PAGE_PERMISSION_KEYS["admin-students"]);
     const studentManager = getStudentManager();
     const auditManager = getAuditTrailManager();
     const studentSummary = document.getElementById("portal-student-summary");
@@ -6396,7 +6570,7 @@
     const studentFormToggle = document.querySelector("[data-student-form-toggle]");
 
     initStudentManagementControls({
-      isAdmin,
+      isAdmin: canManageStudents,
       manager: studentManager,
       auditManager,
       summaryTarget: studentSummary,
@@ -6413,7 +6587,8 @@
       return;
     }
 
-    const { isAdmin } = getAdminAccessContext();
+    const { isAdmin, roleLabel } = getAdminAccessContext();
+    const canManageClasses = isAdmin && canAccessPermission(roleLabel, PAGE_PERMISSION_KEYS["admin-classes"]);
     const classManager = getClassManager();
     const classSummary = document.getElementById("portal-class-summary");
     const classForm = document.getElementById("portal-class-form");
@@ -6421,7 +6596,7 @@
     const classList = document.getElementById("portal-class-list");
 
     initClassManagementControls({
-      isAdmin,
+      isAdmin: canManageClasses,
       manager: classManager,
       summaryTarget: classSummary,
       form: classForm,
@@ -6435,7 +6610,8 @@
       return;
     }
 
-    const { isAdmin } = getAdminAccessContext();
+    const { isAdmin, roleLabel } = getAdminAccessContext();
+    const canManageCourses = isAdmin && canAccessPermission(roleLabel, PAGE_PERMISSION_KEYS["admin-courses"]);
     const courseManager = getCourseManager();
     const courseSummary = document.getElementById("portal-course-summary");
     const courseForm = document.getElementById("portal-course-form");
@@ -6443,7 +6619,7 @@
     const courseList = document.getElementById("portal-course-list");
 
     initCourseManagementControls({
-      isAdmin,
+      isAdmin: canManageCourses,
       manager: courseManager,
       summaryTarget: courseSummary,
       form: courseForm,
@@ -6457,7 +6633,8 @@
       return;
     }
 
-    const { isAdmin } = getAdminAccessContext();
+    const { isAdmin, roleLabel } = getAdminAccessContext();
+    const canManageSchedule = isAdmin && canAccessPermission(roleLabel, PAGE_PERMISSION_KEYS["admin-schedule"]);
     const calendarManager = getAcademicCalendarManager();
     const calendarSummary = document.getElementById("portal-calendar-summary");
     const calendarForm = document.getElementById("portal-academic-calendar-form");
@@ -6465,7 +6642,7 @@
     const calendarList = document.getElementById("portal-academic-calendar-list");
 
     initAcademicCalendarControls({
-      isAdmin,
+      isAdmin: canManageSchedule,
       manager: calendarManager,
       summaryTarget: calendarSummary,
       form: calendarForm,
@@ -6479,13 +6656,14 @@
       return;
     }
 
-    const { isAdmin } = getAdminAccessContext();
+    const { isAdmin, roleLabel } = getAdminAccessContext();
+    const canManageModules = isAdmin && canAccessPermission(roleLabel, PAGE_PERMISSION_KEYS["admin-feature-modules"]);
     const featureModuleManager = getFeatureModuleManager();
     const featureToggleSummary = document.getElementById("portal-feature-toggle-summary");
     const featureToggleGrid = document.getElementById("portal-feature-toggle-grid");
 
     initFeatureToggleControls({
-      isAdmin,
+      isAdmin: canManageModules,
       manager: featureModuleManager,
       summaryTarget: featureToggleSummary,
       gridTarget: featureToggleGrid,
@@ -6497,7 +6675,8 @@
       return;
     }
 
-    const { isAdmin } = getAdminAccessContext();
+    const { isAdmin, roleLabel } = getAdminAccessContext();
+    const canManageSettings = isAdmin && canAccessPermission(roleLabel, PAGE_PERMISSION_KEYS["admin-settings"]);
     const schoolSettingsManager = getSchoolSettingsManager();
     const rolePermissionManager = getRolePermissionManager();
     const academicCycleManager = getAcademicCycleManager();
@@ -6520,7 +6699,7 @@
     const termList = document.getElementById("portal-term-list");
 
     initSchoolSettingsControls({
-      isAdmin,
+      isAdmin: canManageSettings,
       manager: schoolSettingsManager,
       previewTarget: schoolSettingsPreview,
       form: schoolSettingsForm,
@@ -6534,7 +6713,7 @@
     });
 
     initRolePermissionControls({
-      isAdmin,
+      isAdmin: canManageSettings,
       manager: rolePermissionManager,
       summaryTarget: rolePermissionSummary,
       gridTarget: rolePermissionGrid,
@@ -6542,7 +6721,7 @@
     });
 
     initAccessProvisioningControls({
-      isAdmin,
+      isAdmin: canManageSettings,
       summaryTarget: accessSummary,
       form: accessForm,
       status: accessStatus,
@@ -6550,7 +6729,7 @@
     });
 
     initAcademicCycleControls({
-      isAdmin,
+      isAdmin: canManageSettings,
       manager: academicCycleManager,
       summaryTarget: academicCycleSummary,
       sessionForm,
@@ -6724,12 +6903,24 @@
 
     const snapshot = getDashboardSnapshot();
     const roleLabel = normalizeRoleLabel(session.role || user.role || DEFAULT_AUTH_ROLE);
-    const isAdmin = /admin/i.test(roleLabel);
+    const hasDashboardAccess = canAccessPermission(roleLabel, PAGE_PERMISSION_KEYS.portal);
 
     renderDashboardChrome(user, roleLabel, snapshot);
-    renderAdminMetricCards(metrics, snapshot);
-    renderAdminEvents(events);
-    renderAdminActivity(activity);
+    if (hasDashboardAccess) {
+      renderAdminMetricCards(metrics, snapshot);
+      renderAdminEvents(events);
+      renderAdminActivity(activity);
+    } else {
+      metrics.innerHTML = `
+        <article class="admin-metric-card admin-metric-card-rose admin-metric-card-empty">
+          <strong>Access restricted</strong>
+          <h3>Dashboard permission required</h3>
+          <p>Your role is active, but dashboard visibility is disabled in role permissions.</p>
+        </article>
+      `;
+      events.innerHTML = "";
+      activity.innerHTML = "";
+    }
 
     if (academicCalendarManager?.eventName) {
       window.addEventListener(academicCalendarManager.eventName, () => {
@@ -6737,7 +6928,8 @@
       });
     }
 
-    links.innerHTML = DASHBOARD_SECTION_LINKS.map(
+    const availableLinks = DASHBOARD_SECTION_LINKS.filter((item) => canAccessPermission(roleLabel, item.permissionKey));
+    links.innerHTML = availableLinks.map(
       (item) => `
         <a class="admin-link-card" href="${item.href}">
           <strong>${item.label}</strong>

@@ -265,7 +265,7 @@ const AUDIT_TRAIL_EVENT = "schoolsphere:audit-trail-updated";
 const MAX_AUDIT_TRAIL_ENTRIES = 300;
 const ROLE_PERMISSIONS_STORAGE_KEY = "schoolsphere.rolePermissions.v1";
 const ROLE_PERMISSIONS_EVENT = "schoolsphere:role-permissions-updated";
-const ROLE_PERMISSION_ROLES = ["Administrator", "Employee", "Parent", "Student"];
+const ROLE_PERMISSION_ROLES = ["Super Admin", "Admin", "Teacher", "Parent", "Student"];
 const ROLE_PERMISSION_OPTIONS = [
   { key: "dashboard_view", label: "View dashboard" },
   { key: "students_manage", label: "Manage students" },
@@ -279,7 +279,7 @@ const ROLE_PERMISSION_OPTIONS = [
   { key: "settings_manage", label: "Manage school settings" },
 ];
 const DEFAULT_ROLE_PERMISSIONS = {
-  Administrator: {
+  "Super Admin": {
     dashboard_view: true,
     students_manage: true,
     teachers_manage: true,
@@ -291,7 +291,19 @@ const DEFAULT_ROLE_PERMISSIONS = {
     reports_view: true,
     settings_manage: true,
   },
-  Employee: {
+  Admin: {
+    dashboard_view: true,
+    students_manage: true,
+    teachers_manage: true,
+    classes_manage: true,
+    courses_manage: true,
+    attendance_manage: true,
+    results_manage: true,
+    fees_manage: true,
+    reports_view: true,
+    settings_manage: true,
+  },
+  Teacher: {
     dashboard_view: true,
     students_manage: false,
     teachers_manage: false,
@@ -1618,10 +1630,19 @@ function summarizeFeatureToggleState() {
 }
 
 function normalizeRolePermissions(raw = {}) {
+  const roleAliases = {
+    "Super Admin": ["Super Admin", "SuperAdmin"],
+    Admin: ["Admin", "Administrator"],
+    Teacher: ["Teacher", "Employee"],
+    Parent: ["Parent"],
+    Student: ["Student"],
+  };
+
   return ROLE_PERMISSION_ROLES.reduce((next, role) => {
-    const legacyRoleSource =
-      role === "Employee" && raw.Teacher && typeof raw.Teacher === "object" ? raw.Teacher : null;
-    const source = raw[role] && typeof raw[role] === "object" ? raw[role] : legacyRoleSource || {};
+    const aliasKeys = roleAliases[role] || [role];
+    const sourceKey = aliasKeys.find((key) => raw[key] && typeof raw[key] === "object");
+    const source = sourceKey ? raw[sourceKey] : {};
+
     next[role] = ROLE_PERMISSION_OPTIONS.reduce((rolePermissions, option) => {
       const fallback = DEFAULT_ROLE_PERMISSIONS[role][option.key];
       rolePermissions[option.key] =
