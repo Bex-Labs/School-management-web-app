@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>School Settings | SchoolSphere Admin</title>
+  <meta name="description" content="School profile and branding settings." />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body data-page="admin-settings-school" class="admin-dashboard-page">
+  <main class="admin-dashboard-shell">
+    <aside class="admin-sidebar">
+      <a class="admin-sidebar-brand" href="./index.html" aria-label="School dashboard home">
+        <span id="admin-brand-mark" class="admin-brand-mark">S</span>
+        <div class="admin-sidebar-brand-copy">
+          <strong id="admin-brand-name">SchoolSphere</strong>
+          <span id="admin-brand-subtitle">Admin workspace</span>
+        </div>
+      </a>
+
+      <nav class="admin-sidebar-nav" aria-label="Admin sections">
+        <a class="admin-sidebar-link" href="./portal.html"><span>Dashboard</span></a>
+        <a class="admin-sidebar-link" href="./admin-students.html"><span>Students</span></a>
+        <a class="admin-sidebar-link" href="./admin-classes.html"><span>Classes</span></a>
+        <a class="admin-sidebar-link" href="./admin-teachers.html"><span>Teachers</span></a>
+        <a class="admin-sidebar-link" href="./admin-schedule.html"><span>Schedule</span></a>
+        <a class="admin-sidebar-link" href="./admin-attendance.html"><span>Attendance</span></a>
+        <a class="admin-sidebar-link" href="./admin-reports.html"><span>Reports</span></a>
+        <a class="admin-sidebar-link" href="./admin-feature-modules.html"><span>Feature Modules</span></a>
+        <a class="admin-sidebar-link is-active" href="./admin-settings.html"><span>Settings</span></a>
+      </nav>
+
+      <section class="admin-sidebar-profile">
+        <div class="admin-profile-avatar" id="admin-profile-avatar">A</div>
+        <div class="admin-profile-copy">
+          <strong id="admin-profile-name">Loading user...</strong>
+          <span id="admin-profile-role">Admin</span>
+        </div>
+        <div id="portal-gate" class="admin-profile-actions">
+          <button class="admin-signout-button" type="button" data-signout>Log out</button>
+        </div>
+      </section>
+    </aside>
+
+    <section class="admin-dashboard-main">
+      <header class="admin-dashboard-topbar">
+        <div class="admin-dashboard-greeting">
+          <span class="admin-topline-chip" id="portal-last-updated">Last updated --</span>
+          <h1 id="portal-heading">School Settings</h1>
+          <p id="portal-copy">Configure school profile, logo, campus details, and structure in one place.</p>
+          <nav class="admin-settings-subnav" aria-label="Settings sections">
+            <a href="./admin-settings.html">Overview</a>
+            <a class="is-active" href="./admin-settings-school.html">School Settings</a>
+            <a href="./admin-settings-access.html">User Access</a>
+            <a href="./admin-settings-roles.html">Role Permissions</a>
+            <a href="./admin-settings-academic.html">Sessions and Terms</a>
+          </nav>
+        </div>
+      </header>
+
+      <section class="admin-class-grid">
+        <article class="admin-surface-card">
+          <div class="admin-surface-head">
+            <h2>School Settings</h2>
+            <span>Set your school profile, campus context, and grade structure from one place.</span>
+          </div>
+          <div id="portal-school-settings-preview" class="portal-school-preview"></div>
+          <form id="portal-school-settings-form" class="portal-settings-form" novalidate>
+            <div id="portal-school-settings-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+
+            <div class="portal-settings-grid">
+              <div class="portal-settings-section-head">
+                <strong>School identity</strong>
+                <span>Name, profile, and logo</span>
+              </div>
+
+              <label class="portal-field" for="school-name">
+                <span>School name</span>
+                <input id="school-name" name="schoolName" type="text" placeholder="Example Academy" />
+                <p class="portal-field-error" data-settings-error-for="schoolName"></p>
+              </label>
+
+              <div class="portal-logo-row portal-field-span-2">
+                <span class="portal-logo-swatch" data-logo-swatch>S</span>
+                <div class="portal-logo-field">
+                  <label class="portal-field" for="school-logo-url">
+                    <span>Logo image URL (optional)</span>
+                    <input
+                      id="school-logo-url"
+                      name="logoUrl"
+                      type="text"
+                      placeholder="./logo.png or https://example.com/logo.png"
+                    />
+                    <p class="portal-field-error" data-settings-error-for="logoUrl"></p>
+                  </label>
+                  <label class="portal-field" for="school-logo-file">
+                    <span>Or upload logo from this computer</span>
+                    <input id="school-logo-file" name="logoFile" type="file" accept="image/*" />
+                    <p class="portal-field-error" data-settings-error-for="logoFile"></p>
+                  </label>
+                  <div class="utility-actions">
+                    <button class="button button-outline" type="button" data-clear-logo>Remove logo</button>
+                  </div>
+                </div>
+              </div>
+
+              <label class="portal-field portal-field-span-2" for="school-profile">
+                <span>School profile</span>
+                <textarea
+                  id="school-profile"
+                  name="schoolProfile"
+                  rows="3"
+                  placeholder="Write a short profile that appears across the platform."
+                ></textarea>
+                <p class="portal-field-error" data-settings-error-for="schoolProfile"></p>
+              </label>
+
+              <div class="portal-settings-section-head">
+                <strong>Campus details</strong>
+                <span>Main office and branch campuses</span>
+              </div>
+
+              <label class="portal-field portal-field-span-2" for="school-address">
+                <span>School address</span>
+                <textarea
+                  id="school-address"
+                  name="address"
+                  rows="3"
+                  placeholder="Enter the main campus address shown across the platform"
+                ></textarea>
+                <p class="portal-field-error" data-settings-error-for="address"></p>
+              </label>
+
+              <label class="portal-field" for="school-phone">
+                <span>School phone</span>
+                <input id="school-phone" name="phone" type="text" placeholder="+234 800 000 0000" />
+                <p class="portal-field-error" data-settings-error-for="phone"></p>
+              </label>
+
+              <label class="portal-field" for="school-website">
+                <span>School website</span>
+                <input id="school-website" name="website" type="text" placeholder="www.schoolname.edu.ng" />
+                <p class="portal-field-error" data-settings-error-for="website"></p>
+              </label>
+
+              <label class="portal-field portal-field-span-2" for="campus-details">
+                <span>Campus details</span>
+                <textarea
+                  id="campus-details"
+                  name="campusDetails"
+                  rows="3"
+                  placeholder="Example: Main Campus - Ikeja, Annex Campus - Yaba"
+                ></textarea>
+                <p class="portal-field-error" data-settings-error-for="campusDetails"></p>
+              </label>
+
+              <div class="portal-settings-section-head">
+                <strong>School structure</strong>
+                <span>Primary 1-6, JSS 1-3, SS 1-3, plus optional Nursery and Higher Institution</span>
+              </div>
+
+              <div class="portal-structure-block portal-field-span-2">
+                <div class="portal-structure-fixed">
+                  <span class="portal-structure-chip">Primary 1-6</span>
+                  <span class="portal-structure-chip">JSS 1-3</span>
+                  <span class="portal-structure-chip">SS 1-3</span>
+                </div>
+                <div class="portal-structure-options">
+                  <label class="portal-structure-toggle" for="has-nursery">
+                    <input id="has-nursery" name="hasNursery" type="checkbox" />
+                    <span>Enable Nursery section</span>
+                  </label>
+                  <label class="portal-structure-toggle" for="has-higher-institution">
+                    <input id="has-higher-institution" name="hasHigherInstitution" type="checkbox" />
+                    <span>Enable Higher Institution (Polytechnic / University)</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="portal-settings-section-head">
+                <strong>Academic year</strong>
+                <span>Session start and end dates</span>
+              </div>
+
+              <label class="portal-field" for="academic-year-start">
+                <span>Academic year start</span>
+                <input id="academic-year-start" name="academicYearStart" type="date" />
+                <p class="portal-field-error" data-settings-error-for="academicYearStart"></p>
+              </label>
+
+              <label class="portal-field" for="academic-year-end">
+                <span>Academic year end</span>
+                <input id="academic-year-end" name="academicYearEnd" type="date" />
+                <p class="portal-field-error" data-settings-error-for="academicYearEnd"></p>
+              </label>
+            </div>
+
+            <div class="utility-actions">
+              <button class="button button-primary" type="submit">Save settings</button>
+              <button class="button button-outline" type="button" data-reset-school-settings>Reset to default</button>
+            </div>
+          </form>
+        </article>
+      </section>
+    </section>
+  </main>
+
+  <script src="./app.js"></script>
+  <script src="./supabase-config.js"></script>
+  <script src="./auth.js"></script>
+</body>
+</html>

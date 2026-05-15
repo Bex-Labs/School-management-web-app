@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Settings | SchoolSphere Admin</title>
-  <meta name="description" content="Settings navigation hub for SchoolSphere admin." />
+  <title>Role Permissions | SchoolSphere Admin</title>
+  <meta name="description" content="Role permission controls for SchoolSphere admin." />
   <link rel="stylesheet" href="./styles.css" />
 </head>
-<body data-page="admin-settings" class="admin-dashboard-page">
+<body data-page="admin-settings-roles" class="admin-dashboard-page">
   <main class="admin-dashboard-shell">
     <aside class="admin-sidebar">
       <a class="admin-sidebar-brand" href="./index.html" aria-label="School dashboard home">
@@ -46,13 +46,13 @@
       <header class="admin-dashboard-topbar">
         <div class="admin-dashboard-greeting">
           <span class="admin-topline-chip" id="portal-last-updated">Last updated --</span>
-          <h1 id="portal-heading">Settings</h1>
-          <p id="portal-copy">Open a dedicated settings page for each admin control area.</p>
+          <h1 id="portal-heading">Role Permissions</h1>
+          <p id="portal-copy">Assign and enforce module permissions by role across the platform.</p>
           <nav class="admin-settings-subnav" aria-label="Settings sections">
-            <a class="is-active" href="./admin-settings.html">Overview</a>
+            <a href="./admin-settings.html">Overview</a>
             <a href="./admin-settings-school.html">School Settings</a>
             <a href="./admin-settings-access.html">User Access</a>
-            <a href="./admin-settings-roles.html">Role Permissions</a>
+            <a class="is-active" href="./admin-settings-roles.html">Role Permissions</a>
             <a href="./admin-settings-academic.html">Sessions and Terms</a>
           </nav>
         </div>
@@ -61,27 +61,15 @@
       <section class="admin-class-grid">
         <article class="admin-surface-card">
           <div class="admin-surface-head">
-            <h2>Choose a Settings Page</h2>
-            <span>Each section now opens on its own page so you do not have to scroll through one long screen.</span>
+            <h2>Role Permissions</h2>
+            <span>Only administrators can change and assign role permissions.</span>
           </div>
-
-          <div class="admin-settings-hub-grid">
-            <a class="admin-settings-hub-link" href="./admin-settings-school.html">
-              <strong>School Settings</strong>
-              <span>Configure school profile, logo, campus details, and school structure.</span>
-            </a>
-            <a class="admin-settings-hub-link" href="./admin-settings-access.html">
-              <strong>User Access Provisioning</strong>
-              <span>Create, edit, revoke, and activate account access grants.</span>
-            </a>
-            <a class="admin-settings-hub-link" href="./admin-settings-roles.html">
-              <strong>Role Permissions</strong>
-              <span>Manage role-based access control for Admin, Teacher, Student, and Parent.</span>
-            </a>
-            <a class="admin-settings-hub-link" href="./admin-settings-academic.html">
-              <strong>Academic Sessions and Terms</strong>
-              <span>Open and close sessions/terms and keep term timelines organized.</span>
-            </a>
+          <div id="portal-role-permission-summary" class="portal-role-permission-summary"></div>
+          <div id="portal-role-permission-grid" class="portal-role-permission-grid"></div>
+          <div class="utility-actions">
+            <button class="button button-outline" type="button" data-reset-role-permissions>
+              Reset role permissions
+            </button>
           </div>
         </article>
       </section>

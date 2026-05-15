@@ -85,7 +85,19 @@
     "admin-reports": "reports_view",
     "admin-feature-modules": "settings_manage",
     "admin-settings": "settings_manage",
+    "admin-settings-school": "settings_manage",
+    "admin-settings-access": "settings_manage",
+    "admin-settings-roles": "settings_manage",
+    "admin-settings-academic": "settings_manage",
   };
+
+  const ADMIN_SETTINGS_PAGES = new Set([
+    "admin-settings",
+    "admin-settings-school",
+    "admin-settings-access",
+    "admin-settings-roles",
+    "admin-settings-academic",
+  ]);
 
   const DASHBOARD_EVENT_ITEMS = [
     {
@@ -508,9 +520,17 @@
     banner.setAttribute("role", "status");
     banner.setAttribute("aria-live", "polite");
     banner.hidden = true;
+    banner.innerHTML = `
+      <span class="network-resilience-banner-message"></span>
+      <button class="network-resilience-banner-dismiss" type="button" aria-label="Dismiss message">&times;</button>
+    `;
     document.body.appendChild(banner);
 
+    const bannerMessage = banner.querySelector(".network-resilience-banner-message");
+    const dismissButton = banner.querySelector(".network-resilience-banner-dismiss");
     const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection || null;
+    let currentState = "clear";
+    let dismissedState = null;
 
     const isSlow = () => {
       if (!connection) {
@@ -525,22 +545,55 @@
       );
     };
 
+    const renderBannerState = (nextState, message) => {
+      currentState = nextState;
+
+      if (nextState === "clear") {
+        banner.hidden = true;
+        if (bannerMessage) {
+          bannerMessage.textContent = "";
+        }
+        dismissedState = null;
+        return;
+      }
+
+      if (dismissedState === nextState) {
+        banner.hidden = true;
+        return;
+      }
+
+      if (bannerMessage) {
+        bannerMessage.textContent = message;
+      }
+      banner.hidden = false;
+    };
+
     const updateBanner = () => {
       if (!navigator.onLine) {
-        banner.hidden = false;
-        banner.textContent = "You are offline. Keep filling forms; your entries are saved locally until you reconnect.";
+        renderBannerState(
+          "offline",
+          "You are offline. Keep filling forms; your entries are saved locally until you reconnect.",
+        );
         return;
       }
 
       if (isSlow()) {
-        banner.hidden = false;
-        banner.textContent = "Slow connection detected. Forms remain usable and drafts are auto-saved.";
+        renderBannerState(
+          "slow",
+          "Slow connection detected. Forms remain usable and drafts are auto-saved.",
+        );
         return;
       }
 
-      banner.hidden = true;
-      banner.textContent = "";
+      renderBannerState("clear", "");
     };
+
+    if (dismissButton) {
+      dismissButton.addEventListener("click", () => {
+        dismissedState = currentState;
+        banner.hidden = true;
+      });
+    }
 
     window.addEventListener("online", updateBanner);
     window.addEventListener("offline", updateBanner);
@@ -6514,6 +6567,102 @@
     ).join("");
   }
 
+  function slugifyAdminSectionTitle(value) {
+    return String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+  }
+
+  function initAdminSectionQuickNav() {
+    if (!document.body.classList.contains("admin-dashboard-page")) {
+      return;
+    }
+
+    const main = document.querySelector(".admin-dashboard-main");
+    const topbar = main ? main.querySelector(".admin-dashboard-topbar") : null;
+
+    if (!main || !topbar) {
+      return;
+    }
+
+    const existingNav = main.querySelector(".admin-section-quick-nav");
+    if (existingNav) {
+      existingNav.remove();
+    }
+
+    const cards = Array.from(main.querySelectorAll(".admin-surface-card")).filter(
+      (card) => card.querySelector(".admin-surface-head h2"),
+    );
+
+    if (cards.length < 2) {
+      return;
+    }
+
+    const usedIds = new Set();
+    const items = cards
+      .map((card, index) => {
+        const heading = card.querySelector(".admin-surface-head h2");
+        const label = heading ? heading.textContent.trim() : `Section ${index + 1}`;
+
+        if (!label) {
+          return null;
+        }
+
+        const base = slugifyAdminSectionTitle(label) || `section-${index + 1}`;
+        let id = `admin-section-${base}`;
+        let suffix = 2;
+
+        while (usedIds.has(id) || document.getElementById(id)) {
+          id = `admin-section-${base}-${suffix}`;
+          suffix += 1;
+        }
+
+        usedIds.add(id);
+        card.id = id;
+        return { id, label };
+      })
+      .filter(Boolean);
+
+    if (items.length < 2) {
+      return;
+    }
+
+    const nav = document.createElement("nav");
+    nav.className = "admin-section-quick-nav";
+    nav.setAttribute("aria-label", "Quick section navigation");
+    nav.innerHTML = `
+      <span class="admin-section-quick-label">Quick jump</span>
+      <div class="admin-section-quick-links">
+        ${items
+          .map(
+            (item, index) => `
+              <a href="#${item.id}" class="admin-section-quick-link ${index === 0 ? "is-active" : ""}" data-section-target="${item.id}">
+                ${escapeHtml(item.label)}
+              </a>
+            `,
+          )
+          .join("")}
+      </div>
+    `;
+
+    topbar.insertAdjacentElement("afterend", nav);
+
+    const links = Array.from(nav.querySelectorAll(".admin-section-quick-link"));
+    const activate = (targetId) => {
+      links.forEach((link) => {
+        link.classList.toggle("is-active", link.dataset.sectionTarget === targetId);
+      });
+    };
+
+    links.forEach((link) => {
+      link.addEventListener("click", () => {
+        activate(link.dataset.sectionTarget || "");
+      });
+    });
+  }
+
   function initAdminShellPages() {
     if (!document.body.classList.contains("admin-dashboard-page") || getPage() === "portal") {
       return;
@@ -6556,6 +6705,7 @@
     profileRole.textContent = roleLabel;
     gate.innerHTML = `<button class="admin-signout-button" type="button" data-signout>Log out</button>`;
     wireSignOutButton(gate);
+    initAdminSectionQuickNav();
   }
 
   function initAdminStudentsPage() {
@@ -6676,12 +6826,15 @@
   }
 
   function initAdminSettingsPage() {
-    if (getPage() !== "admin-settings") {
+    const page = getPage();
+
+    if (!ADMIN_SETTINGS_PAGES.has(page)) {
       return;
     }
 
     const { isAdmin, roleLabel } = getAdminAccessContext();
-    const canManageSettings = isAdmin && canAccessPermission(roleLabel, PAGE_PERMISSION_KEYS["admin-settings"]);
+    const permissionKey = PAGE_PERMISSION_KEYS[page] || PAGE_PERMISSION_KEYS["admin-settings"];
+    const canManageSettings = isAdmin && canAccessPermission(roleLabel, permissionKey);
     const schoolSettingsManager = getSchoolSettingsManager();
     const rolePermissionManager = getRolePermissionManager();
     const academicCycleManager = getAcademicCycleManager();
@@ -6891,6 +7044,7 @@
         "Use the login or signup flow to load the live school dashboard.",
         "Go to Login",
       );
+      initAdminSectionQuickNav();
       return;
     }
 
@@ -6903,6 +7057,7 @@
         "Your saved session is stale. Sign in again to reopen the admin dashboard.",
         "Sign in Again",
       );
+      initAdminSectionQuickNav();
       return;
     }
 
@@ -6975,5 +7130,7 @@
         window.location.assign("./login.html");
       });
     }
+
+    initAdminSectionQuickNav();
   }
 })();

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>User Access | SchoolSphere Admin</title>
+  <meta name="description" content="User access provisioning settings." />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body data-page="admin-settings-access" class="admin-dashboard-page">
+  <main class="admin-dashboard-shell">
+    <aside class="admin-sidebar">
+      <a class="admin-sidebar-brand" href="./index.html" aria-label="School dashboard home">
+        <span id="admin-brand-mark" class="admin-brand-mark">S</span>
+        <div class="admin-sidebar-brand-copy">
+          <strong id="admin-brand-name">SchoolSphere</strong>
+          <span id="admin-brand-subtitle">Admin workspace</span>
+        </div>
+      </a>
+
+      <nav class="admin-sidebar-nav" aria-label="Admin sections">
+        <a class="admin-sidebar-link" href="./portal.html"><span>Dashboard</span></a>
+        <a class="admin-sidebar-link" href="./admin-students.html"><span>Students</span></a>
+        <a class="admin-sidebar-link" href="./admin-classes.html"><span>Classes</span></a>
+        <a class="admin-sidebar-link" href="./admin-teachers.html"><span>Teachers</span></a>
+        <a class="admin-sidebar-link" href="./admin-schedule.html"><span>Schedule</span></a>
+        <a class="admin-sidebar-link" href="./admin-attendance.html"><span>Attendance</span></a>
+        <a class="admin-sidebar-link" href="./admin-reports.html"><span>Reports</span></a>
+        <a class="admin-sidebar-link" href="./admin-feature-modules.html"><span>Feature Modules</span></a>
+        <a class="admin-sidebar-link is-active" href="./admin-settings.html"><span>Settings</span></a>
+      </nav>
+
+      <section class="admin-sidebar-profile">
+        <div class="admin-profile-avatar" id="admin-profile-avatar">A</div>
+        <div class="admin-profile-copy">
+          <strong id="admin-profile-name">Loading user...</strong>
+          <span id="admin-profile-role">Admin</span>
+        </div>
+        <div id="portal-gate" class="admin-profile-actions">
+          <button class="admin-signout-button" type="button" data-signout>Log out</button>
+        </div>
+      </section>
+    </aside>
+
+    <section class="admin-dashboard-main">
+      <header class="admin-dashboard-topbar">
+        <div class="admin-dashboard-greeting">
+          <span class="admin-topline-chip" id="portal-last-updated">Last updated --</span>
+          <h1 id="portal-heading">User Access Provisioning</h1>
+          <p id="portal-copy">Only administrators can grant access for staff, students, parents, and admins.</p>
+          <nav class="admin-settings-subnav" aria-label="Settings sections">
+            <a href="./admin-settings.html">Overview</a>
+            <a href="./admin-settings-school.html">School Settings</a>
+            <a class="is-active" href="./admin-settings-access.html">User Access</a>
+            <a href="./admin-settings-roles.html">Role Permissions</a>
+            <a href="./admin-settings-academic.html">Sessions and Terms</a>
+          </nav>
+        </div>
+      </header>
+
+      <section class="admin-class-grid">
+        <article class="admin-surface-card">
+          <div class="admin-surface-head">
+            <h2>User Access Provisioning</h2>
+            <span>Control who can create and use accounts in this school workspace.</span>
+          </div>
+          <div id="portal-access-summary" class="portal-role-permission-summary"></div>
+          <form id="portal-access-form" class="portal-settings-form" novalidate>
+            <div id="portal-access-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+            <input type="hidden" name="accessId" />
+            <div class="portal-settings-grid">
+              <label class="portal-field" for="access-email">
+                <span>User email</span>
+                <input id="access-email" name="email" type="email" placeholder="user@example.com" />
+                <p class="portal-field-error" data-access-error-for="email"></p>
+              </label>
+              <label class="portal-field" for="access-role">
+                <span>Role</span>
+                <select id="access-role" name="role">
+                  <option value="Teacher">Teacher</option>
+                  <option value="Student">Student</option>
+                  <option value="Parent">Parent</option>
+                  <option value="Admin">Admin</option>
+                </select>
+                <p class="portal-field-error" data-access-error-for="role"></p>
+              </label>
+              <label class="portal-field" for="access-method">
+                <span>Auth method</span>
+                <select id="access-method" name="authMethod">
+                  <option value="any">Any (Google or Password)</option>
+                  <option value="password">Email and Password only</option>
+                  <option value="google">Google only</option>
+                </select>
+                <p class="portal-field-error" data-access-error-for="authMethod"></p>
+              </label>
+              <label class="portal-field" for="access-status-select">
+                <span>Access status</span>
+                <select id="access-status-select" name="status">
+                  <option value="active">Active</option>
+                  <option value="revoked">Revoked</option>
+                </select>
+                <p class="portal-field-error" data-access-error-for="status"></p>
+              </label>
+            </div>
+            <div class="utility-actions">
+              <button class="button button-primary" type="submit" data-access-submit>Grant access</button>
+              <button class="button button-outline" type="button" data-access-cancel hidden>Cancel edit</button>
+            </div>
+          </form>
+          <div id="portal-access-list" class="portal-class-list"></div>
+        </article>
+      </section>
+    </section>
+  </main>
+
+  <script src="./app.js"></script>
+  <script src="./supabase-config.js"></script>
+  <script src="./auth.js"></script>
+</body>
+</html>

@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sessions and Terms | SchoolSphere Admin</title>
+  <meta name="description" content="Academic sessions and terms management." />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body data-page="admin-settings-academic" class="admin-dashboard-page">
+  <main class="admin-dashboard-shell">
+    <aside class="admin-sidebar">
+      <a class="admin-sidebar-brand" href="./index.html" aria-label="School dashboard home">
+        <span id="admin-brand-mark" class="admin-brand-mark">S</span>
+        <div class="admin-sidebar-brand-copy">
+          <strong id="admin-brand-name">SchoolSphere</strong>
+          <span id="admin-brand-subtitle">Admin workspace</span>
+        </div>
+      </a>
+
+      <nav class="admin-sidebar-nav" aria-label="Admin sections">
+        <a class="admin-sidebar-link" href="./portal.html"><span>Dashboard</span></a>
+        <a class="admin-sidebar-link" href="./admin-students.html"><span>Students</span></a>
+        <a class="admin-sidebar-link" href="./admin-classes.html"><span>Classes</span></a>
+        <a class="admin-sidebar-link" href="./admin-teachers.html"><span>Teachers</span></a>
+        <a class="admin-sidebar-link" href="./admin-schedule.html"><span>Schedule</span></a>
+        <a class="admin-sidebar-link" href="./admin-attendance.html"><span>Attendance</span></a>
+        <a class="admin-sidebar-link" href="./admin-reports.html"><span>Reports</span></a>
+        <a class="admin-sidebar-link" href="./admin-feature-modules.html"><span>Feature Modules</span></a>
+        <a class="admin-sidebar-link is-active" href="./admin-settings.html"><span>Settings</span></a>
+      </nav>
+
+      <section class="admin-sidebar-profile">
+        <div class="admin-profile-avatar" id="admin-profile-avatar">A</div>
+        <div class="admin-profile-copy">
+          <strong id="admin-profile-name">Loading user...</strong>
+          <span id="admin-profile-role">Admin</span>
+        </div>
+        <div id="portal-gate" class="admin-profile-actions">
+          <button class="admin-signout-button" type="button" data-signout>Log out</button>
+        </div>
+      </section>
+    </aside>
+
+    <section class="admin-dashboard-main">
+      <header class="admin-dashboard-topbar">
+        <div class="admin-dashboard-greeting">
+          <span class="admin-topline-chip" id="portal-last-updated">Last updated --</span>
+          <h1 id="portal-heading">Academic Sessions and Terms</h1>
+          <p id="portal-copy">Open and close sessions/terms and keep your school calendar aligned.</p>
+          <nav class="admin-settings-subnav" aria-label="Settings sections">
+            <a href="./admin-settings.html">Overview</a>
+            <a href="./admin-settings-school.html">School Settings</a>
+            <a href="./admin-settings-access.html">User Access</a>
+            <a href="./admin-settings-roles.html">Role Permissions</a>
+            <a class="is-active" href="./admin-settings-academic.html">Sessions and Terms</a>
+          </nav>
+        </div>
+      </header>
+
+      <section class="admin-class-grid">
+        <article class="admin-surface-card">
+          <div class="admin-surface-head">
+            <h2>Academic Sessions and Terms</h2>
+            <span>Create, open, and close sessions and terms from this page.</span>
+          </div>
+
+          <div id="portal-academic-cycle-summary" class="portal-role-permission-summary"></div>
+
+          <form id="portal-session-form" class="portal-settings-form" novalidate>
+            <div id="portal-session-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+            <input type="hidden" name="sessionId" />
+            <div class="portal-settings-grid">
+              <div class="portal-settings-section-head">
+                <strong>Academic session</strong>
+                <span>Create a session and mark it open or closed</span>
+              </div>
+              <label class="portal-field" for="session-name">
+                <span>Session name</span>
+                <input id="session-name" name="name" type="text" placeholder="2026/2027" />
+                <p class="portal-field-error" data-session-error-for="name"></p>
+              </label>
+              <label class="portal-field" for="session-start-date">
+                <span>Start date</span>
+                <input id="session-start-date" name="startDate" type="date" />
+                <p class="portal-field-error" data-session-error-for="startDate"></p>
+              </label>
+              <label class="portal-field" for="session-end-date">
+                <span>End date</span>
+                <input id="session-end-date" name="endDate" type="date" />
+                <p class="portal-field-error" data-session-error-for="endDate"></p>
+              </label>
+              <label class="portal-field" for="session-status-select">
+                <span>Status</span>
+                <select id="session-status-select" name="status">
+                  <option value="closed">Closed</option>
+                  <option value="open">Open</option>
+                </select>
+                <p class="portal-field-error" data-session-error-for="status"></p>
+              </label>
+            </div>
+            <div class="utility-actions">
+              <button class="button button-primary" type="submit" data-session-submit>Save session</button>
+              <button class="button button-outline" type="button" data-session-cancel hidden>Cancel edit</button>
+            </div>
+          </form>
+
+          <div id="portal-session-list" class="portal-class-list"></div>
+
+          <form id="portal-term-form" class="portal-settings-form" novalidate>
+            <div id="portal-term-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+            <input type="hidden" name="termId" />
+            <div class="portal-settings-grid">
+              <div class="portal-settings-section-head">
+                <strong>Academic term</strong>
+                <span>Create terms and open/close each term in the active session</span>
+              </div>
+              <label class="portal-field" for="term-session-id">
+                <span>Session</span>
+                <select id="term-session-id" name="sessionId"></select>
+                <p class="portal-field-error" data-term-error-for="sessionId"></p>
+              </label>
+              <label class="portal-field" for="term-name">
+                <span>Term name</span>
+                <input id="term-name" name="name" type="text" placeholder="First Term" />
+                <p class="portal-field-error" data-term-error-for="name"></p>
+              </label>
+              <label class="portal-field" for="term-start-date">
+                <span>Start date</span>
+                <input id="term-start-date" name="startDate" type="date" />
+                <p class="portal-field-error" data-term-error-for="startDate"></p>
+              </label>
+              <label class="portal-field" for="term-end-date">
+                <span>End date</span>
+                <input id="term-end-date" name="endDate" type="date" />
+                <p class="portal-field-error" data-term-error-for="endDate"></p>
+              </label>
+              <label class="portal-field" for="term-status-select">
+                <span>Status</span>
+                <select id="term-status-select" name="status">
+                  <option value="closed">Closed</option>
+                  <option value="open">Open</option>
+                </select>
+                <p class="portal-field-error" data-term-error-for="status"></p>
+              </label>
+            </div>
+            <div class="utility-actions">
+              <button class="button button-primary" type="submit" data-term-submit>Save term</button>
+              <button class="button button-outline" type="button" data-term-cancel hidden>Cancel edit</button>
+            </div>
+          </form>
+
+          <div id="portal-term-list" class="portal-class-list"></div>
+        </article>
+      </section>
+    </section>
+  </main>
+
+  <script src="./app.js"></script>
+  <script src="./supabase-config.js"></script>
+  <script src="./auth.js"></script>
+</body>
+</html>
