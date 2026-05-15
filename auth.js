@@ -156,6 +156,7 @@
     initAdminStudentsPage();
     initAdminClassesPage();
     initAdminCoursesPage();
+    initAdminSchedulePage();
     initAdminFeatureModulesPage();
     initAdminSettingsPage();
     initFormDraftPersistence();
@@ -417,12 +418,18 @@
     restoreBasicFormDraft(form, draft);
     const formToggleButton =
       document.querySelector("[data-class-form-toggle]") ||
-      document.querySelector("[data-course-form-toggle]");
+      document.querySelector("[data-course-form-toggle]") ||
+      document.querySelector("[data-calendar-form-toggle]");
 
     if (form.hidden) {
       form.hidden = false;
       if (formToggleButton) {
-        formToggleButton.textContent = form.id === "portal-course-form" ? "Hide course form" : "Hide class form";
+        formToggleButton.textContent =
+          form.id === "portal-course-form"
+            ? "Hide course form"
+            : form.id === "portal-academic-calendar-form"
+              ? "Hide calendar form"
+              : "Hide class form";
         formToggleButton.setAttribute("aria-expanded", "true");
       }
     }
@@ -465,6 +472,7 @@
       { formId: "portal-term-form" },
       { formId: "portal-class-form", restorer: restoreClassFormDraft },
       { formId: "portal-course-form", restorer: restoreClassFormDraft },
+      { formId: "portal-academic-calendar-form", restorer: restoreClassFormDraft },
       { formId: "portal-student-form", serializer: serializeStudentFormDraft, restorer: restoreStudentFormDraft },
     ].forEach(initializeDraftForForm);
   }
@@ -1304,6 +1312,10 @@
     return window.SchoolSphereAcademicCycles || null;
   }
 
+  function getAcademicCalendarManager() {
+    return window.SchoolSphereAcademicCalendar || null;
+  }
+
   function getClassManager() {
     return window.SchoolSphereClasses || null;
   }
@@ -2050,6 +2062,269 @@
     });
 
     window.addEventListener(manager.eventName, refreshCourseManagementSection);
+  }
+
+  function initAcademicCalendarControls({
+    isAdmin,
+    manager,
+    summaryTarget,
+    form,
+    status,
+    listTarget,
+  }) {
+    if (!summaryTarget || !form || !status || !listTarget) {
+      return;
+    }
+
+    const formToggleButton =
+      form.parentElement?.querySelector("[data-calendar-form-toggle]") ||
+      document.querySelector("[data-calendar-form-toggle]");
+
+    const setCalendarFormVisibility = (isVisible) => {
+      form.hidden = !isVisible;
+
+      if (formToggleButton) {
+        formToggleButton.textContent = isVisible ? "Hide calendar form" : "Create calendar event";
+        formToggleButton.setAttribute("aria-expanded", String(isVisible));
+      }
+    };
+
+    const refreshAcademicCalendarSection = () => {
+      renderPortalAcademicCalendarSection({
+        isAdmin,
+        manager,
+        summaryTarget,
+        form,
+        status,
+        listTarget,
+      });
+    };
+
+    const toggleCalendarFormVisibility = () => {
+      if (!isAdmin || !manager) {
+        return;
+      }
+
+      const shouldOpen = form.hidden;
+      setCalendarFormVisibility(shouldOpen);
+
+      if (!shouldOpen) {
+        clearPortalCalendarErrors(form);
+        resetPortalCalendarForm(form, isAdmin);
+        setStatus(status, "", "");
+      }
+    };
+
+    form.addEventListener("input", () => {
+      clearPortalCalendarErrors(form);
+
+      if (isAdmin) {
+        setStatus(status, "", "");
+      }
+    });
+
+    refreshAcademicCalendarSection();
+    resetPortalCalendarForm(form, isAdmin);
+    setCalendarFormVisibility(false);
+
+    if (formToggleButton) {
+      formToggleButton.disabled = !isAdmin || !manager;
+      formToggleButton.addEventListener("click", toggleCalendarFormVisibility);
+    }
+
+    if (!manager) {
+      setCalendarFormVisibility(false);
+      return;
+    }
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+
+      if (!isAdmin) {
+        setStatus(status, "info", "Only administrators can manage calendar events.");
+        return;
+      }
+
+      clearPortalCalendarErrors(form);
+      setStatus(status, "", "");
+
+      const calendarEventId = form.elements.calendarEventId.value || "";
+      const payload = {
+        id: calendarEventId || undefined,
+        title: form.elements.title.value.trim(),
+        type: normalizeCalendarType(form.elements.type.value),
+        startDate: form.elements.startDate.value || "",
+        endDate: form.elements.endDate.value || "",
+        notes: form.elements.notes.value.trim(),
+        visibility: "all-roles",
+      };
+
+      let hasError = false;
+
+      if (!payload.title) {
+        setPortalCalendarError(form, "title", "Enter an event title.");
+        hasError = true;
+      }
+
+      if (!payload.startDate) {
+        setPortalCalendarError(form, "startDate", "Select the event start date.");
+        hasError = true;
+      }
+
+      if (!payload.endDate) {
+        setPortalCalendarError(form, "endDate", "Select the event end date.");
+        hasError = true;
+      } else if (payload.startDate && payload.endDate < payload.startDate) {
+        setPortalCalendarError(form, "endDate", "End date must be the same day or after the start date.");
+        hasError = true;
+      }
+
+      const conflicts = hasError ? [] : manager.findConflicts(payload);
+
+      if (conflicts.length) {
+        const conflictPreview = conflicts
+          .slice(0, 3)
+          .map((entry) => `${entry.title} (${formatCalendarRange(entry.startDate, entry.endDate)})`)
+          .join(", ");
+        setPortalCalendarError(
+          form,
+          "startDate",
+          "Conflict detected with existing calendar dates.",
+        );
+        setStatus(
+          status,
+          "error",
+          `This event overlaps with ${conflicts.length} existing event(s): ${escapeHtml(conflictPreview)}.`,
+        );
+        return;
+      }
+
+      if (hasError) {
+        setStatus(status, "error", "Fix the highlighted calendar details and try again.");
+        return;
+      }
+
+      const currentRecord = manager.getEvents().find((entry) => entry.id === calendarEventId) || null;
+      manager.upsertEvent({
+        ...currentRecord,
+        ...payload,
+        status: currentRecord ? currentRecord.status : "active",
+      });
+      recordAuditEvent({
+        action: currentRecord ? "updated" : "created",
+        entityType: "academic-calendar",
+        entityId: payload.title,
+        summary: `${currentRecord ? "Updated" : "Created"} ${getCalendarTypeLabel(payload.type)}: ${payload.title}`,
+        details: `${payload.startDate} to ${payload.endDate}`,
+      });
+
+      clearFormDraftFor(form);
+      resetPortalCalendarForm(form, isAdmin);
+      setCalendarFormVisibility(false);
+      setStatus(
+        status,
+        "success",
+        `${getCalendarTypeLabel(payload.type)} <strong>${escapeHtml(payload.title)}</strong> saved and visible to all roles.`,
+      );
+    });
+
+    const cancelButton = form.querySelector("[data-calendar-cancel]");
+
+    if (cancelButton) {
+      cancelButton.addEventListener("click", () => {
+        clearPortalCalendarErrors(form);
+        resetPortalCalendarForm(form, isAdmin);
+        setCalendarFormVisibility(false);
+        setStatus(status, "", "");
+      });
+    }
+
+    listTarget.addEventListener("click", (event) => {
+      const actionButton = event.target.closest("[data-calendar-action]");
+
+      if (!actionButton || !isAdmin) {
+        return;
+      }
+
+      const eventId = actionButton.dataset.calendarId;
+      const action = actionButton.dataset.calendarAction;
+      const eventRecord = manager.getEvents().find((entry) => entry.id === eventId);
+
+      if (!eventRecord) {
+        return;
+      }
+
+      clearPortalCalendarErrors(form);
+
+      if (action === "edit") {
+        populatePortalCalendarForm(form, eventRecord, isAdmin);
+        setCalendarFormVisibility(true);
+        setStatus(
+          status,
+          "info",
+          `Editing <strong>${escapeHtml(eventRecord.title)}</strong>. Save to update this event.`,
+        );
+        form.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+
+      if (action === "archive") {
+        manager.archiveEvent(eventRecord.id);
+        recordAuditEvent({
+          action: "archived",
+          entityType: "academic-calendar",
+          entityId: eventRecord.id,
+          summary: `Archived calendar event: ${eventRecord.title}`,
+          details: `${eventRecord.startDate} to ${eventRecord.endDate}`,
+        });
+        resetPortalCalendarForm(form, isAdmin);
+        setCalendarFormVisibility(false);
+        setStatus(
+          status,
+          "success",
+          `Event <strong>${escapeHtml(eventRecord.title)}</strong> archived.`,
+        );
+        return;
+      }
+
+      if (action === "activate") {
+        const conflicts = manager.findConflicts({
+          ...eventRecord,
+          status: "active",
+        });
+
+        if (conflicts.length) {
+          const conflictPreview = conflicts
+            .slice(0, 3)
+            .map((entry) => `${entry.title} (${formatCalendarRange(entry.startDate, entry.endDate)})`)
+            .join(", ");
+          setStatus(
+            status,
+            "error",
+            `Cannot reactivate due to date conflict with: ${escapeHtml(conflictPreview)}.`,
+          );
+          return;
+        }
+
+        manager.activateEvent(eventRecord.id);
+        recordAuditEvent({
+          action: "reactivated",
+          entityType: "academic-calendar",
+          entityId: eventRecord.id,
+          summary: `Reactivated calendar event: ${eventRecord.title}`,
+          details: `${eventRecord.startDate} to ${eventRecord.endDate}`,
+        });
+        resetPortalCalendarForm(form, isAdmin);
+        setCalendarFormVisibility(false);
+        setStatus(
+          status,
+          "success",
+          `Event <strong>${escapeHtml(eventRecord.title)}</strong> reactivated and visible again.`,
+        );
+      }
+    });
+
+    window.addEventListener(manager.eventName, refreshAcademicCalendarSection);
   }
 
   function initSchoolSettingsControls({
@@ -2922,6 +3197,86 @@
     }
   }
 
+  function clearPortalCalendarErrors(form) {
+    form.querySelectorAll(".portal-field").forEach((field) => field.classList.remove("is-invalid"));
+    form.querySelectorAll("[data-calendar-error-for]").forEach((error) => {
+      error.textContent = "";
+    });
+  }
+
+  function setPortalCalendarError(form, fieldName, message) {
+    const error = form.querySelector(`[data-calendar-error-for="${fieldName}"]`);
+    const control = form.elements[fieldName];
+    const field = control ? control.closest(".portal-field") : null;
+
+    if (error) {
+      error.textContent = message;
+    }
+
+    if (field) {
+      field.classList.add("is-invalid");
+    }
+  }
+
+  function normalizeCalendarType(type) {
+    const normalized = String(type || "").trim().toLowerCase();
+
+    if (normalized === "holiday") {
+      return "holiday";
+    }
+
+    if (normalized === "exam" || normalized === "exam-period") {
+      return "exam";
+    }
+
+    return "term";
+  }
+
+  function getCalendarTypeLabel(type) {
+    if (normalizeCalendarType(type) === "holiday") {
+      return "Holiday";
+    }
+
+    if (normalizeCalendarType(type) === "exam") {
+      return "Exam Period";
+    }
+
+    return "Term";
+  }
+
+  function formatCalendarDate(value) {
+    if (!value) {
+      return "—";
+    }
+
+    const parsed = new Date(`${value}T00:00:00`);
+
+    if (Number.isNaN(parsed.getTime())) {
+      return "—";
+    }
+
+    return new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }).format(parsed);
+  }
+
+  function formatCalendarRange(startDate, endDate) {
+    const startLabel = formatCalendarDate(startDate);
+    const endLabel = formatCalendarDate(endDate);
+
+    if (startLabel === "—" && endLabel === "—") {
+      return "Date not set";
+    }
+
+    if (startDate === endDate) {
+      return startLabel;
+    }
+
+    return `${startLabel} - ${endLabel}`;
+  }
+
   function clearPortalCourseErrors(form) {
     form.querySelectorAll(".portal-field").forEach((field) => field.classList.remove("is-invalid"));
     form.querySelectorAll("[data-course-error-for]").forEach((error) => {
@@ -3070,6 +3425,69 @@
 
     const submitButton = form.querySelector("[data-course-submit]");
     const cancelButton = form.querySelector("[data-course-cancel]");
+
+    if (submitButton) {
+      submitButton.textContent = "Save changes";
+    }
+
+    if (cancelButton) {
+      cancelButton.hidden = !isAdmin;
+    }
+
+    Array.from(form.elements).forEach((field) => {
+      if (field instanceof HTMLElement) {
+        field.disabled = !isAdmin;
+      }
+    });
+  }
+
+  function resetPortalCalendarForm(form, isAdmin) {
+    if (!form) {
+      return;
+    }
+
+    form.reset();
+
+    if (form.elements.calendarEventId) {
+      form.elements.calendarEventId.value = "";
+    }
+
+    if (form.elements.type) {
+      form.elements.type.value = "term";
+    }
+
+    const submitButton = form.querySelector("[data-calendar-submit]");
+    const cancelButton = form.querySelector("[data-calendar-cancel]");
+
+    if (submitButton) {
+      submitButton.textContent = "Save event";
+    }
+
+    if (cancelButton) {
+      cancelButton.hidden = true;
+    }
+
+    Array.from(form.elements).forEach((field) => {
+      if (field instanceof HTMLElement) {
+        field.disabled = !isAdmin;
+      }
+    });
+  }
+
+  function populatePortalCalendarForm(form, record, isAdmin) {
+    if (!form || !record) {
+      return;
+    }
+
+    form.elements.calendarEventId.value = record.id;
+    form.elements.title.value = record.title;
+    form.elements.type.value = normalizeCalendarType(record.type);
+    form.elements.startDate.value = record.startDate || "";
+    form.elements.endDate.value = record.endDate || "";
+    form.elements.notes.value = record.notes || "";
+
+    const submitButton = form.querySelector("[data-calendar-submit]");
+    const cancelButton = form.querySelector("[data-calendar-cancel]");
 
     if (submitButton) {
       submitButton.textContent = "Save changes";
@@ -4083,6 +4501,166 @@
         "info",
         "Switch to the administrator role to create, edit, archive, or reactivate courses.",
       );
+    }
+  }
+
+  function renderPortalAcademicCalendarSection({
+    isAdmin,
+    manager,
+    summaryTarget,
+    form,
+    status,
+    listTarget,
+  }) {
+    if (!summaryTarget || !form || !listTarget) {
+      return;
+    }
+
+    if (!manager) {
+      summaryTarget.innerHTML = `
+        <article class="portal-class-stat">
+          <span>Calendar tools unavailable</span>
+          <strong>0</strong>
+          <p>The shared academic calendar manager could not be loaded on this page.</p>
+        </article>
+      `;
+      listTarget.innerHTML = "";
+      return;
+    }
+
+    const {
+      events,
+      activeCount,
+      archivedCount,
+      termCount,
+      holidayCount,
+      examCount,
+      upcomingEvents,
+    } = manager.summarize();
+
+    summaryTarget.innerHTML = `
+      <article class="portal-class-stat portal-class-stat-blue">
+        <span>Active events</span>
+        <strong>${activeCount}</strong>
+        <p>Visible to Administrator, Employee, Student, and Parent roles.</p>
+      </article>
+      <article class="portal-class-stat portal-class-stat-violet">
+        <span>Terms</span>
+        <strong>${termCount}</strong>
+        <p>Academic term windows currently scheduled.</p>
+      </article>
+      <article class="portal-class-stat portal-class-stat-green">
+        <span>Holidays</span>
+        <strong>${holidayCount}</strong>
+        <p>Breaks and closure periods shared across the platform.</p>
+      </article>
+      <article class="portal-class-stat portal-class-stat-amber">
+        <span>Exam periods</span>
+        <strong>${examCount}</strong>
+        <p>Exam windows visible to staff, students, and parents.</p>
+      </article>
+      <article class="portal-class-stat portal-class-stat-rose">
+        <span>Upcoming events</span>
+        <strong>${upcomingEvents.length}</strong>
+        <p>Nearest calendar items from today onward.</p>
+      </article>
+      <article class="portal-class-stat portal-class-stat-slate">
+        <span>Archived events</span>
+        <strong>${archivedCount}</strong>
+        <p>Past records retained for audit and planning history.</p>
+      </article>
+    `;
+
+    Array.from(form.elements).forEach((field) => {
+      if (field instanceof HTMLElement) {
+        field.disabled = !isAdmin;
+      }
+    });
+
+    if (!events.length) {
+      listTarget.innerHTML = `
+        <article class="portal-class-empty">
+          <strong>No calendar events yet</strong>
+          <p>Create the first term, holiday, or exam period so all roles can see key dates.</p>
+        </article>
+      `;
+    } else {
+      listTarget.innerHTML = events
+        .map(
+          (eventRecord) => `
+            <details class="portal-class-card portal-class-list-item ${eventRecord.status === "archived" ? "is-archived" : ""}">
+              <summary class="portal-class-list-summary">
+                <div class="portal-class-list-main">
+                  <strong>${escapeHtml(eventRecord.title)}</strong>
+                  <span>${escapeHtml(getCalendarTypeLabel(eventRecord.type))} • ${escapeHtml(
+                    formatCalendarRange(eventRecord.startDate, eventRecord.endDate),
+                  )}</span>
+                </div>
+                <span class="portal-class-status ${eventRecord.status === "archived" ? "is-archived" : "is-active"}">
+                  ${eventRecord.status === "archived" ? "Archived" : "Active"}
+                </span>
+              </summary>
+
+              <div class="portal-class-list-body">
+                <div class="portal-class-meta">
+                  <div class="portal-class-meta-item">
+                    <span>Type</span>
+                    <strong>${escapeHtml(getCalendarTypeLabel(eventRecord.type))}</strong>
+                  </div>
+                  <div class="portal-class-meta-item">
+                    <span>Date range</span>
+                    <strong>${escapeHtml(formatCalendarRange(eventRecord.startDate, eventRecord.endDate))}</strong>
+                  </div>
+                  <div class="portal-class-meta-item">
+                    <span>Audience</span>
+                    <strong>All roles</strong>
+                  </div>
+                </div>
+
+                <div class="portal-class-extended">
+                  <div class="portal-class-extended-item portal-class-extended-item-span">
+                    <span>Notes</span>
+                    <strong>${escapeHtml(eventRecord.notes || "No additional notes.")}</strong>
+                  </div>
+                  <div class="portal-class-extended-item">
+                    <span>Updated</span>
+                    <strong>${escapeHtml(formatTimestamp(eventRecord.updatedAt))}</strong>
+                  </div>
+                  <div class="portal-class-extended-item">
+                    <span>Visibility</span>
+                    <strong>Administrator, Employee, Student, Parent</strong>
+                  </div>
+                </div>
+
+                <div class="portal-class-actions">
+                  <button
+                    class="portal-class-button"
+                    type="button"
+                    data-calendar-action="edit"
+                    data-calendar-id="${eventRecord.id}"
+                    ${isAdmin ? "" : "disabled"}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    class="portal-class-button ${eventRecord.status === "archived" ? "is-restore" : "is-archive"}"
+                    type="button"
+                    data-calendar-action="${eventRecord.status === "archived" ? "activate" : "archive"}"
+                    data-calendar-id="${eventRecord.id}"
+                    ${isAdmin ? "" : "disabled"}
+                  >
+                    ${eventRecord.status === "archived" ? "Reactivate" : "Archive"}
+                  </button>
+                </div>
+              </div>
+            </details>
+          `,
+        )
+        .join("");
+    }
+
+    if (!isAdmin) {
+      setStatus(status, "info", "Only administrators can create or edit academic calendar events.");
     }
   }
 
@@ -5692,6 +6270,37 @@
     if (!target) {
       return;
     }
+    const calendarManager = getAcademicCalendarManager();
+    const liveEvents =
+      calendarManager && typeof calendarManager.getUpcomingEvents === "function"
+        ? calendarManager.getUpcomingEvents(4)
+        : [];
+    const toneByType = {
+      term: "blue",
+      holiday: "amber",
+      exam: "violet",
+    };
+
+    if (liveEvents.length) {
+      target.innerHTML = liveEvents
+        .map((eventItem) => {
+          const tone = toneByType[normalizeCalendarType(eventItem.type)] || "blue";
+          const dateRange = formatCalendarRange(eventItem.startDate, eventItem.endDate);
+
+          return `
+            <article class="admin-event-row">
+              <div class="admin-event-time">${escapeHtml(dateRange)}</div>
+              <div class="admin-event-copy admin-event-copy-${tone}">
+                <strong>${escapeHtml(eventItem.title)}</strong>
+                <span>${escapeHtml(getCalendarTypeLabel(eventItem.type))} • Visible to all roles</span>
+              </div>
+              <button class="admin-event-button admin-event-button-${tone}" type="button">Calendar</button>
+            </article>
+          `;
+        })
+        .join("");
+      return;
+    }
 
     target.innerHTML = DASHBOARD_EVENT_ITEMS.map(
       (item) => `
@@ -5843,6 +6452,28 @@
     });
   }
 
+  function initAdminSchedulePage() {
+    if (getPage() !== "admin-schedule") {
+      return;
+    }
+
+    const { isAdmin } = getAdminAccessContext();
+    const calendarManager = getAcademicCalendarManager();
+    const calendarSummary = document.getElementById("portal-calendar-summary");
+    const calendarForm = document.getElementById("portal-academic-calendar-form");
+    const calendarStatus = document.getElementById("portal-academic-calendar-status");
+    const calendarList = document.getElementById("portal-academic-calendar-list");
+
+    initAcademicCalendarControls({
+      isAdmin,
+      manager: calendarManager,
+      summaryTarget: calendarSummary,
+      form: calendarForm,
+      status: calendarStatus,
+      listTarget: calendarList,
+    });
+  }
+
   function initAdminFeatureModulesPage() {
     if (getPage() !== "admin-feature-modules") {
       return;
@@ -5953,6 +6584,7 @@
     const details = document.getElementById("portal-details");
     const gate = document.getElementById("portal-gate");
     const schoolSettingsManager = getSchoolSettingsManager();
+    const academicCalendarManager = getAcademicCalendarManager();
 
     if (
       !brandMark ||
@@ -6098,6 +6730,12 @@
     renderAdminMetricCards(metrics, snapshot);
     renderAdminEvents(events);
     renderAdminActivity(activity);
+
+    if (academicCalendarManager?.eventName) {
+      window.addEventListener(academicCalendarManager.eventName, () => {
+        renderAdminEvents(events);
+      });
+    }
 
     links.innerHTML = DASHBOARD_SECTION_LINKS.map(
       (item) => `

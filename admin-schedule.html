@@ -141,58 +141,71 @@
           </div>
         </header>
 
-        <section class="admin-secondary-grid">
-          <article class="admin-surface-card">
+        <section class="admin-class-grid">
+          <article class="admin-surface-card admin-class-management-card">
             <div class="admin-surface-head">
-              <h2>Timetable Operations</h2>
-              <span>Where clashes usually start</span>
+              <div>
+                <h2>Academic Calendar</h2>
+                <span>Define terms, holidays, and exam periods with conflict checks before publishing.</span>
+              </div>
             </div>
-            <div class="admin-link-grid">
-              <a class="admin-link-card" href="./workflows.html#classroom-rhythm">
-                <strong>Class Period Layout</strong>
-                <p>Review daily class rhythm, subject rotation, and lesson sequencing.</p>
-                <span>Open workflow</span>
-              </a>
-              <a class="admin-link-card" href="./admin-teachers.html">
-                <strong>Teacher Availability</strong>
-                <p>Check staff load before assigning extra periods or cover work.</p>
-                <span>Open teachers</span>
-              </a>
-              <a class="admin-link-card" href="./admin-classes.html">
-                <strong>Class Capacity Check</strong>
-                <p>Confirm the class list before finalising schedules and room placement.</p>
-                <span>Open classes</span>
-              </a>
-              <a class="admin-link-card" href="./admin-attendance.html">
-                <strong>Attendance Timing</strong>
-                <p>Make sure morning attendance windows and special sessions are aligned.</p>
-                <span>Open attendance</span>
-              </a>
-            </div>
-          </article>
 
-          <article class="admin-surface-card">
-            <div class="admin-surface-head">
-              <h2>Publishing Checklist</h2>
-              <span>Before staff and families see changes</span>
-            </div>
-            <div class="admin-session-grid">
-              <div class="admin-session-card">
-                <span>Room conflicts</span>
-                <strong>Confirm that shared spaces are not double-booked.</strong>
+            <div id="portal-calendar-summary" class="portal-class-summary"></div>
+
+            <div class="portal-class-layout">
+              <div class="portal-class-form-shell">
+                <button class="button button-primary" type="button" data-calendar-form-toggle>
+                  Create calendar event
+                </button>
+
+                <form id="portal-academic-calendar-form" class="portal-class-form" novalidate hidden>
+                  <div id="portal-academic-calendar-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+                  <input type="hidden" name="calendarEventId" />
+
+                  <div class="portal-settings-grid">
+                    <label class="portal-field portal-field-span-2" for="calendar-title">
+                      <span>Event title</span>
+                      <input id="calendar-title" name="title" type="text" placeholder="Term 1, Mid-term Break, WAEC Exam Window..." />
+                      <p class="portal-field-error" data-calendar-error-for="title"></p>
+                    </label>
+
+                    <label class="portal-field" for="calendar-type">
+                      <span>Event type</span>
+                      <select id="calendar-type" name="type">
+                        <option value="term">Term</option>
+                        <option value="holiday">Holiday</option>
+                        <option value="exam">Exam Period</option>
+                      </select>
+                      <p class="portal-field-error" data-calendar-error-for="type"></p>
+                    </label>
+
+                    <label class="portal-field" for="calendar-start-date">
+                      <span>Start date</span>
+                      <input id="calendar-start-date" name="startDate" type="date" />
+                      <p class="portal-field-error" data-calendar-error-for="startDate"></p>
+                    </label>
+
+                    <label class="portal-field portal-field-span-2" for="calendar-end-date">
+                      <span>End date</span>
+                      <input id="calendar-end-date" name="endDate" type="date" />
+                      <p class="portal-field-error" data-calendar-error-for="endDate"></p>
+                    </label>
+
+                    <label class="portal-field portal-field-span-2" for="calendar-notes">
+                      <span>Notes (optional)</span>
+                      <textarea id="calendar-notes" name="notes" rows="3" placeholder="Add context for staff, students, and parents."></textarea>
+                      <p class="portal-field-error" data-calendar-error-for="notes"></p>
+                    </label>
+                  </div>
+
+                  <div class="utility-actions">
+                    <button class="button button-primary" type="submit" data-calendar-submit>Save event</button>
+                    <button class="button button-outline" type="button" data-calendar-cancel hidden>Cancel edit</button>
+                  </div>
+                </form>
               </div>
-              <div class="admin-session-card">
-                <span>Teacher clashes</span>
-                <strong>Watch for overlapping periods across departments.</strong>
-              </div>
-              <div class="admin-session-card">
-                <span>Parent visibility</span>
-                <strong>Prepare updates that can be shared through the portal.</strong>
-              </div>
-              <div class="admin-session-card">
-                <span>Report impact</span>
-                <strong><a href="./admin-reports.html">Check downstream timetable reports</a></strong>
-              </div>
+
+              <div id="portal-academic-calendar-list" class="portal-class-list"></div>
             </div>
           </article>
         </section>

@@ -242,6 +242,9 @@ const DEFAULT_ACADEMIC_CYCLES = {
 };
 const SCHOOL_ACADEMIC_CYCLES_STORAGE_KEY = "schoolsphere.academicCycles.v1";
 const SCHOOL_ACADEMIC_CYCLES_EVENT = "schoolsphere:academic-cycles-updated";
+const DEFAULT_ACADEMIC_CALENDAR_EVENTS = [];
+const SCHOOL_ACADEMIC_CALENDAR_STORAGE_KEY = "schoolsphere.academicCalendar.v1";
+const SCHOOL_ACADEMIC_CALENDAR_EVENT = "schoolsphere:academic-calendar-updated";
 const DEFAULT_CLASS_RECORDS = [];
 const SCHOOL_CLASSES_STORAGE_KEY = "schoolsphere.classes.v1";
 const SCHOOL_CLASSES_EVENT = "schoolsphere:classes-updated";
@@ -860,6 +863,199 @@ function summarizeAcademicCycles() {
     ...state,
     openSession,
     openTerm,
+  };
+}
+
+function normalizeAcademicCalendarType(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+
+  if (normalized === "holiday") {
+    return "holiday";
+  }
+
+  if (normalized === "exam" || normalized === "exam-period") {
+    return "exam";
+  }
+
+  return "term";
+}
+
+function normalizeAcademicCalendarStatus(value) {
+  return String(value || "").trim().toLowerCase() === "archived" ? "archived" : "active";
+}
+
+function normalizeAcademicCalendarEvent(record = {}) {
+  const timestamp = new Date().toISOString();
+  const startDate = String(record.startDate || "").trim();
+  const endDate = String(record.endDate || "").trim();
+  const normalizedStart = startDate && /^\d{4}-\d{2}-\d{2}$/.test(startDate) ? startDate : "";
+  const normalizedEnd = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : "";
+  const visibility = String(record.visibility || "all-roles").trim() || "all-roles";
+  const status = normalizeAcademicCalendarStatus(record.status);
+
+  return {
+    id: String(record.id || createStorageId("calendar")),
+    title: String(record.title || "").trim(),
+    type: normalizeAcademicCalendarType(record.type),
+    startDate: normalizedStart,
+    endDate: normalizedEnd || normalizedStart,
+    notes: String(record.notes || "").trim(),
+    visibility,
+    status,
+    createdAt: record.createdAt || timestamp,
+    updatedAt: record.updatedAt || timestamp,
+    archivedAt: status === "archived" ? record.archivedAt || timestamp : null,
+  };
+}
+
+function compareAcademicCalendarEvents(left, right) {
+  if (left.status !== right.status) {
+    return left.status === "active" ? -1 : 1;
+  }
+
+  const startComparison = left.startDate.localeCompare(right.startDate);
+
+  if (startComparison !== 0) {
+    return startComparison;
+  }
+
+  const endComparison = left.endDate.localeCompare(right.endDate);
+
+  if (endComparison !== 0) {
+    return endComparison;
+  }
+
+  return left.title.localeCompare(right.title, undefined, { numeric: true });
+}
+
+function getAcademicCalendarEvents() {
+  const stored = parseStoredJSON(
+    localStorage.getItem(SCHOOL_ACADEMIC_CALENDAR_STORAGE_KEY),
+    DEFAULT_ACADEMIC_CALENDAR_EVENTS,
+  );
+  const source = Array.isArray(stored) ? stored : DEFAULT_ACADEMIC_CALENDAR_EVENTS;
+
+  return source
+    .map((event) => normalizeAcademicCalendarEvent(event))
+    .filter((event) => event.title && event.startDate && event.endDate)
+    .sort(compareAcademicCalendarEvents);
+}
+
+function emitAcademicCalendarUpdate(events = getAcademicCalendarEvents()) {
+  window.dispatchEvent(
+    new CustomEvent(SCHOOL_ACADEMIC_CALENDAR_EVENT, {
+      detail: { events },
+    }),
+  );
+}
+
+function saveAcademicCalendarEvents(events) {
+  const normalized = events
+    .map((event) => normalizeAcademicCalendarEvent(event))
+    .filter((event) => event.title && event.startDate && event.endDate)
+    .sort(compareAcademicCalendarEvents);
+  localStorage.setItem(SCHOOL_ACADEMIC_CALENDAR_STORAGE_KEY, JSON.stringify(normalized));
+  emitAcademicCalendarUpdate(normalized);
+  return normalized;
+}
+
+function upsertAcademicCalendarEvent(record) {
+  const events = getAcademicCalendarEvents();
+  const timestamp = new Date().toISOString();
+  const nextRecord = normalizeAcademicCalendarEvent({
+    ...record,
+    updatedAt: timestamp,
+  });
+  const existingIndex = events.findIndex((item) => item.id === nextRecord.id);
+
+  if (existingIndex === -1) {
+    events.push({
+      ...nextRecord,
+      createdAt: nextRecord.createdAt || timestamp,
+    });
+  } else {
+    events[existingIndex] = {
+      ...events[existingIndex],
+      ...nextRecord,
+      createdAt: events[existingIndex].createdAt,
+      archivedAt: nextRecord.status === "archived" ? nextRecord.archivedAt || timestamp : null,
+      updatedAt: timestamp,
+    };
+  }
+
+  return saveAcademicCalendarEvents(events);
+}
+
+function setAcademicCalendarEventArchived(eventId, archived) {
+  const events = getAcademicCalendarEvents();
+  const nextEvents = events.map((event) => {
+    if (event.id !== eventId) {
+      return event;
+    }
+
+    return {
+      ...event,
+      status: archived ? "archived" : "active",
+      archivedAt: archived ? new Date().toISOString() : null,
+      updatedAt: new Date().toISOString(),
+    };
+  });
+
+  return saveAcademicCalendarEvents(nextEvents);
+}
+
+function findAcademicCalendarConflicts(candidate, options = {}) {
+  const { includeArchived = false } = options;
+  const nextEvent = normalizeAcademicCalendarEvent(candidate);
+  const events = getAcademicCalendarEvents();
+
+  if (!nextEvent.startDate || !nextEvent.endDate) {
+    return [];
+  }
+
+  return events.filter((existing) => {
+    if (existing.id === nextEvent.id) {
+      return false;
+    }
+
+    if (!includeArchived && existing.status === "archived") {
+      return false;
+    }
+
+    const startsBeforeOtherEnds = nextEvent.startDate <= existing.endDate;
+    const endsAfterOtherStarts = nextEvent.endDate >= existing.startDate;
+    return startsBeforeOtherEnds && endsAfterOtherStarts;
+  });
+}
+
+function getUpcomingAcademicCalendarEvents(limit = 4, fromDate = new Date()) {
+  const cutoff = `${fromDate.toISOString().slice(0, 10)}`;
+  const activeEvents = getAcademicCalendarEvents().filter((event) => event.status !== "archived");
+
+  return activeEvents
+    .filter((event) => event.endDate >= cutoff)
+    .sort((left, right) => {
+      const startComparison = left.startDate.localeCompare(right.startDate);
+      if (startComparison !== 0) {
+        return startComparison;
+      }
+      return left.endDate.localeCompare(right.endDate);
+    })
+    .slice(0, Math.max(1, Number(limit) || 4));
+}
+
+function summarizeAcademicCalendarEvents() {
+  const events = getAcademicCalendarEvents();
+  const activeEvents = events.filter((event) => event.status !== "archived");
+
+  return {
+    events,
+    activeCount: activeEvents.length,
+    archivedCount: events.length - activeEvents.length,
+    termCount: activeEvents.filter((event) => event.type === "term").length,
+    holidayCount: activeEvents.filter((event) => event.type === "holiday").length,
+    examCount: activeEvents.filter((event) => event.type === "exam").length,
+    upcomingEvents: getUpcomingAcademicCalendarEvents(6),
   };
 }
 
@@ -1538,6 +1734,20 @@ window.SchoolSphereAcademicCycles = {
   eventName: SCHOOL_ACADEMIC_CYCLES_EVENT,
 };
 
+window.SchoolSphereAcademicCalendar = {
+  defaults: DEFAULT_ACADEMIC_CALENDAR_EVENTS,
+  types: ["term", "holiday", "exam"],
+  getEvents: getAcademicCalendarEvents,
+  summarize: summarizeAcademicCalendarEvents,
+  saveEvents: saveAcademicCalendarEvents,
+  upsertEvent: upsertAcademicCalendarEvent,
+  archiveEvent: (eventId) => setAcademicCalendarEventArchived(eventId, true),
+  activateEvent: (eventId) => setAcademicCalendarEventArchived(eventId, false),
+  findConflicts: findAcademicCalendarConflicts,
+  getUpcomingEvents: getUpcomingAcademicCalendarEvents,
+  eventName: SCHOOL_ACADEMIC_CALENDAR_EVENT,
+};
+
 window.SchoolSphereClasses = {
   defaults: DEFAULT_CLASS_RECORDS,
   getClasses: getSchoolClasses,
@@ -1591,6 +1801,10 @@ window.addEventListener("storage", (event) => {
 
   if (event.key === SCHOOL_ACADEMIC_CYCLES_STORAGE_KEY) {
     emitAcademicCyclesUpdate(getAcademicCycles());
+  }
+
+  if (event.key === SCHOOL_ACADEMIC_CALENDAR_STORAGE_KEY) {
+    emitAcademicCalendarUpdate(getAcademicCalendarEvents());
   }
 
   if (event.key === SCHOOL_CLASSES_STORAGE_KEY) {
