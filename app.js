@@ -245,6 +245,9 @@ const SCHOOL_ACADEMIC_CYCLES_EVENT = "schoolsphere:academic-cycles-updated";
 const DEFAULT_CLASS_RECORDS = [];
 const SCHOOL_CLASSES_STORAGE_KEY = "schoolsphere.classes.v1";
 const SCHOOL_CLASSES_EVENT = "schoolsphere:classes-updated";
+const DEFAULT_COURSE_RECORDS = [];
+const SCHOOL_COURSES_STORAGE_KEY = "schoolsphere.courses.v1";
+const SCHOOL_COURSES_EVENT = "schoolsphere:courses-updated";
 const DEFAULT_STUDENT_RECORDS = [];
 const SCHOOL_STUDENTS_STORAGE_KEY = "schoolsphere.students.v1";
 const SCHOOL_STUDENTS_EVENT = "schoolsphere:students-updated";
@@ -265,6 +268,7 @@ const ROLE_PERMISSION_OPTIONS = [
   { key: "students_manage", label: "Manage students" },
   { key: "teachers_manage", label: "Manage staff and teachers" },
   { key: "classes_manage", label: "Manage classes" },
+  { key: "courses_manage", label: "Manage courses" },
   { key: "attendance_manage", label: "Manage attendance" },
   { key: "results_manage", label: "Manage exams and results" },
   { key: "fees_manage", label: "Manage fees and bursary" },
@@ -277,6 +281,7 @@ const DEFAULT_ROLE_PERMISSIONS = {
     students_manage: true,
     teachers_manage: true,
     classes_manage: true,
+    courses_manage: true,
     attendance_manage: true,
     results_manage: true,
     fees_manage: true,
@@ -288,6 +293,7 @@ const DEFAULT_ROLE_PERMISSIONS = {
     students_manage: false,
     teachers_manage: false,
     classes_manage: false,
+    courses_manage: false,
     attendance_manage: true,
     results_manage: true,
     fees_manage: false,
@@ -299,6 +305,7 @@ const DEFAULT_ROLE_PERMISSIONS = {
     students_manage: false,
     teachers_manage: false,
     classes_manage: false,
+    courses_manage: false,
     attendance_manage: false,
     results_manage: false,
     fees_manage: true,
@@ -310,6 +317,7 @@ const DEFAULT_ROLE_PERMISSIONS = {
     students_manage: false,
     teachers_manage: false,
     classes_manage: false,
+    courses_manage: false,
     attendance_manage: false,
     results_manage: false,
     fees_manage: false,
@@ -998,6 +1006,182 @@ function summarizeSchoolClasses() {
   };
 }
 
+function normalizeCourseAssignmentList(items) {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+
+  const seen = new Set();
+
+  return items
+    .map((item) => String(item || "").trim())
+    .filter((item) => {
+      if (!item) {
+        return false;
+      }
+
+      const key = item.toLowerCase();
+
+      if (seen.has(key)) {
+        return false;
+      }
+
+      seen.add(key);
+      return true;
+    });
+}
+
+function normalizeSchoolCourse(record = {}) {
+  const timestamp = new Date().toISOString();
+  const status = record.status === "archived" ? "archived" : "active";
+
+  return {
+    id: String(record.id || createStorageId("course")),
+    name: String(record.name || "").trim(),
+    code: String(record.code || "").trim().toUpperCase(),
+    description: String(record.description || "").trim(),
+    level: String(record.level || "").trim(),
+    teacherAssignments: normalizeCourseAssignmentList(record.teacherAssignments),
+    studentAssignments: normalizeCourseAssignmentList(record.studentAssignments),
+    status,
+    createdAt: record.createdAt || timestamp,
+    updatedAt: record.updatedAt || timestamp,
+    archivedAt: status === "archived" ? record.archivedAt || timestamp : null,
+  };
+}
+
+function compareSchoolCourses(left, right) {
+  if (left.status !== right.status) {
+    return left.status === "active" ? -1 : 1;
+  }
+
+  const levelComparison = left.level.localeCompare(right.level, undefined, { numeric: true });
+
+  if (levelComparison !== 0) {
+    return levelComparison;
+  }
+
+  const codeComparison = left.code.localeCompare(right.code, undefined, { numeric: true });
+
+  if (codeComparison !== 0) {
+    return codeComparison;
+  }
+
+  return left.name.localeCompare(right.name, undefined, { numeric: true });
+}
+
+function getSchoolCourses() {
+  const stored = parseStoredJSON(localStorage.getItem(SCHOOL_COURSES_STORAGE_KEY), DEFAULT_COURSE_RECORDS);
+  const source = Array.isArray(stored) ? stored : DEFAULT_COURSE_RECORDS;
+
+  return source.map((record) => normalizeSchoolCourse(record)).sort(compareSchoolCourses);
+}
+
+function emitSchoolCoursesUpdate(courses = getSchoolCourses()) {
+  window.dispatchEvent(
+    new CustomEvent(SCHOOL_COURSES_EVENT, {
+      detail: { courses },
+    }),
+  );
+}
+
+function saveSchoolCourses(courses) {
+  const normalized = courses.map((record) => normalizeSchoolCourse(record)).sort(compareSchoolCourses);
+  localStorage.setItem(SCHOOL_COURSES_STORAGE_KEY, JSON.stringify(normalized));
+  emitSchoolCoursesUpdate(normalized);
+  return normalized;
+}
+
+function upsertSchoolCourse(record) {
+  const courses = getSchoolCourses();
+  const timestamp = new Date().toISOString();
+  const nextRecord = normalizeSchoolCourse({
+    ...record,
+    updatedAt: timestamp,
+  });
+  const existingIndex = courses.findIndex((item) => item.id === nextRecord.id);
+
+  if (existingIndex === -1) {
+    courses.push({
+      ...nextRecord,
+      createdAt: nextRecord.createdAt || timestamp,
+    });
+  } else {
+    courses[existingIndex] = {
+      ...courses[existingIndex],
+      ...nextRecord,
+      createdAt: courses[existingIndex].createdAt,
+      archivedAt: nextRecord.status === "archived" ? nextRecord.archivedAt || timestamp : null,
+      updatedAt: timestamp,
+    };
+  }
+
+  return saveSchoolCourses(courses);
+}
+
+function setSchoolCourseArchived(courseId, archived) {
+  const courses = getSchoolCourses();
+  const nextCourses = courses.map((record) => {
+    if (record.id !== courseId) {
+      return record;
+    }
+
+    return {
+      ...record,
+      status: archived ? "archived" : "active",
+      archivedAt: archived ? new Date().toISOString() : null,
+      updatedAt: new Date().toISOString(),
+    };
+  });
+
+  return saveSchoolCourses(nextCourses);
+}
+
+function getActiveCourseCatalog() {
+  return getSchoolCourses()
+    .filter((course) => course.status !== "archived")
+    .map((course) => {
+      const label = course.code ? `${course.code} • ${course.name}` : course.name;
+      return {
+        id: course.id,
+        name: course.name,
+        code: course.code,
+        level: course.level,
+        label,
+      };
+    });
+}
+
+function summarizeSchoolCourses() {
+  const courses = getSchoolCourses();
+  const active = courses.filter((record) => record.status !== "archived");
+  const archived = courses.filter((record) => record.status === "archived");
+  const levels = new Set(
+    active
+      .map((record) => record.level)
+      .filter(Boolean)
+      .map((level) => level.toLowerCase()),
+  );
+  const teacherAssignmentCount = active.reduce(
+    (sum, record) => sum + (record.teacherAssignments || []).length,
+    0,
+  );
+  const studentAssignmentCount = active.reduce(
+    (sum, record) => sum + (record.studentAssignments || []).length,
+    0,
+  );
+
+  return {
+    courses,
+    activeCount: active.length,
+    archivedCount: archived.length,
+    levelCount: levels.size,
+    teacherAssignmentCount,
+    studentAssignmentCount,
+    activeCatalog: getActiveCourseCatalog(),
+  };
+}
+
 function normalizeGuardianContact(contact = {}) {
   return {
     id: String(contact.id || createStorageId("guardian")),
@@ -1365,6 +1549,18 @@ window.SchoolSphereClasses = {
   eventName: SCHOOL_CLASSES_EVENT,
 };
 
+window.SchoolSphereCourses = {
+  defaults: DEFAULT_COURSE_RECORDS,
+  getCourses: getSchoolCourses,
+  summarize: summarizeSchoolCourses,
+  saveCourses: saveSchoolCourses,
+  upsertCourse: upsertSchoolCourse,
+  archiveCourse: (courseId) => setSchoolCourseArchived(courseId, true),
+  activateCourse: (courseId) => setSchoolCourseArchived(courseId, false),
+  getActiveCatalog: getActiveCourseCatalog,
+  eventName: SCHOOL_COURSES_EVENT,
+};
+
 window.SchoolSphereStudents = {
   defaults: DEFAULT_STUDENT_RECORDS,
   getStudents: getSchoolStudents,
@@ -1399,6 +1595,10 @@ window.addEventListener("storage", (event) => {
 
   if (event.key === SCHOOL_CLASSES_STORAGE_KEY) {
     emitSchoolClassesUpdate(getSchoolClasses());
+  }
+
+  if (event.key === SCHOOL_COURSES_STORAGE_KEY) {
+    emitSchoolCoursesUpdate(getSchoolCourses());
   }
 
   if (event.key === SCHOOL_STUDENTS_STORAGE_KEY) {

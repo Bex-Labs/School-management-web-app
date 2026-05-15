@@ -13,6 +13,8 @@
   const AUTH_PENDING_ROLE_KEY = "schoolsphere.auth.pending.role.v1";
   const ACCESS_GRANTS_STORAGE_KEY = "schoolsphere.access.grants.v1";
   const ACCESS_GUARD_NOTICE_KEY = "schoolsphere.access.guard.notice.v1";
+  const FORM_DRAFT_STORAGE_PREFIX = "schoolsphere.form-draft.v1";
+  const NETWORK_RESILIENCE_BANNER_ID = "network-resilience-banner";
   let supabaseClientPromise = null;
 
   const DASHBOARD_SECTION_LINKS = [
@@ -25,6 +27,11 @@
       label: "Classes",
       href: "./admin-classes.html",
       copy: "Create classes, configure arms and subjects, and assign teachers in one flow.",
+    },
+    {
+      label: "Courses",
+      href: "./admin-courses.html",
+      copy: "Define course catalog, manage codes and levels, and control teacher/student assignment from one source.",
     },
     {
       label: "Teachers",
@@ -136,6 +143,7 @@
 
   document.addEventListener("DOMContentLoaded", async () => {
     await initSupabaseAuthBridge();
+    initConnectionResilienceBanner();
     initAdminSidebarUi();
     initPasswordToggles();
     initRoleButtons();
@@ -147,8 +155,10 @@
     initAdminShellPages();
     initAdminStudentsPage();
     initAdminClassesPage();
+    initAdminCoursesPage();
     initAdminFeatureModulesPage();
     initAdminSettingsPage();
+    initFormDraftPersistence();
   });
 
   function getPage() {
@@ -165,6 +175,349 @@
     } catch {
       return fallback;
     }
+  }
+
+  function getFormDraftStorageKey(formId) {
+    return `${FORM_DRAFT_STORAGE_PREFIX}:${formId}`;
+  }
+
+  function writeFormDraft(formId, payload) {
+    if (!formId) {
+      return;
+    }
+
+    try {
+      localStorage.setItem(getFormDraftStorageKey(formId), JSON.stringify(payload));
+    } catch {
+      // If storage quota is exceeded, we keep the form usable without blocking input.
+    }
+  }
+
+  function readFormDraft(formId) {
+    if (!formId) {
+      return null;
+    }
+
+    try {
+      return parseJSON(localStorage.getItem(getFormDraftStorageKey(formId)), null);
+    } catch {
+      return null;
+    }
+  }
+
+  function clearFormDraft(formId) {
+    if (!formId) {
+      return;
+    }
+
+    try {
+      localStorage.removeItem(getFormDraftStorageKey(formId));
+    } catch {
+      // Storage access can be restricted in private browsing contexts.
+    }
+  }
+
+  function clearFormDraftFor(form) {
+    if (!form || !form.id) {
+      return;
+    }
+
+    clearFormDraft(form.id);
+  }
+
+  function serializeBasicFormDraft(form) {
+    if (!form) {
+      return {};
+    }
+
+    const draft = {};
+    const seenRadioNames = new Set();
+
+    Array.from(form.elements).forEach((field) => {
+      if (!(field instanceof HTMLElement) || !("name" in field)) {
+        return;
+      }
+
+      const name = field.name;
+
+      if (!name) {
+        return;
+      }
+
+      const type = "type" in field ? String(field.type || "").toLowerCase() : "";
+
+      if (type === "password" || type === "file") {
+        return;
+      }
+
+      if (type === "radio") {
+        if (seenRadioNames.has(name)) {
+          return;
+        }
+        seenRadioNames.add(name);
+        const checked = form.querySelector(`input[type="radio"][name="${CSS.escape(name)}"]:checked`);
+        draft[name] = checked ? checked.value : "";
+        return;
+      }
+
+      if (type === "checkbox") {
+        draft[name] = Boolean(field.checked);
+        return;
+      }
+
+      if ("value" in field) {
+        draft[name] = field.value;
+      }
+    });
+
+    return draft;
+  }
+
+  async function withNetworkTimeout(promise, timeoutMs = 25000) {
+    let timeoutHandle = null;
+
+    try {
+      return await Promise.race([
+        promise,
+        new Promise((_, reject) => {
+          timeoutHandle = window.setTimeout(() => {
+            reject(new Error("network_timeout"));
+          }, timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timeoutHandle) {
+        window.clearTimeout(timeoutHandle);
+      }
+    }
+  }
+
+  function restoreBasicFormDraft(form, draft = {}) {
+    if (!form || !draft || typeof draft !== "object") {
+      return;
+    }
+
+    Object.entries(draft).forEach(([name, value]) => {
+      const field = form.elements[name];
+
+      if (!field) {
+        return;
+      }
+
+      const applyValue = (control) => {
+        if (!(control instanceof HTMLElement)) {
+          return;
+        }
+
+        const type = "type" in control ? String(control.type || "").toLowerCase() : "";
+
+        if (type === "checkbox") {
+          control.checked = Boolean(value);
+          return;
+        }
+
+        if (type === "radio") {
+          control.checked = control.value === String(value);
+          return;
+        }
+
+        if ("value" in control && value !== undefined && value !== null) {
+          control.value = String(value);
+        }
+      };
+
+      if (field instanceof RadioNodeList) {
+        Array.from(field).forEach(applyValue);
+      } else {
+        applyValue(field);
+      }
+    });
+  }
+
+  function setAuthRoleSelection(role) {
+    const normalizedRole = normalizeRoleLabel(role);
+    let matched = false;
+
+    document.querySelectorAll(".auth-role").forEach((button) => {
+      const roleValue = normalizeRoleLabel(button.dataset.authRole || button.textContent || "");
+      const isMatch = roleValue === normalizedRole;
+      button.classList.toggle("is-active", isMatch);
+      if (isMatch) {
+        matched = true;
+      }
+    });
+
+    if (!matched) {
+      const defaultButton = document.querySelector('.auth-role[data-auth-role="administrator"]');
+      if (defaultButton) {
+        defaultButton.classList.add("is-active");
+      }
+    }
+  }
+
+  function serializeAuthFormDraft(form) {
+    const draft = serializeBasicFormDraft(form);
+    draft.__selectedRole = getSelectedRole();
+    return draft;
+  }
+
+  function restoreAuthFormDraft(form, draft = {}) {
+    restoreBasicFormDraft(form, draft);
+    if (draft.__selectedRole) {
+      setAuthRoleSelection(draft.__selectedRole);
+    }
+  }
+
+  function serializeStudentFormDraft(form) {
+    const draft = serializeBasicFormDraft(form);
+    const guardianList = document.getElementById("portal-guardian-list");
+
+    if (!guardianList) {
+      return draft;
+    }
+
+    draft.__guardians = Array.from(guardianList.querySelectorAll(".portal-guardian-row")).map((row) => {
+      const name = row.querySelector('[data-guardian-field="name"]')?.value.trim() || "";
+      const relationshipType = row.querySelector('[data-guardian-field="relationshipType"]')?.value.trim() || "";
+      const relationshipOther = row.querySelector('[data-guardian-field="relationshipOther"]')?.value.trim() || "";
+      const phone = row.querySelector('[data-guardian-field="phone"]')?.value.trim() || "";
+      const email = row.querySelector('[data-guardian-field="email"]')?.value.trim() || "";
+      return {
+        id: row.dataset.guardianId || createId(),
+        name,
+        relationship: relationshipType === "Other" ? relationshipOther : relationshipType,
+        phone,
+        email,
+      };
+    });
+
+    return draft;
+  }
+
+  function restoreStudentFormDraft(form, draft = {}) {
+    restoreBasicFormDraft(form, draft);
+    const guardianList = document.getElementById("portal-guardian-list");
+    const formToggleButton = document.querySelector("[data-student-form-toggle]");
+
+    if (guardianList && Array.isArray(draft.__guardians) && draft.__guardians.length) {
+      guardianList.innerHTML = "";
+      draft.__guardians.forEach((guardian) => appendGuardianRow(guardianList, guardian, true));
+    }
+
+    if (form.hidden) {
+      form.hidden = false;
+      if (formToggleButton) {
+        formToggleButton.textContent = "Hide student form";
+        formToggleButton.setAttribute("aria-expanded", "true");
+      }
+    }
+  }
+
+  function restoreClassFormDraft(form, draft = {}) {
+    restoreBasicFormDraft(form, draft);
+    const formToggleButton =
+      document.querySelector("[data-class-form-toggle]") ||
+      document.querySelector("[data-course-form-toggle]");
+
+    if (form.hidden) {
+      form.hidden = false;
+      if (formToggleButton) {
+        formToggleButton.textContent = form.id === "portal-course-form" ? "Hide course form" : "Hide class form";
+        formToggleButton.setAttribute("aria-expanded", "true");
+      }
+    }
+  }
+
+  function initializeDraftForForm(config = {}) {
+    const {
+      formId,
+      serializer = serializeBasicFormDraft,
+      restorer = restoreBasicFormDraft,
+    } = config;
+    const form = document.getElementById(formId);
+
+    if (!form) {
+      return;
+    }
+
+    const savedDraft = readFormDraft(formId);
+
+    if (savedDraft) {
+      restorer(form, savedDraft);
+    }
+
+    const persistDraft = () => {
+      const payload = serializer(form);
+      writeFormDraft(formId, payload);
+    };
+
+    form.addEventListener("input", persistDraft);
+    form.addEventListener("change", persistDraft);
+  }
+
+  function initFormDraftPersistence() {
+    [
+      { formId: "signup-form", serializer: serializeAuthFormDraft, restorer: restoreAuthFormDraft },
+      { formId: "login-form", serializer: serializeAuthFormDraft, restorer: restoreAuthFormDraft },
+      { formId: "portal-school-settings-form" },
+      { formId: "portal-access-form" },
+      { formId: "portal-session-form" },
+      { formId: "portal-term-form" },
+      { formId: "portal-class-form", restorer: restoreClassFormDraft },
+      { formId: "portal-course-form", restorer: restoreClassFormDraft },
+      { formId: "portal-student-form", serializer: serializeStudentFormDraft, restorer: restoreStudentFormDraft },
+    ].forEach(initializeDraftForForm);
+  }
+
+  function initConnectionResilienceBanner() {
+    const banner = document.createElement("div");
+    banner.id = NETWORK_RESILIENCE_BANNER_ID;
+    banner.className = "network-resilience-banner";
+    banner.setAttribute("role", "status");
+    banner.setAttribute("aria-live", "polite");
+    banner.hidden = true;
+    document.body.appendChild(banner);
+
+    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection || null;
+
+    const isSlow = () => {
+      if (!connection) {
+        return false;
+      }
+
+      return (
+        connection.saveData === true ||
+        connection.effectiveType === "slow-2g" ||
+        connection.effectiveType === "2g" ||
+        connection.effectiveType === "3g"
+      );
+    };
+
+    const updateBanner = () => {
+      if (!navigator.onLine) {
+        banner.hidden = false;
+        banner.textContent = "You are offline. Keep filling forms; your entries are saved locally until you reconnect.";
+        return;
+      }
+
+      if (isSlow()) {
+        banner.hidden = false;
+        banner.textContent = "Slow connection detected. Forms remain usable and drafts are auto-saved.";
+        return;
+      }
+
+      banner.hidden = true;
+      banner.textContent = "";
+    };
+
+    window.addEventListener("online", updateBanner);
+    window.addEventListener("offline", updateBanner);
+
+    if (connection && typeof connection.addEventListener === "function") {
+      connection.addEventListener("change", updateBanner);
+    }
+
+    updateBanner();
   }
 
   function getUsers() {
@@ -668,6 +1021,10 @@
       return "This email is already registered. Try signing in instead.";
     }
 
+    if (/network_timeout/i.test(message)) {
+      return "The network is slow right now. Your form is saved locally, so you can retry in a moment.";
+    }
+
     return message;
   }
 
@@ -862,6 +1219,39 @@
       return;
     }
 
+    const nav = sidebar.querySelector(".admin-sidebar-nav");
+
+    if (nav && !nav.querySelector('a[href="./admin-courses.html"]')) {
+      const referenceLink = nav.querySelector('a[href="./admin-classes.html"]');
+      const courseLink = document.createElement("a");
+      const isCoursePage = getPage() === "admin-courses";
+      courseLink.className = `admin-sidebar-link${isCoursePage ? " is-active" : ""}`;
+      courseLink.href = "./admin-courses.html";
+      courseLink.innerHTML = `
+        <span class="admin-sidebar-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 6h16"></path>
+            <path d="M4 12h16"></path>
+            <path d="M4 18h10"></path>
+            <path d="M18.5 14.5v7"></path>
+            <path d="M15 18h7"></path>
+          </svg>
+        </span>
+        <span>Courses</span>
+      `;
+
+      if (referenceLink?.nextSibling) {
+        nav.insertBefore(courseLink, referenceLink.nextSibling);
+      } else {
+        nav.append(courseLink);
+      }
+    } else if (nav && getPage() === "admin-courses") {
+      nav.querySelectorAll(".admin-sidebar-link").forEach((link) => {
+        const isActive = link.getAttribute("href") === "./admin-courses.html";
+        link.classList.toggle("is-active", isActive);
+      });
+    }
+
     const existingButton = document.querySelector("[data-sidebar-toggle]");
     const toggleButton = existingButton || document.createElement("button");
 
@@ -916,6 +1306,10 @@
 
   function getClassManager() {
     return window.SchoolSphereClasses || null;
+  }
+
+  function getCourseManager() {
+    return window.SchoolSphereCourses || null;
   }
 
   function getStudentManager() {
@@ -1068,6 +1462,38 @@
     const formToggleButton =
       form.parentElement?.querySelector("[data-class-form-toggle]") ||
       document.querySelector("[data-class-form-toggle]");
+    const courseManager = getCourseManager();
+    const subjectField = form.elements.subjects;
+
+    const normalizeLookupToken = (value) => String(value || "").trim().toLowerCase();
+
+    const getActiveCourseCatalog = () => {
+      if (!courseManager || typeof courseManager.getActiveCatalog !== "function") {
+        return [];
+      }
+
+      return courseManager.getActiveCatalog().filter((course) => course.level && course.name);
+    };
+
+    const buildCourseLookup = (catalog = []) => {
+      const lookup = new Set();
+      catalog.forEach((course) => {
+        lookup.add(normalizeLookupToken(course.name));
+        lookup.add(normalizeLookupToken(course.code));
+        lookup.add(normalizeLookupToken(course.label));
+      });
+      return lookup;
+    };
+
+    const updateCourseCatalogSuggestions = () => {
+      const catalog = getActiveCourseCatalog();
+
+      if (subjectField instanceof HTMLTextAreaElement) {
+        subjectField.placeholder = catalog.length
+          ? "Use active course names from Course Management (comma separated)"
+          : "Create active courses first on the Courses page, then list them here";
+      }
+    };
 
     const setClassFormVisibility = (isVisible) => {
       form.hidden = !isVisible;
@@ -1111,6 +1537,7 @@
         status,
         listTarget,
       });
+      updateCourseCatalogSuggestions();
     };
 
     refreshClassManagementSection();
@@ -1150,6 +1577,14 @@
       };
       const assignmentParse = parseTeacherAssignments(form.elements.teacherAssignments.value);
       payload.teacherAssignments = assignmentParse.items;
+      const activeCourseCatalog = getActiveCourseCatalog();
+      const courseLookup = buildCourseLookup(activeCourseCatalog);
+      const unknownSubjects = payload.subjects.filter(
+        (subject) => !courseLookup.has(normalizeLookupToken(subject)),
+      );
+      const unknownAssignmentSubjects = payload.teacherAssignments
+        .filter((assignment) => !courseLookup.has(normalizeLookupToken(assignment.subject)))
+        .map((assignment) => assignment.subject);
 
       let hasError = false;
 
@@ -1179,6 +1614,16 @@
       if (!payload.subjects.length) {
         setPortalClassError(form, "subjects", "Enter at least one subject.");
         hasError = true;
+      } else if (!activeCourseCatalog.length) {
+        setPortalClassError(form, "subjects", "Create at least one active course before assigning subjects.");
+        hasError = true;
+      } else if (unknownSubjects.length) {
+        setPortalClassError(
+          form,
+          "subjects",
+          "Only active courses can be assigned. Update this list from Course Management.",
+        );
+        hasError = true;
       }
 
       if (assignmentParse.invalidLines.length) {
@@ -1190,6 +1635,13 @@
         hasError = true;
       } else if (!payload.teacherAssignments.length) {
         setPortalClassError(form, "teacherAssignments", "Enter at least one teacher assignment.");
+        hasError = true;
+      } else if (unknownAssignmentSubjects.length) {
+        setPortalClassError(
+          form,
+          "teacherAssignments",
+          "Each assignment subject must match an active course name or course code.",
+        );
         hasError = true;
       }
 
@@ -1234,6 +1686,7 @@
       });
 
       resetPortalClassForm(form, isAdmin);
+      clearFormDraftFor(form);
       setClassFormVisibility(false);
       setStatus(
         status,
@@ -1333,6 +1786,270 @@
     });
 
     window.addEventListener(manager.eventName, refreshClassManagementSection);
+
+    if (courseManager?.eventName) {
+      window.addEventListener(courseManager.eventName, refreshClassManagementSection);
+    }
+  }
+
+  function initCourseManagementControls({
+    isAdmin,
+    manager,
+    summaryTarget,
+    form,
+    status,
+    listTarget,
+  }) {
+    if (!summaryTarget || !form || !status || !listTarget) {
+      return;
+    }
+
+    const formToggleButton =
+      form.parentElement?.querySelector("[data-course-form-toggle]") ||
+      document.querySelector("[data-course-form-toggle]");
+
+    const setCourseFormVisibility = (isVisible) => {
+      form.hidden = !isVisible;
+
+      if (formToggleButton) {
+        formToggleButton.textContent = isVisible ? "Hide course form" : "Create course";
+        formToggleButton.setAttribute("aria-expanded", String(isVisible));
+      }
+    };
+
+    const toggleCourseFormVisibility = () => {
+      if (!isAdmin || !manager) {
+        return;
+      }
+
+      const shouldOpen = form.hidden;
+      setCourseFormVisibility(shouldOpen);
+
+      if (!shouldOpen) {
+        clearPortalCourseErrors(form);
+        resetPortalCourseForm(form, isAdmin);
+        setStatus(status, "", "");
+      }
+    };
+
+    form.addEventListener("input", () => {
+      clearPortalCourseErrors(form);
+
+      if (isAdmin) {
+        setStatus(status, "", "");
+      }
+    });
+
+    const refreshCourseManagementSection = () => {
+      renderPortalCourseManagementSection({
+        isAdmin,
+        manager,
+        summaryTarget,
+        form,
+        status,
+        listTarget,
+      });
+    };
+
+    refreshCourseManagementSection();
+    resetPortalCourseForm(form, isAdmin);
+    setCourseFormVisibility(false);
+
+    if (formToggleButton) {
+      formToggleButton.disabled = !isAdmin || !manager;
+      formToggleButton.addEventListener("click", toggleCourseFormVisibility);
+    }
+
+    if (!manager) {
+      setCourseFormVisibility(false);
+      return;
+    }
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+
+      if (!isAdmin) {
+        setStatus(status, "info", "Only administrators can manage courses.");
+        return;
+      }
+
+      clearPortalCourseErrors(form);
+      setStatus(status, "", "");
+
+      const courseId = form.elements.courseId.value;
+      const payload = {
+        id: courseId || undefined,
+        name: form.elements.name.value.trim(),
+        code: form.elements.code.value.trim().toUpperCase(),
+        description: form.elements.description.value.trim(),
+        level: form.elements.level.value.trim(),
+        teacherAssignments: parseLineSeparatedValues(form.elements.teacherAssignments.value),
+        studentAssignments: parseLineSeparatedValues(form.elements.studentAssignments.value),
+      };
+
+      let hasError = false;
+
+      if (!payload.name) {
+        setPortalCourseError(form, "name", "Enter the course name.");
+        hasError = true;
+      }
+
+      if (!payload.code) {
+        setPortalCourseError(form, "code", "Enter the course code.");
+        hasError = true;
+      }
+
+      if (!payload.description) {
+        setPortalCourseError(form, "description", "Add a short course description.");
+        hasError = true;
+      }
+
+      if (!payload.level) {
+        setPortalCourseError(form, "level", "Enter the level for this course.");
+        hasError = true;
+      }
+
+      const duplicate = manager
+        .getCourses()
+        .find(
+          (record) =>
+            record.id !== courseId &&
+            (record.code.toLowerCase() === payload.code.toLowerCase() ||
+              (record.name.toLowerCase() === payload.name.toLowerCase() &&
+                record.level.toLowerCase() === payload.level.toLowerCase())),
+        );
+
+      if (duplicate) {
+        setPortalCourseError(
+          form,
+          "code",
+          "This course code or same name-level combination already exists.",
+        );
+        hasError = true;
+      }
+
+      if (hasError) {
+        setStatus(status, "error", "Fix the highlighted course details and try again.");
+        return;
+      }
+
+      const currentRecord = manager.getCourses().find((record) => record.id === courseId) || null;
+      manager.upsertCourse({
+        ...currentRecord,
+        ...payload,
+        status: currentRecord ? currentRecord.status : "active",
+      });
+      recordAuditEvent({
+        action: currentRecord ? "updated" : "created",
+        entityType: "course",
+        entityId: payload.code || payload.name,
+        summary: currentRecord
+          ? `Updated course ${payload.code} · ${payload.name}`
+          : `Created course ${payload.code} · ${payload.name}`,
+        details: `${payload.level} • ${payload.teacherAssignments.length} teacher assignments • ${payload.studentAssignments.length} student assignments`,
+      });
+
+      resetPortalCourseForm(form, isAdmin);
+      clearFormDraftFor(form);
+      setCourseFormVisibility(false);
+      setStatus(
+        status,
+        "success",
+        currentRecord
+          ? `Course <strong>${escapeHtml(payload.code)} · ${escapeHtml(
+              payload.name,
+            )}</strong> updated and now controls assignment data.`
+          : `Course <strong>${escapeHtml(payload.code)} · ${escapeHtml(
+              payload.name,
+            )}</strong> created and ready for assignment.`,
+      );
+    });
+
+    const courseCancelButton = form.querySelector("[data-course-cancel]");
+
+    if (courseCancelButton) {
+      courseCancelButton.addEventListener("click", () => {
+        clearPortalCourseErrors(form);
+        resetPortalCourseForm(form, isAdmin);
+        setCourseFormVisibility(false);
+        setStatus(status, "", "");
+      });
+    }
+
+    listTarget.addEventListener("click", (event) => {
+      const actionButton = event.target.closest("[data-course-action]");
+
+      if (!actionButton || !isAdmin) {
+        return;
+      }
+
+      const courseId = actionButton.dataset.courseId;
+      const action = actionButton.dataset.courseAction;
+      const record = manager.getCourses().find((item) => item.id === courseId);
+
+      if (!record) {
+        return;
+      }
+
+      clearPortalCourseErrors(form);
+
+      if (action === "edit") {
+        populatePortalCourseForm(form, record, isAdmin);
+        setCourseFormVisibility(true);
+        setStatus(
+          status,
+          "info",
+          `Editing <strong>${escapeHtml(record.code)} · ${escapeHtml(
+            record.name,
+          )}</strong>. Save to update this course.`,
+        );
+        form.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+
+      if (action === "archive") {
+        manager.archiveCourse(record.id);
+        recordAuditEvent({
+          action: "archived",
+          entityType: "course",
+          entityId: record.id,
+          summary: `Archived course ${record.code} · ${record.name}`,
+          details: record.level,
+        });
+        resetPortalCourseForm(form, isAdmin);
+        setCourseFormVisibility(false);
+        setStatus(
+          status,
+          "success",
+          `Course <strong>${escapeHtml(record.code)} · ${escapeHtml(
+            record.name,
+          )}</strong> archived and removed from active assignment options.`,
+        );
+        return;
+      }
+
+      if (action === "activate") {
+        manager.activateCourse(record.id);
+        recordAuditEvent({
+          action: "reactivated",
+          entityType: "course",
+          entityId: record.id,
+          summary: `Reactivated course ${record.code} · ${record.name}`,
+          details: record.level,
+        });
+        resetPortalCourseForm(form, isAdmin);
+        setCourseFormVisibility(false);
+        setStatus(
+          status,
+          "success",
+          `Course <strong>${escapeHtml(record.code)} · ${escapeHtml(
+            record.name,
+          )}</strong> reactivated for new assignments.`,
+        );
+      }
+    });
+
+    window.addEventListener(manager.eventName, refreshCourseManagementSection);
   }
 
   function initSchoolSettingsControls({
@@ -1504,6 +2221,7 @@
       }
 
       manager.saveSettings(payload);
+      clearFormDraftFor(form);
       recordAuditEvent({
         action: "updated",
         entityType: "school-settings",
@@ -1532,6 +2250,7 @@
 
         clearPortalSettingsErrors(form);
         manager.resetSettings();
+        clearFormDraftFor(form);
         recordAuditEvent({
           action: "reset",
           entityType: "school-settings",
@@ -1911,6 +2630,7 @@
       );
       clearPortalSessionErrors(sessionForm);
       resetSessionForm();
+      clearFormDraftFor(sessionForm);
     });
 
     termForm.addEventListener("submit", (event) => {
@@ -1973,6 +2693,7 @@
       );
       clearPortalTermErrors(termForm);
       resetTermForm();
+      clearFormDraftFor(termForm);
     });
 
     sessionListTarget.addEventListener("click", (event) => {
@@ -2110,6 +2831,13 @@
     return { items, invalidLines };
   }
 
+  function parseLineSeparatedValues(rawValue) {
+    return String(rawValue || "")
+      .split("\n")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
   function clearPortalSettingsErrors(form) {
     form.querySelectorAll(".portal-field").forEach((field) => field.classList.remove("is-invalid"));
     form.querySelectorAll("[data-settings-error-for]").forEach((error) => {
@@ -2194,6 +2922,27 @@
     }
   }
 
+  function clearPortalCourseErrors(form) {
+    form.querySelectorAll(".portal-field").forEach((field) => field.classList.remove("is-invalid"));
+    form.querySelectorAll("[data-course-error-for]").forEach((error) => {
+      error.textContent = "";
+    });
+  }
+
+  function setPortalCourseError(form, fieldName, message) {
+    const error = form.querySelector(`[data-course-error-for="${fieldName}"]`);
+    const control = form.elements[fieldName];
+    const field = control ? control.closest(".portal-field") : null;
+
+    if (error) {
+      error.textContent = message;
+    }
+
+    if (field) {
+      field.classList.add("is-invalid");
+    }
+  }
+
   function resetPortalClassForm(form, isAdmin) {
     if (!form) {
       return;
@@ -2253,6 +3002,74 @@
 
     const submitButton = form.querySelector("[data-class-submit]");
     const cancelButton = form.querySelector("[data-class-cancel]");
+
+    if (submitButton) {
+      submitButton.textContent = "Save changes";
+    }
+
+    if (cancelButton) {
+      cancelButton.hidden = !isAdmin;
+    }
+
+    Array.from(form.elements).forEach((field) => {
+      if (field instanceof HTMLElement) {
+        field.disabled = !isAdmin;
+      }
+    });
+  }
+
+  function resetPortalCourseForm(form, isAdmin) {
+    if (!form) {
+      return;
+    }
+
+    form.reset();
+
+    if (form.elements.courseId) {
+      form.elements.courseId.value = "";
+    }
+
+    if (form.elements.teacherAssignments) {
+      form.elements.teacherAssignments.value = "";
+    }
+
+    if (form.elements.studentAssignments) {
+      form.elements.studentAssignments.value = "";
+    }
+
+    const submitButton = form.querySelector("[data-course-submit]");
+    const cancelButton = form.querySelector("[data-course-cancel]");
+
+    if (submitButton) {
+      submitButton.textContent = "Create course";
+    }
+
+    if (cancelButton) {
+      cancelButton.hidden = true;
+    }
+
+    Array.from(form.elements).forEach((field) => {
+      if (field instanceof HTMLElement) {
+        field.disabled = !isAdmin;
+      }
+    });
+  }
+
+  function populatePortalCourseForm(form, record, isAdmin) {
+    if (!form || !record) {
+      return;
+    }
+
+    form.elements.courseId.value = record.id;
+    form.elements.name.value = record.name;
+    form.elements.code.value = record.code || "";
+    form.elements.description.value = record.description || "";
+    form.elements.level.value = record.level || "";
+    form.elements.teacherAssignments.value = (record.teacherAssignments || []).join("\n");
+    form.elements.studentAssignments.value = (record.studentAssignments || []).join("\n");
+
+    const submitButton = form.querySelector("[data-course-submit]");
+    const cancelButton = form.querySelector("[data-course-cancel]");
 
     if (submitButton) {
       submitButton.textContent = "Save changes";
@@ -2722,6 +3539,7 @@
       });
 
       resetPortalAccessForm(form, isAdmin);
+      clearFormDraftFor(form);
       refreshAccessProvisioning();
       setStatus(
         status,
@@ -3061,7 +3879,7 @@
 
                 <div class="portal-class-route-links">
                   <a href="./workflows.html#classroom-rhythm">Timetable</a>
-                  <a href="./modules.html">Courses</a>
+                  <a href="./admin-courses.html">Courses</a>
                 </div>
 
                 <div class="portal-class-actions">
@@ -3096,6 +3914,174 @@
         status,
         "info",
         "Switch to the administrator role to create, edit, archive, or reactivate classes.",
+      );
+    }
+  }
+
+  function renderPortalCourseManagementSection({
+    isAdmin,
+    manager,
+    summaryTarget,
+    form,
+    status,
+    listTarget,
+  }) {
+    if (!summaryTarget || !form || !listTarget) {
+      return;
+    }
+
+    if (!manager) {
+      summaryTarget.innerHTML = `
+        <article class="portal-class-stat">
+          <span>Course tools unavailable</span>
+          <strong>0</strong>
+          <p>The shared course registry could not be loaded on this page.</p>
+        </article>
+      `;
+      listTarget.innerHTML = "";
+      return;
+    }
+
+    const {
+      courses,
+      activeCount,
+      archivedCount,
+      levelCount,
+      teacherAssignmentCount,
+      studentAssignmentCount,
+    } = manager.summarize();
+
+    summaryTarget.innerHTML = `
+      <article class="portal-class-stat portal-class-stat-blue">
+        <span>Active courses</span>
+        <strong>${activeCount}</strong>
+        <p>Available for teacher and student assignment flows.</p>
+      </article>
+      <article class="portal-class-stat portal-class-stat-violet">
+        <span>Archived courses</span>
+        <strong>${archivedCount}</strong>
+        <p>Kept for history and audit consistency.</p>
+      </article>
+      <article class="portal-class-stat portal-class-stat-green">
+        <span>Levels covered</span>
+        <strong>${levelCount}</strong>
+        <p>Unique levels currently mapped by active courses.</p>
+      </article>
+      <article class="portal-class-stat portal-class-stat-amber">
+        <span>Teacher assignments</span>
+        <strong>${teacherAssignmentCount}</strong>
+        <p>Teacher entries linked directly to the course catalog.</p>
+      </article>
+      <article class="portal-class-stat portal-class-stat-rose">
+        <span>Student assignments</span>
+        <strong>${studentAssignmentCount}</strong>
+        <p>Student entries linked directly to each course.</p>
+      </article>
+    `;
+
+    Array.from(form.elements).forEach((field) => {
+      if (field instanceof HTMLElement) {
+        field.disabled = !isAdmin;
+      }
+    });
+
+    if (!courses.length) {
+      listTarget.innerHTML = `
+        <article class="portal-class-empty">
+          <strong>No courses yet</strong>
+          <p>Create the first course to define code, level, and assignment ownership from one source of truth.</p>
+        </article>
+      `;
+    } else {
+      listTarget.innerHTML = courses
+        .map(
+          (record) => `
+            <details class="portal-class-card portal-class-list-item ${record.status === "archived" ? "is-archived" : ""}">
+              <summary class="portal-class-list-summary">
+                <div class="portal-class-list-main">
+                  <strong>${escapeHtml(record.code || "NO-CODE")} · ${escapeHtml(record.name)}</strong>
+                  <span>${escapeHtml(record.level || "No level selected")} • ${escapeHtml(
+                    record.description || "No description yet",
+                  )}</span>
+                </div>
+                <span class="portal-class-status ${record.status === "archived" ? "is-archived" : "is-active"}">
+                  ${record.status === "archived" ? "Archived" : "Active"}
+                </span>
+              </summary>
+
+              <div class="portal-class-list-body">
+                <div class="portal-class-meta">
+                  <div class="portal-class-meta-item">
+                    <span>Code</span>
+                    <strong>${escapeHtml(record.code || "Not set")}</strong>
+                  </div>
+                  <div class="portal-class-meta-item">
+                    <span>Level</span>
+                    <strong>${escapeHtml(record.level || "Not set")}</strong>
+                  </div>
+                  <div class="portal-class-meta-item">
+                    <span>Updated</span>
+                    <strong>${escapeHtml(formatTimestamp(record.updatedAt))}</strong>
+                  </div>
+                </div>
+
+                <div class="portal-class-extended">
+                  <div class="portal-class-extended-item">
+                    <span>Description</span>
+                    <strong>${escapeHtml(record.description || "No description provided yet.")}</strong>
+                  </div>
+                  <div class="portal-class-extended-item">
+                    <span>Teacher assignments</span>
+                    <strong>${(record.teacherAssignments || []).length}</strong>
+                    <ul>
+                      ${(record.teacherAssignments || [])
+                        .map((entry) => `<li>${escapeHtml(entry)}</li>`)
+                        .join("") || "<li>No teacher assignments yet.</li>"}
+                    </ul>
+                  </div>
+                  <div class="portal-class-extended-item">
+                    <span>Student assignments</span>
+                    <strong>${(record.studentAssignments || []).length}</strong>
+                    <ul>
+                      ${(record.studentAssignments || [])
+                        .map((entry) => `<li>${escapeHtml(entry)}</li>`)
+                        .join("") || "<li>No student assignments yet.</li>"}
+                    </ul>
+                  </div>
+                </div>
+
+                <div class="portal-class-actions">
+                  <button
+                    class="portal-class-button"
+                    type="button"
+                    data-course-action="edit"
+                    data-course-id="${record.id}"
+                    ${isAdmin ? "" : "disabled"}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    class="portal-class-button ${record.status === "archived" ? "is-restore" : "is-archive"}"
+                    type="button"
+                    data-course-action="${record.status === "archived" ? "activate" : "archive"}"
+                    data-course-id="${record.id}"
+                    ${isAdmin ? "" : "disabled"}
+                  >
+                    ${record.status === "archived" ? "Reactivate" : "Archive"}
+                  </button>
+                </div>
+              </div>
+            </details>
+          `,
+        )
+        .join("");
+    }
+
+    if (!isAdmin) {
+      setStatus(
+        status,
+        "info",
+        "Switch to the administrator role to create, edit, archive, or reactivate courses.",
       );
     }
   }
@@ -3713,6 +4699,7 @@
       });
 
       resetPortalStudentForm(form, guardianList, isAdmin);
+      clearFormDraftFor(form);
       setStudentFormVisibility(false);
       setStatus(
         status,
@@ -4035,17 +5022,31 @@
         rememberPendingRole(selectedRole);
 
         const client = await getSupabaseClient();
-        const { data, error } = await client.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: buildSupabaseEmailRedirectUrl(),
-            data: {
-              display_name: buildDisplayName(email) || "School User",
-              role: selectedRole,
-            },
-          },
-        });
+        let data;
+        let error;
+
+        try {
+          ({ data, error } = await withNetworkTimeout(
+            client.auth.signUp({
+              email,
+              password,
+              options: {
+                emailRedirectTo: buildSupabaseEmailRedirectUrl(),
+                data: {
+                  display_name: buildDisplayName(email) || "School User",
+                  role: selectedRole,
+                },
+              },
+            }),
+          ));
+        } catch (requestError) {
+          setStatus(
+            status,
+            "error",
+            formatSupabaseAuthError(requestError, "We couldn't create your account."),
+          );
+          return;
+        }
 
         if (error) {
           setStatus(status, "error", formatSupabaseAuthError(error, "We couldn't create your account."));
@@ -4057,11 +5058,13 @@
             preferredRole: selectedRole,
             redirectAuthenticatedAuthPages: false,
           });
+          clearFormDraftFor(form);
           window.location.assign("./portal.html");
           return;
         }
 
         form.reset();
+        clearFormDraftFor(form);
         markAccessGrantClaimed(email, selectedRole, "password", data?.user?.id || null);
         setStatus(
           status,
@@ -4097,6 +5100,7 @@
       markAccessGrantClaimed(user.email, user.role, "password", user.id);
 
       form.reset();
+      clearFormDraftFor(form);
       setStatus(
         status,
         "success",
@@ -4166,10 +5170,23 @@
         rememberPendingRole(selectedRole);
 
         const client = await getSupabaseClient();
-        const { error } = await client.auth.signInWithPassword({
-          email,
-          password,
-        });
+        let error;
+
+        try {
+          ({ error } = await withNetworkTimeout(
+            client.auth.signInWithPassword({
+              email,
+              password,
+            }),
+          ));
+        } catch (requestError) {
+          setStatus(
+            status,
+            "error",
+            formatSupabaseAuthError(requestError, "We could not sign you in with those credentials."),
+          );
+          return;
+        }
 
         if (error) {
           const friendlyMessage = formatSupabaseAuthError(
@@ -4204,6 +5221,7 @@
           );
           return;
         }
+        clearFormDraftFor(form);
         window.location.assign("./portal.html");
         return;
       }
@@ -4275,6 +5293,7 @@
         remember,
       );
 
+      clearFormDraftFor(form);
       window.location.assign("./portal.html");
     });
   }
@@ -4364,12 +5383,20 @@
     rememberPendingRole(selectedRole);
 
     const client = await getSupabaseClient();
-    const { error } = await client.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: buildSupabaseRedirectUrl(),
-      },
-    });
+    let error;
+
+    try {
+      ({ error } = await withNetworkTimeout(
+        client.auth.signInWithOAuth({
+          provider: "google",
+          options: {
+            redirectTo: buildSupabaseRedirectUrl(),
+          },
+        }),
+      ));
+    } catch (requestError) {
+      error = requestError;
+    }
 
     if (error && status) {
       setStatus(
@@ -4457,6 +5484,9 @@
       );
 
       closeGoogleModal();
+      if (getPage() === "signup") {
+        clearFormDraft("signup-form");
+      }
       window.location.assign("./portal.html");
       return;
     }
@@ -4494,6 +5524,9 @@
     );
 
     closeGoogleModal();
+    if (getPage() === "login") {
+      clearFormDraft("login-form");
+    }
     window.location.assign("./portal.html");
   }
 
@@ -4785,6 +5818,28 @@
       form: classForm,
       status: classStatus,
       listTarget: classList,
+    });
+  }
+
+  function initAdminCoursesPage() {
+    if (getPage() !== "admin-courses") {
+      return;
+    }
+
+    const { isAdmin } = getAdminAccessContext();
+    const courseManager = getCourseManager();
+    const courseSummary = document.getElementById("portal-course-summary");
+    const courseForm = document.getElementById("portal-course-form");
+    const courseStatus = document.getElementById("portal-course-status");
+    const courseList = document.getElementById("portal-course-list");
+
+    initCourseManagementControls({
+      isAdmin,
+      manager: courseManager,
+      summaryTarget: courseSummary,
+      form: courseForm,
+      status: courseStatus,
+      listTarget: courseList,
     });
   }
 

@@ -3,11 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Classes | SchoolSphere Admin</title>
-    <meta name="description" content="Class management page for the SchoolSphere admin area." />
+    <title>Courses | SchoolSphere Admin</title>
+    <meta name="description" content="Course management page for the SchoolSphere admin area." />
     <link rel="stylesheet" href="./styles.css" />
   </head>
-  <body data-page="admin-classes" class="admin-dashboard-page">
+  <body data-page="admin-courses" class="admin-dashboard-page">
     <main class="admin-dashboard-shell">
       <aside class="admin-sidebar">
         <a class="admin-sidebar-brand" href="./index.html" aria-label="School dashboard home">
@@ -41,7 +41,7 @@
             </span>
             <span>Students</span>
           </a>
-          <a class="admin-sidebar-link is-active" href="./admin-classes.html">
+          <a class="admin-sidebar-link" href="./admin-classes.html">
             <span class="admin-sidebar-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M4 19V8.5A1.5 1.5 0 0 1 5.5 7h13A1.5 1.5 0 0 1 20 8.5V19"></path>
@@ -136,8 +136,8 @@
         <header class="admin-dashboard-topbar">
           <div class="admin-dashboard-greeting">
             <span class="admin-topline-chip" id="portal-last-updated">Last updated --</span>
-            <h1 id="portal-heading">Class Management</h1>
-            <p id="portal-copy">Create, edit, archive, and reactivate classes without leaving the admin area.</p>
+            <h1 id="portal-heading">Course Management</h1>
+            <p id="portal-copy">Create, edit, archive, and manage course-level assignments from one source of truth.</p>
           </div>
         </header>
 
@@ -145,90 +145,69 @@
           <article class="admin-surface-card admin-class-management-card">
             <div class="admin-surface-head">
               <div>
-                <h2>Classes and Capacity</h2>
-                <span>Every class stays linked to timetable and course planning from here.</span>
+                <h2>Courses and Assignment Source</h2>
+                <span>Course code, level, and assignment links are centrally controlled here.</span>
               </div>
             </div>
 
-            <div id="portal-class-summary" class="portal-class-summary"></div>
+            <div id="portal-course-summary" class="portal-class-summary"></div>
 
             <div class="portal-class-layout">
               <div class="portal-class-form-shell">
-                <button class="button button-primary" type="button" data-class-form-toggle>
-                  Create class
+                <button class="button button-primary" type="button" data-course-form-toggle>
+                  Create course
                 </button>
 
-                <form id="portal-class-form" class="portal-class-form" novalidate data-class-form-shell hidden>
-                  <div id="portal-class-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
-                  <input type="hidden" name="classId" />
+                <form id="portal-course-form" class="portal-class-form" novalidate hidden>
+                  <div id="portal-course-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+                  <input type="hidden" name="courseId" />
 
                   <div class="portal-settings-grid">
-                    <label class="portal-field" for="class-name">
-                      <span>Class name</span>
-                      <input id="class-name" name="name" type="text" placeholder="Blue, North, Science..." />
-                      <p class="portal-field-error" data-class-error-for="name"></p>
+                    <label class="portal-field" for="course-name">
+                      <span>Course name</span>
+                      <input id="course-name" name="name" type="text" placeholder="Mathematics, Intro to Physics..." />
+                      <p class="portal-field-error" data-course-error-for="name"></p>
                     </label>
 
-                    <label class="portal-field" for="class-level">
+                    <label class="portal-field" for="course-code">
+                      <span>Course code</span>
+                      <input id="course-code" name="code" type="text" placeholder="MTH101" />
+                      <p class="portal-field-error" data-course-error-for="code"></p>
+                    </label>
+
+                    <label class="portal-field portal-field-span-2" for="course-level">
                       <span>Level or grade</span>
-                      <input id="class-level" name="level" type="text" placeholder="Primary 3, JSS 1, SS 2..." />
-                      <p class="portal-field-error" data-class-error-for="level"></p>
+                      <input id="course-level" name="level" type="text" placeholder="JSS 1, SS 2, 100L..." />
+                      <p class="portal-field-error" data-course-error-for="level"></p>
                     </label>
 
-                    <label class="portal-field portal-field-span-2" for="class-capacity">
-                      <span>Capacity</span>
-                      <input id="class-capacity" name="capacity" type="number" min="1" step="1" placeholder="30" />
-                      <p class="portal-field-error" data-class-error-for="capacity"></p>
+                    <label class="portal-field portal-field-span-2" for="course-description">
+                      <span>Description</span>
+                      <textarea id="course-description" name="description" rows="3" placeholder="Brief summary of course focus and outcomes."></textarea>
+                      <p class="portal-field-error" data-course-error-for="description"></p>
                     </label>
 
-                    <label class="portal-field portal-field-span-2" for="class-teacher">
-                      <span>Class teacher</span>
-                      <input id="class-teacher" name="classTeacher" type="text" placeholder="Mrs. A. Yusuf" />
-                      <p class="portal-field-error" data-class-error-for="classTeacher"></p>
-                    </label>
-
-                    <label class="portal-field portal-field-span-2" for="class-arms">
-                      <span>Arms</span>
-                      <textarea
-                        id="class-arms"
-                        name="arms"
-                        rows="2"
-                        placeholder="A, B, C"
-                      ></textarea>
-                      <p class="portal-field-error" data-class-error-for="arms"></p>
-                    </label>
-
-                    <label class="portal-field portal-field-span-2" for="class-subjects">
-                      <span>Subjects</span>
-                      <textarea
-                        id="class-subjects"
-                        name="subjects"
-                        rows="3"
-                        placeholder="Use active course names from Course Management (comma separated)"
-                      ></textarea>
-                      <p class="portal-field-error" data-class-error-for="subjects"></p>
-                    </label>
-
-                    <label class="portal-field portal-field-span-2" for="teacher-assignments">
+                    <label class="portal-field portal-field-span-2" for="course-teacher-assignments">
                       <span>Teacher assignments (one per line)</span>
-                      <textarea
-                        id="teacher-assignments"
-                        name="teacherAssignments"
-                        rows="4"
-                        placeholder="English: Mrs. Adesina&#10;Mathematics: Mr. Bello"
-                      ></textarea>
-                      <p class="portal-field-error" data-class-error-for="teacherAssignments"></p>
+                      <textarea id="course-teacher-assignments" name="teacherAssignments" rows="4" placeholder="Mrs. Adesina&#10;Mr. Bello"></textarea>
+                      <p class="portal-field-error" data-course-error-for="teacherAssignments"></p>
+                    </label>
+
+                    <label class="portal-field portal-field-span-2" for="course-student-assignments">
+                      <span>Student assignments (one per line)</span>
+                      <textarea id="course-student-assignments" name="studentAssignments" rows="4" placeholder="ADM-2026-001&#10;ADM-2026-002"></textarea>
+                      <p class="portal-field-error" data-course-error-for="studentAssignments"></p>
                     </label>
                   </div>
 
                   <div class="utility-actions">
-                    <button class="button button-primary" type="submit" data-class-submit>Create class</button>
-                    <button class="button button-outline" type="button" data-class-cancel hidden>Cancel edit</button>
+                    <button class="button button-primary" type="submit" data-course-submit>Create course</button>
+                    <button class="button button-outline" type="button" data-course-cancel hidden>Cancel edit</button>
                   </div>
                 </form>
               </div>
 
-              <div id="portal-class-list" class="portal-class-list"></div>
+              <div id="portal-course-list" class="portal-class-list"></div>
             </div>
           </article>
         </section>
