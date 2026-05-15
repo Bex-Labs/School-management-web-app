@@ -1,26 +1,3 @@
-const navMenus = [
-  {
-    type: "menu",
-    label: "Learn",
-    items: [
-      { label: "Benefits", href: "./why-it-works.html" },
-      { label: "Features", href: "./modules.html" },
-      { label: "School Types", href: "./school-types.html" },
-      { label: "Help Center", href: "#", placeholder: true },
-      { label: "About Us", href: "./in-practice.html" },
-    ],
-  },
-  { type: "link", label: "Pricing", href: "./products.html" },
-  { type: "link", label: "Pro Edition", href: "./school-types.html#university-mode" },
-  { type: "link", label: "Demo", href: "./workflows.html" },
-  { type: "link", label: "Affiliate", href: "#", placeholder: true },
-];
-
-const signInLinks = [
-  { label: "To Your School Portal", href: "./login.html" },
-  { label: "To Subscriber / Affiliate Account", href: "./login.html" },
-];
-
 const homeNavLinks = [
   { label: "Products", href: "./products.html" },
   { label: "Explore", href: "./workflows.html" },
@@ -1882,74 +1859,51 @@ function renderHeader() {
   const campusDetailLabel = settings.campusDetails || "Campus details not added yet.";
   const showContext = hasSchoolSettingsContext(settings);
 
-  const primaryNavHtml = isHomePage
-    ? homeNavLinks
-        .map(
-          (item) =>
-            `<a class="nav-direct-link ${hrefMatchesCurrentFile(item.href, currentFile) ? "is-active" : ""}" href="${item.href}">${item.label}</a>`,
-        )
-        .join("")
-    : navMenus
-        .map(
-          (menu) =>
-            menu.type === "menu"
-              ? `
-                  <details class="nav-menu">
-                    <summary>${menu.label}</summary>
-                    <div class="dropdown-panel">
-                      ${menu.items
-                        .map((item) =>
-                          item.placeholder
-                            ? `<span class="dropdown-placeholder">${item.label}</span>`
-                            : `<a href="${item.href}" class="${hrefMatchesCurrentFile(item.href, currentFile) ? "is-active" : ""}">${item.label}</a>`,
-                        )
-                        .join("")}
-                    </div>
-                  </details>
-                `
-              : menu.placeholder
-                ? `<span class="nav-direct-link nav-direct-link-muted">${menu.label}</span>`
-                : `<a class="nav-direct-link ${hrefMatchesCurrentFile(menu.href, currentFile) ? "is-active" : ""}" href="${menu.href}">${menu.label}</a>`,
-        )
-        .join("");
+  const primaryNavHtml = homeNavLinks
+    .map(
+      (item) =>
+        `<a class="nav-direct-link ${hrefMatchesCurrentFile(item.href, currentFile) ? "is-active" : ""}" href="${item.href}">${item.label}</a>`,
+    )
+    .join("");
 
-  const navAuthHtml = isHomePage
-    ? `
-        <a class="button button-outline" href="./login.html">Login</a>
-        <a class="button button-primary" href="./signup.html">Get Started</a>
-      `
-    : `
-        <details class="nav-menu nav-menu-signin">
-          <summary>Sign In</summary>
-          <div class="dropdown-panel dropdown-panel-right">
-            ${signInLinks
-              .map(
-                (item) =>
-                  `<a href="${item.href}" class="${hrefMatchesCurrentFile(item.href, currentFile) ? "is-active" : ""}">${item.label}</a>`,
-              )
-              .join("")}
-          </div>
-        </details>
-        <a class="button button-primary" href="./signup.html">Get Started</a>
-      `;
+  const navAuthHtml = `
+    <a class="button button-outline" href="./login.html">Login</a>
+    <a class="button button-primary" href="./signup.html">Get Started</a>
+  `;
+
+  const utilityLinks = [
+    { label: "School Portal", href: "./portal.html" },
+    { label: "Saved Workflows", href: "./workflows.html" },
+    { label: "Talent Community", href: "./signup.html" },
+  ];
 
   header.innerHTML = `
-    <div class="site-header-shell">
-      <a class="logo-link logo-link-full" href="./index.html" aria-label="${escapeHtml(settings.schoolName)} home">
-        ${buildBrandMarkHtml(settings, "logo-mark")}
-        <span class="logo-word">${escapeHtml(settings.schoolName)}</span>
-      </a>
+    <div class="site-header-stack">
+      <div class="site-utility-bar">
+        <div class="site-utility-inner">
+          <a class="site-utility-home" href="./index.html">Visit ${escapeHtml(settings.schoolName)}</a>
+          <div class="utility-links">
+            ${utilityLinks.map((item) => `<a href="${item.href}">${item.label}</a>`).join("")}
+          </div>
+        </div>
+      </div>
+      <div class="site-header-shell">
+        <a class="logo-link logo-link-full" href="./index.html" aria-label="${escapeHtml(settings.schoolName)} home">
+          ${buildBrandMarkHtml(settings, "logo-mark")}
+          <span class="logo-word">${escapeHtml(settings.schoolName)}</span>
+        </a>
 
-      <nav class="nav-center" aria-label="Primary">
-        ${primaryNavHtml}
-      </nav>
+        <nav class="nav-center" aria-label="Primary">
+          ${primaryNavHtml}
+        </nav>
 
-      <div class="nav-auth">
-        ${navAuthHtml}
+        <div class="nav-auth">
+          ${navAuthHtml}
+        </div>
       </div>
     </div>
     ${
-      showContext
+      showContext && !isHomePage
         ? `
           <div class="site-context-shell">
             <div class="site-context-card">
@@ -1994,53 +1948,34 @@ function renderFooter() {
     .join(" + ");
 
   footer.innerHTML = `
-    <div class="site-footer-shell">
-      <div class="site-footer-meta focus-footer-meta">
+    <div class="site-footer-shell careers-footer-shell">
+      <div class="careers-footer-brand">
         <a class="logo-link logo-link-full" href="./index.html" aria-label="${escapeHtml(settings.schoolName)} home">
           ${buildBrandMarkHtml(settings, "logo-mark")}
           <span class="logo-word">${escapeHtml(settings.schoolName)}</span>
         </a>
-        <p>
-          ${escapeHtml(settings.schoolName)} runs on one shared digital
-          workspace for records, finance, academics, parent communication, and
-          daily school operations.
-        </p>
-        <div class="site-footer-school-meta">
-          <span>${escapeHtml(settings.address || "School address not added yet.")}</span>
-          <span>${escapeHtml(academicYearLabel || "Academic year dates not set yet.")}</span>
-          <span>${escapeHtml(settings.campusDetails || "Campus details not added yet.")}</span>
-          <span>${escapeHtml(schoolStructureLabel)}</span>
-        </div>
+        <p>Simple, clean school management for teams that want less friction and better visibility.</p>
         <a class="button button-primary" href="./signup.html">Get Started</a>
       </div>
 
-      <div class="site-footer-links focus-footer-links">
+      <div class="careers-footer-links">
         <div>
-          <h4>Learn</h4>
-          <a href="./why-it-works.html">Benefits</a>
-          <a href="./modules.html">Features</a>
-          <a href="./workflows.html">Demo Walkthrough</a>
-        </div>
-        <div>
-          <h4>Solutions</h4>
-          <a href="./school-types.html">K-12 Schools</a>
-          <a href="./school-types.html#university-mode">Higher Institutions</a>
-          <a href="./products.html">Pricing and Setup</a>
+          <h4>Explore</h4>
+          <a href="./products.html">Products</a>
+          <a href="./workflows.html">Explore workflows</a>
+          <a href="./modules.html">Feature modules</a>
         </div>
         <div>
           <h4>Support</h4>
-          <span>Help Center</span>
-          <span>Onboarding</span>
-          <span>Affiliate</span>
+          <a href="./why-it-works.html">Why it works</a>
+          <a href="./in-practice.html">In practice</a>
+          <a href="./login.html">Login</a>
         </div>
         <div>
-          <h4>Contact</h4>
-          <span>${escapeHtml(settings.address || "Address pending setup")}</span>
-          <span>${escapeHtml(academicYearLabel || "Academic year pending setup")}</span>
-          <span>[email protected]</span>
-          <span>+234 805 617 6947</span>
-          <a href="./in-practice.html">About the Platform</a>
-          <a href="./login.html">Login</a>
+          <h4>School Profile</h4>
+          <span>${escapeHtml(settings.address || "School address not added yet.")}</span>
+          <span>${escapeHtml(academicYearLabel || "Academic year dates not set yet.")}</span>
+          <span>${escapeHtml(schoolStructureLabel)}</span>
         </div>
       </div>
     </div>
