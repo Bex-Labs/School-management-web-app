@@ -242,7 +242,7 @@ const AUDIT_TRAIL_EVENT = "schoolsphere:audit-trail-updated";
 const MAX_AUDIT_TRAIL_ENTRIES = 300;
 const ROLE_PERMISSIONS_STORAGE_KEY = "schoolsphere.rolePermissions.v1";
 const ROLE_PERMISSIONS_EVENT = "schoolsphere:role-permissions-updated";
-const ROLE_PERMISSION_ROLES = ["Super Admin", "Admin", "Teacher", "Parent", "Student"];
+const ROLE_PERMISSION_ROLES = ["Admin", "Teacher", "Parent", "Student"];
 const ROLE_PERMISSION_OPTIONS = [
   { key: "dashboard_view", label: "View dashboard" },
   { key: "students_manage", label: "Manage students" },
@@ -256,18 +256,6 @@ const ROLE_PERMISSION_OPTIONS = [
   { key: "settings_manage", label: "Manage school settings" },
 ];
 const DEFAULT_ROLE_PERMISSIONS = {
-  "Super Admin": {
-    dashboard_view: true,
-    students_manage: true,
-    teachers_manage: true,
-    classes_manage: true,
-    courses_manage: true,
-    attendance_manage: true,
-    results_manage: true,
-    fees_manage: true,
-    reports_view: true,
-    settings_manage: true,
-  },
   Admin: {
     dashboard_view: true,
     students_manage: true,
@@ -521,44 +509,13 @@ function buildBrandMarkHtml(settings, markClass) {
 
 function applySchoolSettingsBranding(settings = getSchoolSettings()) {
   const root = document.documentElement;
-  const academicYearLabel = formatAcademicYearLabel(settings);
-  const schoolStructure = [
-    settings.hasNursery ? "Nursery" : null,
-    "Primary 1-6",
-    "JSS 1-3",
-    "SS 1-3",
-    settings.hasHigherInstitution ? "Higher Institution" : null,
-  ]
-    .filter(Boolean)
-    .join(" + ");
-  const schoolContext = [settings.address, academicYearLabel, schoolStructure]
+  const schoolContext = [settings.address, formatAcademicYearLabel(settings)]
     .filter(Boolean)
     .join(" • ");
 
   if (!root.dataset.baseTitle) {
     root.dataset.baseTitle = document.title;
   }
-
-  document.title = root.dataset.baseTitle.replaceAll(DEFAULT_PLATFORM_NAME, settings.schoolName);
-
-  document.querySelectorAll(".auth-brand").forEach((node) => {
-    node.setAttribute("aria-label", `${settings.schoolName} home`);
-  });
-
-  document.querySelectorAll(".auth-brand-text").forEach((node) => {
-    node.textContent = settings.schoolName;
-  });
-
-  document.querySelectorAll(".auth-brand-mark").forEach((node) => {
-    if (settings.logoUrl) {
-      node.classList.add("auth-brand-mark--image");
-      node.innerHTML = `<img class="school-brand-image" src="${escapeHtml(settings.logoUrl)}" alt="${escapeHtml(settings.schoolName)} logo" />`;
-      return;
-    }
-
-    node.classList.remove("auth-brand-mark--image");
-    node.textContent = getSchoolInitial(settings.schoolName);
-  });
 
   document.querySelectorAll("[data-school-context]").forEach((node) => {
     node.textContent = schoolContext;
@@ -1608,7 +1565,6 @@ function summarizeFeatureToggleState() {
 
 function normalizeRolePermissions(raw = {}) {
   const roleAliases = {
-    "Super Admin": ["Super Admin", "SuperAdmin"],
     Admin: ["Admin", "Administrator"],
     Teacher: ["Teacher", "Employee"],
     Parent: ["Parent"],
@@ -1843,21 +1799,7 @@ function renderHeader() {
   }
 
   const currentFile = window.location.pathname.split("/").pop() || "index.html";
-  const page = currentPage();
-  const isHomePage = page === "home";
-  const settings = getSchoolSettings();
-  const academicYearLabel = formatAcademicYearLabel(settings);
-  const schoolStructureLabel = [
-    settings.hasNursery ? "Nursery" : null,
-    "Primary 1-6",
-    "JSS 1-3",
-    "SS 1-3",
-    settings.hasHigherInstitution ? "Higher Institution" : null,
-  ]
-    .filter(Boolean)
-    .join(" + ");
-  const campusDetailLabel = settings.campusDetails || "Campus details not added yet.";
-  const showContext = hasSchoolSettingsContext(settings);
+  const platformName = DEFAULT_PLATFORM_NAME;
 
   const primaryNavHtml = homeNavLinks
     .map(
@@ -1881,16 +1823,16 @@ function renderHeader() {
     <div class="site-header-stack">
       <div class="site-utility-bar">
         <div class="site-utility-inner">
-          <a class="site-utility-home" href="./index.html">Visit ${escapeHtml(settings.schoolName)}</a>
+          <a class="site-utility-home" href="./index.html">Visit ${escapeHtml(platformName)}</a>
           <div class="utility-links">
             ${utilityLinks.map((item) => `<a href="${item.href}">${item.label}</a>`).join("")}
           </div>
         </div>
       </div>
       <div class="site-header-shell">
-        <a class="logo-link logo-link-full" href="./index.html" aria-label="${escapeHtml(settings.schoolName)} home">
-          ${buildBrandMarkHtml(settings, "logo-mark")}
-          <span class="logo-word">${escapeHtml(settings.schoolName)}</span>
+        <a class="logo-link logo-link-full" href="./index.html" aria-label="${escapeHtml(platformName)} home">
+          ${buildBrandMarkHtml({ schoolName: platformName, logoUrl: "" }, "logo-mark")}
+          <span class="logo-word">${escapeHtml(platformName)}</span>
         </a>
 
         <nav class="nav-center" aria-label="Primary">
@@ -1902,29 +1844,6 @@ function renderHeader() {
         </div>
       </div>
     </div>
-    ${
-      showContext && !isHomePage
-        ? `
-          <div class="site-context-shell">
-            <div class="site-context-card">
-              <span>Institution</span>
-              <strong>${escapeHtml(settings.schoolName)}</strong>
-              <small>${escapeHtml(settings.address || "School address not added yet.")}</small>
-            </div>
-            <div class="site-context-card">
-              <span>Academic year</span>
-              <strong>${escapeHtml(academicYearLabel || "Not set yet")}</strong>
-              <small>${escapeHtml(schoolStructureLabel)}</small>
-            </div>
-            <div class="site-context-card">
-              <span>Campus details</span>
-              <strong>${escapeHtml(campusDetailLabel)}</strong>
-              <small>${settings.logoUrl ? "Custom logo active across the site." : "Default brand mark active."}</small>
-            </div>
-          </div>
-        `
-        : ""
-    }
   `;
 }
 
@@ -1935,24 +1854,14 @@ function renderFooter() {
     return;
   }
 
-  const settings = getSchoolSettings();
-  const academicYearLabel = formatAcademicYearLabel(settings);
-  const schoolStructureLabel = [
-    settings.hasNursery ? "Nursery" : null,
-    "Primary 1-6",
-    "JSS 1-3",
-    "SS 1-3",
-    settings.hasHigherInstitution ? "Higher Institution" : null,
-  ]
-    .filter(Boolean)
-    .join(" + ");
+  const platformName = DEFAULT_PLATFORM_NAME;
 
   footer.innerHTML = `
     <div class="site-footer-shell careers-footer-shell">
       <div class="careers-footer-brand">
-        <a class="logo-link logo-link-full" href="./index.html" aria-label="${escapeHtml(settings.schoolName)} home">
-          ${buildBrandMarkHtml(settings, "logo-mark")}
-          <span class="logo-word">${escapeHtml(settings.schoolName)}</span>
+        <a class="logo-link logo-link-full" href="./index.html" aria-label="${escapeHtml(platformName)} home">
+          ${buildBrandMarkHtml({ schoolName: platformName, logoUrl: "" }, "logo-mark")}
+          <span class="logo-word">${escapeHtml(platformName)}</span>
         </a>
         <p>Simple, clean school management for teams that want less friction and better visibility.</p>
         <a class="button button-primary" href="./signup.html">Get Started</a>
@@ -1972,10 +1881,10 @@ function renderFooter() {
           <a href="./login.html">Login</a>
         </div>
         <div>
-          <h4>School Profile</h4>
-          <span>${escapeHtml(settings.address || "School address not added yet.")}</span>
-          <span>${escapeHtml(academicYearLabel || "Academic year dates not set yet.")}</span>
-          <span>${escapeHtml(schoolStructureLabel)}</span>
+          <h4>Platform</h4>
+          <span>SchoolSphere SaaS</span>
+          <span>Modern school operations platform</span>
+          <span>Multi-role dashboard and workflow tools</span>
         </div>
       </div>
     </div>

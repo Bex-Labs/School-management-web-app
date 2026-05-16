@@ -700,15 +700,6 @@
       return "System";
     }
 
-    if (
-      normalized === "super admin" ||
-      normalized === "super-admin" ||
-      normalized === "superadmin" ||
-      normalized === "super_administrator"
-    ) {
-      return "Super Admin";
-    }
-
     if (normalized === "administrator" || normalized === "admin") {
       return "Admin";
     }
@@ -3933,7 +3924,7 @@
       listTarget.innerHTML = `
         <article class="portal-class-empty">
           <strong>No access grants yet</strong>
-          <p>Add teacher, student, parent, admin, or super admin emails here to control who can create accounts.</p>
+          <p>Add teacher, student, parent, or admin emails here to control who can create accounts.</p>
         </article>
       `;
       return;
@@ -4072,11 +4063,6 @@
         hasError = true;
       } else if (!EMAIL_REGEX.test(payload.email)) {
         setPortalAccessError(form, "email", "Enter a valid email format.");
-        hasError = true;
-      }
-
-      if (payload.role === "Super Admin") {
-        setPortalAccessError(form, "role", "Super Admin cannot be assigned through signup access.");
         hasError = true;
       }
 
@@ -4740,7 +4726,7 @@
       <article class="portal-class-stat portal-class-stat-blue">
         <span>Active events</span>
         <strong>${activeCount}</strong>
-        <p>Visible to Super Admin, Admin, Teacher, Student, and Parent roles.</p>
+        <p>Visible to Admin, Teacher, Student, and Parent roles.</p>
       </article>
       <article class="portal-class-stat portal-class-stat-violet">
         <span>Terms</span>
@@ -4826,7 +4812,7 @@
                   </div>
                   <div class="portal-class-extended-item">
                     <span>Visibility</span>
-                    <strong>Super Admin, Admin, Teacher, Student, Parent</strong>
+                    <strong>Admin, Teacher, Student, Parent</strong>
                   </div>
                 </div>
 
