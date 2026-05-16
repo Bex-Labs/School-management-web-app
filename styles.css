@@ -4672,6 +4672,7 @@ body.admin-dashboard-page .admin-profile-copy span {
 body.admin-dashboard-page .admin-profile-actions {
   display: flex;
   flex-wrap: wrap;
+  gap: 8px;
 }
 
 body.admin-dashboard-page .admin-signout-button {
@@ -4686,6 +4687,7 @@ body.admin-dashboard-page .admin-signout-button {
   color: #17233a;
   font-size: 0.78rem;
   font-weight: 700;
+  text-decoration: none;
   transition: transform 140ms ease, box-shadow 180ms ease, background 180ms ease;
 }
 

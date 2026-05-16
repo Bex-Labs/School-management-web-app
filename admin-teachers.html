@@ -144,31 +144,36 @@
         <section class="admin-secondary-grid">
           <article class="admin-surface-card">
             <div class="admin-surface-head">
-              <h2>Staff Deployment</h2>
-              <span>Daily teaching operations</span>
+              <h2>Staff Accounts</h2>
+              <span>Admins can create and manage staff login access directly.</span>
             </div>
-            <div class="admin-link-grid">
-              <a class="admin-link-card" href="./admin-classes.html">
-                <strong>Homeroom Assignment</strong>
-                <p>Map each teacher to the classes and groups they supervise during the term.</p>
-                <span>Open class page</span>
-              </a>
-              <a class="admin-link-card" href="./admin-schedule.html">
-                <strong>Teaching Timetable</strong>
-                <p>Check period load, room usage, and clash points before publishing changes.</p>
-                <span>Open schedule</span>
-              </a>
-              <a class="admin-link-card" href="./modules.html">
-                <strong>Academic Modules</strong>
-                <p>See how staff connect to lessons, notes, assessments, and classroom workflows.</p>
-                <span>Open modules</span>
-              </a>
-              <a class="admin-link-card" href="./admin-reports.html">
-                <strong>Performance Review</strong>
-                <p>Move into result production and reporting outputs tied to teacher activity.</p>
-                <span>Open reports</span>
-              </a>
-            </div>
+            <div id="portal-staff-summary" class="portal-role-permission-summary"></div>
+            <form id="portal-staff-form" class="portal-settings-form" novalidate>
+              <div id="portal-staff-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+              <input type="hidden" name="staffId" />
+              <div class="portal-settings-grid">
+                <label class="portal-field" for="staff-name">
+                  <span>Staff name</span>
+                  <input id="staff-name" name="displayName" type="text" placeholder="Amaka Okon" />
+                  <p class="portal-field-error" data-staff-error-for="displayName"></p>
+                </label>
+                <label class="portal-field" for="staff-email">
+                  <span>Staff email</span>
+                  <input id="staff-email" name="email" type="email" placeholder="teacher@school.com" />
+                  <p class="portal-field-error" data-staff-error-for="email"></p>
+                </label>
+                <label class="portal-field portal-field-span-2" for="staff-temp-password">
+                  <span>Temporary password (optional)</span>
+                  <input id="staff-temp-password" name="tempPassword" type="password" placeholder="Leave blank to use default Staff@123" />
+                  <p class="portal-field-error" data-staff-error-for="tempPassword"></p>
+                </label>
+              </div>
+              <div class="utility-actions">
+                <button class="button button-primary" type="submit" data-staff-submit>Create staff account</button>
+                <button class="button button-outline" type="button" data-staff-cancel hidden>Cancel edit</button>
+              </div>
+            </form>
+            <div id="portal-staff-list" class="portal-class-list"></div>
           </article>
 
           <article class="admin-surface-card">

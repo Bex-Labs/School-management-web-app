@@ -89,6 +89,7 @@
     "admin-settings-access": "settings_manage",
     "admin-settings-roles": "settings_manage",
     "admin-settings-academic": "settings_manage",
+    "user-settings": "dashboard_view",
   };
 
   const ADMIN_SETTINGS_PAGES = new Set([
@@ -175,6 +176,8 @@
     "Other",
   ];
   const STUDENT_LIST_PREVIEW_COUNT = 5;
+  const DEFAULT_PARENT_PASSWORD = "Parent@123";
+  const DEFAULT_STAFF_PASSWORD = "Staff@123";
 
   document.addEventListener("DOMContentLoaded", async () => {
     await initSupabaseAuthBridge();
@@ -189,11 +192,13 @@
     initPortalPage();
     initAdminShellPages();
     initAdminStudentsPage();
+    initAdminTeachersPage();
     initAdminClassesPage();
     initAdminCoursesPage();
     initAdminSchedulePage();
     initAdminFeatureModulesPage();
     initAdminSettingsPage();
+    initUserSettingsPage();
     initFormDraftPersistence();
   });
 
@@ -502,6 +507,8 @@
       { formId: "portal-course-form", restorer: restoreClassFormDraft },
       { formId: "portal-academic-calendar-form", restorer: restoreClassFormDraft },
       { formId: "portal-student-form", serializer: serializeStudentFormDraft, restorer: restoreStudentFormDraft },
+      { formId: "portal-staff-form" },
+      { formId: "user-settings-form", serializer: serializeAuthFormDraft, restorer: restoreAuthFormDraft },
     ].forEach(initializeDraftForForm);
   }
 
@@ -638,8 +645,12 @@
 
     const targetStorage = remember ? localStorage : sessionStorage;
     const key = remember ? STORAGE_KEYS.persistentSession : STORAGE_KEYS.transientSession;
+    const normalizedSession = {
+      ...session,
+      workspaceId: normalizeWorkspaceId(session?.workspaceId || session?.userId || session?.email),
+    };
 
-    targetStorage.setItem(key, JSON.stringify(session));
+    targetStorage.setItem(key, JSON.stringify(normalizedSession));
   }
 
   function setAuthPersistencePreference(remember) {
@@ -681,6 +692,32 @@
 
   function normalizeEmail(email) {
     return email.trim().toLowerCase();
+  }
+
+  function normalizeWorkspaceId(rawWorkspaceId) {
+    const normalized = String(rawWorkspaceId || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    return normalized || "public";
+  }
+
+  function deriveWorkspaceIdFromRecord(record = {}) {
+    if (record.workspaceId) {
+      return normalizeWorkspaceId(record.workspaceId);
+    }
+
+    const role = normalizeRoleLabel(record.role || DEFAULT_AUTH_ROLE);
+    const normalizedEmail = String(record.normalizedEmail || "").trim();
+
+    if (role === "Admin") {
+      return normalizeWorkspaceId(
+        normalizedEmail || (record.email ? normalizeEmail(record.email) : "") || record.id || "admin",
+      );
+    }
+
+    return normalizeWorkspaceId(record.id || normalizedEmail || (record.email ? normalizeEmail(record.email) : ""));
   }
 
   function normalizeRoleLabel(rawRole) {
@@ -725,11 +762,29 @@
       ...record,
       role: normalizeRoleLabel(record.role || DEFAULT_AUTH_ROLE),
       status: normalizeUserStatus(record.status),
+      mustChangePassword: Boolean(record.mustChangePassword),
+      workspaceId: deriveWorkspaceIdFromRecord(record),
     };
   }
 
   function isUserDeactivated(user) {
     return normalizeUserStatus(user?.status) === "deactivated";
+  }
+
+  function getCurrentWorkspaceId() {
+    const session = getSession();
+    if (session?.workspaceId) {
+      return normalizeWorkspaceId(session.workspaceId);
+    }
+
+    if (session?.userId) {
+      const user = getUsers().find((entry) => entry.id === session.userId);
+      if (user?.workspaceId) {
+        return normalizeWorkspaceId(user.workspaceId);
+      }
+    }
+
+    return "public";
   }
 
   function getAccessGuardNotice() {
@@ -1053,7 +1108,172 @@
       .join(" ");
   }
 
-  function upsertLocalUserFromSupabase(authUser, roleOverride) {
+  async function upsertManagedPasswordUser({
+    email,
+    displayName,
+    role,
+    password,
+    workspaceId = null,
+    preserveExistingPassword = true,
+    forcePasswordReset = false,
+  }) {
+    const trimmedEmail = String(email || "").trim();
+
+    if (!trimmedEmail || !EMAIL_REGEX.test(trimmedEmail)) {
+      return { status: "invalid_email", user: null };
+    }
+
+    const normalizedEmail = normalizeEmail(trimmedEmail);
+    const users = getUsers();
+    const existingIndex = users.findIndex((user) => user.normalizedEmail === normalizedEmail);
+    const normalizedRole = normalizeRoleLabel(role || DEFAULT_AUTH_ROLE);
+    const normalizedWorkspaceId = normalizeWorkspaceId(
+      workspaceId || (normalizedRole === "Admin" ? normalizedEmail : null),
+    );
+    const now = nowIso();
+    const preferredDisplayName =
+      String(displayName || "").trim() || buildDisplayName(trimmedEmail) || "School User";
+    const passwordValue = String(password || "");
+    const nextPasswordHash = passwordValue ? await hashSecret(passwordValue) : null;
+
+    if (existingIndex >= 0) {
+      const existingUser = users[existingIndex];
+
+      if (existingUser.provider === "google" && !existingUser.passwordHash) {
+        users[existingIndex] = normalizeUserRecord({
+          ...existingUser,
+          displayName: existingUser.displayName || preferredDisplayName,
+          role: normalizedRole,
+          workspaceId: existingUser.workspaceId || normalizedWorkspaceId,
+          status: "active",
+          isConfirmed: true,
+          confirmedAt: existingUser.confirmedAt || now,
+          updatedAt: now,
+        });
+        saveUsers(users);
+        return { status: "existing_google", user: users[existingIndex] };
+      }
+
+      const shouldSetPassword =
+        Boolean(nextPasswordHash) &&
+        (!preserveExistingPassword || !existingUser.passwordHash);
+      const nextUser = {
+        ...existingUser,
+        email: trimmedEmail,
+        normalizedEmail,
+        displayName: preferredDisplayName,
+        role: normalizedRole,
+        workspaceId: existingUser.workspaceId || normalizedWorkspaceId,
+        provider: "password",
+        status: "active",
+        isConfirmed: true,
+        confirmationToken: null,
+        confirmationSentAt: null,
+        confirmedAt: existingUser.confirmedAt || now,
+        updatedAt: now,
+      };
+
+      if (shouldSetPassword) {
+        nextUser.passwordHash = nextPasswordHash;
+        nextUser.mustChangePassword = Boolean(forcePasswordReset);
+      }
+
+      users[existingIndex] = normalizeUserRecord(nextUser);
+      saveUsers(users);
+      return { status: "updated", user: users[existingIndex], passwordSet: shouldSetPassword };
+    }
+
+    const userRecord = normalizeUserRecord({
+      id: createId(),
+      email: trimmedEmail,
+      normalizedEmail,
+      displayName: preferredDisplayName,
+      workspaceId: normalizedWorkspaceId,
+      passwordHash: nextPasswordHash,
+      provider: "password",
+      role: normalizedRole,
+      isConfirmed: true,
+      confirmationToken: null,
+      confirmationSentAt: null,
+      confirmedAt: now,
+      createdAt: now,
+      lastLoginAt: null,
+      status: "active",
+      mustChangePassword: Boolean(forcePasswordReset),
+    });
+
+    users.push(userRecord);
+    saveUsers(users);
+    return { status: "created", user: userRecord, passwordSet: Boolean(nextPasswordHash) };
+  }
+
+  async function provisionParentAccountsForStudent(studentPayload) {
+    const guardians = Array.isArray(studentPayload?.guardians) ? studentPayload.guardians : [];
+    const guardiansWithEmail = guardians.filter(
+      (guardian) => guardian?.email && EMAIL_REGEX.test(String(guardian.email).trim()),
+    );
+
+    if (!guardiansWithEmail.length) {
+      return {
+        created: [],
+        updated: [],
+        existingGoogle: [],
+      };
+    }
+
+    const uniqueByEmail = new Map();
+    guardiansWithEmail.forEach((guardian) => {
+      uniqueByEmail.set(normalizeEmail(guardian.email), guardian);
+    });
+
+    const created = [];
+    const updated = [];
+    const existingGoogle = [];
+    const workspaceId = getCurrentWorkspaceId();
+
+    for (const guardian of uniqueByEmail.values()) {
+      const result = await upsertManagedPasswordUser({
+        email: guardian.email,
+        displayName: guardian.name || buildDisplayName(guardian.email),
+        role: "Parent",
+        password: DEFAULT_PARENT_PASSWORD,
+        workspaceId,
+        preserveExistingPassword: true,
+        forcePasswordReset: true,
+      });
+
+      if (!result.user) {
+        continue;
+      }
+
+      upsertAccessGrant({
+        email: result.user.email,
+        role: "Parent",
+        authMethod: "password",
+        status: "active",
+      });
+      markAccessGrantClaimed(result.user.email, "Parent", "password", result.user.id);
+
+      if (result.status === "created") {
+        created.push(result.user);
+        recordAuditEvent({
+          action: "created",
+          entityType: "parent-account",
+          entityId: result.user.email,
+          summary: `Created parent login for ${guardian.name || result.user.email}`,
+          details: `Linked to student ${studentPayload.admissionNo || studentPayload.fullName || "record"} • Default password issued`,
+        });
+      } else if (result.status === "updated") {
+        updated.push(result.user);
+      } else if (result.status === "existing_google") {
+        existingGoogle.push(result.user);
+      }
+    }
+
+    return { created, updated, existingGoogle };
+  }
+
+  function upsertLocalUserFromSupabase(authUser, roleOverride, workspaceOverride) {
     const email = authUser.email || "";
     const normalizedEmail = normalizeEmail(email);
     const provider =
@@ -1074,11 +1294,18 @@
         roleOverride ||
         DEFAULT_AUTH_ROLE,
     );
+    const workspaceId = normalizeWorkspaceId(
+      workspaceOverride ||
+        authUser.user_metadata?.workspace_id ||
+        (existingIndex >= 0 ? users[existingIndex].workspaceId : null) ||
+        (role === "Admin" ? normalizedEmail : null),
+    );
     const record = {
       id: authUser.id,
       email,
       normalizedEmail,
       displayName,
+      workspaceId,
       passwordHash: existingIndex >= 0 ? users[existingIndex].passwordHash : null,
       provider,
       role,
@@ -1089,6 +1316,7 @@
       createdAt: authUser.created_at || (existingIndex >= 0 ? users[existingIndex].createdAt : nowIso()),
       lastLoginAt: nowIso(),
       status: existingIndex >= 0 ? normalizeUserStatus(users[existingIndex].status) : "active",
+      mustChangePassword: existingIndex >= 0 ? Boolean(users[existingIndex].mustChangePassword) : false,
     };
 
     if (existingIndex >= 0) {
@@ -1137,6 +1365,7 @@
 
     const {
       preferredRole = null,
+      preferredWorkspaceId = null,
       redirectAuthenticatedAuthPages = true,
     } = options;
     const client = await getSupabaseClient();
@@ -1155,7 +1384,7 @@
     }
 
     const localSession = getSession();
-    const pendingRole = consumePendingRole();
+    consumePendingRole();
     const provider =
       session.user.app_metadata?.provider ||
       session.user.identities?.[0]?.provider ||
@@ -1171,27 +1400,18 @@
     const activeGrant = getProvisioningGrant(session.user.email || "", null, providerKey);
     const roleToApply = normalizeRoleLabel(
       preferredRole ||
-        pendingRole ||
-        existingLocalUser?.role ||
         session.user.user_metadata?.role ||
         activeGrant?.role ||
-        localSession?.role ||
+        existingLocalUser?.role ||
         DEFAULT_AUTH_ROLE,
     );
-
-    if (!existingLocalUser && !activeGrant) {
-      await client.auth.signOut();
-      clearSession();
-      setAccessGuardNotice(
-        "Only administrators can grant new account access. Contact your school administrator first.",
-      );
-
-      if (getPage() !== "login") {
-        window.location.assign("./login.html");
-      }
-
-      return null;
-    }
+    const workspaceToApply = normalizeWorkspaceId(
+      preferredWorkspaceId ||
+        existingLocalUser?.workspaceId ||
+        session.user.user_metadata?.workspace_id ||
+        localSession?.workspaceId ||
+        (roleToApply === "Admin" ? normalizeEmail(session.user.email || "") : null),
+    );
 
     if (existingLocalUser && isUserDeactivated(existingLocalUser)) {
       await client.auth.signOut();
@@ -1208,6 +1428,7 @@
     const mirroredUser = upsertLocalUserFromSupabase(
       session.user,
       roleToApply,
+      workspaceToApply,
     );
 
     if (!existingLocalUser) {
@@ -1223,6 +1444,7 @@
         displayName: mirroredUser.displayName,
         role: mirroredUser.role,
         provider: mirroredUser.provider,
+        workspaceId: mirroredUser.workspaceId,
         persistence: remember ? "persistent" : "session",
         signedInAt: session.created_at || nowIso(),
         source: "supabase",
@@ -1256,7 +1478,9 @@
           return;
         }
 
-        await syncSupabaseSessionToLocal();
+        await syncSupabaseSessionToLocal({
+          redirectAuthenticatedAuthPages: false,
+        });
       }, 0);
     });
 
@@ -1281,9 +1505,23 @@
   }
 
   function getDashboardSnapshot() {
+    const users = getUsers();
+    const workspaceId = getCurrentWorkspaceId();
+    const studentManager = getStudentManager();
+    const studentSummary =
+      studentManager && typeof studentManager.summarize === "function"
+        ? studentManager.summarize()
+        : null;
+    const activeStaffCount = users.filter(
+      (user) =>
+        normalizeRoleLabel(user.role) === "Teacher" &&
+        normalizeUserStatus(user.status) === "active" &&
+        normalizeWorkspaceId(user.workspaceId) === workspaceId,
+    ).length;
+
     return {
-      activeStudents: null,
-      staffCount: null,
+      activeStudents: studentSummary ? studentSummary.activeCount : null,
+      staffCount: activeStaffCount,
       attendanceRate: null,
       activeIncidents: null,
       updatedAt: nowIso(),
@@ -1339,7 +1577,9 @@
 
     const nav = sidebar.querySelector(".admin-sidebar-nav");
 
-    if (nav && !nav.querySelector('a[href="./admin-courses.html"]')) {
+    const shouldInjectCourseLink = getPage() !== "user-settings";
+
+    if (nav && shouldInjectCourseLink && !nav.querySelector('a[href="./admin-courses.html"]')) {
       const referenceLink = nav.querySelector('a[href="./admin-classes.html"]');
       const courseLink = document.createElement("a");
       const isCoursePage = getPage() === "admin-courses";
@@ -1677,7 +1917,7 @@
       return;
     }
 
-    form.addEventListener("submit", (event) => {
+    form.addEventListener("submit", async (event) => {
       event.preventDefault();
 
       if (!isAdmin) {
@@ -1988,7 +2228,7 @@
       return;
     }
 
-    form.addEventListener("submit", (event) => {
+    form.addEventListener("submit", async (event) => {
       event.preventDefault();
 
       if (!isAdmin) {
@@ -2248,7 +2488,7 @@
       return;
     }
 
-    form.addEventListener("submit", (event) => {
+    form.addEventListener("submit", async (event) => {
       event.preventDefault();
 
       if (!isAdmin) {
@@ -4189,6 +4429,355 @@
     }
   }
 
+  function clearPortalStaffErrors(form) {
+    form.querySelectorAll(".portal-field").forEach((field) => field.classList.remove("is-invalid"));
+    form.querySelectorAll("[data-staff-error-for]").forEach((error) => {
+      error.textContent = "";
+    });
+  }
+
+  function setPortalStaffError(form, fieldName, message) {
+    const error = form.querySelector(`[data-staff-error-for="${fieldName}"]`);
+    const control = form.elements[fieldName];
+    const field = control ? control.closest(".portal-field") : null;
+
+    if (error) {
+      error.textContent = message;
+    }
+
+    if (field) {
+      field.classList.add("is-invalid");
+    }
+  }
+
+  function resetPortalStaffForm(form, isAdmin) {
+    if (!form) {
+      return;
+    }
+
+    form.reset();
+
+    if (form.elements.staffId) {
+      form.elements.staffId.value = "";
+    }
+
+    const submitButton = form.querySelector("[data-staff-submit]");
+    const cancelButton = form.querySelector("[data-staff-cancel]");
+
+    if (submitButton) {
+      submitButton.textContent = "Create staff account";
+    }
+
+    if (cancelButton) {
+      cancelButton.hidden = true;
+    }
+
+    Array.from(form.elements).forEach((field) => {
+      if (field instanceof HTMLElement) {
+        field.disabled = !isAdmin;
+      }
+    });
+  }
+
+  function populatePortalStaffForm(form, user, isAdmin) {
+    if (!form || !user) {
+      return;
+    }
+
+    form.elements.staffId.value = user.id;
+    form.elements.displayName.value = user.displayName || "";
+    form.elements.email.value = user.email || "";
+    form.elements.tempPassword.value = "";
+
+    const submitButton = form.querySelector("[data-staff-submit]");
+    const cancelButton = form.querySelector("[data-staff-cancel]");
+
+    if (submitButton) {
+      submitButton.textContent = "Save staff account";
+    }
+
+    if (cancelButton) {
+      cancelButton.hidden = !isAdmin;
+    }
+
+    Array.from(form.elements).forEach((field) => {
+      if (field instanceof HTMLElement) {
+        field.disabled = !isAdmin;
+      }
+    });
+  }
+
+  function renderPortalStaffManagementSection({ isAdmin, summaryTarget, listTarget }) {
+    if (!summaryTarget || !listTarget) {
+      return;
+    }
+
+    const allUsers = getUsers();
+    const workspaceId = getCurrentWorkspaceId();
+    const staffUsers = allUsers
+      .filter(
+        (user) =>
+          normalizeRoleLabel(user.role) === "Teacher" &&
+          normalizeWorkspaceId(user.workspaceId) === workspaceId,
+      )
+      .sort((left, right) => String(right.createdAt || "").localeCompare(String(left.createdAt || "")));
+    const activeCount = staffUsers.filter((user) => normalizeUserStatus(user.status) === "active").length;
+    const inactiveCount = staffUsers.length - activeCount;
+
+    summaryTarget.innerHTML = `
+      <strong>${activeCount} active staff account${activeCount === 1 ? "" : "s"}</strong>
+      <span>${
+        isAdmin
+          ? `${inactiveCount} deactivated. New staff can be created directly by admin here.`
+          : "Only administrators can create or update staff accounts."
+      }</span>
+    `;
+
+    if (!staffUsers.length) {
+      listTarget.innerHTML = `
+        <article class="portal-class-empty">
+          <strong>No staff accounts yet</strong>
+          <p>Create the first staff account to enable teacher login access.</p>
+        </article>
+      `;
+      return;
+    }
+
+    listTarget.innerHTML = staffUsers
+      .map((user) => {
+        const status = normalizeUserStatus(user.status) === "active" ? "Active" : "Deactivated";
+        const passwordMode =
+          user.provider === "google"
+            ? "Google sign-in"
+            : user.mustChangePassword
+              ? "Default password (change required)"
+              : "Custom password";
+
+        return `
+          <article class="portal-class-card">
+            <div class="portal-class-meta">
+              <div class="portal-class-meta-item">
+                <span>Name</span>
+                <strong>${escapeHtml(user.displayName || "Staff User")}</strong>
+              </div>
+              <div class="portal-class-meta-item">
+                <span>Email</span>
+                <strong>${escapeHtml(user.email)}</strong>
+              </div>
+              <div class="portal-class-meta-item">
+                <span>Status</span>
+                <strong>${escapeHtml(status)}</strong>
+              </div>
+              <div class="portal-class-meta-item">
+                <span>Sign-in</span>
+                <strong>${escapeHtml(passwordMode)}</strong>
+              </div>
+            </div>
+            <div class="portal-class-actions">
+              <button class="portal-class-button" type="button" data-staff-action="edit" data-staff-id="${user.id}" ${
+          isAdmin ? "" : "disabled"
+        }>
+                Edit
+              </button>
+              <button class="portal-class-button ${status === "Active" ? "is-archive" : "is-restore"}" type="button" data-staff-action="${
+          status === "Active" ? "deactivate" : "activate"
+        }" data-staff-id="${user.id}" ${isAdmin ? "" : "disabled"}>
+                ${status === "Active" ? "Deactivate" : "Activate"}
+              </button>
+            </div>
+          </article>
+        `;
+      })
+      .join("");
+  }
+
+  function initStaffManagementControls({ isAdmin, summaryTarget, form, status, listTarget }) {
+    if (!summaryTarget || !form || !status || !listTarget) {
+      return;
+    }
+
+    const refreshStaff = () => {
+      renderPortalStaffManagementSection({
+        isAdmin,
+        summaryTarget,
+        listTarget,
+      });
+    };
+
+    form.addEventListener("input", () => {
+      clearPortalStaffErrors(form);
+      if (isAdmin) {
+        setStatus(status, "", "");
+      }
+    });
+
+    refreshStaff();
+    resetPortalStaffForm(form, isAdmin);
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      if (!isAdmin) {
+        setStatus(status, "info", "Only administrators can add staff accounts.");
+        return;
+      }
+
+      clearPortalStaffErrors(form);
+      setStatus(status, "", "");
+
+      const staffId = String(form.elements.staffId?.value || "").trim();
+      const displayName = form.elements.displayName.value.trim();
+      const email = form.elements.email.value.trim();
+      const tempPassword = form.elements.tempPassword.value;
+
+      let hasError = false;
+
+      if (!displayName) {
+        setPortalStaffError(form, "displayName", "Enter the staff name.");
+        hasError = true;
+      }
+
+      if (!email) {
+        setPortalStaffError(form, "email", "Enter the staff email.");
+        hasError = true;
+      } else if (!EMAIL_REGEX.test(email)) {
+        setPortalStaffError(form, "email", "Enter a valid email format.");
+        hasError = true;
+      }
+
+      if (tempPassword && !isStrongPassword(tempPassword)) {
+        setPortalStaffError(form, "tempPassword", "Use at least 8 characters with letters and numbers.");
+        hasError = true;
+      }
+
+      if (hasError) {
+        setStatus(status, "error", "Fix the highlighted fields and try again.");
+        return;
+      }
+
+      const activePassword = tempPassword || DEFAULT_STAFF_PASSWORD;
+      const result = await upsertManagedPasswordUser({
+        email,
+        displayName,
+        role: "Teacher",
+        password: activePassword,
+        workspaceId: getCurrentWorkspaceId(),
+        preserveExistingPassword: !tempPassword,
+        forcePasswordReset: !tempPassword,
+      });
+
+      if (result.status === "existing_google") {
+        setPortalStaffError(
+          form,
+          "email",
+          "This account already uses Google sign-in. Use access provisioning if you want Google-only staff access.",
+        );
+        setStatus(status, "error", "Could not set a password for an existing Google-only account.");
+        return;
+      }
+
+      if (!result.user) {
+        setStatus(status, "error", "Could not save this staff account.");
+        return;
+      }
+
+      upsertAccessGrant({
+        email: result.user.email,
+        role: "Teacher",
+        authMethod: "password",
+        status: "active",
+      });
+      markAccessGrantClaimed(result.user.email, "Teacher", "password", result.user.id);
+
+      recordAuditEvent({
+        action: staffId ? "updated" : "created",
+        entityType: "staff-account",
+        entityId: result.user.email,
+        summary: staffId
+          ? `Updated staff account for ${result.user.displayName || result.user.email}`
+          : `Created staff account for ${result.user.displayName || result.user.email}`,
+        details: tempPassword ? "Custom password set by admin." : "Default password issued.",
+      });
+
+      resetPortalStaffForm(form, isAdmin);
+      clearFormDraftFor(form);
+      refreshStaff();
+
+      setStatus(
+        status,
+        "success",
+        staffId
+          ? `Updated staff account for <strong>${escapeHtml(result.user.email)}</strong>.`
+          : `Staff account created for <strong>${escapeHtml(result.user.email)}</strong>. Default password: <strong>${escapeHtml(
+              DEFAULT_STAFF_PASSWORD,
+            )}</strong>.`,
+      );
+    });
+
+    listTarget.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-staff-action]");
+
+      if (!button || !isAdmin) {
+        return;
+      }
+
+      const staffId = button.dataset.staffId;
+      const action = button.dataset.staffAction;
+      const user = getUsers().find((entry) => entry.id === staffId);
+
+      if (!user || normalizeRoleLabel(user.role) !== "Teacher") {
+        return;
+      }
+
+      if (action === "edit") {
+        clearPortalStaffErrors(form);
+        populatePortalStaffForm(form, user, isAdmin);
+        setStatus(status, "info", `Editing staff account for <strong>${escapeHtml(user.email)}</strong>.`);
+        return;
+      }
+
+      if (action === "deactivate" || action === "activate") {
+        const nextStatus = action === "activate" ? "active" : "deactivated";
+        const updatedUser = updateUser(user.id, (currentUser) => ({
+          ...currentUser,
+          status: nextStatus,
+        }));
+
+        const matchingGrant = getAccessGrants().find(
+          (grant) => grant.normalizedEmail === normalizeEmail(user.email),
+        );
+
+        if (matchingGrant) {
+          setAccessGrantStatus(matchingGrant.id, nextStatus === "active" ? "active" : "revoked");
+        }
+
+        recordAuditEvent({
+          action: nextStatus === "active" ? "activated" : "deactivated",
+          entityType: "staff-account",
+          entityId: user.email,
+          summary: `${nextStatus === "active" ? "Activated" : "Deactivated"} staff account ${user.email}`,
+          details: `Role: ${normalizeRoleLabel(updatedUser?.role || user.role)}`,
+        });
+
+        refreshStaff();
+        setStatus(
+          status,
+          "success",
+          `Staff account <strong>${escapeHtml(user.email)}</strong> is now <strong>${escapeHtml(nextStatus)}</strong>.`,
+        );
+      }
+    });
+
+    const cancelButton = form.querySelector("[data-staff-cancel]");
+    if (cancelButton) {
+      cancelButton.addEventListener("click", () => {
+        clearPortalStaffErrors(form);
+        resetPortalStaffForm(form, isAdmin);
+        setStatus(status, "", "");
+      });
+    }
+  }
+
   function renderPortalFeatureToggleSection({ isAdmin, manager, summaryTarget, gridTarget }) {
     if (!summaryTarget || !gridTarget) {
       return;
@@ -5621,6 +6210,10 @@
       errors.push("Wrong phone number format");
     }
 
+    if (!guardian?.email) {
+      errors.push("Missing parent/guardian email");
+    }
+
     if (guardian?.email && !EMAIL_REGEX.test(guardian.email)) {
       errors.push("Invalid parent/guardian email");
     }
@@ -5888,7 +6481,7 @@
       });
     }
 
-    form.addEventListener("submit", (event) => {
+    form.addEventListener("submit", async (event) => {
       event.preventDefault();
 
       if (!isAdmin) {
@@ -5922,6 +6515,9 @@
       };
       const guardianParse = parseGuardianRows(guardianList, { validatePhone: true });
       payload.guardians = guardianParse.guardians;
+      const hasGuardianEmail = payload.guardians.some((guardian) =>
+        EMAIL_REGEX.test(String(guardian.email || "").trim()),
+      );
 
       let hasError = false;
 
@@ -5965,6 +6561,13 @@
       } else if (!payload.guardians.length) {
         setPortalStudentError(form, "guardians", "Add at least one guardian contact.");
         hasError = true;
+      } else if (!hasGuardianEmail) {
+        setPortalStudentError(
+          form,
+          "guardians",
+          "Add at least one valid guardian email so a parent login can be created automatically.",
+        );
+        hasError = true;
       }
 
       const duplicateAdmission = manager
@@ -5991,6 +6594,7 @@
         ...payload,
         status: currentRecord ? currentRecord.status : "active",
       });
+      const parentProvisioning = await provisionParentAccountsForStudent(payload);
 
       recordAuditEvent({
         action: currentRecord ? "updated" : "created",
@@ -6005,12 +6609,22 @@
       resetPortalStudentForm(form, guardianList, isAdmin);
       clearFormDraftFor(form);
       setStudentFormVisibility(false);
+      const createdParentCopy = parentProvisioning.created.length
+        ? ` Parent login created: <strong>${escapeHtml(
+            parentProvisioning.created[0].email,
+          )}</strong>${parentProvisioning.created.length > 1 ? ` +${parentProvisioning.created.length - 1} more` : ""}. Default password: <strong>${escapeHtml(
+            DEFAULT_PARENT_PASSWORD,
+          )}</strong>.`
+        : "";
+      const googleParentCopy = parentProvisioning.existingGoogle.length
+        ? ` ${parentProvisioning.existingGoogle.length} guardian account(s) already use Google sign-in.`
+        : "";
       setStatus(
         status,
         "success",
         currentRecord
-          ? `Student <strong>${escapeHtml(payload.fullName || payload.admissionNo)}</strong> updated with guardian relationships.`
-          : `Student <strong>${escapeHtml(payload.fullName || payload.admissionNo)}</strong> created with guardian relationships.`,
+          ? `Student <strong>${escapeHtml(payload.fullName || payload.admissionNo)}</strong> updated with guardian relationships.${createdParentCopy}${googleParentCopy}`
+          : `Student <strong>${escapeHtml(payload.fullName || payload.admissionNo)}</strong> created with guardian relationships.${createdParentCopy}${googleParentCopy}`,
       );
     });
 
@@ -6100,7 +6714,7 @@
           field.disabled = !isAdmin;
         }
       });
-      quickAddForm.addEventListener("submit", (event) => {
+      quickAddForm.addEventListener("submit", async (event) => {
         event.preventDefault();
 
         if (!isAdmin) {
@@ -6115,11 +6729,11 @@
         const guardianPhone = quickAddForm.elements.guardianPhone.value.trim();
         const guardianEmail = quickAddForm.elements.guardianEmail.value.trim();
 
-        if (!firstName || !lastName || !level || !guardianName) {
+        if (!firstName || !lastName || !level || !guardianName || !guardianEmail) {
           setStatus(
             quickAddStatus,
             "error",
-            "First name, last name, level/class, and parent/guardian name are required for quick add.",
+            "First name, last name, level/class, parent/guardian name, and guardian email are required for quick add.",
           );
           return;
         }
@@ -6161,13 +6775,18 @@
         };
 
         manager.upsertStudent(payload);
+        const parentProvisioning = await provisionParentAccountsForStudent(payload);
         quickAddForm.reset();
         setStatus(
           quickAddStatus,
           "success",
           `Student <strong>${escapeHtml(payload.fullName)}</strong> added with admission number <strong>${escapeHtml(
             payload.admissionNo,
-          )}</strong>.`,
+          )}</strong>.${
+            parentProvisioning.created.length
+              ? ` Parent login created with default password <strong>${escapeHtml(DEFAULT_PARENT_PASSWORD)}</strong>.`
+              : ""
+          }`,
         );
         recordAuditEvent({
           action: "created",
@@ -6275,7 +6894,7 @@
       if (!isAdmin) {
         importConfirmButton.disabled = true;
       }
-      importConfirmButton.addEventListener("click", () => {
+      importConfirmButton.addEventListener("click", async () => {
         if (!isAdmin) {
           setStatus(importStatus, "info", "Only administrators can import students.");
           return;
@@ -6293,12 +6912,16 @@
           return;
         }
 
-        validRows.forEach((row) => {
+        let createdParentLogins = 0;
+
+        for (const row of validRows) {
           manager.upsertStudent({
             ...row.payload,
             status: "active",
           });
-        });
+          const parentProvisioning = await provisionParentAccountsForStudent(row.payload);
+          createdParentLogins += parentProvisioning.created.length;
+        }
 
         recordAuditEvent({
           action: "imported",
@@ -6319,8 +6942,16 @@
           importStatus,
           "success",
           invalidCount
-            ? `Imported ${validRows.length} valid students. ${invalidCount} invalid row(s) were skipped.`
-            : `Imported ${validRows.length} students successfully.`,
+            ? `Imported ${validRows.length} valid students. ${invalidCount} invalid row(s) were skipped.${
+                createdParentLogins
+                  ? ` ${createdParentLogins} parent login account(s) were auto-created (default password: ${DEFAULT_PARENT_PASSWORD}).`
+                  : ""
+              }`
+            : `Imported ${validRows.length} students successfully.${
+                createdParentLogins
+                  ? ` ${createdParentLogins} parent login account(s) were auto-created (default password: ${DEFAULT_PARENT_PASSWORD}).`
+                  : ""
+              }`,
         );
       });
     }
@@ -6490,11 +7121,11 @@
       setStatus(status, "", "");
 
       const email = form.elements.email.value.trim();
+      const signupWorkspaceId = normalizeWorkspaceId(normalizeEmail(email));
       const password = form.elements.password.value;
       const confirmPassword = form.elements.confirmPassword.value;
       const termsAccepted = form.elements.terms.checked;
-      const accessGrant = getProvisioningGrant(email, null, "password");
-      const grantedRole = accessGrant ? normalizeRoleLabel(accessGrant.role) : null;
+      const grantedRole = "Admin";
 
       let hasError = false;
 
@@ -6543,16 +7174,6 @@
         hasError = true;
       }
 
-      if (!accessGrant) {
-        setFieldError(form, "email", "Ask an administrator to grant this email access first.");
-        setStatus(
-          status,
-          "error",
-          "This email does not have admin-granted sign-up access yet.",
-        );
-        hasError = true;
-      }
-
       if (hasError) {
         if (!status.hidden || status.innerHTML) {
           return;
@@ -6563,7 +7184,7 @@
 
       if (isSupabaseConfigured()) {
         setAuthPersistencePreference(true);
-        rememberPendingRole(grantedRole || DEFAULT_AUTH_ROLE);
+        rememberPendingRole(grantedRole);
 
         const client = await getSupabaseClient();
         let data;
@@ -6578,7 +7199,8 @@
                 emailRedirectTo: buildSupabaseEmailRedirectUrl(),
                 data: {
                   display_name: buildDisplayName(email) || "School User",
-                  role: grantedRole || DEFAULT_AUTH_ROLE,
+                  role: grantedRole,
+                  workspace_id: signupWorkspaceId,
                 },
               },
             }),
@@ -6599,7 +7221,8 @@
 
         if (data?.session) {
           await syncSupabaseSessionToLocal({
-            preferredRole: grantedRole || DEFAULT_AUTH_ROLE,
+            preferredRole: grantedRole,
+            preferredWorkspaceId: signupWorkspaceId,
             redirectAuthenticatedAuthPages: false,
           });
           clearFormDraftFor(form);
@@ -6609,7 +7232,7 @@
 
         form.reset();
         clearFormDraftFor(form);
-        markAccessGrantClaimed(email, grantedRole || DEFAULT_AUTH_ROLE, "password", data?.user?.id || null);
+        markAccessGrantClaimed(email, grantedRole, "password", data?.user?.id || null);
         setStatus(
           status,
           "success",
@@ -6625,10 +7248,11 @@
         id: createId(),
         email,
         normalizedEmail: normalizeEmail(email),
+        workspaceId: signupWorkspaceId,
         displayName: buildDisplayName(email) || "School User",
         passwordHash: await hashSecret(password),
         provider: "password",
-        role: grantedRole || DEFAULT_AUTH_ROLE,
+        role: grantedRole,
         isConfirmed: false,
         confirmationToken,
         confirmationSentAt: nowIso(),
@@ -6715,10 +7339,11 @@
         rememberPendingRole(selectedRole);
 
         const client = await getSupabaseClient();
+        let data;
         let error;
 
         try {
-          ({ error } = await withNetworkTimeout(
+          ({ data, error } = await withNetworkTimeout(
             client.auth.signInWithPassword({
               email,
               password,
@@ -6747,17 +7372,44 @@
           return;
         }
 
+        const provisionedRole = getProvisioningGrant(email, null, "password")?.role || null;
+        const localUserRole = findUserByEmail(email)?.role || null;
+        const resolvedRole = normalizeRoleLabel(
+          data?.user?.user_metadata?.role ||
+            provisionedRole ||
+            localUserRole ||
+            DEFAULT_AUTH_ROLE,
+        );
+
+        if (selectedRole !== resolvedRole) {
+          await client.auth.signOut();
+          clearSession();
+          setStatus(
+            status,
+            "error",
+            `This account is registered as <strong>${escapeHtml(
+              resolvedRole,
+            )}</strong>. Switch role to continue.`,
+          );
+          return;
+        }
+
         const authResult = await syncSupabaseSessionToLocal({
-          preferredRole: null,
+          preferredRole: resolvedRole,
           redirectAuthenticatedAuthPages: false,
         });
 
         if (!authResult?.user) {
-          setStatus(status, "error", "Sign-in could not be completed. Confirm your role and account access.");
+          const guardMessage = sessionStorage.getItem(ACCESS_GUARD_NOTICE_KEY);
+          setStatus(
+            status,
+            "error",
+            guardMessage || "Sign-in could not be completed. Confirm your role and account access.",
+          );
           return;
         }
 
-        const signedInRole = normalizeRoleLabel(authResult?.user?.role || selectedRole);
+        const signedInRole = normalizeRoleLabel(authResult.user.role || DEFAULT_AUTH_ROLE);
 
         if (signedInRole !== selectedRole) {
           await client.auth.signOut();
@@ -6771,6 +7423,7 @@
           );
           return;
         }
+
         clearFormDraftFor(form);
         window.location.assign("./portal.html");
         return;
@@ -6842,6 +7495,7 @@
           displayName: updatedUser.displayName,
           role: userRole,
           provider: updatedUser.provider,
+          workspaceId: updatedUser.workspaceId,
           persistence: remember ? "persistent" : "session",
           signedInAt: nowIso(),
         },
@@ -6998,22 +7652,18 @@
         return;
       }
 
-      const accessGrant = getProvisioningGrant(email, null, "google");
-      const grantedRole = accessGrant ? normalizeRoleLabel(accessGrant.role) : null;
-
-      if (!accessGrant) {
-        error.textContent = "This Google email has no administrator-granted access yet.";
-        return;
-      }
+      const grantedRole = "Admin";
+      const signupWorkspaceId = normalizeWorkspaceId(normalizeEmail(email));
 
       const user = {
         id: createId(),
         email,
         normalizedEmail: normalizeEmail(email),
+        workspaceId: signupWorkspaceId,
         displayName: buildDisplayName(email) || "School User",
         passwordHash: null,
         provider: "google",
-        role: grantedRole || DEFAULT_AUTH_ROLE,
+        role: grantedRole,
         isConfirmed: true,
         confirmationToken: null,
         confirmationSentAt: null,
@@ -7035,6 +7685,7 @@
           displayName: user.displayName,
           role: user.role,
           provider: user.provider,
+          workspaceId: user.workspaceId,
           persistence: "persistent",
           signedInAt: nowIso(),
         },
@@ -7066,7 +7717,7 @@
 
     const existingRole = normalizeRoleLabel(existingUser.role || DEFAULT_AUTH_ROLE);
 
-    if (selectedRole !== existingRole) {
+    if (selectedRole && selectedRole !== existingRole) {
       error.textContent = `This account is registered as ${existingRole}. Switch role and try again.`;
       return;
     }
@@ -7080,6 +7731,7 @@
         displayName: existingUser.displayName,
         role: existingRole,
         provider: existingUser.provider,
+        workspaceId: existingUser.workspaceId,
         persistence: "persistent",
         signedInAt: nowIso(),
       },
@@ -7457,7 +8109,10 @@
     profileAvatar.textContent = getInitials(user.displayName || user.email);
     profileName.textContent = user.displayName || user.email;
     profileRole.textContent = roleLabel;
-    gate.innerHTML = `<button class="admin-signout-button" type="button" data-signout>Log out</button>`;
+    gate.innerHTML = `
+      <a class="admin-signout-button" href="./user-settings.html">My settings</a>
+      <button class="admin-signout-button" type="button" data-signout>Log out</button>
+    `;
     wireSignOutButton(gate);
     initAdminSectionQuickNav();
   }
@@ -7486,6 +8141,27 @@
       listTarget: studentList,
       guardianList,
       formToggleButton: studentFormToggle,
+    });
+  }
+
+  function initAdminTeachersPage() {
+    if (getPage() !== "admin-teachers") {
+      return;
+    }
+
+    const { isAdmin, roleLabel } = getAdminAccessContext();
+    const canManageTeachers = isAdmin && canAccessPermission(roleLabel, PAGE_PERMISSION_KEYS["admin-teachers"]);
+    const staffSummary = document.getElementById("portal-staff-summary");
+    const staffForm = document.getElementById("portal-staff-form");
+    const staffStatus = document.getElementById("portal-staff-status");
+    const staffList = document.getElementById("portal-staff-list");
+
+    initStaffManagementControls({
+      isAdmin: canManageTeachers,
+      summaryTarget: staffSummary,
+      form: staffForm,
+      status: staffStatus,
+      listTarget: staffList,
     });
   }
 
@@ -7648,6 +8324,148 @@
       termForm,
       termStatus,
       termListTarget: termList,
+    });
+  }
+
+  function initUserSettingsPage() {
+    if (getPage() !== "user-settings") {
+      return;
+    }
+
+    const form = document.getElementById("user-settings-form");
+    const status = document.getElementById("user-settings-status");
+    const profileName = document.getElementById("user-settings-name");
+    const profileRole = document.getElementById("user-settings-role");
+    const profileEmail = document.getElementById("user-settings-email");
+    const hint = document.getElementById("user-settings-hint");
+    const { session, user, roleLabel } = getAdminAccessContext();
+
+    if (!form || !status || !profileName || !profileRole || !profileEmail || !hint) {
+      return;
+    }
+
+    if (!session || !user) {
+      setStatus(status, "error", "Your session has expired. Please sign in again.");
+      form.querySelectorAll("input, button").forEach((field) => {
+        field.disabled = true;
+      });
+      return;
+    }
+
+    profileName.textContent = user.displayName || "School User";
+    profileRole.textContent = roleLabel;
+    profileEmail.textContent = user.email;
+
+    const isGoogleAccount = user.provider === "google";
+    if (isGoogleAccount) {
+      hint.textContent = "This account uses Google sign-in. Password changes should be done from your Google account.";
+      form.querySelectorAll("input, button").forEach((field) => {
+        field.disabled = true;
+      });
+      setStatus(status, "info", "Google accounts do not use local passwords in this app.");
+      return;
+    }
+
+    if (user.mustChangePassword) {
+      hint.textContent = "You are using a default password. Update it now from this page.";
+    }
+
+    form.addEventListener("input", () => {
+      clearFieldErrors(form);
+      setStatus(status, "", "");
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      clearFieldErrors(form);
+      setStatus(status, "", "");
+
+      const currentPassword = form.elements.currentPassword.value;
+      const nextPassword = form.elements.newPassword.value;
+      const confirmPassword = form.elements.confirmPassword.value;
+      let hasError = false;
+
+      if (!currentPassword) {
+        setFieldError(form, "currentPassword", "Enter your current password.");
+        hasError = true;
+      }
+
+      if (!nextPassword) {
+        setFieldError(form, "newPassword", "Enter your new password.");
+        hasError = true;
+      } else if (!isStrongPassword(nextPassword)) {
+        setFieldError(form, "newPassword", "Use at least 8 characters with letters and numbers.");
+        hasError = true;
+      }
+
+      if (!confirmPassword) {
+        setFieldError(form, "confirmPassword", "Confirm your new password.");
+        hasError = true;
+      } else if (nextPassword !== confirmPassword) {
+        setFieldError(form, "confirmPassword", "Passwords do not match.");
+        hasError = true;
+      }
+
+      if (hasError) {
+        setStatus(status, "error", "Fix the highlighted fields and try again.");
+        return;
+      }
+
+      const currentPasswordHash = await hashSecret(currentPassword);
+
+      if (currentPasswordHash !== user.passwordHash) {
+        setFieldError(form, "currentPassword", "Current password is incorrect.");
+        setStatus(status, "error", "Current password is incorrect.");
+        return;
+      }
+
+      const nextPasswordHash = await hashSecret(nextPassword);
+
+      if (nextPasswordHash === currentPasswordHash) {
+        setFieldError(form, "newPassword", "Choose a different password from your current one.");
+        setStatus(status, "error", "New password must be different from the current password.");
+        return;
+      }
+
+      if (isSupabaseConfigured() && session.source === "supabase") {
+        const client = await getSupabaseClient();
+        let error;
+
+        try {
+          ({ error } = await withNetworkTimeout(
+            client.auth.updateUser({
+              password: nextPassword,
+            }),
+          ));
+        } catch (requestError) {
+          error = requestError;
+        }
+
+        if (error) {
+          setStatus(status, "error", formatSupabaseAuthError(error, "Could not update your password."));
+          return;
+        }
+      }
+
+      const updatedUser = updateUser(user.id, (record) => ({
+        ...record,
+        passwordHash: nextPasswordHash,
+        mustChangePassword: false,
+      }));
+
+      recordAuditEvent({
+        action: "updated",
+        entityType: "user-password",
+        entityId: updatedUser?.email || user.email,
+        summary: `Password changed for ${updatedUser?.email || user.email}`,
+        details: `Role: ${normalizeRoleLabel(updatedUser?.role || user.role)}`,
+      });
+
+      form.reset();
+      clearFormDraftFor(form);
+      hint.textContent = "Password updated. Keep it safe and private.";
+      setStatus(status, "success", "Password changed successfully.");
     });
   }
 
@@ -7877,9 +8695,17 @@
         <span>Session type</span>
         <strong>${session.persistence === "persistent" ? "Stay logged in" : "Browser session only"}</strong>
       </div>
+      <div class="admin-session-card">
+        <span>Password status</span>
+        <strong>${user.provider === "google" ? "Managed by Google" : user.mustChangePassword ? "Default password active" : "Updated password"}</strong>
+      </div>
     `;
 
-    const activeSignOutButton = document.querySelector("[data-signout]");
+    gate.innerHTML = `
+      <a class="admin-signout-button" href="./user-settings.html">My settings</a>
+      <button class="admin-signout-button" type="button" data-signout>Log out</button>
+    `;
+    const activeSignOutButton = gate.querySelector("[data-signout]");
 
     if (activeSignOutButton) {
       activeSignOutButton.addEventListener("click", async () => {

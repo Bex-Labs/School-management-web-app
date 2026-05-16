@@ -255,6 +255,76 @@ const ROLE_PERMISSION_OPTIONS = [
   { key: "reports_view", label: "View reports" },
   { key: "settings_manage", label: "Manage school settings" },
 ];
+
+const AUTH_SESSION_STORAGE_KEYS = {
+  persistent: "schoolsphere.session.persistent.v1",
+  transient: "schoolsphere.session.transient.v1",
+};
+
+function normalizeWorkspaceStorageId(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return normalized || "public";
+}
+
+function getWorkspaceSessionSnapshot() {
+  return (
+    parseStoredJSON(sessionStorage.getItem(AUTH_SESSION_STORAGE_KEYS.transient), null) ||
+    parseStoredJSON(localStorage.getItem(AUTH_SESSION_STORAGE_KEYS.persistent), null)
+  );
+}
+
+function getActiveWorkspaceStorageId() {
+  const session = getWorkspaceSessionSnapshot();
+
+  if (!session) {
+    return "public";
+  }
+
+  if (session.workspaceId) {
+    return normalizeWorkspaceStorageId(session.workspaceId);
+  }
+
+  const role = String(session.role || "").trim().toLowerCase();
+
+  if (role === "admin" || role === "administrator") {
+    return normalizeWorkspaceStorageId(session.userId || session.email || "admin");
+  }
+
+  return normalizeWorkspaceStorageId(session.userId || session.email || "public");
+}
+
+function resolveWorkspaceStorageKey(baseKey) {
+  return `${baseKey}::${getActiveWorkspaceStorageId()}`;
+}
+
+function readWorkspaceState(baseKey, fallback) {
+  const scopedKey = resolveWorkspaceStorageKey(baseKey);
+  const scopedValue = localStorage.getItem(scopedKey);
+
+  if (scopedValue !== null) {
+    return parseStoredJSON(scopedValue, fallback);
+  }
+
+  const legacyValue = localStorage.getItem(baseKey);
+  return legacyValue !== null ? parseStoredJSON(legacyValue, fallback) : fallback;
+}
+
+function writeWorkspaceState(baseKey, value) {
+  localStorage.setItem(resolveWorkspaceStorageKey(baseKey), JSON.stringify(value));
+}
+
+function removeWorkspaceState(baseKey) {
+  localStorage.removeItem(resolveWorkspaceStorageKey(baseKey));
+}
+
+function isWorkspaceScopedStorageEventKey(eventKey, baseKey) {
+  return eventKey === resolveWorkspaceStorageKey(baseKey);
+}
 const DEFAULT_ROLE_PERMISSIONS = {
   Admin: {
     dashboard_view: true,
@@ -443,7 +513,7 @@ function normalizeSchoolSettings(settings = {}) {
 }
 
 function getSchoolSettings() {
-  return normalizeSchoolSettings(parseStoredJSON(localStorage.getItem(SCHOOL_SETTINGS_STORAGE_KEY), {}));
+  return normalizeSchoolSettings(readWorkspaceState(SCHOOL_SETTINGS_STORAGE_KEY, {}));
 }
 
 function formatSchoolDate(value) {
@@ -533,13 +603,13 @@ function emitSchoolSettingsUpdate(settings = getSchoolSettings()) {
 
 function saveSchoolSettings(nextSettings) {
   const normalized = normalizeSchoolSettings(nextSettings);
-  localStorage.setItem(SCHOOL_SETTINGS_STORAGE_KEY, JSON.stringify(normalized));
+  writeWorkspaceState(SCHOOL_SETTINGS_STORAGE_KEY, normalized);
   emitSchoolSettingsUpdate(normalized);
   return normalized;
 }
 
 function resetSchoolSettings() {
-  localStorage.removeItem(SCHOOL_SETTINGS_STORAGE_KEY);
+  removeWorkspaceState(SCHOOL_SETTINGS_STORAGE_KEY);
   const normalized = getSchoolSettings();
   emitSchoolSettingsUpdate(normalized);
   return normalized;
@@ -599,8 +669,8 @@ function normalizeAcademicCycles(state = {}) {
 }
 
 function getAcademicCycles() {
-  const stored = parseStoredJSON(
-    localStorage.getItem(SCHOOL_ACADEMIC_CYCLES_STORAGE_KEY),
+  const stored = readWorkspaceState(
+    SCHOOL_ACADEMIC_CYCLES_STORAGE_KEY,
     DEFAULT_ACADEMIC_CYCLES,
   );
   return normalizeAcademicCycles(stored);
@@ -616,7 +686,7 @@ function emitAcademicCyclesUpdate(state = getAcademicCycles()) {
 
 function saveAcademicCycles(state) {
   const normalized = normalizeAcademicCycles(state);
-  localStorage.setItem(SCHOOL_ACADEMIC_CYCLES_STORAGE_KEY, JSON.stringify(normalized));
+  writeWorkspaceState(SCHOOL_ACADEMIC_CYCLES_STORAGE_KEY, normalized);
   emitAcademicCyclesUpdate(normalized);
   return normalized;
 }
@@ -875,8 +945,8 @@ function compareAcademicCalendarEvents(left, right) {
 }
 
 function getAcademicCalendarEvents() {
-  const stored = parseStoredJSON(
-    localStorage.getItem(SCHOOL_ACADEMIC_CALENDAR_STORAGE_KEY),
+  const stored = readWorkspaceState(
+    SCHOOL_ACADEMIC_CALENDAR_STORAGE_KEY,
     DEFAULT_ACADEMIC_CALENDAR_EVENTS,
   );
   const source = Array.isArray(stored) ? stored : DEFAULT_ACADEMIC_CALENDAR_EVENTS;
@@ -900,7 +970,7 @@ function saveAcademicCalendarEvents(events) {
     .map((event) => normalizeAcademicCalendarEvent(event))
     .filter((event) => event.title && event.startDate && event.endDate)
     .sort(compareAcademicCalendarEvents);
-  localStorage.setItem(SCHOOL_ACADEMIC_CALENDAR_STORAGE_KEY, JSON.stringify(normalized));
+  writeWorkspaceState(SCHOOL_ACADEMIC_CALENDAR_STORAGE_KEY, normalized);
   emitAcademicCalendarUpdate(normalized);
   return normalized;
 }
@@ -1056,14 +1126,14 @@ function compareSchoolClasses(left, right) {
 }
 
 function getSchoolClasses() {
-  const stored = parseStoredJSON(localStorage.getItem(SCHOOL_CLASSES_STORAGE_KEY), DEFAULT_CLASS_RECORDS);
+  const stored = readWorkspaceState(SCHOOL_CLASSES_STORAGE_KEY, DEFAULT_CLASS_RECORDS);
   const source = Array.isArray(stored) && stored.length ? stored : DEFAULT_CLASS_RECORDS;
   const withoutLegacyMockData = source.filter(
     (record) => !LEGACY_MOCK_CLASS_IDS.has(String(record?.id || "")),
   );
 
   if (withoutLegacyMockData.length !== source.length) {
-    localStorage.setItem(SCHOOL_CLASSES_STORAGE_KEY, JSON.stringify(withoutLegacyMockData));
+    writeWorkspaceState(SCHOOL_CLASSES_STORAGE_KEY, withoutLegacyMockData);
   }
 
   return withoutLegacyMockData.map((record) => normalizeSchoolClass(record)).sort(compareSchoolClasses);
@@ -1079,7 +1149,7 @@ function emitSchoolClassesUpdate(classes = getSchoolClasses()) {
 
 function saveSchoolClasses(classes) {
   const normalized = classes.map((record) => normalizeSchoolClass(record)).sort(compareSchoolClasses);
-  localStorage.setItem(SCHOOL_CLASSES_STORAGE_KEY, JSON.stringify(normalized));
+  writeWorkspaceState(SCHOOL_CLASSES_STORAGE_KEY, normalized);
   emitSchoolClassesUpdate(normalized);
   return normalized;
 }
@@ -1213,7 +1283,7 @@ function compareSchoolCourses(left, right) {
 }
 
 function getSchoolCourses() {
-  const stored = parseStoredJSON(localStorage.getItem(SCHOOL_COURSES_STORAGE_KEY), DEFAULT_COURSE_RECORDS);
+  const stored = readWorkspaceState(SCHOOL_COURSES_STORAGE_KEY, DEFAULT_COURSE_RECORDS);
   const source = Array.isArray(stored) ? stored : DEFAULT_COURSE_RECORDS;
 
   return source.map((record) => normalizeSchoolCourse(record)).sort(compareSchoolCourses);
@@ -1229,7 +1299,7 @@ function emitSchoolCoursesUpdate(courses = getSchoolCourses()) {
 
 function saveSchoolCourses(courses) {
   const normalized = courses.map((record) => normalizeSchoolCourse(record)).sort(compareSchoolCourses);
-  localStorage.setItem(SCHOOL_COURSES_STORAGE_KEY, JSON.stringify(normalized));
+  writeWorkspaceState(SCHOOL_COURSES_STORAGE_KEY, normalized);
   emitSchoolCoursesUpdate(normalized);
   return normalized;
 }
@@ -1385,7 +1455,7 @@ function compareSchoolStudents(left, right) {
 }
 
 function getSchoolStudents() {
-  const stored = parseStoredJSON(localStorage.getItem(SCHOOL_STUDENTS_STORAGE_KEY), DEFAULT_STUDENT_RECORDS);
+  const stored = readWorkspaceState(SCHOOL_STUDENTS_STORAGE_KEY, DEFAULT_STUDENT_RECORDS);
   const source = Array.isArray(stored) ? stored : DEFAULT_STUDENT_RECORDS;
 
   return source.map((record) => normalizeStudentRecord(record)).sort(compareSchoolStudents);
@@ -1401,7 +1471,7 @@ function emitSchoolStudentsUpdate(students = getSchoolStudents()) {
 
 function saveSchoolStudents(students) {
   const normalized = students.map((record) => normalizeStudentRecord(record)).sort(compareSchoolStudents);
-  localStorage.setItem(SCHOOL_STUDENTS_STORAGE_KEY, JSON.stringify(normalized));
+  writeWorkspaceState(SCHOOL_STUDENTS_STORAGE_KEY, normalized);
   emitSchoolStudentsUpdate(normalized);
   return normalized;
 }
@@ -1482,7 +1552,7 @@ function normalizeAuditTrailEntry(entry = {}) {
 }
 
 function getAuditTrailEntries() {
-  const stored = parseStoredJSON(localStorage.getItem(AUDIT_TRAIL_STORAGE_KEY), []);
+  const stored = readWorkspaceState(AUDIT_TRAIL_STORAGE_KEY, []);
   const source = Array.isArray(stored) ? stored : [];
   return source
     .map((entry) => normalizeAuditTrailEntry(entry))
@@ -1502,7 +1572,7 @@ function saveAuditTrailEntries(entries) {
     .map((entry) => normalizeAuditTrailEntry(entry))
     .sort((left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime())
     .slice(0, MAX_AUDIT_TRAIL_ENTRIES);
-  localStorage.setItem(AUDIT_TRAIL_STORAGE_KEY, JSON.stringify(normalized));
+  writeWorkspaceState(AUDIT_TRAIL_STORAGE_KEY, normalized);
   emitAuditTrailUpdate(normalized);
   return normalized;
 }
@@ -1516,7 +1586,7 @@ function recordAuditTrailEntry(entry) {
 }
 
 function clearAuditTrailEntries() {
-  localStorage.removeItem(AUDIT_TRAIL_STORAGE_KEY);
+  removeWorkspaceState(AUDIT_TRAIL_STORAGE_KEY);
   const cleared = getAuditTrailEntries();
   emitAuditTrailUpdate(cleared);
   return cleared;
@@ -1528,7 +1598,7 @@ function getFeatureToggleDefaults() {
 
 function getFeatureToggleState() {
   const defaults = getFeatureToggleDefaults();
-  const stored = parseStoredJSON(localStorage.getItem(FEATURE_TOGGLE_STORAGE_KEY), {});
+  const stored = readWorkspaceState(FEATURE_TOGGLE_STORAGE_KEY, {});
 
   return features.reduce((state, feature) => {
     state[feature.id] = typeof stored[feature.id] === "boolean" ? stored[feature.id] : defaults[feature.id];
@@ -1552,7 +1622,7 @@ function setFeatureEnabled(featureId, enabled) {
   }
 
   nextState[featureId] = Boolean(enabled);
-  localStorage.setItem(FEATURE_TOGGLE_STORAGE_KEY, JSON.stringify(nextState));
+  writeWorkspaceState(FEATURE_TOGGLE_STORAGE_KEY, nextState);
   emitFeatureToggleUpdate(nextState);
 }
 
@@ -1596,7 +1666,7 @@ function normalizeRolePermissions(raw = {}) {
 }
 
 function getRolePermissions() {
-  const stored = parseStoredJSON(localStorage.getItem(ROLE_PERMISSIONS_STORAGE_KEY), {});
+  const stored = readWorkspaceState(ROLE_PERMISSIONS_STORAGE_KEY, {});
   return normalizeRolePermissions(stored);
 }
 
@@ -1610,7 +1680,7 @@ function emitRolePermissionsUpdate(rolePermissions = getRolePermissions()) {
 
 function saveRolePermissions(rolePermissions) {
   const normalized = normalizeRolePermissions(rolePermissions);
-  localStorage.setItem(ROLE_PERMISSIONS_STORAGE_KEY, JSON.stringify(normalized));
+  writeWorkspaceState(ROLE_PERMISSIONS_STORAGE_KEY, normalized);
   emitRolePermissionsUpdate(normalized);
   return normalized;
 }
@@ -1630,7 +1700,7 @@ function setRolePermission(role, permissionKey, enabled) {
 }
 
 function resetRolePermissions() {
-  localStorage.removeItem(ROLE_PERMISSIONS_STORAGE_KEY);
+  removeWorkspaceState(ROLE_PERMISSIONS_STORAGE_KEY);
   const normalized = getRolePermissions();
   emitRolePermissionsUpdate(normalized);
   return normalized;
@@ -1754,39 +1824,39 @@ window.SchoolSphereAuditTrail = {
 };
 
 window.addEventListener("storage", (event) => {
-  if (event.key === FEATURE_TOGGLE_STORAGE_KEY) {
+  if (isWorkspaceScopedStorageEventKey(event.key, FEATURE_TOGGLE_STORAGE_KEY)) {
     emitFeatureToggleUpdate(getFeatureToggleState());
   }
 
-  if (event.key === SCHOOL_SETTINGS_STORAGE_KEY) {
+  if (isWorkspaceScopedStorageEventKey(event.key, SCHOOL_SETTINGS_STORAGE_KEY)) {
     emitSchoolSettingsUpdate(getSchoolSettings());
   }
 
-  if (event.key === SCHOOL_ACADEMIC_CYCLES_STORAGE_KEY) {
+  if (isWorkspaceScopedStorageEventKey(event.key, SCHOOL_ACADEMIC_CYCLES_STORAGE_KEY)) {
     emitAcademicCyclesUpdate(getAcademicCycles());
   }
 
-  if (event.key === SCHOOL_ACADEMIC_CALENDAR_STORAGE_KEY) {
+  if (isWorkspaceScopedStorageEventKey(event.key, SCHOOL_ACADEMIC_CALENDAR_STORAGE_KEY)) {
     emitAcademicCalendarUpdate(getAcademicCalendarEvents());
   }
 
-  if (event.key === SCHOOL_CLASSES_STORAGE_KEY) {
+  if (isWorkspaceScopedStorageEventKey(event.key, SCHOOL_CLASSES_STORAGE_KEY)) {
     emitSchoolClassesUpdate(getSchoolClasses());
   }
 
-  if (event.key === SCHOOL_COURSES_STORAGE_KEY) {
+  if (isWorkspaceScopedStorageEventKey(event.key, SCHOOL_COURSES_STORAGE_KEY)) {
     emitSchoolCoursesUpdate(getSchoolCourses());
   }
 
-  if (event.key === SCHOOL_STUDENTS_STORAGE_KEY) {
+  if (isWorkspaceScopedStorageEventKey(event.key, SCHOOL_STUDENTS_STORAGE_KEY)) {
     emitSchoolStudentsUpdate(getSchoolStudents());
   }
 
-  if (event.key === AUDIT_TRAIL_STORAGE_KEY) {
+  if (isWorkspaceScopedStorageEventKey(event.key, AUDIT_TRAIL_STORAGE_KEY)) {
     emitAuditTrailUpdate(getAuditTrailEntries());
   }
 
-  if (event.key === ROLE_PERMISSIONS_STORAGE_KEY) {
+  if (isWorkspaceScopedStorageEventKey(event.key, ROLE_PERMISSIONS_STORAGE_KEY)) {
     emitRolePermissionsUpdate(getRolePermissions());
   }
 });

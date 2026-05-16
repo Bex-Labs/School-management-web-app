@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My Settings | SchoolSphere</title>
+    <meta name="description" content="Personal account settings for SchoolSphere users." />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body data-page="user-settings" class="admin-dashboard-page">
+    <main class="admin-dashboard-shell">
+      <aside class="admin-sidebar">
+        <a class="admin-sidebar-brand" href="./index.html" aria-label="School dashboard home">
+          <span id="admin-brand-mark" class="admin-brand-mark">S</span>
+          <div class="admin-sidebar-brand-copy">
+            <strong id="admin-brand-name">SchoolSphere</strong>
+            <span id="admin-brand-subtitle">Account workspace</span>
+          </div>
+        </a>
+
+        <nav class="admin-sidebar-nav" aria-label="Dashboard sections">
+          <a class="admin-sidebar-link" href="./portal.html">
+            <span class="admin-sidebar-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="7" height="7" rx="1.5"></rect>
+                <rect x="14" y="3" width="7" height="7" rx="1.5"></rect>
+                <rect x="3" y="14" width="7" height="7" rx="1.5"></rect>
+                <rect x="14" y="14" width="7" height="7" rx="1.5"></rect>
+              </svg>
+            </span>
+            <span>Dashboard</span>
+          </a>
+          <a class="admin-sidebar-link is-active" href="./user-settings.html">
+            <span class="admin-sidebar-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="8" r="4"></circle>
+                <path d="M4 20c1.5-4 4.2-6 8-6s6.5 2 8 6"></path>
+              </svg>
+            </span>
+            <span>My Settings</span>
+          </a>
+        </nav>
+
+        <section class="admin-sidebar-profile">
+          <div class="admin-profile-avatar" id="admin-profile-avatar">A</div>
+          <div class="admin-profile-copy">
+            <strong id="admin-profile-name">Loading user...</strong>
+            <span id="admin-profile-role">User</span>
+          </div>
+          <div id="portal-gate" class="admin-profile-actions">
+            <button class="admin-signout-button" type="button" data-signout>Log out</button>
+          </div>
+        </section>
+      </aside>
+
+      <section class="admin-dashboard-main">
+        <header class="admin-dashboard-topbar">
+          <div class="admin-dashboard-greeting">
+            <span class="admin-topline-chip" id="portal-last-updated">Last updated --</span>
+            <h1 id="portal-heading">Personal Settings</h1>
+            <p id="portal-copy">Update your account password and keep your login secure.</p>
+          </div>
+        </header>
+
+        <section class="admin-class-grid">
+          <article class="admin-surface-card">
+            <div class="admin-surface-head">
+              <h2>Account Profile</h2>
+              <span>Your current account identity in this school workspace.</span>
+            </div>
+            <div class="admin-session-grid">
+              <div class="admin-session-card">
+                <span>Name</span>
+                <strong id="user-settings-name">—</strong>
+              </div>
+              <div class="admin-session-card">
+                <span>Role</span>
+                <strong id="user-settings-role">—</strong>
+              </div>
+              <div class="admin-session-card">
+                <span>Email</span>
+                <strong id="user-settings-email">—</strong>
+              </div>
+            </div>
+          </article>
+
+          <article class="admin-surface-card">
+            <div class="admin-surface-head">
+              <h2>Change Password</h2>
+              <span id="user-settings-hint">Use a strong password with letters and numbers.</span>
+            </div>
+            <form id="user-settings-form" class="portal-settings-form" novalidate>
+              <div id="user-settings-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+              <div class="portal-settings-grid">
+                <label class="portal-field" for="user-current-password">
+                  <span>Current password</span>
+                  <input id="user-current-password" name="currentPassword" type="password" autocomplete="current-password" />
+                  <p class="portal-field-error auth-field-error" data-error-for="currentPassword"></p>
+                </label>
+                <label class="portal-field" for="user-new-password">
+                  <span>New password</span>
+                  <input id="user-new-password" name="newPassword" type="password" autocomplete="new-password" />
+                  <p class="portal-field-error auth-field-error" data-error-for="newPassword"></p>
+                </label>
+                <label class="portal-field portal-field-span-2" for="user-confirm-password">
+                  <span>Confirm new password</span>
+                  <input id="user-confirm-password" name="confirmPassword" type="password" autocomplete="new-password" />
+                  <p class="portal-field-error auth-field-error" data-error-for="confirmPassword"></p>
+                </label>
+              </div>
+              <div class="utility-actions">
+                <button class="button button-primary" type="submit">Save new password</button>
+              </div>
+            </form>
+          </article>
+        </section>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+    <script src="./supabase-config.js"></script>
+    <script src="./auth.js"></script>
+  </body>
+</html>
