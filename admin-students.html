@@ -154,31 +154,119 @@
 
             <div class="portal-class-layout">
               <div class="portal-class-form-shell">
-                <button class="button button-primary" type="button" data-student-form-toggle>
-                  Create student
-                </button>
+                <div class="portal-student-actions">
+                  <button class="button button-primary" type="button" data-student-form-toggle>
+                    Create student
+                  </button>
+                  <button class="button button-outline" type="button" data-student-import-toggle>
+                    Import Students
+                  </button>
+                </div>
+
+                <form id="portal-student-quick-add-form" class="portal-class-form portal-student-quick-add" novalidate>
+                  <div class="admin-surface-head">
+                    <h3>Quick Add</h3>
+                    <span>Use this for adding only a few students.</span>
+                  </div>
+                  <div id="portal-student-quick-add-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+                  <div class="portal-settings-grid">
+                    <label class="portal-field" for="quick-student-first-name">
+                      <span>First name</span>
+                      <input id="quick-student-first-name" name="firstName" type="text" placeholder="Amina" />
+                    </label>
+                    <label class="portal-field" for="quick-student-last-name">
+                      <span>Last name</span>
+                      <input id="quick-student-last-name" name="lastName" type="text" placeholder="Yusuf" />
+                    </label>
+                    <label class="portal-field" for="quick-student-level">
+                      <span>Level / class</span>
+                      <input id="quick-student-level" name="level" type="text" placeholder="JSS 1" />
+                    </label>
+                    <label class="portal-field" for="quick-guardian-name">
+                      <span>Parent/Guardian name</span>
+                      <input id="quick-guardian-name" name="guardianName" type="text" placeholder="Mary Yusuf" />
+                    </label>
+                    <label class="portal-field" for="quick-guardian-phone">
+                      <span>Parent/Guardian number</span>
+                      <input id="quick-guardian-phone" name="guardianPhone" type="text" placeholder="+234 800 000 0000" />
+                    </label>
+                    <label class="portal-field" for="quick-guardian-email">
+                      <span>Parent/Guardian email</span>
+                      <input id="quick-guardian-email" name="guardianEmail" type="email" placeholder="guardian@email.com" />
+                    </label>
+                  </div>
+                  <div class="utility-actions">
+                    <button class="button button-primary" type="submit">Quick Add Student</button>
+                  </div>
+                </form>
+
+                <section id="portal-student-import-panel" class="portal-class-form portal-student-import-panel" hidden>
+                  <div class="admin-surface-head">
+                    <h3>Bulk Student Upload (Excel/CSV)</h3>
+                    <span>Download template, fill all students, preview, then confirm import.</span>
+                  </div>
+                  <div id="portal-student-import-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+                  <div class="utility-actions">
+                    <button class="button button-outline" type="button" data-student-template-download="csv">Download CSV Template</button>
+                    <button class="button button-outline" type="button" data-student-template-download="excel">Download Excel Template</button>
+                  </div>
+                  <div class="portal-settings-grid">
+                    <label class="portal-field portal-field-span-2" for="portal-student-import-file">
+                      <span>Upload completed file</span>
+                      <input id="portal-student-import-file" type="file" accept=".csv,.xls,.xlsx" />
+                    </label>
+                  </div>
+                  <div class="utility-actions">
+                    <button class="button button-primary" type="button" data-student-import-preview>Preview Import</button>
+                    <button class="button button-primary" type="button" data-student-import-confirm disabled>Confirm Import</button>
+                  </div>
+                  <div id="portal-student-import-preview" class="portal-student-import-preview"></div>
+                </section>
 
                 <form id="portal-student-form" class="portal-class-form" novalidate hidden>
                   <div id="portal-student-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
                   <input type="hidden" name="studentId" />
 
                   <div class="portal-settings-grid">
-                    <label class="portal-field" for="student-full-name">
-                      <span>Student full name</span>
-                      <input id="student-full-name" name="fullName" type="text" placeholder="Amina Yusuf" />
-                      <p class="portal-field-error" data-student-error-for="fullName"></p>
+                    <label class="portal-field" for="student-first-name">
+                      <span>First name</span>
+                      <input id="student-first-name" name="firstName" type="text" placeholder="Amina" />
+                      <p class="portal-field-error" data-student-error-for="firstName"></p>
+                    </label>
+
+                    <label class="portal-field" for="student-last-name">
+                      <span>Last name</span>
+                      <input id="student-last-name" name="lastName" type="text" placeholder="Yusuf" />
+                      <p class="portal-field-error" data-student-error-for="lastName"></p>
                     </label>
 
                     <label class="portal-field" for="student-admission-no">
                       <span>Admission number</span>
-                      <input id="student-admission-no" name="admissionNo" type="text" placeholder="SCH-2026-001" />
+                      <input id="student-admission-no" name="admissionNo" type="text" placeholder="Auto-generated (e.g. csa26/jss1/001)" />
                       <p class="portal-field-error" data-student-error-for="admissionNo"></p>
                     </label>
 
-                    <label class="portal-field portal-field-span-2" for="student-level">
+                    <label class="portal-field" for="student-level">
                       <span>Level / class</span>
                       <input id="student-level" name="level" type="text" placeholder="Primary 4, JSS 2, SS 1..." />
                       <p class="portal-field-error" data-student-error-for="level"></p>
+                    </label>
+
+                    <label class="portal-field" for="student-dob">
+                      <span>Date of birth</span>
+                      <input id="student-dob" name="dateOfBirth" type="date" />
+                      <p class="portal-field-error" data-student-error-for="dateOfBirth"></p>
+                    </label>
+
+                    <label class="portal-field portal-field-span-2" for="student-gender">
+                      <span>Gender</span>
+                      <select id="student-gender" name="gender">
+                        <option value="">Select gender</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                      </select>
+                      <p class="portal-field-error" data-student-error-for="gender"></p>
                     </label>
 
                     <div class="portal-guardian-stack portal-field-span-2">
@@ -202,14 +290,6 @@
 
               <div id="portal-student-list" class="portal-class-list"></div>
             </div>
-          </article>
-
-          <article class="admin-surface-card">
-            <div class="admin-surface-head">
-              <h2>Audit Trail</h2>
-              <span>Important updates are captured for review and accountability.</span>
-            </div>
-            <div id="portal-audit-trail" class="portal-audit-list"></div>
           </article>
         </section>
       </section>

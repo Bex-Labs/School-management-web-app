@@ -174,6 +174,7 @@
     "Sponsor",
     "Other",
   ];
+  const STUDENT_LIST_PREVIEW_COUNT = 5;
 
   document.addEventListener("DOMContentLoaded", async () => {
     await initSupabaseAuthBridge();
@@ -434,19 +435,10 @@
   function restoreStudentFormDraft(form, draft = {}) {
     restoreBasicFormDraft(form, draft);
     const guardianList = document.getElementById("portal-guardian-list");
-    const formToggleButton = document.querySelector("[data-student-form-toggle]");
 
     if (guardianList && Array.isArray(draft.__guardians) && draft.__guardians.length) {
       guardianList.innerHTML = "";
       draft.__guardians.forEach((guardian) => appendGuardianRow(guardianList, guardian, true));
-    }
-
-    if (form.hidden) {
-      form.hidden = false;
-      if (formToggleButton) {
-        formToggleButton.textContent = "Hide student form";
-        formToggleButton.setAttribute("aria-expanded", "true");
-      }
     }
   }
 
@@ -1472,10 +1464,6 @@
     return window.SchoolSphereStudents || null;
   }
 
-  function getAuditTrailManager() {
-    return window.SchoolSphereAuditTrail || null;
-  }
-
   function getDefaultAdminSchoolSettings() {
     return {
       schoolName: "SchoolSphere",
@@ -1526,29 +1514,8 @@
     };
   }
 
-  function getAuditActorContext() {
-    const session = getSession();
-    const user = session ? getUsers().find((entry) => entry.id === session.userId) || null : null;
-
-    return {
-      actorName: user?.displayName || user?.email || "System",
-      actorRole: normalizeRoleLabel(session?.role || user?.role || "System"),
-    };
-  }
-
   function recordAuditEvent(entry = {}) {
-    const manager = getAuditTrailManager();
-
-    if (!manager || typeof manager.record !== "function") {
-      return;
-    }
-
-    const actor = getAuditActorContext();
-    manager.record({
-      ...entry,
-      ...actor,
-      timestamp: nowIso(),
-    });
+    return entry;
   }
 
   function applyAdminBranding(brandMark, brandName, brandSubtitle, manager) {
@@ -4855,6 +4822,7 @@
     form,
     status,
     listTarget,
+    showAllStudents = false,
   }) {
     if (!summaryTarget || !form || !listTarget) {
       return;
@@ -4912,7 +4880,10 @@
         </article>
       `;
     } else {
-      listTarget.innerHTML = students
+      const visibleStudents = showAllStudents ? students : students.slice(0, STUDENT_LIST_PREVIEW_COUNT);
+      const hiddenCount = Math.max(students.length - visibleStudents.length, 0);
+
+      listTarget.innerHTML = visibleStudents
         .map(
           (record) => `
             <details class="portal-class-card portal-class-list-item ${record.status === "archived" ? "is-archived" : ""}">
@@ -4982,6 +4953,18 @@
           `,
         )
         .join("");
+
+      if (students.length > STUDENT_LIST_PREVIEW_COUNT) {
+        listTarget.innerHTML += `
+          <article class="portal-class-empty portal-student-list-toggle-row">
+            <strong>${showAllStudents ? "Showing all students" : `Showing first ${STUDENT_LIST_PREVIEW_COUNT} students`}</strong>
+            <p>${showAllStudents ? "Use the button below to collapse back to a shorter list." : `${hiddenCount} more student record${hiddenCount === 1 ? "" : "s"} hidden.`}</p>
+            <button class="portal-class-button portal-student-list-toggle-button" type="button" data-student-list-toggle>
+              ${showAllStudents ? "Show first five" : "Show all students"}
+            </button>
+          </article>
+        `;
+      }
     }
 
     if (!isAdmin) {
@@ -4991,51 +4974,6 @@
         "Only admin accounts with student permission can create, edit, archive, or reactivate student records.",
       );
     }
-  }
-
-  function renderPortalAuditTrailSection({ manager, target }) {
-    if (!target) {
-      return;
-    }
-
-    if (!manager || typeof manager.getEntries !== "function") {
-      target.innerHTML = `
-        <article class="portal-class-empty">
-          <strong>Audit trail unavailable</strong>
-          <p>The audit trail manager could not be loaded on this page.</p>
-        </article>
-      `;
-      return;
-    }
-
-    const entries = manager.getEntries().slice(0, 20);
-
-    if (!entries.length) {
-      target.innerHTML = `
-        <article class="portal-class-empty">
-          <strong>No updates logged yet</strong>
-          <p>Important updates from settings, modules, classes, and students will appear here.</p>
-        </article>
-      `;
-      return;
-    }
-
-    target.innerHTML = entries
-      .map(
-        (entry) => `
-          <article class="portal-audit-entry">
-            <div class="portal-audit-entry-main">
-              <strong>${escapeHtml(entry.summary)}</strong>
-              <span>${escapeHtml(entry.entityType)} • ${escapeHtml(entry.action)}</span>
-              ${entry.details ? `<p>${escapeHtml(entry.details)}</p>` : ""}
-            </div>
-            <small>${escapeHtml(entry.actorName)} (${escapeHtml(entry.actorRole)}) • ${escapeHtml(
-              formatTimestamp(entry.timestamp),
-            )}</small>
-          </article>
-        `,
-      )
-      .join("");
   }
 
   function clearPortalStudentErrors(form) {
@@ -5057,6 +4995,124 @@
     if (field) {
       field.classList.add("is-invalid");
     }
+  }
+
+  function normalizePhoneValue(value) {
+    return String(value || "").trim();
+  }
+
+  function isValidPhoneNumber(value) {
+    const digits = normalizePhoneValue(value).replace(/\D/g, "");
+    return digits.length >= 10 && digits.length <= 15;
+  }
+
+  function normalizeLevelToken(value) {
+    return String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+  }
+
+  function getActiveClassLevelTokenSet() {
+    const classManager = window.SchoolSphereClasses;
+
+    if (!classManager || typeof classManager.getClasses !== "function") {
+      return new Set();
+    }
+
+    return classManager.getClasses().reduce((set, record) => {
+      if (record.status === "archived") {
+        return set;
+      }
+
+      const tokens = [
+        normalizeLevelToken(record.level),
+        normalizeLevelToken(record.name),
+        normalizeLevelToken(`${record.level || ""} ${record.name || ""}`),
+      ].filter(Boolean);
+      tokens.forEach((token) => set.add(token));
+      return set;
+    }, new Set());
+  }
+
+  function isKnownClassLevel(levelValue, tokenSet) {
+    const levelToken = normalizeLevelToken(levelValue);
+    if (!levelToken || !(tokenSet instanceof Set) || tokenSet.size === 0) {
+      return true;
+    }
+    return tokenSet.has(levelToken);
+  }
+
+  function getSchoolAcronymForAdmission() {
+    const settingsManager = getSchoolSettingsManager();
+    const schoolName = settingsManager?.getSettings?.().schoolName || "SchoolSphere";
+    const words = schoolName
+      .toLowerCase()
+      .split(/[^a-z0-9]+/g)
+      .filter(Boolean);
+
+    if (words.length >= 2) {
+      return words
+        .slice(0, 3)
+        .map((word) => word.charAt(0))
+        .join("");
+    }
+
+    const fallback = (words[0] || "schoolsphere").slice(0, 3);
+    return fallback.padEnd(3, "x");
+  }
+
+  function buildAdmissionPrefix(levelValue) {
+    const schoolAcronym = getSchoolAcronymForAdmission();
+    const yearCode = String(new Date().getFullYear()).slice(-2);
+    const levelCode = normalizeLevelToken(levelValue) || "general";
+    return `${schoolAcronym}${yearCode}/${levelCode}`;
+  }
+
+  function generateAdmissionNumber({
+    manager,
+    levelValue,
+    excludeStudentId,
+    takenAdmissions,
+  }) {
+    const prefix = buildAdmissionPrefix(levelValue);
+    const used = new Set();
+
+    if (takenAdmissions instanceof Set) {
+      takenAdmissions.forEach((value) => used.add(String(value || "").toLowerCase()));
+    }
+
+    if (manager && typeof manager.getStudents === "function") {
+      manager.getStudents().forEach((student) => {
+        if (excludeStudentId && student.id === excludeStudentId) {
+          return;
+        }
+        if (student.admissionNo) {
+          used.add(String(student.admissionNo).toLowerCase());
+        }
+      });
+    }
+
+    let highestSequence = 0;
+    const prefixLower = `${prefix.toLowerCase()}/`;
+    used.forEach((entry) => {
+      if (!entry.startsWith(prefixLower)) {
+        return;
+      }
+      const maybeSequence = Number(entry.slice(prefixLower.length));
+      if (Number.isFinite(maybeSequence) && maybeSequence > highestSequence) {
+        highestSequence = maybeSequence;
+      }
+    });
+
+    let nextSequence = highestSequence + 1;
+    let candidate = `${prefix}/${String(nextSequence).padStart(3, "0")}`;
+    while (used.has(candidate.toLowerCase())) {
+      nextSequence += 1;
+      candidate = `${prefix}/${String(nextSequence).padStart(3, "0")}`;
+    }
+
+    return candidate.toLowerCase();
   }
 
   function resolveGuardianRelationshipFields(row) {
@@ -5152,10 +5208,12 @@
     updateGuardianRelationshipCustomField(row);
   }
 
-  function parseGuardianRows(container) {
+  function parseGuardianRows(container, options = {}) {
+    const { validatePhone = false } = options;
     const rows = Array.from(container.querySelectorAll(".portal-guardian-row"));
     const guardians = [];
     let hasInvalidRow = false;
+    let hasInvalidPhone = false;
 
     rows.forEach((row) => {
       const name = row.querySelector('[data-guardian-field="name"]')?.value.trim() || "";
@@ -5177,6 +5235,10 @@
         return;
       }
 
+      if (validatePhone && phone && !isValidPhoneNumber(phone)) {
+        hasInvalidPhone = true;
+      }
+
       guardians.push({
         id: row.dataset.guardianId || createId(),
         name,
@@ -5186,7 +5248,7 @@
       });
     });
 
-    return { guardians, hasInvalidRow };
+    return { guardians, hasInvalidRow, hasInvalidPhone };
   }
 
   function resetPortalStudentForm(form, guardianList, isAdmin) {
@@ -5198,6 +5260,10 @@
 
     if (form.elements.studentId) {
       form.elements.studentId.value = "";
+    }
+
+    if (form.elements.admissionNo) {
+      form.elements.admissionNo.dataset.autoGenerated = "false";
     }
 
     if (guardianList) {
@@ -5229,9 +5295,17 @@
     }
 
     form.elements.studentId.value = record.id;
-    form.elements.fullName.value = record.fullName || "";
+    form.elements.firstName.value = record.firstName || "";
+    form.elements.lastName.value = record.lastName || "";
     form.elements.admissionNo.value = record.admissionNo || "";
+    form.elements.admissionNo.dataset.autoGenerated = "false";
     form.elements.level.value = record.level || "";
+    if (form.elements.dateOfBirth) {
+      form.elements.dateOfBirth.value = record.dateOfBirth || "";
+    }
+    if (form.elements.gender) {
+      form.elements.gender.value = record.gender || "";
+    }
 
     if (guardianList) {
       guardianList.innerHTML = "";
@@ -5262,10 +5336,376 @@
     });
   }
 
+  function normalizeImportHeader(value) {
+    return String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+  }
+
+  function parseCsvLine(line) {
+    const values = [];
+    let current = "";
+    let inQuotes = false;
+
+    for (let index = 0; index < line.length; index += 1) {
+      const character = line[index];
+
+      if (character === '"') {
+        if (inQuotes && line[index + 1] === '"') {
+          current += '"';
+          index += 1;
+        } else {
+          inQuotes = !inQuotes;
+        }
+        continue;
+      }
+
+      if (character === "," && !inQuotes) {
+        values.push(current.trim());
+        current = "";
+        continue;
+      }
+
+      current += character;
+    }
+
+    values.push(current.trim());
+    return values;
+  }
+
+  function parseCsvRows(content) {
+    const lines = String(content || "")
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n")
+      .split("\n")
+      .filter((line) => line.trim().length);
+
+    if (!lines.length) {
+      return [];
+    }
+
+    const headers = parseCsvLine(lines[0]).map(normalizeImportHeader);
+    return lines.slice(1).map((line) => {
+      const values = parseCsvLine(line);
+      return headers.reduce((row, header, index) => {
+        row[header] = values[index] || "";
+        return row;
+      }, {});
+    });
+  }
+
+  function parseSpreadsheetXmlRows(content) {
+    const parser = new DOMParser();
+    const xml = parser.parseFromString(String(content || ""), "application/xml");
+
+    if (xml.querySelector("parsererror")) {
+      throw new Error("Unable to read this Excel file. Please use the provided template or upload CSV.");
+    }
+
+    const rowNodes = Array.from(xml.getElementsByTagName("Row"));
+
+    if (!rowNodes.length) {
+      throw new Error("No worksheet rows found. Please use the provided template or upload CSV.");
+    }
+
+    const rows = rowNodes.map((rowNode) => {
+      const result = [];
+      let pointer = 1;
+
+      Array.from(rowNode.children)
+        .filter((child) => child.localName === "Cell" || child.tagName.endsWith(":Cell"))
+        .forEach((cellNode) => {
+          const indexAttr =
+            cellNode.getAttribute("ss:Index") ||
+            cellNode.getAttribute("Index") ||
+            cellNode.getAttributeNS("urn:schemas-microsoft-com:office:spreadsheet", "Index");
+
+          if (indexAttr) {
+            pointer = Number(indexAttr);
+          }
+
+          const dataNode =
+            cellNode.querySelector("Data") ||
+            cellNode.querySelector("ss\\:Data") ||
+            cellNode.getElementsByTagName("Data")[0] ||
+            cellNode.getElementsByTagName("ss:Data")[0];
+          result[pointer - 1] = dataNode ? String(dataNode.textContent || "").trim() : "";
+          pointer += 1;
+        });
+
+      return result;
+    });
+
+    const [headerRow, ...dataRows] = rows;
+    const headers = (headerRow || []).map(normalizeImportHeader);
+    return dataRows
+      .filter((row) => row.some((cell) => String(cell || "").trim()))
+      .map((row) =>
+        headers.reduce((record, header, index) => {
+          record[header] = String(row[index] || "").trim();
+          return record;
+        }, {}),
+      );
+  }
+
+  function toTemplateRows() {
+    return [
+      [
+        "first name",
+        "last name",
+        "admission number",
+        "level/class",
+        "date of birth",
+        "gender",
+        "parent/guardian name",
+        "parent/guardian number",
+        "parent/guardian email",
+      ],
+      [
+        "Amina",
+        "Yusuf",
+        "csa26/jss1/001",
+        "JSS 1",
+        "2013-10-08",
+        "Female",
+        "Mary Yusuf",
+        "+2348000000000",
+        "mary@example.com",
+      ],
+    ];
+  }
+
+  function downloadTextFile(filename, content, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function downloadStudentCsvTemplate() {
+    const rows = toTemplateRows();
+    const csv = rows
+      .map((row) =>
+        row
+          .map((value) => {
+            const stringValue = String(value || "");
+            if (/[",\n]/.test(stringValue)) {
+              return `"${stringValue.replace(/"/g, '""')}"`;
+            }
+            return stringValue;
+          })
+          .join(","),
+      )
+      .join("\n");
+    downloadTextFile("students-import-template.csv", csv, "text/csv;charset=utf-8");
+  }
+
+  function downloadStudentExcelTemplate() {
+    const rows = toTemplateRows();
+    const escapedRows = rows
+      .map(
+        (row) => `
+          <Row>${row.map((cell) => `<Cell><Data ss:Type="String">${escapeHtml(cell)}</Data></Cell>`).join("")}</Row>`,
+      )
+      .join("");
+    const xml = `<?xml version="1.0"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+  <Worksheet ss:Name="Students">
+    <Table>
+      ${escapedRows}
+    </Table>
+  </Worksheet>
+</Workbook>`;
+    downloadTextFile(
+      "students-import-template.xls",
+      xml,
+      "application/vnd.ms-excel;charset=utf-8",
+    );
+  }
+
+  function getImportFieldValue(row, aliases) {
+    for (const alias of aliases) {
+      const normalizedAlias = normalizeImportHeader(alias);
+      if (row[normalizedAlias] !== undefined && row[normalizedAlias] !== null) {
+        return String(row[normalizedAlias]).trim();
+      }
+    }
+    return "";
+  }
+
+  function buildStudentPayloadFromImportRow(row, manager, takenAdmissions) {
+    const firstName = getImportFieldValue(row, ["first name", "firstname"]);
+    const lastName = getImportFieldValue(row, ["last name", "lastname"]);
+    const level = getImportFieldValue(row, ["level/class", "level class", "level"]);
+    const dateOfBirth = getImportFieldValue(row, ["date of birth", "dob"]);
+    const gender = getImportFieldValue(row, ["gender"]);
+    const guardianName = getImportFieldValue(row, ["parent/guardian name", "guardian name", "parent name"]);
+    const guardianPhone = getImportFieldValue(row, ["parent/guardian number", "guardian number", "parent number", "phone"]);
+    const guardianEmail = getImportFieldValue(row, ["parent/guardian email", "guardian email", "parent email", "email"]);
+    let admissionNo = getImportFieldValue(row, ["admission number", "admission no", "admission"]);
+
+    if (!admissionNo) {
+      admissionNo = generateAdmissionNumber({ manager, levelValue: level, takenAdmissions });
+    }
+
+    if (takenAdmissions instanceof Set) {
+      takenAdmissions.add(admissionNo.toLowerCase());
+    }
+
+    return {
+      firstName,
+      lastName,
+      fullName: [firstName, lastName].filter(Boolean).join(" ").trim(),
+      admissionNo,
+      level,
+      dateOfBirth,
+      gender,
+      guardians: guardianName
+        ? [
+            {
+              id: createId(),
+              name: guardianName,
+              relationship: "Guardian",
+              phone: guardianPhone,
+              email: guardianEmail,
+            },
+          ]
+        : [],
+    };
+  }
+
+  function validateImportPayload(payload, manager, classLevelSet, seenAdmissions) {
+    const errors = [];
+
+    if (!payload.firstName || !payload.lastName) {
+      errors.push("Missing name");
+    }
+
+    if (!payload.level) {
+      errors.push("Missing level/class");
+    } else if (!isKnownClassLevel(payload.level, classLevelSet)) {
+      errors.push("Invalid class");
+    }
+
+    if (!payload.admissionNo) {
+      errors.push("Admission number missing");
+    }
+
+    if (payload.admissionNo) {
+      const admissionLower = payload.admissionNo.toLowerCase();
+      const duplicateExisting = manager
+        ?.getStudents?.()
+        .some((record) => String(record.admissionNo || "").toLowerCase() === admissionLower);
+      if (duplicateExisting || seenAdmissions.has(admissionLower)) {
+        errors.push("Duplicate admission number");
+      }
+      seenAdmissions.add(admissionLower);
+    }
+
+    const guardian = payload.guardians[0] || null;
+    if (!guardian || !guardian.name) {
+      errors.push("Missing parent/guardian name");
+    }
+
+    if (guardian?.phone && !isValidPhoneNumber(guardian.phone)) {
+      errors.push("Wrong phone number format");
+    }
+
+    if (guardian?.email && !EMAIL_REGEX.test(guardian.email)) {
+      errors.push("Invalid parent/guardian email");
+    }
+
+    if (payload.dateOfBirth) {
+      const parsed = new Date(payload.dateOfBirth);
+      if (Number.isNaN(parsed.getTime())) {
+        errors.push("Invalid date of birth");
+      }
+    }
+
+    return errors;
+  }
+
+  function renderImportPreview(target, previewRows) {
+    if (!target) {
+      return;
+    }
+
+    if (!previewRows.length) {
+      target.innerHTML = "";
+      return;
+    }
+
+    const validCount = previewRows.filter((item) => !item.errors.length).length;
+    const invalidCount = previewRows.length - validCount;
+
+    target.innerHTML = `
+      <div class="portal-import-summary">
+        ${previewRows.length} row(s) parsed • ${validCount} valid • ${invalidCount} with errors.
+      </div>
+      <div class="portal-import-table-wrap">
+        <table class="portal-import-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>First name</th>
+              <th>Last name</th>
+              <th>Admission no.</th>
+              <th>Level/Class</th>
+              <th>DOB</th>
+              <th>Gender</th>
+              <th>Guardian</th>
+              <th>Guardian phone</th>
+              <th>Guardian email</th>
+              <th>Validation</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${previewRows
+              .map(
+                (item, index) => `
+                  <tr class="${item.errors.length ? "portal-import-row-error" : ""}">
+                    <td>${index + 1}</td>
+                    <td>${escapeHtml(item.payload.firstName || "—")}</td>
+                    <td>${escapeHtml(item.payload.lastName || "—")}</td>
+                    <td>${escapeHtml(item.payload.admissionNo || "—")}</td>
+                    <td>${escapeHtml(item.payload.level || "—")}</td>
+                    <td>${escapeHtml(item.payload.dateOfBirth || "—")}</td>
+                    <td>${escapeHtml(item.payload.gender || "—")}</td>
+                    <td>${escapeHtml(item.payload.guardians[0]?.name || "—")}</td>
+                    <td>${escapeHtml(item.payload.guardians[0]?.phone || "—")}</td>
+                    <td>${escapeHtml(item.payload.guardians[0]?.email || "—")}</td>
+                    <td>
+                      ${
+                        item.errors.length
+                          ? `<ul class="portal-import-errors">${item.errors
+                              .map((error) => `<li>${escapeHtml(error)}</li>`)
+                              .join("")}</ul>`
+                          : "OK"
+                      }
+                    </td>
+                  </tr>
+                `,
+              )
+              .join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
   function initStudentManagementControls({
     isAdmin,
     manager,
-    auditManager,
     summaryTarget,
     form,
     status,
@@ -5278,6 +5718,18 @@
     }
 
     const addGuardianButton = form.querySelector("[data-add-guardian]");
+    const quickAddForm = document.getElementById("portal-student-quick-add-form");
+    const quickAddStatus = document.getElementById("portal-student-quick-add-status");
+    const importToggleButton = document.querySelector("[data-student-import-toggle]");
+    const importPanel = document.getElementById("portal-student-import-panel");
+    const importStatus = document.getElementById("portal-student-import-status");
+    const importFileInput = document.getElementById("portal-student-import-file");
+    const importPreviewButton = document.querySelector("[data-student-import-preview]");
+    const importConfirmButton = document.querySelector("[data-student-import-confirm]");
+    const importPreviewTarget = document.getElementById("portal-student-import-preview");
+    const classLevelSet = getActiveClassLevelTokenSet();
+    let importPreviewRows = [];
+    let isStudentListExpanded = false;
 
     const setStudentFormVisibility = (isVisible) => {
       form.hidden = !isVisible;
@@ -5286,6 +5738,41 @@
         formToggleButton.textContent = isVisible ? "Hide student form" : "Create student";
         formToggleButton.setAttribute("aria-expanded", String(isVisible));
       }
+    };
+
+    const setImportPanelVisibility = (isVisible) => {
+      if (!importPanel) {
+        return;
+      }
+      importPanel.hidden = !isVisible;
+      if (importToggleButton) {
+        importToggleButton.textContent = isVisible ? "Hide Import Panel" : "Import Students";
+      }
+    };
+
+    const tryAutoFillAdmissionNo = () => {
+      const admissionInput = form.elements.admissionNo;
+      const levelInput = form.elements.level;
+      const studentId = form.elements.studentId?.value || "";
+      if (!admissionInput || !levelInput || !manager || !isAdmin) {
+        return;
+      }
+
+      const currentValue = String(admissionInput.value || "").trim();
+      const shouldGenerate =
+        !currentValue || admissionInput.dataset.autoGenerated === "true";
+
+      if (!shouldGenerate || !String(levelInput.value || "").trim()) {
+        return;
+      }
+
+      const generated = generateAdmissionNumber({
+        manager,
+        levelValue: levelInput.value,
+        excludeStudentId: studentId || undefined,
+      });
+      admissionInput.value = generated;
+      admissionInput.dataset.autoGenerated = "true";
     };
 
     const toggleStudentFormVisibility = () => {
@@ -5311,21 +5798,32 @@
         form,
         status,
         listTarget,
+        showAllStudents: isStudentListExpanded,
       });
     };
 
     refreshStudentSection();
     resetPortalStudentForm(form, guardianList, isAdmin);
     setStudentFormVisibility(false);
+    setImportPanelVisibility(false);
 
     if (formToggleButton) {
       formToggleButton.disabled = !isAdmin || !manager;
       formToggleButton.addEventListener("click", toggleStudentFormVisibility);
     }
 
+    if (importToggleButton) {
+      importToggleButton.disabled = !isAdmin || !manager;
+      importToggleButton.addEventListener("click", () => {
+        setImportPanelVisibility(importPanel ? importPanel.hidden : false);
+        if (importStatus) {
+          setStatus(importStatus, "", "");
+        }
+      });
+    }
+
     if (!manager) {
       setStudentFormVisibility(false);
-      renderPortalAuditTrailSection({ manager: auditManager, target: document.getElementById("portal-audit-trail") });
       return;
     }
 
@@ -5367,13 +5865,28 @@
       }
     });
 
-    form.addEventListener("input", () => {
+    form.addEventListener("input", (event) => {
       clearPortalStudentErrors(form);
+
+      if (event?.target === form.elements.admissionNo) {
+        form.elements.admissionNo.dataset.autoGenerated = "false";
+      }
 
       if (isAdmin) {
         setStatus(status, "", "");
       }
     });
+
+    if (form.elements.level) {
+      form.elements.level.addEventListener("change", tryAutoFillAdmissionNo);
+      form.elements.level.addEventListener("blur", tryAutoFillAdmissionNo);
+    }
+
+    if (form.elements.admissionNo) {
+      form.elements.admissionNo.addEventListener("input", () => {
+        form.elements.admissionNo.dataset.autoGenerated = "false";
+      });
+    }
 
     form.addEventListener("submit", (event) => {
       event.preventDefault();
@@ -5387,19 +5900,38 @@
       setStatus(status, "", "");
 
       const studentId = form.elements.studentId.value;
+      const firstName = form.elements.firstName.value.trim();
+      const lastName = form.elements.lastName.value.trim();
+      const level = form.elements.level.value.trim();
+      const admissionNoRaw = form.elements.admissionNo.value.trim();
       const payload = {
         id: studentId || undefined,
-        fullName: form.elements.fullName.value.trim(),
-        admissionNo: form.elements.admissionNo.value.trim(),
-        level: form.elements.level.value.trim(),
+        firstName,
+        lastName,
+        fullName: [firstName, lastName].filter(Boolean).join(" ").trim(),
+        admissionNo:
+          admissionNoRaw ||
+          generateAdmissionNumber({
+            manager,
+            levelValue: level,
+            excludeStudentId: studentId || undefined,
+          }),
+        level,
+        dateOfBirth: form.elements.dateOfBirth?.value || "",
+        gender: form.elements.gender?.value || "",
       };
-      const guardianParse = parseGuardianRows(guardianList);
+      const guardianParse = parseGuardianRows(guardianList, { validatePhone: true });
       payload.guardians = guardianParse.guardians;
 
       let hasError = false;
 
-      if (!payload.fullName) {
-        setPortalStudentError(form, "fullName", "Enter the student name.");
+      if (!payload.firstName) {
+        setPortalStudentError(form, "firstName", "Enter the first name.");
+        hasError = true;
+      }
+
+      if (!payload.lastName) {
+        setPortalStudentError(form, "lastName", "Enter the last name.");
         hasError = true;
       }
 
@@ -5411,6 +5943,9 @@
       if (!payload.level) {
         setPortalStudentError(form, "level", "Enter the student level or class.");
         hasError = true;
+      } else if (!isKnownClassLevel(payload.level, classLevelSet)) {
+        setPortalStudentError(form, "level", "Invalid class. Use a class already created in Class Management.");
+        hasError = true;
       }
 
       if (guardianParse.hasInvalidRow) {
@@ -5418,6 +5953,13 @@
           form,
           "guardians",
           "Each guardian row needs name, relationship, and at least one contact (phone or email).",
+        );
+        hasError = true;
+      } else if (guardianParse.hasInvalidPhone) {
+        setPortalStudentError(
+          form,
+          "guardians",
+          "Wrong phone number format detected in guardian contacts.",
         );
         hasError = true;
       } else if (!payload.guardians.length) {
@@ -5455,8 +5997,8 @@
         entityType: "student",
         entityId: payload.admissionNo,
         summary: currentRecord
-          ? `Updated student record for ${payload.fullName}`
-          : `Created student record for ${payload.fullName}`,
+          ? `Updated student record for ${payload.fullName || payload.admissionNo}`
+          : `Created student record for ${payload.fullName || payload.admissionNo}`,
         details: `${payload.level} • ${payload.guardians.length} guardian contact(s)`,
       });
 
@@ -5467,8 +6009,8 @@
         status,
         "success",
         currentRecord
-          ? `Student <strong>${escapeHtml(payload.fullName)}</strong> updated with guardian relationships.`
-          : `Student <strong>${escapeHtml(payload.fullName)}</strong> created with guardian relationships.`,
+          ? `Student <strong>${escapeHtml(payload.fullName || payload.admissionNo)}</strong> updated with guardian relationships.`
+          : `Student <strong>${escapeHtml(payload.fullName || payload.admissionNo)}</strong> created with guardian relationships.`,
       );
     });
 
@@ -5484,6 +6026,14 @@
     }
 
     listTarget.addEventListener("click", (event) => {
+      const listToggleButton = event.target.closest("[data-student-list-toggle]");
+
+      if (listToggleButton) {
+        isStudentListExpanded = !isStudentListExpanded;
+        refreshStudentSection();
+        return;
+      }
+
       const actionButton = event.target.closest("[data-student-action]");
 
       if (!actionButton || !isAdmin) {
@@ -5544,19 +6094,237 @@
 
     window.addEventListener(manager.eventName, refreshStudentSection);
 
-    if (auditManager?.eventName) {
-      window.addEventListener(auditManager.eventName, () => {
-        renderPortalAuditTrailSection({
-          manager: auditManager,
-          target: document.getElementById("portal-audit-trail"),
+    if (quickAddForm && quickAddStatus) {
+      Array.from(quickAddForm.elements).forEach((field) => {
+        if (field instanceof HTMLElement) {
+          field.disabled = !isAdmin;
+        }
+      });
+      quickAddForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+
+        if (!isAdmin) {
+          setStatus(quickAddStatus, "info", "Only administrators can add students.");
+          return;
+        }
+
+        const firstName = quickAddForm.elements.firstName.value.trim();
+        const lastName = quickAddForm.elements.lastName.value.trim();
+        const level = quickAddForm.elements.level.value.trim();
+        const guardianName = quickAddForm.elements.guardianName.value.trim();
+        const guardianPhone = quickAddForm.elements.guardianPhone.value.trim();
+        const guardianEmail = quickAddForm.elements.guardianEmail.value.trim();
+
+        if (!firstName || !lastName || !level || !guardianName) {
+          setStatus(
+            quickAddStatus,
+            "error",
+            "First name, last name, level/class, and parent/guardian name are required for quick add.",
+          );
+          return;
+        }
+
+        if (!isKnownClassLevel(level, classLevelSet)) {
+          setStatus(quickAddStatus, "error", "Invalid class. Create/select a valid class first.");
+          return;
+        }
+
+        if (guardianPhone && !isValidPhoneNumber(guardianPhone)) {
+          setStatus(quickAddStatus, "error", "Wrong phone number format.");
+          return;
+        }
+
+        if (guardianEmail && !EMAIL_REGEX.test(guardianEmail)) {
+          setStatus(quickAddStatus, "error", "Invalid parent/guardian email format.");
+          return;
+        }
+
+        const admissionNo = generateAdmissionNumber({ manager, levelValue: level });
+        const payload = {
+          firstName,
+          lastName,
+          fullName: `${firstName} ${lastName}`,
+          admissionNo,
+          level,
+          dateOfBirth: "",
+          gender: "",
+          guardians: [
+            {
+              id: createId(),
+              name: guardianName,
+              relationship: "Guardian",
+              phone: guardianPhone,
+              email: guardianEmail,
+            },
+          ],
+          status: "active",
+        };
+
+        manager.upsertStudent(payload);
+        quickAddForm.reset();
+        setStatus(
+          quickAddStatus,
+          "success",
+          `Student <strong>${escapeHtml(payload.fullName)}</strong> added with admission number <strong>${escapeHtml(
+            payload.admissionNo,
+          )}</strong>.`,
+        );
+        recordAuditEvent({
+          action: "created",
+          entityType: "student",
+          entityId: payload.admissionNo,
+          summary: `Quick-added student record for ${payload.fullName}`,
+          details: `${payload.level} • 1 guardian contact`,
         });
       });
     }
 
-    renderPortalAuditTrailSection({
-      manager: auditManager,
-      target: document.getElementById("portal-audit-trail"),
+    document.querySelectorAll("[data-student-template-download]").forEach((button) => {
+      button.addEventListener("click", () => {
+        if (!isAdmin) {
+          return;
+        }
+        if (button.dataset.studentTemplateDownload === "excel") {
+          downloadStudentExcelTemplate();
+        } else {
+          downloadStudentCsvTemplate();
+        }
+      });
     });
+
+    if (importPreviewButton && importStatus && importPreviewTarget && importFileInput) {
+      importFileInput.disabled = !isAdmin;
+      importPreviewButton.disabled = !isAdmin;
+      importPreviewButton.addEventListener("click", async () => {
+        if (!isAdmin) {
+          setStatus(importStatus, "info", "Only administrators can import students.");
+          return;
+        }
+
+        const selectedFile = importFileInput.files?.[0] || null;
+        if (!selectedFile) {
+          setStatus(importStatus, "error", "Choose a CSV or Excel file to preview.");
+          return;
+        }
+
+        const extension = selectedFile.name.split(".").pop()?.toLowerCase() || "";
+        if (!["csv", "xls", "xlsx"].includes(extension)) {
+          setStatus(importStatus, "error", "Unsupported file type. Upload CSV or Excel file.");
+          return;
+        }
+
+        if (extension === "xlsx") {
+          setStatus(
+            importStatus,
+            "error",
+            "For this build, upload CSV or the provided Excel template (.xls).",
+          );
+          return;
+        }
+
+        let rows = [];
+        try {
+          const content = await selectedFile.text();
+          rows = extension === "csv" ? parseCsvRows(content) : parseSpreadsheetXmlRows(content);
+        } catch (error) {
+          setStatus(importStatus, "error", error?.message || "Could not parse the uploaded file.");
+          return;
+        }
+
+        if (!rows.length) {
+          setStatus(importStatus, "error", "No student rows found in the uploaded file.");
+          importPreviewRows = [];
+          renderImportPreview(importPreviewTarget, importPreviewRows);
+          if (importConfirmButton) {
+            importConfirmButton.disabled = true;
+          }
+          return;
+        }
+
+        const admissionTaken = new Set(
+          manager.getStudents().map((student) => String(student.admissionNo || "").toLowerCase()),
+        );
+        const seenAdmissions = new Set();
+        importPreviewRows = rows.map((row) => {
+          const payload = buildStudentPayloadFromImportRow(row, manager, admissionTaken);
+          const errors = validateImportPayload(payload, manager, classLevelSet, seenAdmissions);
+          return { payload, errors };
+        });
+
+        renderImportPreview(importPreviewTarget, importPreviewRows);
+        const validCount = importPreviewRows.filter((item) => !item.errors.length).length;
+        const invalidCount = importPreviewRows.length - validCount;
+
+        if (importConfirmButton) {
+          importConfirmButton.disabled = validCount === 0;
+        }
+
+        if (invalidCount) {
+          setStatus(
+            importStatus,
+            "error",
+            `${invalidCount} row(s) have validation errors. Fix and upload again, or confirm to import valid rows only.`,
+          );
+        } else {
+          setStatus(importStatus, "success", `${validCount} student row(s) ready for import.`);
+        }
+      });
+    }
+
+    if (importConfirmButton && importStatus && importPreviewTarget) {
+      if (!isAdmin) {
+        importConfirmButton.disabled = true;
+      }
+      importConfirmButton.addEventListener("click", () => {
+        if (!isAdmin) {
+          setStatus(importStatus, "info", "Only administrators can import students.");
+          return;
+        }
+
+        if (!importPreviewRows.length) {
+          setStatus(importStatus, "error", "Preview records first before confirming import.");
+          return;
+        }
+
+        const validRows = importPreviewRows.filter((item) => !item.errors.length);
+
+        if (!validRows.length) {
+          setStatus(importStatus, "error", "No valid rows to import.");
+          return;
+        }
+
+        validRows.forEach((row) => {
+          manager.upsertStudent({
+            ...row.payload,
+            status: "active",
+          });
+        });
+
+        recordAuditEvent({
+          action: "imported",
+          entityType: "student",
+          entityId: `bulk-${validRows.length}`,
+          summary: `Imported ${validRows.length} student records`,
+          details: "Bulk import from CSV/Excel template.",
+        });
+
+        const invalidCount = importPreviewRows.length - validRows.length;
+        importPreviewRows = [];
+        renderImportPreview(importPreviewTarget, importPreviewRows);
+        if (importFileInput) {
+          importFileInput.value = "";
+        }
+        importConfirmButton.disabled = true;
+        setStatus(
+          importStatus,
+          "success",
+          invalidCount
+            ? `Imported ${validRows.length} valid students. ${invalidCount} invalid row(s) were skipped.`
+            : `Imported ${validRows.length} students successfully.`,
+        );
+      });
+    }
+
   }
 
   function findUserByEmail(email) {
@@ -6702,7 +7470,6 @@
     const { isAdmin, roleLabel } = getAdminAccessContext();
     const canManageStudents = isAdmin && canAccessPermission(roleLabel, PAGE_PERMISSION_KEYS["admin-students"]);
     const studentManager = getStudentManager();
-    const auditManager = getAuditTrailManager();
     const studentSummary = document.getElementById("portal-student-summary");
     const studentForm = document.getElementById("portal-student-form");
     const studentStatus = document.getElementById("portal-student-status");
@@ -6713,7 +7480,6 @@
     initStudentManagementControls({
       isAdmin: canManageStudents,
       manager: studentManager,
-      auditManager,
       summaryTarget: studentSummary,
       form: studentForm,
       status: studentStatus,
@@ -6921,7 +7687,6 @@
       !lastUpdated ||
       !metrics ||
       !events ||
-      !activity ||
       !links ||
       !details ||
       !gate
@@ -7011,14 +7776,16 @@
           </div>
         </article>
       `;
-      activity.innerHTML = `
-        <article class="admin-activity-row admin-activity-row-empty">
-          <div class="admin-activity-copy">
-            <p><strong>No activity visible yet.</strong></p>
-            <small>Recent actions appear here after sign-in.</small>
-          </div>
-        </article>
-      `;
+      if (activity) {
+        activity.innerHTML = `
+          <article class="admin-activity-row admin-activity-row-empty">
+            <div class="admin-activity-copy">
+              <p><strong>No activity visible yet.</strong></p>
+              <small>Recent actions appear here after sign-in.</small>
+            </div>
+          </article>
+        `;
+      }
       links.innerHTML = "";
       details.innerHTML = "";
       gate.innerHTML = `<a class="admin-signout-button" href="./login.html">${buttonLabel}</a>`;
@@ -7055,7 +7822,9 @@
     if (hasDashboardAccess) {
       renderAdminMetricCards(metrics, snapshot);
       renderAdminEvents(events);
-      renderAdminActivity(activity);
+      if (activity) {
+        renderAdminActivity(activity);
+      }
     } else {
       metrics.innerHTML = `
         <article class="admin-metric-card admin-metric-card-rose admin-metric-card-empty">
@@ -7065,7 +7834,9 @@
         </article>
       `;
       events.innerHTML = "";
-      activity.innerHTML = "";
+      if (activity) {
+        activity.innerHTML = "";
+      }
     }
 
     if (academicCalendarManager?.eventName) {

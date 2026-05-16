@@ -1337,6 +1337,11 @@ function normalizeGuardianContact(contact = {}) {
 function normalizeStudentRecord(record = {}) {
   const timestamp = new Date().toISOString();
   const status = record.status === "archived" ? "archived" : "active";
+  const firstName = String(record.firstName || "").trim();
+  const lastName = String(record.lastName || "").trim();
+  const fallbackFullName = String(record.fullName || "").trim();
+  const derivedFullName = [firstName, lastName].filter(Boolean).join(" ").trim();
+  const fullName = derivedFullName || fallbackFullName;
   const guardians = Array.isArray(record.guardians)
     ? record.guardians
         .map((guardian) => normalizeGuardianContact(guardian))
@@ -1350,9 +1355,13 @@ function normalizeStudentRecord(record = {}) {
 
   return {
     id: String(record.id || createStorageId("student")),
-    fullName: String(record.fullName || "").trim(),
+    firstName,
+    lastName,
+    fullName,
     admissionNo: String(record.admissionNo || "").trim(),
     level: String(record.level || "").trim(),
+    dateOfBirth: String(record.dateOfBirth || "").trim(),
+    gender: String(record.gender || "").trim(),
     guardians,
     status,
     createdAt: record.createdAt || timestamp,
