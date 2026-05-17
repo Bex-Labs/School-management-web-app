@@ -4863,6 +4863,7 @@ body.admin-dashboard-page .admin-notification-button {
   background: #ffffff;
   color: #17233a;
   box-shadow: 0 12px 24px rgba(63, 78, 103, 0.08);
+  cursor: pointer;
 }
 
 body.admin-dashboard-page .admin-notification-button svg {
@@ -4880,6 +4881,131 @@ body.admin-dashboard-page .admin-notification-dot {
   border-radius: 50%;
   background: #ff5c63;
   box-shadow: 0 0 0 3px #ffffff;
+}
+
+body.admin-dashboard-page.admin-notification-open {
+  overflow: hidden;
+}
+
+body.admin-dashboard-page .admin-notification-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: grid;
+  place-items: center;
+}
+
+body.admin-dashboard-page .admin-notification-overlay[hidden] {
+  display: none !important;
+}
+
+body.admin-dashboard-page .admin-notification-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(15, 30, 52, 0.42);
+}
+
+body.admin-dashboard-page .admin-notification-panel {
+  position: relative;
+  width: min(92vw, 560px);
+  max-height: min(80vh, 760px);
+  padding: 18px 18px 14px;
+  border: 1px solid #d6e1f0;
+  border-radius: 20px;
+  background: #f8fbff;
+  box-shadow: 0 24px 50px rgba(15, 43, 74, 0.24);
+  display: grid;
+  gap: 12px;
+  overflow: hidden;
+}
+
+body.admin-dashboard-page .admin-notification-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+body.admin-dashboard-page .admin-notification-head h2 {
+  margin: 0;
+  color: #17233a;
+  font-size: 1.12rem;
+}
+
+body.admin-dashboard-page .admin-notification-close {
+  width: 36px;
+  height: 36px;
+  border: 1px solid #d4dfef;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #334f72;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+body.admin-dashboard-page .admin-notification-list {
+  display: grid;
+  gap: 10px;
+  overflow-y: auto;
+  padding-right: 2px;
+  max-height: min(64vh, 590px);
+}
+
+body.admin-dashboard-page .admin-notification-item,
+body.admin-dashboard-page .admin-notification-empty {
+  border: 1px solid #e1e8f2;
+  border-radius: 14px;
+  background: #ffffff;
+  padding: 12px;
+}
+
+body.admin-dashboard-page .admin-notification-item-main {
+  display: grid;
+  gap: 4px;
+}
+
+body.admin-dashboard-page .admin-notification-item-main strong {
+  color: #17233a;
+  font-size: 0.95rem;
+}
+
+body.admin-dashboard-page .admin-notification-item-main span {
+  color: #5e7496;
+  font-size: 0.8rem;
+  text-transform: capitalize;
+}
+
+body.admin-dashboard-page .admin-notification-item-main p {
+  margin: 0;
+  color: #62728d;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+body.admin-dashboard-page .admin-notification-item small {
+  display: block;
+  margin-top: 8px;
+  color: #7f8aa0;
+  font-size: 0.78rem;
+}
+
+body.admin-dashboard-page .admin-notification-empty strong {
+  color: #17233a;
+  font-size: 0.95rem;
+}
+
+body.admin-dashboard-page .admin-notification-empty p {
+  margin: 8px 0 0;
+  color: #6e7d96;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+body.admin-dashboard-page .admin-notification-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 body.admin-dashboard-page .admin-metrics-grid,

@@ -13,6 +13,8 @@
   const AUTH_PENDING_ROLE_KEY = "schoolsphere.auth.pending.role.v1";
   const ACCESS_GRANTS_STORAGE_KEY = "schoolsphere.access.grants.v1";
   const ACCESS_GUARD_NOTICE_KEY = "schoolsphere.access.guard.notice.v1";
+  const NOTIFICATION_STORAGE_PREFIX = "schoolsphere.notifications.v1";
+  const NOTIFICATION_EVENT_NAME = "schoolsphere:notifications:updated";
   const FORM_DRAFT_STORAGE_PREFIX = "schoolsphere.form-draft.v1";
   const NETWORK_RESILIENCE_BANNER_ID = "network-resilience-banner";
   let supabaseClientPromise = null;
@@ -785,6 +787,63 @@
     }
 
     return "public";
+  }
+
+  function getNotificationStorageKey(workspaceId = null) {
+    return `${NOTIFICATION_STORAGE_PREFIX}:${normalizeWorkspaceId(workspaceId || getCurrentWorkspaceId())}`;
+  }
+
+  function normalizeNotificationEntry(entry = {}, workspaceId = null) {
+    return {
+      id: String(entry.id || createId()),
+      title: String(entry.title || entry.summary || "System activity").trim(),
+      message: String(entry.message || entry.details || "").trim(),
+      entityType: String(entry.entityType || "system").trim(),
+      entityId: String(entry.entityId || "").trim(),
+      action: String(entry.action || "updated").trim(),
+      actorName: String(entry.actorName || "System").trim(),
+      createdAt: entry.createdAt || entry.timestamp || nowIso(),
+      workspaceId: normalizeWorkspaceId(workspaceId || entry.workspaceId || getCurrentWorkspaceId()),
+    };
+  }
+
+  function getNotifications(workspaceId = null) {
+    const storageKey = getNotificationStorageKey(workspaceId);
+    const stored = parseJSON(localStorage.getItem(storageKey), []);
+
+    if (!Array.isArray(stored)) {
+      return [];
+    }
+
+    return stored
+      .map((entry) => normalizeNotificationEntry(entry, workspaceId))
+      .sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)));
+  }
+
+  function saveNotifications(entries, workspaceId = null) {
+    const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId || getCurrentWorkspaceId());
+    const storageKey = getNotificationStorageKey(normalizedWorkspaceId);
+    const normalizedEntries = Array.isArray(entries)
+      ? entries.map((entry) => normalizeNotificationEntry(entry, normalizedWorkspaceId))
+      : [];
+    localStorage.setItem(storageKey, JSON.stringify(normalizedEntries.slice(0, 120)));
+    return normalizedEntries;
+  }
+
+  function pushNotification(entry = {}, workspaceId = null) {
+    const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId || entry.workspaceId || getCurrentWorkspaceId());
+    const nextEntry = normalizeNotificationEntry(entry, normalizedWorkspaceId);
+    const existing = getNotifications(normalizedWorkspaceId);
+    const next = [nextEntry, ...existing.filter((item) => item.id !== nextEntry.id)].slice(0, 120);
+    saveNotifications(next, normalizedWorkspaceId);
+    window.dispatchEvent(
+      new CustomEvent(NOTIFICATION_EVENT_NAME, {
+        detail: {
+          workspaceId: normalizedWorkspaceId,
+        },
+      }),
+    );
+    return nextEntry;
   }
 
   function getAccessGuardNotice() {
@@ -1958,7 +2017,25 @@
   }
 
   function recordAuditEvent(entry = {}) {
-    return entry;
+    const session = getSession();
+    const user = session ? getUsers().find((item) => item.id === session.userId) || null : null;
+    const actorName =
+      String(entry.actorName || "").trim() ||
+      user?.displayName ||
+      user?.email ||
+      "System";
+    const workspaceId = normalizeWorkspaceId(
+      entry.workspaceId || session?.workspaceId || user?.workspaceId || getCurrentWorkspaceId(),
+    );
+
+    return pushNotification(
+      {
+        ...entry,
+        actorName,
+        createdAt: entry.createdAt || nowIso(),
+      },
+      workspaceId,
+    );
   }
 
   function applyAdminBranding(brandMark, brandName, brandSubtitle, manager) {
@@ -5321,7 +5398,7 @@
       <article class="portal-class-stat portal-class-stat-violet">
         <span>Archived courses</span>
         <strong>${archivedCount}</strong>
-        <p>Kept for history and audit consistency.</p>
+        <p>Kept for history and planning consistency.</p>
       </article>
       <article class="portal-class-stat portal-class-stat-green">
         <span>Levels covered</span>
@@ -5510,7 +5587,7 @@
       <article class="portal-class-stat portal-class-stat-slate">
         <span>Archived events</span>
         <strong>${archivedCount}</strong>
-        <p>Past records retained for audit and planning history.</p>
+        <p>Past records retained for notification and planning history.</p>
       </article>
     `;
 
@@ -8243,6 +8320,142 @@
     ).join("");
   }
 
+  function buildDashboardFallbackNotifications() {
+    return DASHBOARD_ACTIVITY_ITEMS.map((item, index) => ({
+      id: `fallback-${index + 1}`,
+      title: `${item.person} ${item.message} ${item.accent}`.trim(),
+      message: "School activity update",
+      actorName: item.person,
+      createdAt: nowIso(),
+      action: "updated",
+      entityType: "activity",
+      entityId: `fallback-${index + 1}`,
+    }));
+  }
+
+  function renderNotificationList(target, notifications = []) {
+    if (!target) {
+      return;
+    }
+
+    if (!notifications.length) {
+      target.innerHTML = `
+        <article class="admin-notification-empty">
+          <strong>No notifications yet</strong>
+          <p>System activities will appear here as admins and users work in the platform.</p>
+        </article>
+      `;
+      return;
+    }
+
+    target.innerHTML = notifications
+      .map(
+        (entry) => `
+          <article class="admin-notification-item">
+            <div class="admin-notification-item-main">
+              <strong>${escapeHtml(entry.title || "System activity")}</strong>
+              <span>${escapeHtml(
+                `${entry.entityType || "system"} • ${entry.action || "updated"}`.replaceAll("_", " "),
+              )}</span>
+              <p>${escapeHtml(entry.message || "Activity captured in the school system.")}</p>
+            </div>
+            <small>${escapeHtml(entry.actorName || "System")} • ${escapeHtml(
+              formatTimestamp(entry.createdAt || nowIso()),
+            )}</small>
+          </article>
+        `,
+      )
+      .join("");
+  }
+
+  function ensureDashboardNotificationsOverlay() {
+    let overlay = document.getElementById("admin-notification-overlay");
+
+    if (overlay) {
+      return overlay;
+    }
+
+    const wrapper = document.createElement("div");
+    wrapper.innerHTML = `
+      <div id="admin-notification-overlay" class="admin-notification-overlay" hidden>
+        <button class="admin-notification-backdrop" type="button" data-notification-close aria-label="Close notifications"></button>
+        <section class="admin-notification-panel" role="dialog" aria-modal="true" aria-labelledby="admin-notification-title">
+          <header class="admin-notification-head">
+            <h2 id="admin-notification-title">Notifications</h2>
+            <button class="admin-notification-close" type="button" data-notification-close aria-label="Close notifications">&times;</button>
+          </header>
+          <div id="admin-notification-list" class="admin-notification-list"></div>
+          <div class="admin-notification-actions">
+            <button class="admin-signout-button" type="button" data-notification-close>Cancel</button>
+          </div>
+        </section>
+      </div>
+    `;
+
+    document.body.appendChild(wrapper.firstElementChild);
+    overlay = document.getElementById("admin-notification-overlay");
+    return overlay;
+  }
+
+  function initPortalNotifications(button, session) {
+    if (!button) {
+      return;
+    }
+
+    const overlay = ensureDashboardNotificationsOverlay();
+    const listTarget = document.getElementById("admin-notification-list");
+    const workspaceId = normalizeWorkspaceId(session?.workspaceId || getCurrentWorkspaceId());
+    const alreadyBound = button.dataset.notificationsBound === "true";
+
+    const setOverlayState = (isOpen) => {
+      overlay.hidden = !isOpen;
+      button.setAttribute("aria-expanded", isOpen ? "true" : "false");
+      document.body.classList.toggle("admin-notification-open", isOpen);
+    };
+
+    const refresh = () => {
+      const notifications = getNotifications(workspaceId);
+      const entries = notifications.length ? notifications : buildDashboardFallbackNotifications();
+      renderNotificationList(listTarget, entries);
+
+      const dot = document.getElementById("admin-notification-dot");
+      if (dot) {
+        dot.hidden = notifications.length === 0;
+      }
+    };
+
+    if (!alreadyBound) {
+      button.addEventListener("click", () => {
+        refresh();
+        setOverlayState(true);
+      });
+
+      overlay.querySelectorAll("[data-notification-close]").forEach((node) => {
+        node.addEventListener("click", () => {
+          setOverlayState(false);
+        });
+      });
+
+      window.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !overlay.hidden) {
+          setOverlayState(false);
+        }
+      });
+
+      button.dataset.notificationsBound = "true";
+    }
+
+    window.addEventListener(NOTIFICATION_EVENT_NAME, (event) => {
+      const eventWorkspaceId = normalizeWorkspaceId(event?.detail?.workspaceId || workspaceId);
+      if (eventWorkspaceId === workspaceId) {
+        refresh();
+      }
+    });
+
+    refresh();
+    setOverlayState(false);
+  }
+
   function slugifyAdminSectionTitle(value) {
     return String(value || "")
       .trim()
@@ -8754,6 +8967,7 @@
     const heading = document.getElementById("portal-heading");
     const copy = document.getElementById("portal-copy");
     const lastUpdated = document.getElementById("portal-last-updated");
+    const notificationButton = document.getElementById("admin-notification-button");
     const metrics = document.getElementById("portal-metrics");
     const events = document.getElementById("admin-events");
     const activity = document.getElementById("admin-activity");
@@ -8886,6 +9100,7 @@
         "Go to Login",
       );
       initAdminSectionQuickNav();
+      initPortalNotifications(notificationButton, null);
       return;
     }
 
@@ -8899,6 +9114,7 @@
         "Sign in Again",
       );
       initAdminSectionQuickNav();
+      initPortalNotifications(notificationButton, null);
       return;
     }
 
@@ -8985,5 +9201,6 @@
     }
 
     initAdminSectionQuickNav();
+    initPortalNotifications(notificationButton, session);
   }
 })();
