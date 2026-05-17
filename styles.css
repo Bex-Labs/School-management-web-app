@@ -6211,6 +6211,10 @@ body.admin-dashboard-page .portal-class-empty p {
   body.admin-dashboard-page .portal-guardian-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  body.admin-dashboard-page .portal-assignment-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 1024px) {
@@ -6281,6 +6285,10 @@ body.admin-dashboard-page .portal-class-empty p {
   }
 
   body.admin-dashboard-page .portal-guardian-row {
+    grid-template-columns: 1fr;
+  }
+
+  body.admin-dashboard-page .portal-assignment-row {
     grid-template-columns: 1fr;
   }
 
