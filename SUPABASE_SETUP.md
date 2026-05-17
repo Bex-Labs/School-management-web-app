@@ -20,6 +20,25 @@ To switch to real Supabase auth:
    - email/password login uses Supabase Auth
    - Google buttons start real Google OAuth through Supabase
 
+## Parent/Staff provisioning function (required for admin-created accounts)
+
+Admin-created guardian/parent accounts now require a Supabase Edge Function so those accounts are created in real Supabase Auth (not only local browser storage).
+
+1. Install and login Supabase CLI.
+2. From the project root, deploy the function:
+   - `supabase functions deploy provision-user`
+3. Ensure your `supabase-config.js` includes:
+   - `userProvisionFunctionName: "provision-user"`
+4. Keep RLS + `profiles` table from `supabase/schema.sql` already applied.
+
+What this enables:
+- When Admin creates a student with guardian email, parent login is provisioned in Supabase Auth immediately.
+- Parent can then log in on the login page with:
+  - role: `Parent`
+  - email: guardian email
+  - password: `Parent@123` (default)
+- Parent is marked to change password later in personal settings.
+
 ## Suggested local redirect URLs
 
 Add every local URL you actually use:

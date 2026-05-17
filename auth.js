@@ -1045,6 +1045,168 @@
     return supabaseClientPromise;
   }
 
+  function getSupabaseProvisionFunctionName() {
+    const config = getSupabaseConfig();
+    const configuredName = String(config?.userProvisionFunctionName || "").trim();
+    return configuredName || "provision-user";
+  }
+
+  function normalizeAuthProvider(value) {
+    return String(value || "").trim().toLowerCase() === "google" ? "google" : "password";
+  }
+
+  function upsertProvisionedSupabaseUserLocal(record = {}) {
+    const email = String(record.email || "").trim();
+
+    if (!email || !EMAIL_REGEX.test(email)) {
+      return null;
+    }
+
+    const normalizedEmail = normalizeEmail(email);
+    const role = normalizeRoleLabel(record.role || DEFAULT_AUTH_ROLE);
+    const provider = normalizeAuthProvider(record.provider);
+    const users = getUsers();
+    const existingIndex = users.findIndex(
+      (user) => user.id === record.id || user.normalizedEmail === normalizedEmail,
+    );
+    const existingUser = existingIndex >= 0 ? users[existingIndex] : null;
+    const now = nowIso();
+    const workspaceId = normalizeWorkspaceId(
+      record.workspaceId ||
+        existingUser?.workspaceId ||
+        (role === "Admin" ? normalizedEmail : null),
+    );
+    const nextUser = normalizeUserRecord({
+      ...(existingUser || {}),
+      id: record.id || existingUser?.id || createId(),
+      email,
+      normalizedEmail,
+      displayName: String(record.displayName || existingUser?.displayName || buildDisplayName(email) || "School User").trim(),
+      role,
+      provider,
+      workspaceId,
+      status: normalizeUserStatus(record.status || existingUser?.status || "active"),
+      isConfirmed: true,
+      confirmationToken: null,
+      confirmationSentAt: null,
+      confirmedAt: existingUser?.confirmedAt || now,
+      updatedAt: now,
+      passwordHash: existingUser?.passwordHash || null,
+      mustChangePassword:
+        record.mustChangePassword !== undefined
+          ? Boolean(record.mustChangePassword)
+          : Boolean(existingUser?.mustChangePassword),
+      createdAt: existingUser?.createdAt || now,
+      lastLoginAt: existingUser?.lastLoginAt || null,
+    });
+
+    if (existingIndex >= 0) {
+      users[existingIndex] = nextUser;
+    } else {
+      users.push(nextUser);
+    }
+
+    saveUsers(users);
+    return nextUser;
+  }
+
+  async function provisionSupabaseManagedUser({
+    email,
+    displayName,
+    role,
+    password,
+    workspaceId = null,
+    mustChangePassword = false,
+  }) {
+    if (!isSupabaseConfigured()) {
+      return { status: "skipped", user: null };
+    }
+
+    const client = await getSupabaseClient();
+    const functionName = getSupabaseProvisionFunctionName();
+    let data;
+    let error;
+
+    try {
+      ({ data, error } = await withNetworkTimeout(
+        client.functions.invoke(functionName, {
+          body: {
+            email,
+            displayName,
+            role: normalizeRoleLabel(role || DEFAULT_AUTH_ROLE),
+            password,
+            workspaceId: workspaceId ? normalizeWorkspaceId(workspaceId) : null,
+            mustChangePassword: Boolean(mustChangePassword),
+          },
+        }),
+      ));
+    } catch (requestError) {
+      return {
+        status: "error",
+        user: null,
+        message: formatSupabaseAuthError(requestError, "Could not provision this account in Supabase."),
+      };
+    }
+
+    if (error) {
+      return {
+        status: "error",
+        user: null,
+        message: formatSupabaseAuthError(error, "Could not provision this account in Supabase."),
+      };
+    }
+
+    const payload = data && typeof data === "object" ? data : null;
+
+    if (!payload || payload.ok === false) {
+      return {
+        status: "error",
+        user: null,
+        message:
+          String(payload?.message || "").trim() || "Could not provision this account in Supabase.",
+      };
+    }
+
+    const user = upsertProvisionedSupabaseUserLocal({
+      id: payload.user?.id || null,
+      email: payload.user?.email || email,
+      displayName: payload.user?.displayName || displayName,
+      role: payload.user?.role || role,
+      provider: payload.user?.provider || "password",
+      workspaceId: payload.user?.workspaceId || workspaceId,
+      mustChangePassword:
+        payload.user?.mustChangePassword !== undefined
+          ? Boolean(payload.user.mustChangePassword)
+          : Boolean(mustChangePassword),
+      status: "active",
+    });
+
+    if (!user) {
+      return {
+        status: "error",
+        user: null,
+        message: "Supabase provisioned this account, but local sync failed.",
+      };
+    }
+
+    const returnedStatus = String(payload.status || "").trim().toLowerCase();
+    let status = "updated";
+
+    if (returnedStatus === "created") {
+      status = "created";
+    } else if (returnedStatus === "existing_google") {
+      status = "existing_google";
+    } else if (payload.user?.provider === "google") {
+      status = "existing_google";
+    }
+
+    return {
+      status,
+      user,
+      message: String(payload.message || "").trim(),
+    };
+  }
+
   function escapeHtml(value) {
     return value
       .replaceAll("&", "&amp;")
@@ -1218,6 +1380,7 @@
         created: [],
         updated: [],
         existingGoogle: [],
+        failed: [],
       };
     }
 
@@ -1229,30 +1392,68 @@
     const created = [];
     const updated = [];
     const existingGoogle = [];
+    const failed = [];
     const workspaceId = getCurrentWorkspaceId();
 
     for (const guardian of uniqueByEmail.values()) {
-      const result = await upsertManagedPasswordUser({
-        email: guardian.email,
-        displayName: guardian.name || buildDisplayName(guardian.email),
-        role: "Parent",
-        password: DEFAULT_PARENT_PASSWORD,
-        workspaceId,
-        preserveExistingPassword: true,
-        forcePasswordReset: true,
-      });
+      let result = isSupabaseConfigured()
+        ? await provisionSupabaseManagedUser({
+            email: guardian.email,
+            displayName: guardian.name || buildDisplayName(guardian.email),
+            role: "Parent",
+            password: DEFAULT_PARENT_PASSWORD,
+            workspaceId,
+            mustChangePassword: true,
+          })
+        : await upsertManagedPasswordUser({
+            email: guardian.email,
+            displayName: guardian.name || buildDisplayName(guardian.email),
+            role: "Parent",
+            password: DEFAULT_PARENT_PASSWORD,
+            workspaceId,
+            preserveExistingPassword: true,
+            forcePasswordReset: true,
+          });
+
+      if (!result.user && isSupabaseConfigured()) {
+        const localFallback = await upsertManagedPasswordUser({
+          email: guardian.email,
+          displayName: guardian.name || buildDisplayName(guardian.email),
+          role: "Parent",
+          password: DEFAULT_PARENT_PASSWORD,
+          workspaceId,
+          preserveExistingPassword: true,
+          forcePasswordReset: true,
+        });
+
+        if (localFallback.user) {
+          result = {
+            ...localFallback,
+            message: result.message || "Supabase parent provisioning failed. Local fallback account created.",
+          };
+        }
+      }
 
       if (!result.user) {
+        failed.push({
+          email: guardian.email,
+          message: result.message || "Parent account could not be created.",
+        });
         continue;
       }
 
       upsertAccessGrant({
         email: result.user.email,
         role: "Parent",
-        authMethod: "password",
+        authMethod: result.user.provider === "google" ? "google" : "password",
         status: "active",
       });
-      markAccessGrantClaimed(result.user.email, "Parent", "password", result.user.id);
+      markAccessGrantClaimed(
+        result.user.email,
+        "Parent",
+        result.user.provider === "google" ? "google" : "password",
+        result.user.id,
+      );
 
       if (result.status === "created") {
         created.push(result.user);
@@ -1267,10 +1468,12 @@
         updated.push(result.user);
       } else if (result.status === "existing_google") {
         existingGoogle.push(result.user);
+      } else {
+        updated.push(result.user);
       }
     }
 
-    return { created, updated, existingGoogle };
+    return { created, updated, existingGoogle, failed };
   }
 
   function upsertLocalUserFromSupabase(authUser, roleOverride, workspaceOverride) {
@@ -6619,12 +6822,15 @@
       const googleParentCopy = parentProvisioning.existingGoogle.length
         ? ` ${parentProvisioning.existingGoogle.length} guardian account(s) already use Google sign-in.`
         : "";
+      const failedParentCopy = parentProvisioning.failed?.length
+        ? ` ${parentProvisioning.failed.length} guardian account(s) could not be provisioned. Check Supabase function setup.`
+        : "";
       setStatus(
         status,
         "success",
         currentRecord
-          ? `Student <strong>${escapeHtml(payload.fullName || payload.admissionNo)}</strong> updated with guardian relationships.${createdParentCopy}${googleParentCopy}`
-          : `Student <strong>${escapeHtml(payload.fullName || payload.admissionNo)}</strong> created with guardian relationships.${createdParentCopy}${googleParentCopy}`,
+          ? `Student <strong>${escapeHtml(payload.fullName || payload.admissionNo)}</strong> updated with guardian relationships.${createdParentCopy}${googleParentCopy}${failedParentCopy}`
+          : `Student <strong>${escapeHtml(payload.fullName || payload.admissionNo)}</strong> created with guardian relationships.${createdParentCopy}${googleParentCopy}${failedParentCopy}`,
       );
     });
 
@@ -6776,6 +6982,9 @@
 
         manager.upsertStudent(payload);
         const parentProvisioning = await provisionParentAccountsForStudent(payload);
+        const failedParentCopy = parentProvisioning.failed?.length
+          ? ` ${parentProvisioning.failed.length} guardian login(s) could not be provisioned.`
+          : "";
         quickAddForm.reset();
         setStatus(
           quickAddStatus,
@@ -6786,7 +6995,7 @@
             parentProvisioning.created.length
               ? ` Parent login created with default password <strong>${escapeHtml(DEFAULT_PARENT_PASSWORD)}</strong>.`
               : ""
-          }`,
+          }${failedParentCopy}`,
         );
         recordAuditEvent({
           action: "created",
@@ -6913,6 +7122,7 @@
         }
 
         let createdParentLogins = 0;
+        let failedParentLogins = 0;
 
         for (const row of validRows) {
           manager.upsertStudent({
@@ -6921,6 +7131,7 @@
           });
           const parentProvisioning = await provisionParentAccountsForStudent(row.payload);
           createdParentLogins += parentProvisioning.created.length;
+          failedParentLogins += parentProvisioning.failed?.length || 0;
         }
 
         recordAuditEvent({
@@ -6946,10 +7157,18 @@
                 createdParentLogins
                   ? ` ${createdParentLogins} parent login account(s) were auto-created (default password: ${DEFAULT_PARENT_PASSWORD}).`
                   : ""
+              }${
+                failedParentLogins
+                  ? ` ${failedParentLogins} parent login account(s) could not be provisioned.`
+                  : ""
               }`
             : `Imported ${validRows.length} students successfully.${
                 createdParentLogins
                   ? ` ${createdParentLogins} parent login account(s) were auto-created (default password: ${DEFAULT_PARENT_PASSWORD}).`
+                  : ""
+              }${
+                failedParentLogins
+                  ? ` ${failedParentLogins} parent login account(s) could not be provisioned.`
                   : ""
               }`,
         );
@@ -7365,6 +7584,57 @@
           );
 
           if (/incorrect|invalid login credentials/i.test(friendlyMessage)) {
+            const fallbackUser = findUserByEmail(email);
+
+            if (
+              fallbackUser &&
+              !isUserDeactivated(fallbackUser) &&
+              fallbackUser.provider !== "google" &&
+              fallbackUser.isConfirmed &&
+              fallbackUser.passwordHash
+            ) {
+              const passwordHash = await hashSecret(password);
+
+              if (passwordHash === fallbackUser.passwordHash) {
+                const fallbackRole = normalizeRoleLabel(fallbackUser.role || DEFAULT_AUTH_ROLE);
+
+                if (selectedRole !== fallbackRole) {
+                  setStatus(
+                    status,
+                    "error",
+                    `This account is registered as <strong>${escapeHtml(
+                      fallbackRole,
+                    )}</strong>. Switch role to continue.`,
+                  );
+                  return;
+                }
+
+                const updatedFallbackUser = updateUser(fallbackUser.id, (currentUser) => ({
+                  ...currentUser,
+                  lastLoginAt: nowIso(),
+                }));
+
+                setSession(
+                  {
+                    userId: updatedFallbackUser.id,
+                    email: updatedFallbackUser.email,
+                    displayName: updatedFallbackUser.displayName,
+                    role: fallbackRole,
+                    provider: updatedFallbackUser.provider,
+                    workspaceId: updatedFallbackUser.workspaceId,
+                    persistence: remember ? "persistent" : "session",
+                    signedInAt: nowIso(),
+                    source: "local-fallback",
+                  },
+                  remember,
+                );
+
+                clearFormDraftFor(form);
+                window.location.assign("./portal.html");
+                return;
+              }
+            }
+
             setFieldError(form, "password", "Incorrect email or password.");
           }
 
