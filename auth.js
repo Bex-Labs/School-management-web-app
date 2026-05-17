@@ -978,8 +978,35 @@
     return String(value || "").trim().toLowerCase() === "revoked" ? "revoked" : "active";
   }
 
-  function normalizeAccessGrant(record = {}) {
+  function inferAccessGrantWorkspaceId(record = {}) {
+    const normalizedEmail = normalizeEmail(record.email || record.normalizedEmail || "");
+
+    if (!normalizedEmail) {
+      return null;
+    }
+
+    const matchedUser = getUsers().find((user) => user.normalizedEmail === normalizedEmail);
+
+    if (matchedUser?.workspaceId) {
+      return normalizeWorkspaceId(matchedUser.workspaceId);
+    }
+
+    const role = normalizeRoleLabel(record.role || DEFAULT_AUTH_ROLE);
+
+    if (role === "Admin") {
+      return normalizeWorkspaceId(normalizedEmail);
+    }
+
+    return null;
+  }
+
+  function normalizeAccessGrant(record = {}, workspaceIdOverride = null) {
     const timestamp = nowIso();
+    const resolvedWorkspaceId =
+      workspaceIdOverride ||
+      record.workspaceId ||
+      inferAccessGrantWorkspaceId(record) ||
+      "public";
 
     return {
       id: String(record.id || createId()),
@@ -988,6 +1015,7 @@
       role: normalizeRoleLabel(record.role || DEFAULT_AUTH_ROLE),
       authMethod: normalizeAccessMethod(record.authMethod),
       status: normalizeAccessStatus(record.status),
+      workspaceId: normalizeWorkspaceId(resolvedWorkspaceId),
       createdAt: record.createdAt || timestamp,
       updatedAt: record.updatedAt || timestamp,
       claimedAt: record.claimedAt || null,
@@ -995,27 +1023,61 @@
     };
   }
 
-  function getAccessGrants() {
+  function getAccessGrants(options = {}) {
+    const hasSession = Boolean(getSession());
+    const normalizedWorkspaceId = options.workspaceId
+      ? normalizeWorkspaceId(options.workspaceId)
+      : hasSession && !options.allWorkspaces
+        ? normalizeWorkspaceId(getCurrentWorkspaceId())
+        : null;
     const stored = parseJSON(localStorage.getItem(ACCESS_GRANTS_STORAGE_KEY), []);
 
     if (!Array.isArray(stored)) {
       return [];
     }
 
-    return stored
+    const normalized = stored
       .map((record) => normalizeAccessGrant(record))
       .filter((record) => record.email && record.normalizedEmail)
       .sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)));
+
+    if (!normalizedWorkspaceId) {
+      return normalized;
+    }
+
+    return normalized.filter(
+      (record) => normalizeWorkspaceId(record.workspaceId || "public") === normalizedWorkspaceId,
+    );
   }
 
-  function saveAccessGrants(grants) {
-    const normalized = Array.isArray(grants) ? grants.map((record) => normalizeAccessGrant(record)) : [];
-    localStorage.setItem(ACCESS_GRANTS_STORAGE_KEY, JSON.stringify(normalized));
-    return normalized;
+  function saveAccessGrants(grants, options = {}) {
+    const hasSession = Boolean(getSession());
+    const targetWorkspaceId = options.workspaceId
+      ? normalizeWorkspaceId(options.workspaceId)
+      : hasSession && !options.allWorkspaces
+        ? normalizeWorkspaceId(getCurrentWorkspaceId())
+        : null;
+    const normalizedIncoming = Array.isArray(grants)
+      ? grants.map((record) => normalizeAccessGrant(record, targetWorkspaceId || record.workspaceId || null))
+      : [];
+
+    if (!targetWorkspaceId || options.allWorkspaces) {
+      localStorage.setItem(ACCESS_GRANTS_STORAGE_KEY, JSON.stringify(normalizedIncoming));
+      return normalizedIncoming;
+    }
+
+    const existingAll = getAccessGrants({ allWorkspaces: true });
+    const preserved = existingAll.filter(
+      (record) => normalizeWorkspaceId(record.workspaceId || "public") !== targetWorkspaceId,
+    );
+    const merged = [...preserved, ...normalizedIncoming];
+    localStorage.setItem(ACCESS_GRANTS_STORAGE_KEY, JSON.stringify(merged));
+    return normalizedIncoming;
   }
 
-  function upsertAccessGrant(record) {
-    const grants = getAccessGrants();
+  function upsertAccessGrant(record, workspaceId = null) {
+    const targetWorkspaceId = normalizeWorkspaceId(workspaceId || record.workspaceId || getCurrentWorkspaceId());
+    const grants = getAccessGrants({ workspaceId: targetWorkspaceId });
     const normalizedEmail = normalizeEmail(record.email || record.normalizedEmail || "");
     const role = normalizeRoleLabel(record.role || DEFAULT_AUTH_ROLE);
     const id = record.id || null;
@@ -1024,15 +1086,17 @@
         ? grants.findIndex((entry) => entry.id === id)
         : grants.findIndex(
             (entry) =>
-              entry.normalizedEmail === normalizedEmail,
+              entry.normalizedEmail === normalizedEmail &&
+              normalizeWorkspaceId(entry.workspaceId || "public") === targetWorkspaceId,
           );
     const next = normalizeAccessGrant({
       ...(existingIndex >= 0 ? grants[existingIndex] : {}),
       ...record,
+      workspaceId: targetWorkspaceId,
       email: record.email || (existingIndex >= 0 ? grants[existingIndex].email : ""),
       role,
       updatedAt: nowIso(),
-    });
+    }, targetWorkspaceId);
 
     if (existingIndex >= 0) {
       grants[existingIndex] = next;
@@ -1040,11 +1104,12 @@
       grants.unshift(next);
     }
 
-    return saveAccessGrants(grants);
+    return saveAccessGrants(grants, { workspaceId: targetWorkspaceId });
   }
 
-  function setAccessGrantStatus(grantId, status) {
-    const grants = getAccessGrants();
+  function setAccessGrantStatus(grantId, status, workspaceId = null) {
+    const targetWorkspaceId = normalizeWorkspaceId(workspaceId || getCurrentWorkspaceId());
+    const grants = getAccessGrants({ workspaceId: targetWorkspaceId });
     const targetIndex = grants.findIndex((entry) => entry.id === grantId);
 
     if (targetIndex < 0) {
@@ -1055,23 +1120,33 @@
       ...grants[targetIndex],
       status: normalizeAccessStatus(status),
       updatedAt: nowIso(),
-    });
+    }, targetWorkspaceId);
 
-    return saveAccessGrants(grants);
+    return saveAccessGrants(grants, { workspaceId: targetWorkspaceId });
   }
 
-  function removeAccessGrant(grantId) {
-    const grants = getAccessGrants().filter((entry) => entry.id !== grantId);
-    return saveAccessGrants(grants);
+  function removeAccessGrant(grantId, workspaceId = null) {
+    const targetWorkspaceId = normalizeWorkspaceId(workspaceId || getCurrentWorkspaceId());
+    const grants = getAccessGrants({ workspaceId: targetWorkspaceId }).filter((entry) => entry.id !== grantId);
+    return saveAccessGrants(grants, { workspaceId: targetWorkspaceId });
   }
 
-  function getProvisioningGrant(email, role, provider = "password") {
+  function getProvisioningGrant(email, role, provider = "password", workspaceId = null) {
     const normalizedEmail = normalizeEmail(email || "");
     const normalizedRole = role ? normalizeRoleLabel(role) : null;
     const normalizedProvider = provider === "google" ? "google" : "password";
+    const matchedUser = findUserByEmail(email);
+    const targetWorkspaceId = workspaceId
+      ? normalizeWorkspaceId(workspaceId)
+      : matchedUser?.workspaceId
+        ? normalizeWorkspaceId(matchedUser.workspaceId)
+        : null;
+    const grants = targetWorkspaceId
+      ? getAccessGrants({ workspaceId: targetWorkspaceId })
+      : getAccessGrants({ allWorkspaces: true });
 
     return (
-      getAccessGrants().find(
+      grants.find(
         (entry) =>
           entry.status === "active" &&
           entry.normalizedEmail === normalizedEmail &&
@@ -1081,8 +1156,8 @@
     );
   }
 
-  function markAccessGrantClaimed(email, role, provider = "password", userId = null) {
-    const grant = getProvisioningGrant(email, role, provider);
+  function markAccessGrantClaimed(email, role, provider = "password", userId = null, workspaceId = null) {
+    const grant = getProvisioningGrant(email, role, provider, workspaceId);
 
     if (!grant) {
       return null;
@@ -1093,7 +1168,8 @@
       claimedAt: nowIso(),
       claimedByUserId: userId || grant.claimedByUserId || null,
       status: "active",
-    });
+      workspaceId: workspaceId || grant.workspaceId || null,
+    }, workspaceId || grant.workspaceId || null);
 
     return updatedGrants.find((entry) => entry.id === grant.id) || null;
   }
@@ -1601,12 +1677,13 @@
         role: "Parent",
         authMethod: result.user.provider === "google" ? "google" : "password",
         status: "active",
-      });
+      }, workspaceId);
       markAccessGrantClaimed(
         result.user.email,
         "Parent",
         result.user.provider === "google" ? "google" : "password",
         result.user.id,
+        workspaceId,
       );
 
       if (result.status === "created") {
@@ -1789,7 +1866,13 @@
     );
 
     if (!existingLocalUser) {
-      markAccessGrantClaimed(mirroredUser.email, mirroredUser.role, providerKey, mirroredUser.id);
+      markAccessGrantClaimed(
+        mirroredUser.email,
+        mirroredUser.role,
+        providerKey,
+        mirroredUser.id,
+        mirroredUser.workspaceId,
+      );
     }
 
     const remember = getAuthPersistencePreference() !== "session";
@@ -4726,7 +4809,11 @@
     listTarget.innerHTML = grants
       .map((grant) => {
         const existingUser =
-          users.find((entry) => entry.normalizedEmail === grant.normalizedEmail) || null;
+          users.find(
+            (entry) =>
+              entry.normalizedEmail === grant.normalizedEmail &&
+              normalizeWorkspaceId(entry.workspaceId || "public") === normalizeWorkspaceId(grant.workspaceId || "public"),
+          ) || null;
         const claimLabel = grant.claimedAt
           ? `Claimed ${escapeHtml(formatTimestamp(grant.claimedAt))}`
           : "Not claimed yet";
@@ -5241,16 +5328,45 @@
         return;
       }
 
+      const workspaceId = getCurrentWorkspaceId();
       const activePassword = tempPassword || DEFAULT_STAFF_PASSWORD;
-      const result = await upsertManagedPasswordUser({
-        email,
-        displayName,
-        role: "Teacher",
-        password: activePassword,
-        workspaceId: getCurrentWorkspaceId(),
-        preserveExistingPassword: !tempPassword,
-        forcePasswordReset: !tempPassword,
-      });
+      let result = isSupabaseConfigured()
+        ? await provisionSupabaseManagedUser({
+            email,
+            displayName,
+            role: "Teacher",
+            password: activePassword,
+            workspaceId,
+            mustChangePassword: !tempPassword,
+          })
+        : await upsertManagedPasswordUser({
+            email,
+            displayName,
+            role: "Teacher",
+            password: activePassword,
+            workspaceId,
+            preserveExistingPassword: !tempPassword,
+            forcePasswordReset: !tempPassword,
+          });
+
+      if (!result.user && isSupabaseConfigured()) {
+        const localFallback = await upsertManagedPasswordUser({
+          email,
+          displayName,
+          role: "Teacher",
+          password: activePassword,
+          workspaceId,
+          preserveExistingPassword: !tempPassword,
+          forcePasswordReset: !tempPassword,
+        });
+
+        if (localFallback.user) {
+          result = {
+            ...localFallback,
+            message: result.message || "Supabase staff provisioning failed. Local fallback account created.",
+          };
+        }
+      }
 
       if (result.status === "existing_google") {
         setPortalStaffError(
@@ -5272,8 +5388,8 @@
         role: "Teacher",
         authMethod: "password",
         status: "active",
-      });
-      markAccessGrantClaimed(result.user.email, "Teacher", "password", result.user.id);
+      }, workspaceId);
+      markAccessGrantClaimed(result.user.email, "Teacher", "password", result.user.id, workspaceId);
 
       recordAuditEvent({
         action: staffId ? "updated" : "created",
@@ -5329,12 +5445,16 @@
           status: nextStatus,
         }));
 
-        const matchingGrant = getAccessGrants().find(
+        const matchingGrant = getAccessGrants({ workspaceId: getCurrentWorkspaceId() }).find(
           (grant) => grant.normalizedEmail === normalizeEmail(user.email),
         );
 
         if (matchingGrant) {
-          setAccessGrantStatus(matchingGrant.id, nextStatus === "active" ? "active" : "revoked");
+          setAccessGrantStatus(
+            matchingGrant.id,
+            nextStatus === "active" ? "active" : "revoked",
+            getCurrentWorkspaceId(),
+          );
         }
 
         recordAuditEvent({
@@ -6149,6 +6269,49 @@
         "Only admin accounts with student permission can create, edit, archive, or reactivate student records.",
       );
     }
+  }
+
+  function backfillGuardianAccessFromStudents(manager) {
+    if (!manager || typeof manager.getStudents !== "function") {
+      return 0;
+    }
+
+    const workspaceId = normalizeWorkspaceId(getCurrentWorkspaceId());
+    const grants = getAccessGrants({ workspaceId });
+    const existingGrantEmails = new Set(grants.map((entry) => normalizeEmail(entry.email || "")));
+    let createdCount = 0;
+
+    manager.getStudents().forEach((student) => {
+      const guardians = Array.isArray(student?.guardians) ? student.guardians : [];
+
+      guardians.forEach((guardian) => {
+        const email = String(guardian?.email || "").trim();
+
+        if (!email || !EMAIL_REGEX.test(email)) {
+          return;
+        }
+
+        const normalizedEmail = normalizeEmail(email);
+
+        if (existingGrantEmails.has(normalizedEmail)) {
+          return;
+        }
+
+        upsertAccessGrant(
+          {
+            email,
+            role: "Parent",
+            authMethod: "any",
+            status: "active",
+          },
+          workspaceId,
+        );
+        existingGrantEmails.add(normalizedEmail);
+        createdCount += 1;
+      });
+    });
+
+    return createdCount;
   }
 
   function clearPortalStudentErrors(form) {
@@ -7006,6 +7169,10 @@
       return;
     }
 
+    if (isAdmin) {
+      backfillGuardianAccessFromStudents(manager);
+    }
+
     if (addGuardianButton) {
       addGuardianButton.disabled = !isAdmin;
       addGuardianButton.addEventListener("click", () => {
@@ -7678,10 +7845,20 @@
     return updatedUser;
   }
 
-  function updateUserByEmail(email, updater) {
+  function updateUserByEmail(email, updater, workspaceId = null) {
     const normalized = normalizeEmail(email || "");
+    const hasSession = Boolean(getSession());
+    const targetWorkspaceId = workspaceId
+      ? normalizeWorkspaceId(workspaceId)
+      : hasSession
+        ? normalizeWorkspaceId(getCurrentWorkspaceId())
+        : null;
     const users = getUsers();
-    const index = users.findIndex((user) => user.normalizedEmail === normalized);
+    const index = users.findIndex(
+      (user) =>
+        user.normalizedEmail === normalized &&
+        (targetWorkspaceId ? normalizeWorkspaceId(user.workspaceId || "public") === targetWorkspaceId : true),
+    );
 
     if (index === -1) {
       return null;
@@ -7834,7 +8011,7 @@
 
         form.reset();
         clearFormDraftFor(form);
-        markAccessGrantClaimed(email, grantedRole, "password", data?.user?.id || null);
+        markAccessGrantClaimed(email, grantedRole, "password", data?.user?.id || null, signupWorkspaceId);
         setStatus(
           status,
           "success",
@@ -7868,7 +8045,7 @@
       users.push(user);
       saveUsers(users);
       storeConfirmationMail(user);
-      markAccessGrantClaimed(user.email, user.role, "password", user.id);
+      markAccessGrantClaimed(user.email, user.role, "password", user.id, user.workspaceId);
 
       form.reset();
       clearFormDraftFor(form);
@@ -8330,7 +8507,7 @@
 
       user.lastLoginAt = nowIso();
       saveUsers(users);
-      markAccessGrantClaimed(user.email, user.role, "google", user.id);
+      markAccessGrantClaimed(user.email, user.role, "google", user.id, user.workspaceId);
       setSession(
         {
           userId: user.id,
@@ -8592,52 +8769,58 @@
       return;
     }
 
-    target.innerHTML = DASHBOARD_EVENT_ITEMS.map(
-      (item) => `
-        <article class="admin-event-row">
-          <div class="admin-event-time">${item.time}</div>
-          <div class="admin-event-copy admin-event-copy-${item.tone}">
-            <strong>${item.title}</strong>
-            <span>${item.location}</span>
-          </div>
-          <button class="admin-event-button admin-event-button-${item.tone}" type="button">${item.action}</button>
-        </article>
-      `,
-    ).join("");
+    target.innerHTML = `
+      <article class="admin-event-row admin-event-row-empty">
+        <div class="admin-event-copy admin-event-copy-blue">
+          <strong>No upcoming classes or events yet.</strong>
+          <span>Create calendar items in Schedule to populate this section.</span>
+        </div>
+      </article>
+    `;
   }
 
   function renderAdminActivity(target) {
     if (!target) {
       return;
     }
+    const session = getSession();
+    const roleLabel = session ? normalizeRoleLabel(session.role || DEFAULT_AUTH_ROLE) : "Guest access";
+    const notifications = filterNotificationsByRole(getNotifications(), roleLabel).slice(0, 6);
 
-    target.innerHTML = DASHBOARD_ACTIVITY_ITEMS.map(
-      (item) => `
-        <article class="admin-activity-row">
-          <span class="admin-activity-avatar admin-activity-avatar-${item.tone}">${escapeHtml(
-            getInitials(item.person),
-          )}</span>
+    if (!notifications.length) {
+      target.innerHTML = `
+        <article class="admin-activity-row admin-activity-row-empty">
           <div class="admin-activity-copy">
-            <p><strong>${item.person}</strong> ${item.message} <span>${item.accent}</span></p>
-            <small>${item.timeAgo}</small>
+            <p><strong>No recent activity yet.</strong></p>
+            <small>School actions will appear here automatically.</small>
           </div>
         </article>
-      `,
-    ).join("");
+      `;
+      return;
+    }
+
+    target.innerHTML = notifications
+      .map((entry, index) => {
+        const tone = ["blue", "violet", "green", "amber"][index % 4];
+        return `
+          <article class="admin-activity-row">
+            <span class="admin-activity-avatar admin-activity-avatar-${tone}">${escapeHtml(
+              getInitials(entry.actorName || "System"),
+            )}</span>
+            <div class="admin-activity-copy">
+              <p><strong>${escapeHtml(entry.actorName || "System")}</strong> ${escapeHtml(
+                entry.title || "updated the system",
+              )}</p>
+              <small>${escapeHtml(formatTimestamp(entry.createdAt || nowIso()))}</small>
+            </div>
+          </article>
+        `;
+      })
+      .join("");
   }
 
   function buildDashboardFallbackNotifications() {
-    return DASHBOARD_ACTIVITY_ITEMS.map((item, index) => ({
-      id: `fallback-${index + 1}`,
-      title: `${item.person} ${item.message} ${item.accent}`.trim(),
-      message: "School activity update",
-      actorName: item.person,
-      createdAt: nowIso(),
-      action: "updated",
-      entityType: "activity",
-      entityId: `fallback-${index + 1}`,
-      visibleToRoles: ["Admin", "Teacher", "Student", "Parent"],
-    }));
+    return [];
   }
 
   function renderNotificationList(target, notifications = []) {

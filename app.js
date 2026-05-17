@@ -302,12 +302,17 @@ function resolveWorkspaceStorageKey(baseKey) {
   return `${baseKey}::${getActiveWorkspaceStorageId()}`;
 }
 
-function readWorkspaceState(baseKey, fallback) {
+function readWorkspaceState(baseKey, fallback, options = {}) {
+  const { allowLegacyFallback = false } = options;
   const scopedKey = resolveWorkspaceStorageKey(baseKey);
   const scopedValue = localStorage.getItem(scopedKey);
 
   if (scopedValue !== null) {
     return parseStoredJSON(scopedValue, fallback);
+  }
+
+  if (!allowLegacyFallback) {
+    return fallback;
   }
 
   const legacyValue = localStorage.getItem(baseKey);
@@ -321,6 +326,24 @@ function writeWorkspaceState(baseKey, value) {
 function removeWorkspaceState(baseKey) {
   localStorage.removeItem(resolveWorkspaceStorageKey(baseKey));
 }
+
+function clearLegacySharedState() {
+  [
+    SCHOOL_SETTINGS_STORAGE_KEY,
+    SCHOOL_ACADEMIC_CYCLES_STORAGE_KEY,
+    SCHOOL_ACADEMIC_CALENDAR_STORAGE_KEY,
+    SCHOOL_CLASSES_STORAGE_KEY,
+    SCHOOL_COURSES_STORAGE_KEY,
+    SCHOOL_STUDENTS_STORAGE_KEY,
+    AUDIT_TRAIL_STORAGE_KEY,
+    FEATURE_TOGGLE_STORAGE_KEY,
+    ROLE_PERMISSIONS_STORAGE_KEY,
+  ].forEach((baseKey) => {
+    localStorage.removeItem(baseKey);
+  });
+}
+
+clearLegacySharedState();
 
 function isWorkspaceScopedStorageEventKey(eventKey, baseKey) {
   return eventKey === resolveWorkspaceStorageKey(baseKey);
