@@ -17,6 +17,7 @@
   const NOTIFICATION_EVENT_NAME = "schoolsphere:notifications:updated";
   const FORM_DRAFT_STORAGE_PREFIX = "schoolsphere.form-draft.v1";
   const NETWORK_RESILIENCE_BANNER_ID = "network-resilience-banner";
+  const AUTH_ROLES = ["Admin", "Teacher", "Student", "Parent"];
   let supabaseClientPromise = null;
 
   const DASHBOARD_SECTION_LINKS = [
@@ -793,7 +794,100 @@
     return `${NOTIFICATION_STORAGE_PREFIX}:${normalizeWorkspaceId(workspaceId || getCurrentWorkspaceId())}`;
   }
 
+  function normalizeNotificationRoles(roles, fallback = ["Admin"]) {
+    const source = Array.isArray(roles) ? roles : [roles];
+    const normalized = source
+      .map((role) => normalizeRoleLabel(role))
+      .filter((role) => AUTH_ROLES.includes(role));
+
+    if (!normalized.length) {
+      return [...fallback];
+    }
+
+    return Array.from(new Set(normalized));
+  }
+
+  function getNotificationAudience(entry = {}) {
+    if (entry.visibleToRoles) {
+      return normalizeNotificationRoles(entry.visibleToRoles, AUTH_ROLES);
+    }
+
+    const entityType = String(entry.entityType || "system")
+      .trim()
+      .toLowerCase();
+
+    const explicitTargetRole = entry.targetRole ? normalizeRoleLabel(entry.targetRole) : null;
+    if (explicitTargetRole && AUTH_ROLES.includes(explicitTargetRole)) {
+      return explicitTargetRole === "Admin"
+        ? ["Admin"]
+        : normalizeNotificationRoles(["Admin", explicitTargetRole], ["Admin"]);
+    }
+
+    if (
+      entityType === "student" ||
+      entityType === "attendance" ||
+      entityType === "class" ||
+      entityType === "course" ||
+      entityType === "calendar" ||
+      entityType === "result" ||
+      entityType === "assignment" ||
+      entityType === "activity"
+    ) {
+      return ["Admin", "Teacher", "Student", "Parent"];
+    }
+
+    if (
+      entityType === "teacher" ||
+      entityType === "staff-account" ||
+      entityType === "staff" ||
+      entityType === "timetable"
+    ) {
+      return ["Admin", "Teacher"];
+    }
+
+    if (
+      entityType === "parent" ||
+      entityType === "guardian"
+    ) {
+      return ["Admin", "Parent"];
+    }
+
+    if (
+      entityType === "parent-account" ||
+      entityType === "role-permission" ||
+      entityType === "feature-module" ||
+      entityType === "access-grant" ||
+      entityType === "school-settings" ||
+      entityType === "academic-cycle" ||
+      entityType === "user-password" ||
+      entityType === "system"
+    ) {
+      return ["Admin"];
+    }
+
+    return ["Admin"];
+  }
+
+  function filterNotificationsByRole(notifications = [], roleLabel = DEFAULT_AUTH_ROLE) {
+    const role = normalizeRoleLabel(roleLabel || DEFAULT_AUTH_ROLE);
+
+    if (!AUTH_ROLES.includes(role)) {
+      return [];
+    }
+
+    if (role === "Admin") {
+      return notifications;
+    }
+
+    return notifications.filter((entry) => {
+      const audience = normalizeNotificationRoles(entry.visibleToRoles, ["Admin"]);
+      return audience.includes(role);
+    });
+  }
+
   function normalizeNotificationEntry(entry = {}, workspaceId = null) {
+    const visibleToRoles = getNotificationAudience(entry);
+
     return {
       id: String(entry.id || createId()),
       title: String(entry.title || entry.summary || "System activity").trim(),
@@ -804,6 +898,7 @@
       actorName: String(entry.actorName || "System").trim(),
       createdAt: entry.createdAt || entry.timestamp || nowIso(),
       workspaceId: normalizeWorkspaceId(workspaceId || entry.workspaceId || getCurrentWorkspaceId()),
+      visibleToRoles,
     };
   }
 
@@ -2107,6 +2202,10 @@
       document.querySelector("[data-class-form-toggle]");
     const courseManager = getCourseManager();
     const subjectField = form.elements.subjects;
+    const classTeacherField = form.elements.classTeacher;
+    const assignmentList = form.querySelector("[data-teacher-assignment-list]");
+    const assignmentAddButton = form.querySelector("[data-assignment-add]");
+    const assignmentRawInput = form.querySelector("[data-class-assignment-raw]");
 
     const normalizeLookupToken = (value) => String(value || "").trim().toLowerCase();
 
@@ -2136,6 +2235,160 @@
           ? "Use active course names from Course Management (comma separated)"
           : "Create active courses first on the Courses page, then list them here";
       }
+    };
+
+    const getTeacherDirectory = () => {
+      const workspaceId = normalizeWorkspaceId(getCurrentWorkspaceId());
+      return getUsers()
+        .filter(
+          (user) =>
+            normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE) === "Teacher" &&
+            !isUserDeactivated(user) &&
+            normalizeWorkspaceId(user.workspaceId || "public") === workspaceId,
+        )
+        .map((user) => ({
+          value: String(user.email || "").trim(),
+          label: user.displayName
+            ? `${user.displayName} (${user.email})`
+            : String(user.email || "").trim(),
+        }))
+        .filter((item) => item.value)
+        .sort((left, right) => left.label.localeCompare(right.label));
+    };
+
+    const getSubjectOptions = () =>
+      getActiveCourseCatalog()
+        .map((course) => ({
+          value: String(course.name || "").trim(),
+          label: course.code ? `${course.name} (${course.code})` : String(course.name || "").trim(),
+        }))
+        .filter((item) => item.value);
+
+    const buildSelectOptions = ({ options = [], selected = "", placeholder = "Select option" }) => {
+      const normalizedSelected = String(selected || "").trim();
+      const hasSelected =
+        normalizedSelected &&
+        options.some((option) => String(option.value || "").trim() === normalizedSelected);
+      const selectedOption = hasSelected
+        ? ""
+        : normalizedSelected
+          ? `<option value="${escapeHtml(normalizedSelected)}" selected>${escapeHtml(normalizedSelected)}</option>`
+          : "";
+
+      return `
+        <option value="">${escapeHtml(placeholder)}</option>
+        ${options
+          .map(
+            (option) => `
+              <option value="${escapeHtml(option.value)}" ${
+                String(option.value || "").trim() === normalizedSelected ? "selected" : ""
+              }>
+                ${escapeHtml(option.label || option.value)}
+              </option>
+            `,
+          )
+          .join("")}
+        ${selectedOption}
+      `;
+    };
+
+    const renderClassTeacherOptions = (selected = "") => {
+      if (!(classTeacherField instanceof HTMLSelectElement)) {
+        return;
+      }
+
+      classTeacherField.innerHTML = buildSelectOptions({
+        options: getTeacherDirectory(),
+        selected,
+        placeholder: "Select teacher",
+      });
+    };
+
+    const getTeacherAssignmentRows = () => {
+      if (!assignmentList) {
+        return [];
+      }
+
+      return Array.from(assignmentList.querySelectorAll("[data-assignment-row]")).map((row) => ({
+        subject: row.querySelector('[data-assignment-field="subject"]')?.value.trim() || "",
+        teacher: row.querySelector('[data-assignment-field="teacher"]')?.value.trim() || "",
+      }));
+    };
+
+    const syncTeacherAssignmentRaw = () => {
+      if (!assignmentRawInput) {
+        return;
+      }
+
+      const lines = getTeacherAssignmentRows()
+        .filter((item) => item.subject && item.teacher)
+        .map((item) => `${item.subject}: ${item.teacher}`);
+      assignmentRawInput.value = lines.join("\n");
+    };
+
+    const appendTeacherAssignmentRow = (assignment = {}, disabled = !isAdmin) => {
+      if (!assignmentList) {
+        return;
+      }
+
+      const subject = String(assignment.subject || "").trim();
+      const teacher = String(assignment.teacher || "").trim();
+      const row = document.createElement("div");
+      row.className = "portal-assignment-row";
+      row.dataset.assignmentRow = "true";
+      row.innerHTML = `
+        <select data-assignment-field="subject" ${disabled ? "disabled" : ""}>
+          ${buildSelectOptions({
+            options: getSubjectOptions(),
+            selected: subject,
+            placeholder: "Select subject",
+          })}
+        </select>
+        <select data-assignment-field="teacher" ${disabled ? "disabled" : ""}>
+          ${buildSelectOptions({
+            options: getTeacherDirectory(),
+            selected: teacher,
+            placeholder: "Select teacher",
+          })}
+        </select>
+        <button type="button" class="portal-assignment-remove" data-assignment-remove ${disabled ? "disabled" : ""}>Remove</button>
+      `;
+      assignmentList.appendChild(row);
+      syncTeacherAssignmentRaw();
+    };
+
+    const renderTeacherAssignmentRows = (rows = []) => {
+      if (!assignmentList) {
+        return;
+      }
+
+      const normalizedRows = Array.isArray(rows) && rows.length ? rows : [{}];
+      assignmentList.innerHTML = "";
+      normalizedRows.forEach((row) => appendTeacherAssignmentRow(row, !isAdmin));
+    };
+
+    const parseTeacherAssignmentsFromBuilder = () => {
+      const rows = getTeacherAssignmentRows();
+      const items = [];
+      const invalidLines = [];
+
+      rows.forEach((row, index) => {
+        const subject = String(row.subject || "").trim();
+        const teacher = String(row.teacher || "").trim();
+
+        if (!subject && !teacher) {
+          return;
+        }
+
+        if (!subject || !teacher) {
+          invalidLines.push(`row-${index + 1}`);
+          return;
+        }
+
+        items.push({ subject, teacher });
+      });
+
+      return { items, invalidLines };
     };
 
     const setClassFormVisibility = (isVisible) => {
@@ -2181,15 +2434,56 @@
         listTarget,
       });
       updateCourseCatalogSuggestions();
+      renderClassTeacherOptions(classTeacherField?.value || "");
+      const currentRows = getTeacherAssignmentRows();
+      if (assignmentList) {
+        renderTeacherAssignmentRows(currentRows.length ? currentRows : [{}]);
+      }
     };
 
     refreshClassManagementSection();
     resetPortalClassForm(form, isAdmin);
+    renderClassTeacherOptions("");
+    renderTeacherAssignmentRows([{}]);
     setClassFormVisibility(false);
 
     if (formToggleButton) {
       formToggleButton.disabled = !isAdmin || !manager;
       formToggleButton.addEventListener("click", toggleClassFormVisibility);
+    }
+
+    if (assignmentAddButton) {
+      assignmentAddButton.disabled = !isAdmin;
+      assignmentAddButton.addEventListener("click", () => {
+        appendTeacherAssignmentRow({}, !isAdmin);
+      });
+    }
+
+    if (assignmentList) {
+      assignmentList.addEventListener("change", () => {
+        syncTeacherAssignmentRaw();
+      });
+
+      assignmentList.addEventListener("click", (event) => {
+        const removeButton = event.target.closest("[data-assignment-remove]");
+
+        if (!removeButton || !isAdmin) {
+          return;
+        }
+
+        const row = removeButton.closest("[data-assignment-row]");
+        if (!row) {
+          return;
+        }
+
+        row.remove();
+
+        if (!assignmentList.children.length) {
+          appendTeacherAssignmentRow({}, !isAdmin);
+        }
+
+        syncTeacherAssignmentRaw();
+      });
     }
 
     if (!manager) {
@@ -2218,7 +2512,9 @@
         arms: parseCommaSeparatedValues(form.elements.arms.value),
         subjects: parseCommaSeparatedValues(form.elements.subjects.value),
       };
-      const assignmentParse = parseTeacherAssignments(form.elements.teacherAssignments.value);
+      const assignmentParse = assignmentList
+        ? parseTeacherAssignmentsFromBuilder()
+        : parseTeacherAssignments(form.elements.teacherAssignments.value);
       payload.teacherAssignments = assignmentParse.items;
       const activeCourseCatalog = getActiveCourseCatalog();
       const courseLookup = buildCourseLookup(activeCourseCatalog);
@@ -2273,7 +2569,7 @@
         setPortalClassError(
           form,
           "teacherAssignments",
-          "Use one assignment per line in this format: Subject: Teacher.",
+          "Complete both subject and teacher for each assignment row.",
         );
         hasError = true;
       } else if (!payload.teacherAssignments.length) {
@@ -2329,6 +2625,8 @@
       });
 
       resetPortalClassForm(form, isAdmin);
+      renderClassTeacherOptions("");
+      renderTeacherAssignmentRows([{}]);
       clearFormDraftFor(form);
       setClassFormVisibility(false);
       setStatus(
@@ -2350,6 +2648,8 @@
       classCancelButton.addEventListener("click", () => {
         clearPortalClassErrors(form);
         resetPortalClassForm(form, isAdmin);
+        renderClassTeacherOptions("");
+        renderTeacherAssignmentRows([{}]);
         setClassFormVisibility(false);
         setStatus(status, "", "");
       });
@@ -2374,6 +2674,8 @@
 
       if (action === "edit") {
         populatePortalClassForm(form, record, isAdmin);
+        renderClassTeacherOptions(record.classTeacher || "");
+        renderTeacherAssignmentRows(record.teacherAssignments || [{}]);
         setClassFormVisibility(true);
         setStatus(
           status,
@@ -2396,6 +2698,8 @@
           details: `${record.capacity} capacity`,
         });
         resetPortalClassForm(form, isAdmin);
+        renderClassTeacherOptions("");
+        renderTeacherAssignmentRows([{}]);
         setClassFormVisibility(false);
         setStatus(
           status,
@@ -2417,6 +2721,8 @@
           details: `${record.capacity} capacity`,
         });
         resetPortalClassForm(form, isAdmin);
+        renderClassTeacherOptions("");
+        renderTeacherAssignmentRows([{}]);
         setClassFormVisibility(false);
         setStatus(
           status,
@@ -8330,6 +8636,7 @@
       action: "updated",
       entityType: "activity",
       entityId: `fallback-${index + 1}`,
+      visibleToRoles: ["Admin", "Teacher", "Student", "Parent"],
     }));
   }
 
@@ -8405,6 +8712,7 @@
     const overlay = ensureDashboardNotificationsOverlay();
     const listTarget = document.getElementById("admin-notification-list");
     const workspaceId = normalizeWorkspaceId(session?.workspaceId || getCurrentWorkspaceId());
+    const currentRole = session ? normalizeRoleLabel(session.role || DEFAULT_AUTH_ROLE) : "Guest access";
     const alreadyBound = button.dataset.notificationsBound === "true";
 
     const setOverlayState = (isOpen) => {
@@ -8415,12 +8723,14 @@
 
     const refresh = () => {
       const notifications = getNotifications(workspaceId);
-      const entries = notifications.length ? notifications : buildDashboardFallbackNotifications();
+      const scopedNotifications = filterNotificationsByRole(notifications, currentRole);
+      const fallbackEntries = filterNotificationsByRole(buildDashboardFallbackNotifications(), currentRole);
+      const entries = scopedNotifications.length ? scopedNotifications : fallbackEntries;
       renderNotificationList(listTarget, entries);
 
       const dot = document.getElementById("admin-notification-dot");
       if (dot) {
-        dot.hidden = notifications.length === 0;
+        dot.hidden = scopedNotifications.length === 0;
       }
     };
 
