@@ -17,6 +17,7 @@
   const NOTIFICATION_EVENT_NAME = "schoolsphere:notifications:updated";
   const FORM_DRAFT_STORAGE_PREFIX = "schoolsphere.form-draft.v1";
   const NETWORK_RESILIENCE_BANNER_ID = "network-resilience-banner";
+  const STUDENT_STORAGE_KEY_BASE = "schoolsphere.students.v1";
   const AUTH_ROLES = ["Admin", "Teacher", "Student", "Parent"];
   const PARENT_SELECTION_STORAGE_PREFIX = "schoolsphere.parent.selected-child.v1";
   const PARENT_FEES_STORAGE_PREFIX = "schoolsphere.parent.fees.v1";
@@ -819,6 +820,121 @@
     }
 
     return "public";
+  }
+
+  function parseWorkspaceIdFromScopedStorageKey(key, baseKey) {
+    const normalizedKey = String(key || "");
+    const prefix = `${baseKey}::`;
+
+    if (!normalizedKey.startsWith(prefix)) {
+      return null;
+    }
+
+    return normalizeWorkspaceId(normalizedKey.slice(prefix.length));
+  }
+
+  function discoverParentWorkspaceByGuardianEmail(parentEmail) {
+    const normalizedParentEmail = normalizeEmail(parentEmail || "");
+
+    if (!normalizedParentEmail) {
+      return null;
+    }
+
+    const matches = new Map();
+
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      const workspaceId =
+        key === STUDENT_STORAGE_KEY_BASE
+          ? "public"
+          : parseWorkspaceIdFromScopedStorageKey(key, STUDENT_STORAGE_KEY_BASE);
+
+      if (!workspaceId) {
+        continue;
+      }
+
+      const records = parseJSON(localStorage.getItem(key), []);
+
+      if (!Array.isArray(records)) {
+        continue;
+      }
+
+      let hitCount = 0;
+      records.forEach((record) => {
+        const guardians = Array.isArray(record?.guardians) ? record.guardians : [];
+        const isLinked = guardians.some(
+          (guardian) =>
+            normalizeEmail(String(guardian?.email || "").trim()) === normalizedParentEmail,
+        );
+
+        if (isLinked) {
+          hitCount += 1;
+        }
+      });
+
+      if (hitCount > 0) {
+        matches.set(workspaceId, (matches.get(workspaceId) || 0) + hitCount);
+      }
+    }
+
+    if (!matches.size) {
+      return null;
+    }
+
+    return Array.from(matches.entries())
+      .sort((left, right) => right[1] - left[1])[0][0];
+  }
+
+  function alignParentWorkspaceFromGuardianLink(user, session) {
+    if (!user || normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE) !== "Parent") {
+      return user;
+    }
+
+    const discoveredWorkspaceId = discoverParentWorkspaceByGuardianEmail(user.email);
+
+    if (!discoveredWorkspaceId) {
+      return user;
+    }
+
+    const currentWorkspaceId = normalizeWorkspaceId(user.workspaceId || session?.workspaceId || "public");
+
+    if (currentWorkspaceId === discoveredWorkspaceId) {
+      return user;
+    }
+
+    const updatedUser = updateUser(user.id, (record) => ({
+      ...record,
+      workspaceId: discoveredWorkspaceId,
+    }));
+
+    const remember = (session?.persistence || "persistent") !== "session";
+    setSession(
+      {
+        ...session,
+        workspaceId: discoveredWorkspaceId,
+      },
+      remember,
+    );
+
+    const allGrants = getAccessGrants({ allWorkspaces: true });
+    const normalizedEmail = normalizeEmail(user.email || "");
+    const updatedGrants = allGrants.map((grant) => {
+      if (
+        normalizeEmail(grant.email || "") === normalizedEmail &&
+        normalizeRoleLabel(grant.role || DEFAULT_AUTH_ROLE) === "Parent"
+      ) {
+        return normalizeAccessGrant({
+          ...grant,
+          workspaceId: discoveredWorkspaceId,
+          updatedAt: nowIso(),
+        }, discoveredWorkspaceId);
+      }
+
+      return grant;
+    });
+    saveAccessGrants(updatedGrants, { allWorkspaces: true });
+
+    return updatedUser || user;
   }
 
   function getNotificationStorageKey(workspaceId = null) {
@@ -1872,6 +1988,7 @@
     );
     const workspaceToApply = normalizeWorkspaceId(
       preferredWorkspaceId ||
+        activeGrant?.workspaceId ||
         existingLocalUser?.workspaceId ||
         session.user.user_metadata?.workspace_id ||
         localSession?.workspaceId ||
@@ -9316,11 +9433,26 @@
     }
 
     if (!student) {
+      const session = getSession();
       target.innerHTML = `
         <article class="admin-surface-card">
           <div class="admin-surface-head">
             <h2>No linked student yet</h2>
             <span>This parent account is active, but no student record is linked to this email in this school workspace.</span>
+          </div>
+          <div class="admin-session-grid">
+            <div class="admin-session-card">
+              <span>Parent email</span>
+              <strong>${escapeHtml(session?.email || "Unknown")}</strong>
+            </div>
+            <div class="admin-session-card">
+              <span>Workspace</span>
+              <strong>${escapeHtml(session?.workspaceId || "public")}</strong>
+            </div>
+            <div class="admin-session-card">
+              <span>Linked children found</span>
+              <strong>${escapeHtml(String(children.length || 0))}</strong>
+            </div>
           </div>
         </article>
       `;
@@ -9638,7 +9770,9 @@
       return;
     }
 
-    const { session, user, roleLabel } = getAdminAccessContext();
+    const accessContext = getAdminAccessContext();
+    const { session, roleLabel } = accessContext;
+    let { user } = accessContext;
 
     if (!session || !user) {
       window.location.assign("./login.html");
@@ -9649,6 +9783,8 @@
       window.location.assign(getRoleHomeRoute(roleLabel));
       return;
     }
+
+    user = alignParentWorkspaceFromGuardianLink(user, session);
 
     const brandMark = document.getElementById("admin-brand-mark");
     const brandName = document.getElementById("admin-brand-name");
