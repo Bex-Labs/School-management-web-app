@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Teachers by Class | SchoolSphere Parent</title>
+    <meta name="description" content="Parent view of teacher list grouped by class." />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body data-page="parent-teachers" class="admin-dashboard-page">
+    <main class="admin-dashboard-shell">
+      <aside class="admin-sidebar">
+        <a class="admin-sidebar-brand" href="./index.html" aria-label="SchoolSphere home">
+          <span id="admin-brand-mark" class="admin-brand-mark">S</span>
+          <div class="admin-sidebar-brand-copy">
+            <strong id="admin-brand-name">SchoolSphere</strong>
+            <span id="admin-brand-subtitle">Parent workspace</span>
+          </div>
+        </a>
+        <nav class="admin-sidebar-nav" aria-label="Parent sections">
+          <a class="admin-sidebar-link" href="./parent-portal.html"><span>My Child Performance</span></a>
+          <a class="admin-sidebar-link is-active" href="./parent-teachers.html"><span>Teachers by Class</span></a>
+          <a class="admin-sidebar-link" href="./parent-courses.html"><span>My Child Courses</span></a>
+          <a class="admin-sidebar-link" href="./parent-attendance.html"><span>Attendance</span></a>
+          <a class="admin-sidebar-link" href="./parent-fees.html"><span>Fees & Balance</span></a>
+          <a class="admin-sidebar-link" href="./parent-reports.html"><span>Reports</span></a>
+        </nav>
+        <section class="admin-sidebar-profile">
+          <div class="admin-profile-avatar" id="admin-profile-avatar">P</div>
+          <div class="admin-profile-copy">
+            <strong id="admin-profile-name">Loading user...</strong>
+            <span id="admin-profile-role">Parent</span>
+          </div>
+          <div id="portal-gate" class="admin-profile-actions">
+            <button class="admin-signout-button" type="button" data-signout>Log out</button>
+          </div>
+        </section>
+      </aside>
+      <section class="admin-dashboard-main">
+        <header class="admin-dashboard-topbar">
+          <div class="admin-dashboard-greeting">
+            <span class="admin-topline-chip" id="portal-last-updated">Last updated --</span>
+            <h1 id="portal-heading">Teachers by Class</h1>
+            <p id="portal-copy">See class teachers and subject teachers for your child’s classes.</p>
+          </div>
+          <div id="parent-child-switcher" class="admin-dashboard-tools"></div>
+        </header>
+        <section id="parent-page-content" class="admin-class-grid"></section>
+      </section>
+    </main>
+    <script src="./app.js"></script>
+    <script src="./supabase-config.js"></script>
+    <script src="./auth.js"></script>
+  </body>
+</html>

@@ -18,6 +18,22 @@
   const FORM_DRAFT_STORAGE_PREFIX = "schoolsphere.form-draft.v1";
   const NETWORK_RESILIENCE_BANNER_ID = "network-resilience-banner";
   const AUTH_ROLES = ["Admin", "Teacher", "Student", "Parent"];
+  const PARENT_SELECTION_STORAGE_PREFIX = "schoolsphere.parent.selected-child.v1";
+  const PARENT_FEES_STORAGE_PREFIX = "schoolsphere.parent.fees.v1";
+  const ROLE_HOME_ROUTES = {
+    Admin: "./portal.html",
+    Teacher: "./portal.html",
+    Student: "./portal.html",
+    Parent: "./parent-portal.html",
+  };
+  const PARENT_PAGE_ROUTES = {
+    "parent-portal": "./parent-portal.html",
+    "parent-teachers": "./parent-teachers.html",
+    "parent-courses": "./parent-courses.html",
+    "parent-attendance": "./parent-attendance.html",
+    "parent-fees": "./parent-fees.html",
+    "parent-reports": "./parent-reports.html",
+  };
   let supabaseClientPromise = null;
 
   const DASHBOARD_SECTION_LINKS = [
@@ -193,6 +209,7 @@
     initGoogleButtons();
     initConfirmPage();
     initPortalPage();
+    initParentPages();
     initAdminShellPages();
     initAdminStudentsPage();
     initAdminTeachersPage();
@@ -207,6 +224,20 @@
 
   function getPage() {
     return document.body.dataset.page || "";
+  }
+
+  function isParentPage(page = getPage()) {
+    return String(page || "").startsWith("parent-");
+  }
+
+  function getRoleHomeRoute(roleLabel) {
+    const normalizedRole = normalizeRoleLabel(roleLabel || DEFAULT_AUTH_ROLE);
+    return ROLE_HOME_ROUTES[normalizedRole] || ROLE_HOME_ROUTES.Admin;
+  }
+
+  function getCurrentRoleHomeRoute() {
+    const session = getSession();
+    return getRoleHomeRoute(session?.role || DEFAULT_AUTH_ROLE);
   }
 
   function parseJSON(raw, fallback) {
@@ -1893,7 +1924,7 @@
     );
 
     if ((getPage() === "login" || getPage() === "signup") && redirectAuthenticatedAuthPages) {
-      window.location.assign("./portal.html");
+      window.location.assign(getRoleHomeRoute(mirroredUser.role));
     }
 
     return { session, user: mirroredUser };
@@ -1911,7 +1942,12 @@
         if (event === "SIGNED_OUT") {
           clearSession();
 
-          if (getPage() === "portal" || getPage().startsWith("admin-")) {
+          if (
+            getPage() === "portal" ||
+            getPage().startsWith("admin-") ||
+            getPage().startsWith("parent-") ||
+            getPage() === "user-settings"
+          ) {
             window.location.assign("./login.html");
           }
 
@@ -2017,7 +2053,7 @@
 
     const nav = sidebar.querySelector(".admin-sidebar-nav");
 
-    const shouldInjectCourseLink = getPage() !== "user-settings";
+    const shouldInjectCourseLink = getPage() !== "user-settings" && !isParentPage();
 
     if (nav && shouldInjectCourseLink && !nav.querySelector('a[href="./admin-courses.html"]')) {
       const referenceLink = nav.querySelector('a[href="./admin-classes.html"]');
@@ -8005,7 +8041,7 @@
             redirectAuthenticatedAuthPages: false,
           });
           clearFormDraftFor(form);
-          window.location.assign("./portal.html");
+          window.location.assign(getRoleHomeRoute(grantedRole));
           return;
         }
 
@@ -8190,7 +8226,7 @@
                 );
 
                 clearFormDraftFor(form);
-                window.location.assign("./portal.html");
+                window.location.assign(getRoleHomeRoute(fallbackRole));
                 return;
               }
             }
@@ -8255,7 +8291,7 @@
         }
 
         clearFormDraftFor(form);
-        window.location.assign("./portal.html");
+        window.location.assign(getRoleHomeRoute(signedInRole));
         return;
       }
 
@@ -8333,7 +8369,7 @@
       );
 
       clearFormDraftFor(form);
-      window.location.assign("./portal.html");
+      window.location.assign(getRoleHomeRoute(userRole));
     });
   }
 
@@ -8526,7 +8562,7 @@
       if (getPage() === "signup") {
         clearFormDraft("signup-form");
       }
-      window.location.assign("./portal.html");
+      window.location.assign(getRoleHomeRoute(user.role));
       return;
     }
 
@@ -8572,7 +8608,7 @@
     if (getPage() === "login") {
       clearFormDraft("login-form");
     }
-    window.location.assign("./portal.html");
+    window.location.assign(getRoleHomeRoute(existingRole));
   }
 
   function initGoogleButtons() {
@@ -9045,8 +9081,654 @@
     });
   }
 
+  function getParentLinkedStudents(parentEmail, manager = null) {
+    if (!parentEmail || !EMAIL_REGEX.test(String(parentEmail).trim())) {
+      return [];
+    }
+
+    const studentManager = manager || getStudentManager();
+
+    if (!studentManager || typeof studentManager.getStudents !== "function") {
+      return [];
+    }
+
+    const normalizedParentEmail = normalizeEmail(parentEmail);
+    return studentManager
+      .getStudents()
+      .filter((student) => student.status !== "archived")
+      .filter((student) =>
+        (student.guardians || []).some(
+          (guardian) => normalizeEmail(String(guardian.email || "").trim()) === normalizedParentEmail,
+        ),
+      )
+      .sort((left, right) => left.fullName.localeCompare(right.fullName, undefined, { numeric: true }));
+  }
+
+  function getParentSelectionStorageKey(user = null) {
+    const session = getSession();
+    const workspaceId = normalizeWorkspaceId(user?.workspaceId || session?.workspaceId || getCurrentWorkspaceId());
+    const userId = String(user?.id || session?.userId || "parent").trim() || "parent";
+    return `${PARENT_SELECTION_STORAGE_PREFIX}:${workspaceId}:${userId}`;
+  }
+
+  function readParentSelectedChildId(user = null) {
+    try {
+      return localStorage.getItem(getParentSelectionStorageKey(user)) || "";
+    } catch {
+      return "";
+    }
+  }
+
+  function saveParentSelectedChildId(childId, user = null) {
+    try {
+      localStorage.setItem(getParentSelectionStorageKey(user), String(childId || "").trim());
+    } catch {
+      // keep UI usable if storage is blocked
+    }
+  }
+
+  function getParentFeesStorageKey(workspaceId = null) {
+    return `${PARENT_FEES_STORAGE_PREFIX}:${normalizeWorkspaceId(workspaceId || getCurrentWorkspaceId())}`;
+  }
+
+  function readParentFeesState(workspaceId = null) {
+    const key = getParentFeesStorageKey(workspaceId);
+    const stored = parseJSON(localStorage.getItem(key), {});
+    return stored && typeof stored === "object" ? stored : {};
+  }
+
+  function saveParentFeesState(state, workspaceId = null) {
+    const key = getParentFeesStorageKey(workspaceId);
+    localStorage.setItem(key, JSON.stringify(state && typeof state === "object" ? state : {}));
+  }
+
+  function deriveParentAttendanceSummary(student = null) {
+    const cycleManager = getAcademicCycleManager();
+    const cycleState = cycleManager && typeof cycleManager.getState === "function"
+      ? cycleManager.getState()
+      : { sessions: [], terms: [] };
+    const openTerm = (cycleState.terms || []).find((term) => term.status === "open") || null;
+    const currentTermLabel = openTerm?.name || "Current Term";
+    const currentSession =
+      openTerm
+        ? (cycleState.sessions || []).find((session) => session.id === openTerm.sessionId)?.name || "Active Session"
+        : "Active Session";
+
+    const history = (cycleState.terms || [])
+      .slice()
+      .sort((left, right) => String(right.createdAt || "").localeCompare(String(left.createdAt || "")))
+      .map((term) => ({
+        id: term.id,
+        term: term.name,
+        session: (cycleState.sessions || []).find((item) => item.id === term.sessionId)?.name || "Session",
+        present: 0,
+        absent: 0,
+      }));
+
+    return {
+      studentId: student?.id || "",
+      currentTermLabel,
+      currentSession,
+      present: 0,
+      absent: 0,
+      history,
+    };
+  }
+
+  function getParentCoursesForStudent(student = null) {
+    if (!student) {
+      return [];
+    }
+
+    const classManager = getClassManager();
+    const courseManager = getCourseManager();
+    const classes = classManager && typeof classManager.getClasses === "function"
+      ? classManager.getClasses().filter((item) => item.status !== "archived")
+      : [];
+    const courses = courseManager && typeof courseManager.getCourses === "function"
+      ? courseManager.getCourses().filter((item) => item.status !== "archived")
+      : [];
+    const classMatch = classes.find((item) => String(item.level || "").trim() === String(student.level || "").trim()) || null;
+    const subjectsFromClass = classMatch?.subjects || [];
+    const matchedByLevel = courses.filter((course) => String(course.level || "").trim() === String(student.level || "").trim());
+
+    const merged = [];
+    const seen = new Set();
+    matchedByLevel.forEach((course) => {
+      const key = normalizeEmail(`${course.code || ""}-${course.name || ""}`);
+      if (seen.has(key)) {
+        return;
+      }
+      seen.add(key);
+      merged.push({
+        name: course.name,
+        code: course.code,
+        level: course.level,
+      });
+    });
+
+    subjectsFromClass.forEach((subject) => {
+      const subjectName = String(subject || "").trim();
+      if (!subjectName) {
+        return;
+      }
+      const key = normalizeEmail(subjectName);
+      if (seen.has(key)) {
+        return;
+      }
+      seen.add(key);
+      merged.push({
+        name: subjectName,
+        code: "",
+        level: student.level || "",
+      });
+    });
+
+    return merged;
+  }
+
+  function getParentTeacherGroups(students = []) {
+    const classManager = getClassManager();
+    const classes = classManager && typeof classManager.getClasses === "function"
+      ? classManager.getClasses().filter((item) => item.status !== "archived")
+      : [];
+    const users = getUsers();
+    const teacherByEmail = users.reduce((lookup, user) => {
+      if (normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE) !== "Teacher") {
+        return lookup;
+      }
+      lookup[normalizeEmail(user.email || "")] = user.displayName || user.email;
+      return lookup;
+    }, {});
+
+    const levelSet = new Set(students.map((student) => String(student.level || "").trim()).filter(Boolean));
+    const filteredClasses = classes.filter((item) => levelSet.has(String(item.level || "").trim()));
+
+    return filteredClasses.map((classRecord) => {
+      const teacherRows = [];
+
+      if (classRecord.classTeacher) {
+        const normalized = normalizeEmail(classRecord.classTeacher);
+        teacherRows.push({
+          role: "Class Teacher",
+          name: teacherByEmail[normalized] || classRecord.classTeacher,
+          subject: "General class oversight",
+        });
+      }
+
+      (classRecord.teacherAssignments || []).forEach((assignment) => {
+        const normalized = normalizeEmail(assignment.teacher || "");
+        teacherRows.push({
+          role: "Subject Teacher",
+          name: teacherByEmail[normalized] || assignment.teacher || "Assigned teacher",
+          subject: assignment.subject || "Subject",
+        });
+      });
+
+      return {
+        id: classRecord.id,
+        className: `${classRecord.level || ""} ${classRecord.name || ""}`.trim() || classRecord.level || classRecord.name,
+        teachers: teacherRows,
+      };
+    });
+  }
+
+  function renderParentChildSelector(container, children, selectedChildId, user) {
+    if (!container) {
+      return null;
+    }
+
+    const options = children
+      .map(
+        (child) => `<option value="${escapeHtml(child.id)}" ${child.id === selectedChildId ? "selected" : ""}>
+          ${escapeHtml(child.fullName)} (${escapeHtml(child.level || "Class not set")})
+        </option>`,
+      )
+      .join("");
+
+    container.innerHTML = `
+      <label class="portal-field parent-child-switch">
+        <span>Switch child</span>
+        <select id="parent-child-switch">
+          ${options || '<option value="">No linked child</option>'}
+        </select>
+      </label>
+    `;
+
+    const select = container.querySelector("#parent-child-switch");
+
+    if (!select) {
+      return null;
+    }
+
+    select.disabled = !children.length;
+    select.addEventListener("change", () => {
+      saveParentSelectedChildId(select.value, user);
+      window.location.reload();
+    });
+
+    return select;
+  }
+
+  function renderParentPerformancePage(target, student, children) {
+    if (!target) {
+      return;
+    }
+
+    if (!student) {
+      target.innerHTML = `
+        <article class="admin-surface-card">
+          <div class="admin-surface-head">
+            <h2>No linked student yet</h2>
+            <span>This parent account is active, but no student record is linked to this email in this school workspace.</span>
+          </div>
+        </article>
+      `;
+      return;
+    }
+
+    const attendance = deriveParentAttendanceSummary(student);
+    const courses = getParentCoursesForStudent(student);
+    const feesState = readParentFeesState();
+    const studentFee = feesState[student.id] || { totalDue: 0, balance: 0, dueDate: "Not set" };
+
+    target.innerHTML = `
+      <section class="admin-metrics-grid">
+        <article class="admin-metric-card admin-metric-card-blue">
+          <strong>${escapeHtml(student.fullName)}</strong>
+          <h3>Student Performance View</h3>
+          <p>Class: ${escapeHtml(student.level || "Not assigned")}</p>
+        </article>
+        <article class="admin-metric-card admin-metric-card-mint">
+          <strong>${attendance.present}</strong>
+          <h3>Present (Current Term)</h3>
+          <p>${escapeHtml(attendance.currentTermLabel)}</p>
+        </article>
+        <article class="admin-metric-card admin-metric-card-violet">
+          <strong>${courses.length}</strong>
+          <h3>Active Courses</h3>
+          <p>From class/course setup</p>
+        </article>
+        <article class="admin-metric-card admin-metric-card-rose">
+          <strong>${escapeHtml(String(studentFee.balance || 0))}</strong>
+          <h3>Outstanding Balance</h3>
+          <p>Due: ${escapeHtml(studentFee.dueDate || "Not set")}</p>
+        </article>
+      </section>
+      <section class="admin-primary-grid">
+        <article class="admin-surface-card">
+          <div class="admin-surface-head">
+            <h2>Linked Children</h2>
+            <span>Switch between your children from the top selector.</span>
+          </div>
+          <div class="admin-session-grid">
+            ${children
+              .map(
+                (child) => `
+                  <div class="admin-session-card">
+                    <span>${escapeHtml(child.level || "Class")}</span>
+                    <strong>${escapeHtml(child.fullName)}</strong>
+                  </div>
+                `,
+              )
+              .join("")}
+          </div>
+        </article>
+      </section>
+    `;
+  }
+
+  function renderParentTeachersPage(target, students) {
+    if (!target) {
+      return;
+    }
+
+    const groups = getParentTeacherGroups(students);
+
+    if (!groups.length) {
+      target.innerHTML = `
+        <article class="admin-surface-card">
+          <div class="admin-surface-head">
+            <h2>Teachers by Class</h2>
+            <span>No teacher assignments found yet for your child's class levels.</span>
+          </div>
+        </article>
+      `;
+      return;
+    }
+
+    target.innerHTML = groups
+      .map(
+        (group) => `
+          <article class="admin-surface-card">
+            <div class="admin-surface-head">
+              <h2>${escapeHtml(group.className || "Class")}</h2>
+              <span>Teacher list grouped by class.</span>
+            </div>
+            <div class="admin-event-list">
+              ${group.teachers
+                .map(
+                  (teacher) => `
+                    <article class="admin-event-row">
+                      <div class="admin-event-time">${escapeHtml(teacher.role)}</div>
+                      <div class="admin-event-copy">
+                        <strong>${escapeHtml(teacher.name)}</strong>
+                        <span>${escapeHtml(teacher.subject)}</span>
+                      </div>
+                    </article>
+                  `,
+                )
+                .join("")}
+            </div>
+          </article>
+        `,
+      )
+      .join("");
+  }
+
+  function renderParentCoursesPage(target, student) {
+    if (!target) {
+      return;
+    }
+
+    if (!student) {
+      target.innerHTML = `<article class="admin-surface-card"><div class="admin-surface-head"><h2>Courses</h2><span>No linked student selected.</span></div></article>`;
+      return;
+    }
+
+    const courses = getParentCoursesForStudent(student);
+    target.innerHTML = `
+      <article class="admin-surface-card">
+        <div class="admin-surface-head">
+          <h2>Courses for ${escapeHtml(student.fullName)}</h2>
+          <span>Only courses for this child are shown.</span>
+        </div>
+        ${
+          courses.length
+            ? `<div class="admin-session-grid">${courses
+                .map(
+                  (course) => `
+                  <div class="admin-session-card">
+                    <span>${escapeHtml(course.code || "Course")}</span>
+                    <strong>${escapeHtml(course.name)}</strong>
+                  </div>
+                `,
+                )
+                .join("")}</div>`
+            : `<p>No courses have been assigned yet for ${escapeHtml(student.level || "this class")}.</p>`
+        }
+      </article>
+    `;
+  }
+
+  function renderParentAttendancePage(target, student) {
+    if (!target) {
+      return;
+    }
+
+    if (!student) {
+      target.innerHTML = `<article class="admin-surface-card"><div class="admin-surface-head"><h2>Attendance</h2><span>No linked student selected.</span></div></article>`;
+      return;
+    }
+
+    const attendance = deriveParentAttendanceSummary(student);
+    const historyRows = attendance.history.length
+      ? attendance.history
+          .map(
+            (row) => `
+              <tr>
+                <td>${escapeHtml(row.session)}</td>
+                <td>${escapeHtml(row.term)}</td>
+                <td>${escapeHtml(String(row.present))}</td>
+                <td>${escapeHtml(String(row.absent))}</td>
+              </tr>
+            `,
+          )
+          .join("")
+      : `<tr><td colspan="4">No previous term attendance published yet.</td></tr>`;
+
+    target.innerHTML = `
+      <article class="admin-surface-card">
+        <div class="admin-surface-head">
+          <h2>Attendance: ${escapeHtml(student.fullName)}</h2>
+          <span>${escapeHtml(attendance.currentSession)} • ${escapeHtml(attendance.currentTermLabel)}</span>
+        </div>
+        <div class="admin-session-grid">
+          <div class="admin-session-card">
+            <span>Present</span>
+            <strong>${escapeHtml(String(attendance.present))}</strong>
+          </div>
+          <div class="admin-session-card">
+            <span>Absent</span>
+            <strong>${escapeHtml(String(attendance.absent))}</strong>
+          </div>
+        </div>
+        <div class="portal-import-table-wrap">
+          <table class="portal-import-table">
+            <thead>
+              <tr><th>Session</th><th>Term</th><th>Present</th><th>Absent</th></tr>
+            </thead>
+            <tbody>${historyRows}</tbody>
+          </table>
+        </div>
+      </article>
+    `;
+  }
+
+  function renderParentFeesPage(target, student, user) {
+    if (!target) {
+      return;
+    }
+
+    if (!student) {
+      target.innerHTML = `<article class="admin-surface-card"><div class="admin-surface-head"><h2>Fees</h2><span>No linked student selected.</span></div></article>`;
+      return;
+    }
+
+    const workspaceId = normalizeWorkspaceId(user?.workspaceId || getCurrentWorkspaceId());
+    const allFees = readParentFeesState(workspaceId);
+    const current = allFees[student.id] || {
+      totalDue: 0,
+      balance: 0,
+      dueDate: "Not set by admin yet",
+      updatedAt: nowIso(),
+    };
+
+    target.innerHTML = `
+      <article class="admin-surface-card">
+        <div class="admin-surface-head">
+          <h2>Fees: ${escapeHtml(student.fullName)}</h2>
+          <span>Fees are configured by school admin. Parents can pay and track balances here.</span>
+        </div>
+        <div class="admin-session-grid">
+          <div class="admin-session-card"><span>Total due</span><strong>${escapeHtml(String(current.totalDue || 0))}</strong></div>
+          <div class="admin-session-card"><span>Outstanding balance</span><strong>${escapeHtml(String(current.balance || 0))}</strong></div>
+          <div class="admin-session-card"><span>Due date</span><strong>${escapeHtml(String(current.dueDate || "Not set"))}</strong></div>
+        </div>
+        <form id="parent-fee-payment-form" class="portal-settings-form" novalidate>
+          <div id="parent-fee-payment-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+          <div class="portal-settings-grid">
+            <label class="portal-field" for="parent-fee-payment-amount">
+              <span>Amount to pay</span>
+              <input id="parent-fee-payment-amount" type="number" min="1" step="1" placeholder="e.g. 5000" />
+            </label>
+          </div>
+          <div class="utility-actions">
+            <button class="button button-primary" type="submit">Pay fee</button>
+          </div>
+        </form>
+      </article>
+    `;
+
+    const paymentForm = target.querySelector("#parent-fee-payment-form");
+    const paymentStatus = target.querySelector("#parent-fee-payment-status");
+
+    if (!paymentForm || !paymentStatus) {
+      return;
+    }
+
+    paymentForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const amountField = paymentForm.querySelector("#parent-fee-payment-amount");
+      const amount = Number.parseFloat(String(amountField?.value || "0"));
+
+      if (!Number.isFinite(amount) || amount <= 0) {
+        setStatus(paymentStatus, "error", "Enter a valid amount.");
+        return;
+      }
+
+      const nextBalance = Math.max(0, Number(current.balance || 0) - amount);
+      const nextState = {
+        ...allFees,
+        [student.id]: {
+          ...current,
+          balance: nextBalance,
+          updatedAt: nowIso(),
+          lastPaymentAmount: amount,
+          lastPaymentAt: nowIso(),
+        },
+      };
+      saveParentFeesState(nextState, workspaceId);
+      setStatus(
+        paymentStatus,
+        "success",
+        `Payment of <strong>${escapeHtml(String(amount))}</strong> recorded. New balance: <strong>${escapeHtml(
+          String(nextBalance),
+        )}</strong>.`,
+      );
+      window.setTimeout(() => {
+        renderParentFeesPage(target, student, user);
+      }, 350);
+    });
+  }
+
+  function renderParentReportsPage(target, student) {
+    if (!target) {
+      return;
+    }
+
+    if (!student) {
+      target.innerHTML = `<article class="admin-surface-card"><div class="admin-surface-head"><h2>Reports</h2><span>No linked student selected.</span></div></article>`;
+      return;
+    }
+
+    target.innerHTML = `
+      <article class="admin-surface-card">
+        <div class="admin-surface-head">
+          <h2>Reports: ${escapeHtml(student.fullName)}</h2>
+          <span>Only this child's report cards and summaries are visible.</span>
+        </div>
+        <div class="admin-event-list">
+          <article class="admin-event-row">
+            <div class="admin-event-time">Result</div>
+            <div class="admin-event-copy">
+              <strong>No published report yet</strong>
+              <span>When teachers publish results, they will appear here for this child only.</span>
+            </div>
+          </article>
+        </div>
+      </article>
+    `;
+  }
+
+  function initParentPages() {
+    const page = getPage();
+
+    if (!isParentPage(page)) {
+      return;
+    }
+
+    const { session, user, roleLabel } = getAdminAccessContext();
+
+    if (!session || !user) {
+      window.location.assign("./login.html");
+      return;
+    }
+
+    if (normalizeRoleLabel(roleLabel) !== "Parent") {
+      window.location.assign(getRoleHomeRoute(roleLabel));
+      return;
+    }
+
+    const brandMark = document.getElementById("admin-brand-mark");
+    const brandName = document.getElementById("admin-brand-name");
+    const brandSubtitle = document.getElementById("admin-brand-subtitle");
+    const profileAvatar = document.getElementById("admin-profile-avatar");
+    const profileName = document.getElementById("admin-profile-name");
+    const profileRole = document.getElementById("admin-profile-role");
+    const gate = document.getElementById("portal-gate");
+    const lastUpdated = document.getElementById("portal-last-updated");
+    const settingsManager = getSchoolSettingsManager();
+    applyAdminBranding(brandMark, brandName, brandSubtitle, settingsManager);
+
+    if (profileAvatar) {
+      profileAvatar.textContent = getInitials(user.displayName || user.email);
+    }
+    if (profileName) {
+      profileName.textContent = user.displayName || user.email;
+    }
+    if (profileRole) {
+      profileRole.textContent = "Parent";
+    }
+    if (lastUpdated) {
+      lastUpdated.textContent = `Updated ${formatTimestamp(nowIso())}`;
+    }
+    if (gate) {
+      gate.innerHTML = `
+        <a class="admin-signout-button" href="./user-settings.html">My settings</a>
+        <button class="admin-signout-button" type="button" data-signout>Log out</button>
+      `;
+      wireSignOutButton(gate);
+    }
+
+    const children = getParentLinkedStudents(user.email, getStudentManager());
+    const savedChildId = readParentSelectedChildId(user);
+    const selectedChild = children.find((child) => child.id === savedChildId) || children[0] || null;
+
+    if (selectedChild) {
+      saveParentSelectedChildId(selectedChild.id, user);
+    }
+
+    const switcherHost = document.getElementById("parent-child-switcher");
+    renderParentChildSelector(switcherHost, children, selectedChild?.id || "", user);
+
+    const contentHost = document.getElementById("parent-page-content");
+    if (!contentHost) {
+      return;
+    }
+
+    if (page === "parent-portal") {
+      renderParentPerformancePage(contentHost, selectedChild, children);
+      return;
+    }
+
+    if (page === "parent-teachers") {
+      renderParentTeachersPage(contentHost, children);
+      return;
+    }
+
+    if (page === "parent-courses") {
+      renderParentCoursesPage(contentHost, selectedChild);
+      return;
+    }
+
+    if (page === "parent-attendance") {
+      renderParentAttendancePage(contentHost, selectedChild);
+      return;
+    }
+
+    if (page === "parent-fees") {
+      renderParentFeesPage(contentHost, selectedChild, user);
+      return;
+    }
+
+    if (page === "parent-reports") {
+      renderParentReportsPage(contentHost, selectedChild);
+    }
+  }
+
   function initAdminShellPages() {
-    if (!document.body.classList.contains("admin-dashboard-page") || getPage() === "portal") {
+    if (!document.body.classList.contains("admin-dashboard-page") || getPage() === "portal" || isParentPage()) {
       return;
     }
 
@@ -9063,6 +9745,12 @@
       ? schoolSettingsManager.getSettings()
       : getDefaultAdminSchoolSettings();
     const { session, user, roleLabel } = getAdminAccessContext();
+    const normalizedRole = normalizeRoleLabel(roleLabel || DEFAULT_AUTH_ROLE);
+
+    if (normalizedRole === "Parent" && !isParentPage()) {
+      window.location.assign(getRoleHomeRoute(normalizedRole));
+      return;
+    }
 
     applyAdminBranding(brandMark, brandName, brandSubtitle, schoolSettingsManager);
 
@@ -9613,6 +10301,12 @@
 
     const snapshot = getDashboardSnapshot();
     const roleLabel = normalizeRoleLabel(session.role || user.role || DEFAULT_AUTH_ROLE);
+
+    if (roleLabel === "Parent") {
+      window.location.assign(getRoleHomeRoute(roleLabel));
+      return;
+    }
+
     const hasDashboardAccess = canAccessPermission(roleLabel, PAGE_PERMISSION_KEYS.portal);
 
     renderDashboardChrome(user, roleLabel, snapshot);

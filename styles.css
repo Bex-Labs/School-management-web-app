@@ -7133,3 +7133,12 @@ body.admin-dashboard-page .portal-class-route-links a:hover,
 body.admin-dashboard-page .portal-class-button:hover:not(:disabled) {
   box-shadow: 0 10px 18px rgba(15, 43, 74, 0.12);
 }
+
+.parent-child-switch {
+  min-width: 260px;
+  margin: 0;
+}
+
+.parent-child-switch select {
+  min-width: 260px;
+}
