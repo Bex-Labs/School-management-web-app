@@ -152,78 +152,39 @@
 
             <div id="portal-student-summary" class="portal-class-summary"></div>
 
-            <div class="portal-class-layout">
-              <div class="portal-class-form-shell">
-                <div class="portal-student-actions">
-                  <button class="button button-primary" type="button" data-student-form-toggle>
-                    Create student
-                  </button>
-                  <button class="button button-outline" type="button" data-student-import-toggle>
-                    Import Students
-                  </button>
-                </div>
+            <div class="portal-student-actions">
+              <button class="button button-primary" type="button" data-student-form-toggle>
+                Create student
+              </button>
+              <button class="button button-outline" type="button" data-student-import-toggle>
+                Import Students
+              </button>
+            </div>
 
-                <form id="portal-student-quick-add-form" class="portal-class-form portal-student-quick-add" novalidate>
-                  <div class="admin-surface-head">
-                    <h3>Quick Add</h3>
-                    <span>Use this for adding only a few students.</span>
-                  </div>
-                  <div id="portal-student-quick-add-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
-                  <div class="portal-settings-grid">
-                    <label class="portal-field" for="quick-student-first-name">
-                      <span>First name</span>
-                      <input id="quick-student-first-name" name="firstName" type="text" placeholder="Amina" />
-                    </label>
-                    <label class="portal-field" for="quick-student-last-name">
-                      <span>Last name</span>
-                      <input id="quick-student-last-name" name="lastName" type="text" placeholder="Yusuf" />
-                    </label>
-                    <label class="portal-field" for="quick-student-level">
-                      <span>Level / class</span>
-                      <input id="quick-student-level" name="level" type="text" placeholder="JSS 1" />
-                    </label>
-                    <label class="portal-field" for="quick-guardian-name">
-                      <span>Parent/Guardian name</span>
-                      <input id="quick-guardian-name" name="guardianName" type="text" placeholder="Mary Yusuf" />
-                    </label>
-                    <label class="portal-field" for="quick-guardian-phone">
-                      <span>Parent/Guardian number</span>
-                      <input id="quick-guardian-phone" name="guardianPhone" type="text" placeholder="+234 800 000 0000" />
-                    </label>
-                    <label class="portal-field" for="quick-guardian-email">
-                      <span>Parent/Guardian email</span>
-                      <input id="quick-guardian-email" name="guardianEmail" type="email" placeholder="guardian@email.com" />
-                    </label>
-                  </div>
-                  <div class="utility-actions">
-                    <button class="button button-primary" type="submit">Quick Add Student</button>
-                  </div>
-                </form>
+            <div class="portal-student-browser">
+              <label class="portal-student-search">
+                <span class="portal-student-search-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="7"></circle>
+                    <path d="m20 20-3.5-3.5"></path>
+                  </svg>
+                </span>
+                <input id="portal-student-search" type="search" placeholder="Search classes, students, admission no..." />
+              </label>
+              <div id="portal-student-class-filters" class="portal-student-class-filters"></div>
+            </div>
 
-                <section id="portal-student-import-panel" class="portal-class-form portal-student-import-panel" hidden>
-                  <div class="admin-surface-head">
-                    <h3>Bulk Student Upload (Excel/CSV)</h3>
-                    <span>Download template, fill all students, preview, then confirm import.</span>
-                  </div>
-                  <div id="portal-student-import-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
-                  <div class="utility-actions">
-                    <button class="button button-outline" type="button" data-student-template-download="csv">Download CSV Template</button>
-                    <button class="button button-outline" type="button" data-student-template-download="excel">Download Excel Template</button>
-                  </div>
-                  <div class="portal-settings-grid">
-                    <label class="portal-field portal-field-span-2" for="portal-student-import-file">
-                      <span>Upload completed file</span>
-                      <input id="portal-student-import-file" type="file" accept=".csv,.xls,.xlsx" />
-                    </label>
-                  </div>
-                  <div class="utility-actions">
-                    <button class="button button-primary" type="button" data-student-import-preview>Preview Import</button>
-                    <button class="button button-primary" type="button" data-student-import-confirm disabled>Confirm Import</button>
-                  </div>
-                  <div id="portal-student-import-preview" class="portal-student-import-preview"></div>
-                </section>
+            <div id="portal-student-list" class="portal-class-list"></div>
 
-                <form id="portal-student-form" class="portal-class-form" novalidate hidden>
+            <div id="portal-student-create-overlay" class="portal-overlay" hidden>
+              <button class="portal-overlay-backdrop" type="button" data-student-create-close aria-label="Close create student"></button>
+              <section class="portal-overlay-panel" role="dialog" aria-modal="true" aria-labelledby="portal-student-create-title">
+                <header class="portal-overlay-head">
+                  <h3 id="portal-student-create-title">Create Student</h3>
+                  <button class="portal-overlay-close" type="button" data-student-create-close aria-label="Close create student">&times;</button>
+                </header>
+
+                <form id="portal-student-form" class="portal-class-form" novalidate>
                   <div id="portal-student-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
                   <input type="hidden" name="studentId" />
 
@@ -286,9 +247,47 @@
                     <button class="button button-outline" type="button" data-student-cancel hidden>Cancel edit</button>
                   </div>
                 </form>
-              </div>
+              </section>
+            </div>
 
-              <div id="portal-student-list" class="portal-class-list"></div>
+            <div id="portal-student-import-overlay" class="portal-overlay" hidden>
+              <button class="portal-overlay-backdrop" type="button" data-student-import-close aria-label="Close import students"></button>
+              <section class="portal-overlay-panel" role="dialog" aria-modal="true" aria-labelledby="portal-student-import-title">
+                <header class="portal-overlay-head">
+                  <h3 id="portal-student-import-title">Import Students</h3>
+                  <button class="portal-overlay-close" type="button" data-student-import-close aria-label="Close import students">&times;</button>
+                </header>
+
+                <section id="portal-student-import-panel" class="portal-class-form portal-student-import-panel">
+                  <div id="portal-student-import-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+                  <div class="utility-actions">
+                    <button class="button button-outline" type="button" data-student-template-download="csv">Download CSV Template</button>
+                    <button class="button button-outline" type="button" data-student-template-download="excel">Download Excel Template</button>
+                  </div>
+                  <div class="portal-settings-grid">
+                    <label class="portal-field portal-field-span-2" for="portal-student-import-file">
+                      <span>Upload completed file</span>
+                      <input id="portal-student-import-file" type="file" accept=".csv,.xls,.xlsx" />
+                    </label>
+                  </div>
+                  <div class="utility-actions">
+                    <button class="button button-primary" type="button" data-student-import-preview>Preview Import</button>
+                    <button class="button button-primary" type="button" data-student-import-confirm disabled>Confirm Import</button>
+                  </div>
+                  <div id="portal-student-import-preview" class="portal-student-import-preview"></div>
+                </section>
+              </section>
+            </div>
+
+            <div id="portal-student-view-overlay" class="portal-overlay" hidden>
+              <button class="portal-overlay-backdrop" type="button" data-student-view-close aria-label="Close student details"></button>
+              <section class="portal-overlay-panel portal-overlay-panel-sm" role="dialog" aria-modal="true" aria-labelledby="portal-student-view-title">
+                <header class="portal-overlay-head">
+                  <h3 id="portal-student-view-title">Student Details</h3>
+                  <button class="portal-overlay-close" type="button" data-student-view-close aria-label="Close student details">&times;</button>
+                </header>
+                <div id="portal-student-view-content" class="portal-student-view-content"></div>
+              </section>
             </div>
           </article>
         </section>

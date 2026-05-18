@@ -6488,7 +6488,10 @@
     form,
     status,
     listTarget,
-    showAllStudents = false,
+    classFiltersTarget = null,
+    selectedClass = "all",
+    searchQuery = "",
+    expandedClassTokens = null,
   }) {
     if (!summaryTarget || !form || !listTarget) {
       return;
@@ -6538,99 +6541,151 @@
       }
     });
 
-    if (!students.length) {
+    const normalizedSearch = String(searchQuery || "").trim().toLowerCase();
+    const normalizedSelectedClass = normalizeLevelToken(selectedClass === "all" ? "" : selectedClass);
+    const classLevels = Array.from(
+      new Set(
+        students
+          .map((record) => String(record.level || "").trim())
+          .filter(Boolean),
+      ),
+    ).sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
+
+    if (classFiltersTarget) {
+      const classButtons = [
+        `<button class="portal-student-class-filter ${selectedClass === "all" ? "is-active" : ""}" type="button" data-student-class="all">All classes</button>`,
+        ...classLevels.map(
+          (level) => `
+            <button class="portal-student-class-filter ${
+              normalizeLevelToken(level) === normalizeLevelToken(selectedClass) ? "is-active" : ""
+            }" type="button" data-student-class="${escapeHtml(level)}">${escapeHtml(level)}</button>
+          `,
+        ),
+      ];
+      classFiltersTarget.innerHTML = classButtons.join("");
+    }
+
+    const filteredStudents = students.filter((record) => {
+      const classMatches =
+        !normalizedSelectedClass || normalizeLevelToken(record.level) === normalizedSelectedClass;
+
+      if (!classMatches) {
+        return false;
+      }
+
+      if (!normalizedSearch) {
+        return true;
+      }
+
+      const guardians = Array.isArray(record.guardians) ? record.guardians : [];
+      const guardianText = guardians
+        .map((guardian) => `${guardian.name || ""} ${guardian.email || ""} ${guardian.phone || ""}`)
+        .join(" ");
+      const searchableText = [
+        record.fullName,
+        record.firstName,
+        record.lastName,
+        record.level,
+        record.admissionNo,
+        record.gender,
+        guardianText,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return searchableText.includes(normalizedSearch);
+    });
+
+    if (!filteredStudents.length) {
       listTarget.innerHTML = `
         <article class="portal-class-empty">
-          <strong>No students recorded yet</strong>
-          <p>Create a student and attach guardian relationships to start building the student ledger.</p>
+          <strong>No student records match this filter</strong>
+          <p>Try another class option or search keyword (student name, class, admission number, or guardian details).</p>
         </article>
       `;
     } else {
-      const visibleStudents = showAllStudents ? students : students.slice(0, STUDENT_LIST_PREVIEW_COUNT);
-      const hiddenCount = Math.max(students.length - visibleStudents.length, 0);
+      const groups = filteredStudents.reduce((map, record) => {
+        const level = record.level || "Unassigned";
+        if (!map.has(level)) {
+          map.set(level, []);
+        }
+        map.get(level).push(record);
+        return map;
+      }, new Map());
 
-      listTarget.innerHTML = visibleStudents
-        .map(
-          (record) => `
-            <details class="portal-class-card portal-class-list-item ${record.status === "archived" ? "is-archived" : ""}">
-              <summary class="portal-class-list-summary">
-                <div class="portal-class-list-main">
-                  <strong>${escapeHtml(record.fullName)}</strong>
-                  <span>${escapeHtml(record.level)} • Admission ${escapeHtml(
-                    record.admissionNo,
-                  )} • ${record.guardians.length} guardian contact${record.guardians.length === 1 ? "" : "s"}</span>
+      listTarget.innerHTML = Array.from(groups.entries())
+        .sort(([left], [right]) => left.localeCompare(right, undefined, { numeric: true }))
+        .map(([level, records], groupIndex) => {
+          const levelToken = normalizeLevelToken(level) || `group-${groupIndex + 1}`;
+          const isExpanded = expandedClassTokens instanceof Set ? expandedClassTokens.has(levelToken) : false;
+          return `
+            <section class="portal-student-group">
+              <header class="portal-student-group-head">
+                <div class="portal-student-group-title">
+                  <h3>${escapeHtml(level)}</h3>
+                  <span>${records.length} student${records.length === 1 ? "" : "s"}</span>
                 </div>
-                <span class="portal-class-status ${record.status === "archived" ? "is-archived" : "is-active"}">
-                  ${record.status === "archived" ? "Archived" : "Active"}
-                </span>
-              </summary>
-              <div class="portal-class-list-body">
-                <div class="portal-class-meta">
-                  <div class="portal-class-meta-item">
-                    <span>Level</span>
-                    <strong>${escapeHtml(record.level)}</strong>
-                  </div>
-                  <div class="portal-class-meta-item">
-                    <span>Admission no.</span>
-                    <strong>${escapeHtml(record.admissionNo)}</strong>
-                  </div>
-                  <div class="portal-class-meta-item">
-                    <span>Updated</span>
-                    <strong>${escapeHtml(formatTimestamp(record.updatedAt))}</strong>
-                  </div>
-                </div>
-                <div class="portal-student-guardian-readonly">
-                  ${(record.guardians || [])
-                    .map(
-                      (guardian) => `
-                        <article class="portal-student-guardian-chip">
-                          <strong>${escapeHtml(guardian.name)}</strong>
-                          <span>${escapeHtml(guardian.relationship)}</span>
-                          <small>${escapeHtml(guardian.phone || "No phone")} • ${escapeHtml(
-                            guardian.email || "No email",
-                          )}</small>
-                        </article>
-                      `,
-                    )
-                    .join("")}
-                </div>
-                <div class="portal-class-actions">
-                  <button
-                    class="portal-class-button"
-                    type="button"
-                    data-student-action="edit"
-                    data-student-id="${record.id}"
-                    ${isAdmin ? "" : "disabled"}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    class="portal-class-button ${record.status === "archived" ? "is-restore" : "is-archive"}"
-                    type="button"
-                    data-student-action="${record.status === "archived" ? "activate" : "archive"}"
-                    data-student-id="${record.id}"
-                    ${isAdmin ? "" : "disabled"}
-                  >
-                    ${record.status === "archived" ? "Reactivate" : "Archive"}
-                  </button>
-                </div>
+                <button
+                  class="portal-student-group-toggle"
+                  type="button"
+                  data-student-class-toggle="${escapeHtml(levelToken)}"
+                  aria-expanded="${isExpanded ? "true" : "false"}"
+                  aria-label="${isExpanded ? "Collapse class list" : "Expand class list"}"
+                >
+                  <span class="portal-student-group-toggle-arrow" aria-hidden="true">${isExpanded ? "▴" : "▾"}</span>
+                </button>
+              </header>
+              <div class="portal-student-group-list" ${isExpanded ? "" : "hidden"}>
+                ${records
+                  .map(
+                    (record) => `
+                      <article class="portal-student-row ${record.status === "archived" ? "is-archived" : ""}">
+                        <button
+                          class="portal-student-row-main"
+                          type="button"
+                          data-student-action="view"
+                          data-student-id="${record.id}"
+                        >
+                          <div class="portal-student-row-copy">
+                            <strong>${escapeHtml(record.fullName)}</strong>
+                            <span>Admission ${escapeHtml(record.admissionNo)} • ${record.guardians.length} guardian contact${
+                              record.guardians.length === 1 ? "" : "s"
+                            }</span>
+                          </div>
+                          <span class="portal-class-status ${
+                            record.status === "archived" ? "is-archived" : "is-active"
+                          }">${record.status === "archived" ? "Archived" : "Active"}</span>
+                        </button>
+                        <div class="portal-class-actions">
+                          <button
+                            class="portal-class-button"
+                            type="button"
+                            data-student-action="edit"
+                            data-student-id="${record.id}"
+                            ${isAdmin ? "" : "disabled"}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            class="portal-class-button ${record.status === "archived" ? "is-restore" : "is-archive"}"
+                            type="button"
+                            data-student-action="${record.status === "archived" ? "activate" : "archive"}"
+                            data-student-id="${record.id}"
+                            ${isAdmin ? "" : "disabled"}
+                          >
+                            ${record.status === "archived" ? "Reactivate" : "Archive"}
+                          </button>
+                        </div>
+                      </article>
+                    `,
+                  )
+                  .join("")}
               </div>
-            </details>
-          `,
-        )
+            </section>
+          `;
+        })
         .join("");
-
-      if (students.length > STUDENT_LIST_PREVIEW_COUNT) {
-        listTarget.innerHTML += `
-          <article class="portal-class-empty portal-student-list-toggle-row">
-            <strong>${showAllStudents ? "Showing all students" : `Showing first ${STUDENT_LIST_PREVIEW_COUNT} students`}</strong>
-            <p>${showAllStudents ? "Use the button below to collapse back to a shorter list." : `${hiddenCount} more student record${hiddenCount === 1 ? "" : "s"} hidden.`}</p>
-            <button class="portal-class-button portal-student-list-toggle-button" type="button" data-student-list-toggle>
-              ${showAllStudents ? "Show first five" : "Show all students"}
-            </button>
-          </article>
-        `;
-      }
     }
 
     if (!isAdmin) {
@@ -7435,30 +7490,50 @@
     const quickAddStatus = document.getElementById("portal-student-quick-add-status");
     const importToggleButton = document.querySelector("[data-student-import-toggle]");
     const importPanel = document.getElementById("portal-student-import-panel");
+    const createOverlay = document.getElementById("portal-student-create-overlay");
+    const importOverlay = document.getElementById("portal-student-import-overlay");
+    const viewOverlay = document.getElementById("portal-student-view-overlay");
+    const viewContent = document.getElementById("portal-student-view-content");
+    const classFiltersTarget = document.getElementById("portal-student-class-filters");
+    const searchInput = document.getElementById("portal-student-search");
     const importStatus = document.getElementById("portal-student-import-status");
     const importFileInput = document.getElementById("portal-student-import-file");
     const importPreviewButton = document.querySelector("[data-student-import-preview]");
     const importConfirmButton = document.querySelector("[data-student-import-confirm]");
     const importPreviewTarget = document.getElementById("portal-student-import-preview");
+    const classLevelSet = getActiveClassLevelTokenSet();
     let importPreviewRows = [];
-    let isStudentListExpanded = false;
+    let selectedClass = "all";
+    let searchQuery = "";
+    const expandedClassTokens = new Set();
+
+    const setOverlayState = (overlay, isVisible) => {
+      if (!overlay) {
+        return;
+      }
+      overlay.hidden = !isVisible;
+      const hasOpenOverlay = [createOverlay, importOverlay, viewOverlay].some(
+        (item) => item && !item.hidden,
+      );
+      document.body.classList.toggle("portal-overlay-open", hasOpenOverlay);
+    };
 
     const setStudentFormVisibility = (isVisible) => {
-      form.hidden = !isVisible;
+      setOverlayState(createOverlay, isVisible);
 
       if (formToggleButton) {
-        formToggleButton.textContent = isVisible ? "Hide student form" : "Create student";
+        formToggleButton.textContent = "Create student";
         formToggleButton.setAttribute("aria-expanded", String(isVisible));
       }
     };
 
     const setImportPanelVisibility = (isVisible) => {
-      if (!importPanel) {
+      if (!importOverlay) {
         return;
       }
-      importPanel.hidden = !isVisible;
+      setOverlayState(importOverlay, isVisible);
       if (importToggleButton) {
-        importToggleButton.textContent = isVisible ? "Hide Import Panel" : "Import Students";
+        importToggleButton.textContent = "Import Students";
       }
     };
 
@@ -7492,7 +7567,7 @@
         return;
       }
 
-      const shouldOpen = form.hidden;
+      const shouldOpen = createOverlay ? createOverlay.hidden : false;
       setStudentFormVisibility(shouldOpen);
 
       if (!shouldOpen) {
@@ -7510,7 +7585,10 @@
         form,
         status,
         listTarget,
-        showAllStudents: isStudentListExpanded,
+        classFiltersTarget,
+        selectedClass,
+        searchQuery,
+        expandedClassTokens,
       });
     };
 
@@ -7527,12 +7605,68 @@
     if (importToggleButton) {
       importToggleButton.disabled = !isAdmin || !manager;
       importToggleButton.addEventListener("click", () => {
-        setImportPanelVisibility(importPanel ? importPanel.hidden : false);
+        setImportPanelVisibility(importOverlay ? importOverlay.hidden : false);
         if (importStatus) {
           setStatus(importStatus, "", "");
         }
       });
     }
+
+    if (searchInput) {
+      searchInput.addEventListener("input", () => {
+        searchQuery = String(searchInput.value || "").trim();
+        refreshStudentSection();
+      });
+    }
+
+    if (classFiltersTarget) {
+      classFiltersTarget.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-student-class]");
+
+        if (!button) {
+          return;
+        }
+
+        selectedClass = String(button.dataset.studentClass || "all");
+        refreshStudentSection();
+      });
+    }
+
+    document.querySelectorAll("[data-student-create-close]").forEach((button) => {
+      button.addEventListener("click", () => {
+        clearPortalStudentErrors(form);
+        resetPortalStudentForm(form, guardianList, isAdmin);
+        setStudentFormVisibility(false);
+        setStatus(status, "", "");
+      });
+    });
+
+    document.querySelectorAll("[data-student-import-close]").forEach((button) => {
+      button.addEventListener("click", () => {
+        setImportPanelVisibility(false);
+      });
+    });
+
+    document.querySelectorAll("[data-student-view-close]").forEach((button) => {
+      button.addEventListener("click", () => {
+        setOverlayState(viewOverlay, false);
+      });
+    });
+
+    window.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+      if (createOverlay && !createOverlay.hidden) {
+        setStudentFormVisibility(false);
+      }
+      if (importOverlay && !importOverlay.hidden) {
+        setImportPanelVisibility(false);
+      }
+      if (viewOverlay && !viewOverlay.hidden) {
+        setOverlayState(viewOverlay, false);
+      }
+    });
 
     if (!manager) {
       setStudentFormVisibility(false);
@@ -7766,17 +7900,25 @@
     }
 
     listTarget.addEventListener("click", (event) => {
-      const listToggleButton = event.target.closest("[data-student-list-toggle]");
+      const classToggleButton = event.target.closest("[data-student-class-toggle]");
 
-      if (listToggleButton) {
-        isStudentListExpanded = !isStudentListExpanded;
-        refreshStudentSection();
+      if (classToggleButton) {
+        const classToken = String(classToggleButton.dataset.studentClassToggle || "").trim();
+
+        if (classToken) {
+          if (expandedClassTokens.has(classToken)) {
+            expandedClassTokens.delete(classToken);
+          } else {
+            expandedClassTokens.add(classToken);
+          }
+          refreshStudentSection();
+        }
         return;
       }
 
       const actionButton = event.target.closest("[data-student-action]");
 
-      if (!actionButton || !isAdmin) {
+      if (!actionButton) {
         return;
       }
 
@@ -7785,6 +7927,47 @@
       const record = manager.getStudents().find((item) => item.id === studentId);
 
       if (!record) {
+        return;
+      }
+
+      if (action === "view") {
+        if (viewContent) {
+          viewContent.innerHTML = `
+            <div class="portal-student-view-grid">
+              <div><span>Full name</span><strong>${escapeHtml(record.fullName || "—")}</strong></div>
+              <div><span>Admission No</span><strong>${escapeHtml(record.admissionNo || "—")}</strong></div>
+              <div><span>Level / Class</span><strong>${escapeHtml(record.level || "—")}</strong></div>
+              <div><span>Gender</span><strong>${escapeHtml(record.gender || "—")}</strong></div>
+              <div><span>Date of birth</span><strong>${escapeHtml(record.dateOfBirth || "—")}</strong></div>
+              <div><span>Status</span><strong>${escapeHtml(record.status === "archived" ? "Archived" : "Active")}</strong></div>
+            </div>
+            <div class="portal-student-view-guardians">
+              <h4>Guardian contacts</h4>
+              ${
+                (record.guardians || []).length
+                  ? (record.guardians || [])
+                      .map(
+                        (guardian) => `
+                          <article class="portal-student-guardian-chip">
+                            <strong>${escapeHtml(guardian.name || "—")}</strong>
+                            <span>${escapeHtml(guardian.relationship || "Guardian")}</span>
+                            <small>${escapeHtml(guardian.phone || "No phone")} • ${escapeHtml(
+                              guardian.email || "No email",
+                            )}</small>
+                          </article>
+                        `,
+                      )
+                      .join("")
+                  : `<p>No guardian contacts saved for this student.</p>`
+              }
+            </div>
+          `;
+        }
+        setOverlayState(viewOverlay, true);
+        return;
+      }
+
+      if (!isAdmin) {
         return;
       }
 
@@ -7798,7 +7981,6 @@
           "info",
           `Editing <strong>${escapeHtml(record.fullName)}</strong>. Save to update this student record.`,
         );
-        form.scrollIntoView({ behavior: "smooth", block: "start" });
         return;
       }
 
