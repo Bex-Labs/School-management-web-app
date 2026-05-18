@@ -1446,6 +1446,20 @@ function normalizeStudentRecord(record = {}) {
       : record.status === "transferred"
         ? "transferred"
         : "active";
+  const normalizePromotionDecision = (value) => {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (normalized === "repeat" || normalized === "resit") {
+      return normalized;
+    }
+    return "promote";
+  };
+  const normalizeExamOutcome = (value) => {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (normalized === "resit" || normalized === "fail") {
+      return normalized;
+    }
+    return "pass";
+  };
   const firstName = String(record.firstName || "").trim();
   const lastName = String(record.lastName || "").trim();
   const fallbackFullName = String(record.fullName || "").trim();
@@ -1477,6 +1491,10 @@ function normalizeStudentRecord(record = {}) {
     guardians,
     progressionHistory,
     status,
+    promotionDecision: normalizePromotionDecision(record.promotionDecision),
+    examOutcome: normalizeExamOutcome(record.examOutcome),
+    lastPromotionSessionId: String(record.lastPromotionSessionId || "").trim(),
+    lastPromotionOutcome: String(record.lastPromotionOutcome || "").trim(),
     createdAt: record.createdAt || timestamp,
     updatedAt: record.updatedAt || timestamp,
     archivedAt: status === "archived" ? record.archivedAt || timestamp : null,

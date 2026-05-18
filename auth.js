@@ -4280,19 +4280,30 @@
 
       const existing = manager.getState().sessions.find((session) => session.id === payload.id) || null;
       manager.upsertSession(payload);
+      let promotionSummaryCopy = "";
+
+      if (existing && existing.status === "open" && payload.status === "closed") {
+        const studentManager = getStudentManager();
+        const promotionSummary = runAutomaticPromotionForClosedSession(
+          { id: existing.id, name: payload.name || existing.name },
+          studentManager,
+        );
+        promotionSummaryCopy = ` Auto-promotion: ${promotionSummary.promoted} promoted, ${promotionSummary.repeated} repeated, ${promotionSummary.resit} resit, ${promotionSummary.retainedTopLevel} retained (top class), ${promotionSummary.skippedAlreadyProcessed} already processed.`;
+      }
+
       recordAuditEvent({
         action: existing ? "updated" : "created",
         entityType: "academic-session",
         entityId: payload.name,
         summary: `${existing ? "Updated" : "Created"} session ${payload.name}`,
-        details: `Status: ${payload.status}`,
+        details: `Status: ${payload.status}.${promotionSummaryCopy}`,
       });
       setStatus(
         sessionStatus,
         "success",
         `Session <strong>${escapeHtml(payload.name)}</strong> saved as ${
           payload.status === "open" ? "open" : "closed"
-        }.`,
+        }.${escapeHtml(promotionSummaryCopy)}`,
       );
       clearPortalSessionErrors(sessionForm);
       resetSessionForm();
@@ -4391,13 +4402,28 @@
       }
 
       manager.setSessionStatus(session.id, action === "open" ? "open" : "closed");
+      let promotionSummaryCopy = "";
+
+      if (action === "close") {
+        const studentManager = getStudentManager();
+        const promotionSummary = runAutomaticPromotionForClosedSession(session, studentManager);
+        promotionSummaryCopy = ` Auto-promotion: ${promotionSummary.promoted} promoted, ${promotionSummary.repeated} repeated, ${promotionSummary.resit} resit, ${promotionSummary.retainedTopLevel} retained (top class), ${promotionSummary.skippedAlreadyProcessed} already processed.`;
+      }
+
       recordAuditEvent({
         action: action === "open" ? "opened" : "closed",
         entityType: "academic-session",
         entityId: session.name,
         summary: `${action === "open" ? "Opened" : "Closed"} session ${session.name}`,
-        details: "",
+        details: promotionSummaryCopy.trim(),
       });
+      setStatus(
+        sessionStatus,
+        "success",
+        `${action === "open" ? "Opened" : "Closed"} <strong>${escapeHtml(session.name)}</strong>.${escapeHtml(
+          promotionSummaryCopy,
+        )}`,
+      );
     });
 
     termListTarget.addEventListener("click", (event) => {
@@ -6600,6 +6626,7 @@
         record.level,
         record.admissionNo,
         record.gender,
+        record.promotionDecision,
         guardianText,
       ]
         .filter(Boolean)
@@ -6693,10 +6720,18 @@
                             <button
                               class="portal-class-button"
                               type="button"
-                              data-student-action="repeat"
+                              data-student-action="mark-repeat"
                               data-student-id="${record.id}"
                             >
-                              Repeat
+                              Set Repeat
+                            </button>
+                            <button
+                              class="portal-class-button"
+                              type="button"
+                              data-student-action="mark-resit"
+                              data-student-id="${record.id}"
+                            >
+                              Set Resit
                             </button>
                             <button
                               class="portal-class-button is-archive"
@@ -6728,6 +6763,13 @@
                             <span>Admission ${escapeHtml(record.admissionNo)} • ${record.guardians.length} guardian contact${
                               record.guardians.length === 1 ? "" : "s"
                             }</span>
+                            <span>Session close: ${escapeHtml(
+                              record.promotionDecision === "repeat"
+                                ? "Repeat class"
+                                : record.promotionDecision === "resit"
+                                  ? "Resit required"
+                                  : "Auto promote",
+                            )}</span>
                           </div>
                           <span class="portal-class-status ${statusClass}">${statusLabel}</span>
                         </button>
@@ -6750,7 +6792,7 @@
       setStatus(
         status,
         "info",
-        "Only admin accounts with student permission can create, edit, promote, repeat, transfer, archive, or reactivate student records.",
+        "Only admin accounts with student permission can create, edit, promote, queue repeat/resit, transfer, archive, or reactivate student records.",
       );
     }
   }
@@ -7087,6 +7129,9 @@
     if (form.elements.admissionNo) {
       form.elements.admissionNo.dataset.autoGenerated = "false";
     }
+    if (form.elements.promotionDecision) {
+      form.elements.promotionDecision.value = "promote";
+    }
 
     if (guardianList) {
       guardianList.innerHTML = "";
@@ -7127,6 +7172,11 @@
     }
     if (form.elements.gender) {
       form.elements.gender.value = record.gender || "";
+    }
+    if (form.elements.promotionDecision) {
+      const decision = String(record.promotionDecision || "promote").toLowerCase();
+      form.elements.promotionDecision.value =
+        decision === "repeat" || decision === "resit" ? decision : "promote";
     }
 
     if (guardianList) {
@@ -7392,6 +7442,8 @@
       level,
       dateOfBirth,
       gender,
+      promotionDecision: "promote",
+      examOutcome: "pass",
       guardians: guardianName
         ? [
             {
@@ -7574,6 +7626,121 @@
         timestamp: nowIso(),
       },
     ];
+  }
+
+  function runAutomaticPromotionForClosedSession(sessionRecord, studentManager) {
+    const summary = {
+      processed: 0,
+      promoted: 0,
+      repeated: 0,
+      resit: 0,
+      retainedTopLevel: 0,
+      skippedAlreadyProcessed: 0,
+    };
+
+    if (
+      !sessionRecord?.id ||
+      !studentManager ||
+      typeof studentManager.getStudents !== "function" ||
+      typeof studentManager.updateStudentProgression !== "function"
+    ) {
+      return summary;
+    }
+
+    const sessionId = String(sessionRecord.id || "").trim();
+    const sessionLabel = String(sessionRecord.name || "session").trim();
+    const activeStudents = studentManager
+      .getStudents()
+      .filter((student) => String(student.status || "").toLowerCase() === "active");
+
+    activeStudents.forEach((student) => {
+      if (String(student.lastPromotionSessionId || "").trim() === sessionId) {
+        summary.skippedAlreadyProcessed += 1;
+        return;
+      }
+
+      const rawDecision = String(student.promotionDecision || "promote").trim().toLowerCase();
+      const decision = rawDecision === "repeat" || rawDecision === "resit" ? rawDecision : "promote";
+      summary.processed += 1;
+
+      if (decision === "repeat") {
+        studentManager.updateStudentProgression(student.id, (current) => ({
+          ...current,
+          status: "active",
+          examOutcome: "fail",
+          promotionDecision: "promote",
+          lastPromotionSessionId: sessionId,
+          lastPromotionOutcome: "repeated",
+          progressionHistory: appendStudentProgression(current, {
+            type: "auto-repeated",
+            fromLevel: current.level,
+            toLevel: current.level,
+            note: `Repeated automatically after ${sessionLabel} close`,
+          }),
+        }));
+        summary.repeated += 1;
+        return;
+      }
+
+      if (decision === "resit") {
+        studentManager.updateStudentProgression(student.id, (current) => ({
+          ...current,
+          status: "active",
+          examOutcome: "resit",
+          promotionDecision: "promote",
+          lastPromotionSessionId: sessionId,
+          lastPromotionOutcome: "resit",
+          progressionHistory: appendStudentProgression(current, {
+            type: "auto-resit",
+            fromLevel: current.level,
+            toLevel: current.level,
+            note: `Marked for resit automatically after ${sessionLabel} close`,
+          }),
+        }));
+        summary.resit += 1;
+        return;
+      }
+
+      const nextLevel = getNextStudentLevel(student.level);
+
+      if (!nextLevel) {
+        studentManager.updateStudentProgression(student.id, (current) => ({
+          ...current,
+          status: "active",
+          examOutcome: "pass",
+          promotionDecision: "promote",
+          lastPromotionSessionId: sessionId,
+          lastPromotionOutcome: "retained-top-level",
+          progressionHistory: appendStudentProgression(current, {
+            type: "auto-retained",
+            fromLevel: current.level,
+            toLevel: current.level,
+            note: `No next class level configured during ${sessionLabel} auto-promotion`,
+          }),
+        }));
+        summary.retainedTopLevel += 1;
+        return;
+      }
+
+      studentManager.updateStudentProgression(student.id, (current) => ({
+        ...current,
+        level: nextLevel,
+        status: "active",
+        examOutcome: "pass",
+        promotionDecision: "promote",
+        lastPromotionSessionId: sessionId,
+        lastPromotionOutcome: "promoted",
+        progressionHistory: appendStudentProgression(current, {
+          type: "auto-promoted",
+          fromLevel: current.level,
+          toLevel: nextLevel,
+          note: `Promoted automatically after ${sessionLabel} close`,
+        }),
+      }));
+      summary.promoted += 1;
+    });
+
+    return summary;
   }
 
   function initStudentManagementControls({
@@ -7859,6 +8026,13 @@
       const lastName = form.elements.lastName.value.trim();
       const level = form.elements.level.value.trim();
       const admissionNoRaw = form.elements.admissionNo.value.trim();
+      const promotionDecisionRaw = String(form.elements.promotionDecision?.value || "promote")
+        .trim()
+        .toLowerCase();
+      const promotionDecision =
+        promotionDecisionRaw === "repeat" || promotionDecisionRaw === "resit"
+          ? promotionDecisionRaw
+          : "promote";
       const payload = {
         id: studentId || undefined,
         firstName,
@@ -7874,6 +8048,13 @@
         level,
         dateOfBirth: form.elements.dateOfBirth?.value || "",
         gender: form.elements.gender?.value || "",
+        promotionDecision,
+        examOutcome:
+          promotionDecision === "resit"
+            ? "resit"
+            : promotionDecision === "repeat"
+              ? "fail"
+              : "pass",
       };
       const guardianParse = parseGuardianRows(guardianList, { validatePhone: true });
       payload.guardians = guardianParse.guardians;
@@ -8051,6 +8232,13 @@
               <div><span>Gender</span><strong>${escapeHtml(record.gender || "—")}</strong></div>
               <div><span>Date of birth</span><strong>${escapeHtml(record.dateOfBirth || "—")}</strong></div>
               <div><span>Status</span><strong>${escapeHtml(statusLabel)}</strong></div>
+              <div><span>Session close</span><strong>${escapeHtml(
+                record.promotionDecision === "repeat"
+                  ? "Repeat class"
+                  : record.promotionDecision === "resit"
+                    ? "Resit required"
+                    : "Auto promote",
+              )}</strong></div>
             </div>
             <div class="portal-student-view-guardians">
               <h4>Guardian contacts</h4>
@@ -8112,6 +8300,9 @@
           ...current,
           level: nextLevel,
           status: "active",
+          promotionDecision: "promote",
+          examOutcome: "pass",
+          lastPromotionOutcome: "manual-promoted",
           archivedAt: null,
           transferredAt: null,
           transferReason: "",
@@ -8139,33 +8330,72 @@
         return;
       }
 
-      if (action === "repeat") {
+      if (action === "mark-repeat") {
         manager.updateStudentProgression(record.id, (current) => ({
           ...current,
           status: "active",
+          promotionDecision: "repeat",
+          examOutcome: "fail",
+          lastPromotionSessionId: "",
+          lastPromotionOutcome: "queued-repeat",
           archivedAt: null,
           transferredAt: null,
           transferReason: "",
           progressionHistory: appendStudentProgression(current, {
-            type: "repeated",
+            type: "repeat-queued",
             fromLevel: current.level,
             toLevel: current.level,
-            note: "Marked to repeat class by admin",
+            note: "Queued to repeat class at next session close",
           }),
         }));
         recordAuditEvent({
           action: "updated",
           entityType: "student",
           entityId: record.admissionNo,
-          summary: `${record.fullName} marked to repeat`,
+          summary: `${record.fullName} set to repeat`,
           details: `${record.level}`,
         });
         setStatus(
           status,
           "success",
-          `Student <strong>${escapeHtml(record.fullName)}</strong> is marked to repeat <strong>${escapeHtml(
+          `Student <strong>${escapeHtml(record.fullName)}</strong> will repeat <strong>${escapeHtml(
             record.level,
-          )}</strong>.`,
+          )}</strong> when this session is closed.`,
+        );
+        return;
+      }
+
+      if (action === "mark-resit") {
+        manager.updateStudentProgression(record.id, (current) => ({
+          ...current,
+          status: "active",
+          promotionDecision: "resit",
+          examOutcome: "resit",
+          lastPromotionSessionId: "",
+          lastPromotionOutcome: "queued-resit",
+          archivedAt: null,
+          transferredAt: null,
+          transferReason: "",
+          progressionHistory: appendStudentProgression(current, {
+            type: "resit-queued",
+            fromLevel: current.level,
+            toLevel: current.level,
+            note: "Queued for resit at next session close",
+          }),
+        }));
+        recordAuditEvent({
+          action: "updated",
+          entityType: "student",
+          entityId: record.admissionNo,
+          summary: `${record.fullName} set to resit`,
+          details: `${record.level}`,
+        });
+        setStatus(
+          status,
+          "success",
+          `Student <strong>${escapeHtml(record.fullName)}</strong> is set for resit and will stay in <strong>${escapeHtml(
+            record.level,
+          )}</strong> when this session is closed.`,
         );
         return;
       }
@@ -8289,6 +8519,8 @@
           level,
           dateOfBirth: "",
           gender: "",
+          promotionDecision: "promote",
+          examOutcome: "pass",
           guardians: [
             {
               id: createId(),
@@ -11039,6 +11271,8 @@
           level,
           dateOfBirth: String(entry.dateOfBirth || "").trim(),
           gender: String(entry.gender || "").trim(),
+          promotionDecision: "promote",
+          examOutcome: "pass",
           guardians,
           status: "active",
         },
