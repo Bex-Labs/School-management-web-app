@@ -1427,9 +1427,25 @@ function normalizeGuardianContact(contact = {}) {
   };
 }
 
+function normalizeStudentProgressionEntry(entry = {}) {
+  return {
+    id: String(entry.id || createStorageId("student-progress")),
+    type: String(entry.type || "updated").trim() || "updated",
+    fromLevel: String(entry.fromLevel || "").trim(),
+    toLevel: String(entry.toLevel || "").trim(),
+    note: String(entry.note || "").trim(),
+    timestamp: entry.timestamp || new Date().toISOString(),
+  };
+}
+
 function normalizeStudentRecord(record = {}) {
   const timestamp = new Date().toISOString();
-  const status = record.status === "archived" ? "archived" : "active";
+  const status =
+    record.status === "archived"
+      ? "archived"
+      : record.status === "transferred"
+        ? "transferred"
+        : "active";
   const firstName = String(record.firstName || "").trim();
   const lastName = String(record.lastName || "").trim();
   const fallbackFullName = String(record.fullName || "").trim();
@@ -1445,6 +1461,9 @@ function normalizeStudentRecord(record = {}) {
             (guardian.phone || guardian.email),
         )
     : [];
+  const progressionHistory = Array.isArray(record.progressionHistory)
+    ? record.progressionHistory.map((entry) => normalizeStudentProgressionEntry(entry))
+    : [];
 
   return {
     id: String(record.id || createStorageId("student")),
@@ -1456,10 +1475,13 @@ function normalizeStudentRecord(record = {}) {
     dateOfBirth: String(record.dateOfBirth || "").trim(),
     gender: String(record.gender || "").trim(),
     guardians,
+    progressionHistory,
     status,
     createdAt: record.createdAt || timestamp,
     updatedAt: record.updatedAt || timestamp,
     archivedAt: status === "archived" ? record.archivedAt || timestamp : null,
+    transferredAt: status === "transferred" ? record.transferredAt || timestamp : null,
+    transferReason: String(record.transferReason || "").trim(),
   };
 }
 
@@ -1537,6 +1559,8 @@ function setSchoolStudentArchived(studentId, archived) {
       ...record,
       status: archived ? "archived" : "active",
       archivedAt: archived ? new Date().toISOString() : null,
+      transferredAt: null,
+      transferReason: "",
       updatedAt: new Date().toISOString(),
     };
   });
@@ -1544,10 +1568,57 @@ function setSchoolStudentArchived(studentId, archived) {
   return saveSchoolStudents(nextStudents);
 }
 
+function setSchoolStudentTransferred(studentId, transferReason = "") {
+  const students = getSchoolStudents();
+  const timestamp = new Date().toISOString();
+  const nextStudents = students.map((record) => {
+    if (record.id !== studentId) {
+      return record;
+    }
+
+    return {
+      ...record,
+      status: "transferred",
+      transferredAt: timestamp,
+      transferReason: String(transferReason || "").trim(),
+      archivedAt: null,
+      updatedAt: timestamp,
+    };
+  });
+
+  return saveSchoolStudents(nextStudents);
+}
+
+function updateSchoolStudentProgression(studentId, updater) {
+  if (typeof updater !== "function") {
+    return getSchoolStudents();
+  }
+
+  const students = getSchoolStudents();
+  const timestamp = new Date().toISOString();
+  const nextStudents = students.map((record) => {
+    if (record.id !== studentId) {
+      return record;
+    }
+
+    const updated = updater(record);
+    return normalizeStudentRecord({
+      ...record,
+      ...updated,
+      id: record.id,
+      createdAt: record.createdAt,
+      updatedAt: timestamp,
+    });
+  });
+
+  return saveSchoolStudents(nextStudents);
+}
+
 function summarizeSchoolStudents() {
   const students = getSchoolStudents();
-  const active = students.filter((record) => record.status !== "archived");
+  const active = students.filter((record) => record.status === "active");
   const archived = students.filter((record) => record.status === "archived");
+  const transferred = students.filter((record) => record.status === "transferred");
   const guardianContacts = active.reduce((sum, record) => sum + record.guardians.length, 0);
   const studentsWithMultipleGuardians = active.filter((record) => record.guardians.length > 1).length;
 
@@ -1555,6 +1626,7 @@ function summarizeSchoolStudents() {
     students,
     activeCount: active.length,
     archivedCount: archived.length,
+    transferredCount: transferred.length,
     guardianContacts,
     studentsWithMultipleGuardians,
   };
@@ -1833,6 +1905,8 @@ window.SchoolSphereStudents = {
   summarize: summarizeSchoolStudents,
   saveStudents: saveSchoolStudents,
   upsertStudent: upsertSchoolStudent,
+  updateStudentProgression: updateSchoolStudentProgression,
+  transferStudentOut: setSchoolStudentTransferred,
   archiveStudent: (studentId) => setSchoolStudentArchived(studentId, true),
   activateStudent: (studentId) => setSchoolStudentArchived(studentId, false),
   eventName: SCHOOL_STUDENTS_EVENT,

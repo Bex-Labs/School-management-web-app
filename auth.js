@@ -6509,7 +6509,14 @@
       return;
     }
 
-    const { students, activeCount, archivedCount, guardianContacts, studentsWithMultipleGuardians } =
+    const {
+      students,
+      activeCount,
+      archivedCount,
+      transferredCount,
+      guardianContacts,
+      studentsWithMultipleGuardians,
+    } =
       manager.summarize();
 
     summaryTarget.innerHTML = `
@@ -6529,9 +6536,14 @@
         <p>Students with more than one guardian relationship on file.</p>
       </article>
       <article class="portal-class-stat portal-class-stat-rose">
+        <span>Transferred out</span>
+        <strong>${transferredCount || 0}</strong>
+        <p>Students moved out of this school workspace.</p>
+      </article>
+      <article class="portal-class-stat portal-class-stat-rose">
         <span>Archived students</span>
-        <strong>${archivedCount}</strong>
-        <p>Past records retained for historical continuity.</p>
+        <strong>${archivedCount || 0}</strong>
+        <p>Inactive records retained for historical continuity.</p>
       </article>
     `;
 
@@ -6639,8 +6651,72 @@
               <div class="portal-student-group-list" ${isExpanded ? "" : "hidden"}>
                 ${records
                   .map(
-                    (record) => `
-                      <article class="portal-student-row ${record.status === "archived" ? "is-archived" : ""}">
+                    (record) => {
+                      const isArchived = record.status === "archived";
+                      const isTransferred = record.status === "transferred";
+                      const statusClass = isArchived || isTransferred ? "is-archived" : "is-active";
+                      const statusLabel = isArchived
+                        ? "Archived"
+                        : isTransferred
+                          ? "Transferred"
+                          : "Active";
+                      const adminActions = !isAdmin
+                        ? ""
+                        : isArchived || isTransferred
+                          ? `
+                            <button
+                              class="portal-class-button is-restore"
+                              type="button"
+                              data-student-action="activate"
+                              data-student-id="${record.id}"
+                            >
+                              Reactivate
+                            </button>
+                          `
+                          : `
+                            <button
+                              class="portal-class-button"
+                              type="button"
+                              data-student-action="edit"
+                              data-student-id="${record.id}"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              class="portal-class-button"
+                              type="button"
+                              data-student-action="promote"
+                              data-student-id="${record.id}"
+                            >
+                              Promote
+                            </button>
+                            <button
+                              class="portal-class-button"
+                              type="button"
+                              data-student-action="repeat"
+                              data-student-id="${record.id}"
+                            >
+                              Repeat
+                            </button>
+                            <button
+                              class="portal-class-button is-archive"
+                              type="button"
+                              data-student-action="transfer"
+                              data-student-id="${record.id}"
+                            >
+                              Transfer Out
+                            </button>
+                            <button
+                              class="portal-class-button is-archive"
+                              type="button"
+                              data-student-action="archive"
+                              data-student-id="${record.id}"
+                            >
+                              Archive
+                            </button>
+                          `;
+                      return `
+                      <article class="portal-student-row ${record.status === "archived" || record.status === "transferred" ? "is-archived" : ""}">
                         <button
                           class="portal-student-row-main"
                           type="button"
@@ -6653,32 +6729,14 @@
                               record.guardians.length === 1 ? "" : "s"
                             }</span>
                           </div>
-                          <span class="portal-class-status ${
-                            record.status === "archived" ? "is-archived" : "is-active"
-                          }">${record.status === "archived" ? "Archived" : "Active"}</span>
+                          <span class="portal-class-status ${statusClass}">${statusLabel}</span>
                         </button>
                         <div class="portal-class-actions">
-                          <button
-                            class="portal-class-button"
-                            type="button"
-                            data-student-action="edit"
-                            data-student-id="${record.id}"
-                            ${isAdmin ? "" : "disabled"}
-                          >
-                            Edit
-                          </button>
-                          <button
-                            class="portal-class-button ${record.status === "archived" ? "is-restore" : "is-archive"}"
-                            type="button"
-                            data-student-action="${record.status === "archived" ? "activate" : "archive"}"
-                            data-student-id="${record.id}"
-                            ${isAdmin ? "" : "disabled"}
-                          >
-                            ${record.status === "archived" ? "Reactivate" : "Archive"}
-                          </button>
+                          ${adminActions}
                         </div>
                       </article>
-                    `,
+                    `;
+                    },
                   )
                   .join("")}
               </div>
@@ -6692,7 +6750,7 @@
       setStatus(
         status,
         "info",
-        "Only admin accounts with student permission can create, edit, archive, or reactivate student records.",
+        "Only admin accounts with student permission can create, edit, promote, repeat, transfer, archive, or reactivate student records.",
       );
     }
   }
@@ -7471,6 +7529,53 @@
     `;
   }
 
+  function getActiveStudentClassLevels() {
+    const classManager = getClassManager();
+    if (!classManager || typeof classManager.getClasses !== "function") {
+      return [];
+    }
+
+    return Array.from(
+      new Set(
+        classManager
+          .getClasses()
+          .filter((item) => item.status !== "archived")
+          .map((item) => String(item.level || "").trim())
+          .filter(Boolean),
+      ),
+    ).sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
+  }
+
+  function getNextStudentLevel(currentLevel) {
+    const levels = getActiveStudentClassLevels();
+    const normalizedCurrent = normalizeLevelToken(currentLevel);
+    if (!normalizedCurrent || !levels.length) {
+      return "";
+    }
+
+    const currentIndex = levels.findIndex((level) => normalizeLevelToken(level) === normalizedCurrent);
+    if (currentIndex < 0 || currentIndex >= levels.length - 1) {
+      return "";
+    }
+
+    return levels[currentIndex + 1];
+  }
+
+  function appendStudentProgression(record, entry = {}) {
+    const existing = Array.isArray(record?.progressionHistory) ? record.progressionHistory : [];
+    return [
+      ...existing,
+      {
+        id: createId(),
+        type: String(entry.type || "updated").trim() || "updated",
+        fromLevel: String(entry.fromLevel || "").trim(),
+        toLevel: String(entry.toLevel || "").trim(),
+        note: String(entry.note || "").trim(),
+        timestamp: nowIso(),
+      },
+    ];
+  }
+
   function initStudentManagementControls({
     isAdmin,
     manager,
@@ -7931,6 +8036,12 @@
       }
 
       if (action === "view") {
+        const statusLabel =
+          record.status === "archived"
+            ? "Archived"
+            : record.status === "transferred"
+              ? "Transferred Out"
+              : "Active";
         if (viewContent) {
           viewContent.innerHTML = `
             <div class="portal-student-view-grid">
@@ -7939,7 +8050,7 @@
               <div><span>Level / Class</span><strong>${escapeHtml(record.level || "—")}</strong></div>
               <div><span>Gender</span><strong>${escapeHtml(record.gender || "—")}</strong></div>
               <div><span>Date of birth</span><strong>${escapeHtml(record.dateOfBirth || "—")}</strong></div>
-              <div><span>Status</span><strong>${escapeHtml(record.status === "archived" ? "Archived" : "Active")}</strong></div>
+              <div><span>Status</span><strong>${escapeHtml(statusLabel)}</strong></div>
             </div>
             <div class="portal-student-view-guardians">
               <h4>Guardian contacts</h4>
@@ -7980,6 +8091,114 @@
           status,
           "info",
           `Editing <strong>${escapeHtml(record.fullName)}</strong>. Save to update this student record.`,
+        );
+        return;
+      }
+
+      if (action === "promote") {
+        const nextLevel = getNextStudentLevel(record.level);
+        if (!nextLevel) {
+          setStatus(
+            status,
+            "error",
+            `No next class level found after <strong>${escapeHtml(
+              record.level || "current level",
+            )}</strong>. Add the next level in Class Management first.`,
+          );
+          return;
+        }
+
+        manager.updateStudentProgression(record.id, (current) => ({
+          ...current,
+          level: nextLevel,
+          status: "active",
+          archivedAt: null,
+          transferredAt: null,
+          transferReason: "",
+          progressionHistory: appendStudentProgression(current, {
+            type: "promoted",
+            fromLevel: current.level,
+            toLevel: nextLevel,
+            note: "Promoted by admin",
+          }),
+        }));
+        recordAuditEvent({
+          action: "updated",
+          entityType: "student",
+          entityId: record.admissionNo,
+          summary: `Promoted ${record.fullName}`,
+          details: `${record.level} → ${nextLevel}`,
+        });
+        setStatus(
+          status,
+          "success",
+          `Student <strong>${escapeHtml(record.fullName)}</strong> promoted from <strong>${escapeHtml(
+            record.level,
+          )}</strong> to <strong>${escapeHtml(nextLevel)}</strong>.`,
+        );
+        return;
+      }
+
+      if (action === "repeat") {
+        manager.updateStudentProgression(record.id, (current) => ({
+          ...current,
+          status: "active",
+          archivedAt: null,
+          transferredAt: null,
+          transferReason: "",
+          progressionHistory: appendStudentProgression(current, {
+            type: "repeated",
+            fromLevel: current.level,
+            toLevel: current.level,
+            note: "Marked to repeat class by admin",
+          }),
+        }));
+        recordAuditEvent({
+          action: "updated",
+          entityType: "student",
+          entityId: record.admissionNo,
+          summary: `${record.fullName} marked to repeat`,
+          details: `${record.level}`,
+        });
+        setStatus(
+          status,
+          "success",
+          `Student <strong>${escapeHtml(record.fullName)}</strong> is marked to repeat <strong>${escapeHtml(
+            record.level,
+          )}</strong>.`,
+        );
+        return;
+      }
+
+      if (action === "transfer") {
+        const transferNote = window.prompt("Transfer note (optional)", record.transferReason || "");
+        if (transferNote === null) {
+          return;
+        }
+        manager.updateStudentProgression(record.id, (current) => ({
+          ...current,
+          status: "transferred",
+          transferredAt: nowIso(),
+          transferReason: String(transferNote || "").trim(),
+          archivedAt: null,
+          progressionHistory: appendStudentProgression(current, {
+            type: "transferred",
+            fromLevel: current.level,
+            toLevel: "",
+            note: String(transferNote || "").trim() || "Transferred out by admin",
+          }),
+        }));
+        recordAuditEvent({
+          action: "updated",
+          entityType: "student",
+          entityId: record.admissionNo,
+          summary: `Transferred out ${record.fullName}`,
+          details: `${record.level}${transferNote ? ` • ${transferNote}` : ""}`,
+        });
+        setStatus(
+          status,
+          "success",
+          `Student <strong>${escapeHtml(record.fullName)}</strong> transferred out successfully.`,
         );
         return;
       }
@@ -9937,7 +10156,7 @@
     const normalizedParentEmail = normalizeEmail(parentEmail);
     return studentManager
       .getStudents()
-      .filter((student) => student.status !== "archived")
+      .filter((student) => student.status === "active")
       .filter((student) =>
         (student.guardians || []).some(
           (guardian) => normalizeEmail(String(guardian.email || "").trim()) === normalizedParentEmail,
