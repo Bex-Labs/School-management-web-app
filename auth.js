@@ -1175,7 +1175,7 @@
       phone: String(record.phone || "").trim(),
       level: String(record.level || classApplyingFor || academicClassApplyingFor).trim(),
       classApplyingFor,
-      previousSchool: String(record.previousSchool || "").trim(),
+      previousSchool: String(record.previousSchool || record.previousSchoolName || "").trim(),
       passportPhotoName: String(record.passportPhotoName || "").trim(),
       guardianName: guardianFullName,
       guardianFullName,
@@ -1189,6 +1189,7 @@
       previousSchoolName: String(record.previousSchoolName || "").trim(),
       previousSchoolAddress: String(record.previousSchoolAddress || "").trim(),
       healthCondition: String(record.healthCondition || "").trim(),
+      healthConditionDetails: String(record.healthConditionDetails || "").trim(),
       healthAllergies: String(record.healthAllergies || "").trim(),
       healthMedications: String(record.healthMedications || "").trim(),
       docPreviousReportName: String(record.docPreviousReportName || "").trim(),
@@ -9024,6 +9025,11 @@
     const status = document.getElementById("admissions-apply-status");
     const workspaceInput = document.getElementById("admissions-workspace-id");
     const pageCopy = document.getElementById("admissions-apply-copy");
+    const stepIndicator = document.getElementById("admissions-step-indicator");
+    const reviewPanel = document.getElementById("admissions-review-panel");
+    const healthConditionSelect = document.getElementById("apply-health-condition");
+    const healthConditionDetailsWrap = document.getElementById("health-condition-details-wrap");
+    const healthConditionDetailsInput = document.getElementById("apply-health-condition-details");
 
     if (!form || !status || !workspaceInput) {
       return;
@@ -9040,36 +9046,34 @@
       }
     }
 
-    form.addEventListener("input", () => {
-      setStatus(status, "", "");
-    });
+    const stepSections = Array.from(form.querySelectorAll("[data-admissions-step]"));
+    let activeStepIndex = 0;
 
-    form.addEventListener("submit", (event) => {
-      event.preventDefault();
+    const readFileName = (fieldName) => {
+      const file = form.elements[fieldName]?.files?.[0];
+      return file ? String(file.name || "").trim() : "";
+    };
 
-      const workspaceId = normalizeWorkspaceId(workspaceInput.value || "");
-      const readFileName = (fieldName) => {
-        const file = form.elements[fieldName]?.files?.[0];
-        return file ? String(file.name || "").trim() : "";
-      };
-
+    const getPayload = () => {
       const firstName = String(form.elements.firstName?.value || "").trim();
       const middleName = String(form.elements.middleName?.value || "").trim();
       const lastName = String(form.elements.lastName?.value || "").trim();
       const fullName = [firstName, middleName, lastName].filter(Boolean).join(" ").trim();
-      const payload = {
+      const academicClassApplyingFor = String(form.elements.academicClassApplyingFor?.value || "").trim();
+
+      return {
         fullName,
         firstName,
         middleName,
         lastName,
         gender: String(form.elements.gender?.value || "").trim(),
         dateOfBirth: String(form.elements.dateOfBirth?.value || "").trim(),
-        classApplyingFor: String(form.elements.classApplyingFor?.value || "").trim(),
-        previousSchool: String(form.elements.previousSchool?.value || "").trim(),
+        classApplyingFor: academicClassApplyingFor,
+        previousSchool: String(form.elements.previousSchoolName?.value || "").trim(),
         passportPhotoName: readFileName("passportPhoto"),
         email: String(form.elements.email?.value || "").trim(),
         phone: String(form.elements.phone?.value || "").trim(),
-        level: String(form.elements.classApplyingFor?.value || "").trim(),
+        level: academicClassApplyingFor,
         guardianName: String(form.elements.guardianFullName?.value || "").trim(),
         guardianFullName: String(form.elements.guardianFullName?.value || "").trim(),
         guardianRelationship: String(form.elements.guardianRelationship?.value || "").trim(),
@@ -9078,10 +9082,11 @@
         guardianAddress: String(form.elements.guardianAddress?.value || "").trim(),
         guardianOccupation: String(form.elements.guardianOccupation?.value || "").trim(),
         lastClassAttended: String(form.elements.lastClassAttended?.value || "").trim(),
-        academicClassApplyingFor: String(form.elements.academicClassApplyingFor?.value || "").trim(),
+        academicClassApplyingFor,
         previousSchoolName: String(form.elements.previousSchoolName?.value || "").trim(),
         previousSchoolAddress: String(form.elements.previousSchoolAddress?.value || "").trim(),
         healthCondition: String(form.elements.healthCondition?.value || "").trim(),
+        healthConditionDetails: String(form.elements.healthConditionDetails?.value || "").trim(),
         healthAllergies: String(form.elements.healthAllergies?.value || "").trim(),
         healthMedications: String(form.elements.healthMedications?.value || "").trim(),
         docPreviousReportName: readFileName("docPreviousReport"),
@@ -9094,36 +9099,206 @@
         status: "pending",
         source: "public-apply",
       };
+    };
+
+    const toggleHealthConditionDetails = () => {
+      if (!healthConditionSelect || !healthConditionDetailsWrap) {
+        return;
+      }
+
+      const needsDetails = String(healthConditionSelect.value || "").trim().toLowerCase() === "yes";
+      healthConditionDetailsWrap.hidden = !needsDetails;
+
+      if (healthConditionDetailsInput) {
+        healthConditionDetailsInput.toggleAttribute("required", needsDetails);
+        if (!needsDetails) {
+          healthConditionDetailsInput.value = "";
+        }
+      }
+    };
+
+    const renderReviewPanel = () => {
+      if (!reviewPanel) {
+        return;
+      }
+
+      const payload = getPayload();
+      const documentNames = [
+        payload.passportPhotoName,
+        payload.docPreviousReportName,
+        payload.docBirthCertificateName,
+        payload.docPreviousSchoolResultName,
+        payload.docTransferCertificateName,
+        payload.docPassportPhotographName,
+        payload.docOtherName,
+      ].filter(Boolean);
+
+      reviewPanel.innerHTML = `
+        <div class="admissions-review-group">
+          <h4>Student Details</h4>
+          <p><strong>Name:</strong> ${escapeHtml(payload.fullName || "—")}</p>
+          <p><strong>Gender:</strong> ${escapeHtml(payload.gender || "—")}</p>
+          <p><strong>Date of Birth:</strong> ${escapeHtml(payload.dateOfBirth || "—")}</p>
+        </div>
+        <div class="admissions-review-group">
+          <h4>Parent/Guardian</h4>
+          <p><strong>Full Name:</strong> ${escapeHtml(payload.guardianFullName || "—")}</p>
+          <p><strong>Relationship:</strong> ${escapeHtml(payload.guardianRelationship || "—")}</p>
+          <p><strong>Phone:</strong> ${escapeHtml(payload.guardianPhone || "—")}</p>
+          <p><strong>Email:</strong> ${escapeHtml(payload.guardianEmail || "—")}</p>
+          <p><strong>Address:</strong> ${escapeHtml(payload.guardianAddress || "—")}</p>
+          <p><strong>Occupation:</strong> ${escapeHtml(payload.guardianOccupation || "—")}</p>
+        </div>
+        <div class="admissions-review-group">
+          <h4>Academic Background</h4>
+          <p><strong>Last Class Attended:</strong> ${escapeHtml(payload.lastClassAttended || "—")}</p>
+          <p><strong>Class Applying For:</strong> ${escapeHtml(payload.academicClassApplyingFor || "—")}</p>
+          <p><strong>Previous School Name:</strong> ${escapeHtml(payload.previousSchoolName || "—")}</p>
+          <p><strong>Previous School Address:</strong> ${escapeHtml(payload.previousSchoolAddress || "—")}</p>
+        </div>
+        <div class="admissions-review-group">
+          <h4>Health Information</h4>
+          <p><strong>Existing Medical Condition:</strong> ${escapeHtml(payload.healthCondition || "—")}</p>
+          <p><strong>Medical Condition Details:</strong> ${escapeHtml(payload.healthConditionDetails || "—")}</p>
+          <p><strong>Allergies:</strong> ${escapeHtml(payload.healthAllergies || "—")}</p>
+          <p><strong>Current Medications:</strong> ${escapeHtml(payload.healthMedications || "—")}</p>
+        </div>
+        <div class="admissions-review-group">
+          <h4>Document Uploads</h4>
+          <p>${escapeHtml(documentNames.join(", ") || "No documents selected.")}</p>
+        </div>
+      `;
+    };
+
+    const setStep = (index) => {
+      if (!stepSections.length) {
+        return;
+      }
+
+      const boundedIndex = Math.max(0, Math.min(index, stepSections.length - 1));
+      activeStepIndex = boundedIndex;
+      stepSections.forEach((section, sectionIndex) => {
+        section.hidden = sectionIndex !== boundedIndex;
+      });
+
+      if (stepIndicator) {
+        stepIndicator.textContent = `Section ${boundedIndex + 1} of ${stepSections.length}`;
+      }
+
+      if (boundedIndex === stepSections.length - 1) {
+        renderReviewPanel();
+      }
+    };
+
+    const validateStep = (stepIndex, focusStepOnError = true) => {
+      const payload = getPayload();
+      const workspaceId = normalizeWorkspaceId(workspaceInput.value || "");
 
       if (!workspaceId || workspaceId === "public") {
         setStatus(status, "error", "Enter the school workspace ID provided by the school.");
+        return false;
+      }
+
+      if (stepIndex === 0) {
+        if (!payload.firstName || !payload.lastName || !payload.gender || !payload.dateOfBirth) {
+          setStatus(status, "error", "Complete all required fields in Section 1.");
+          return false;
+        }
+      }
+
+      if (stepIndex === 1) {
+        if (
+          !payload.guardianFullName ||
+          !payload.guardianRelationship ||
+          !payload.guardianPhone ||
+          !payload.guardianEmail ||
+          !payload.guardianAddress ||
+          !payload.guardianOccupation
+        ) {
+          setStatus(status, "error", "Complete all required fields in Section 2.");
+          return false;
+        }
+
+        if (!EMAIL_REGEX.test(payload.guardianEmail)) {
+          setStatus(status, "error", "Guardian email format is invalid.");
+          return false;
+        }
+      }
+
+      if (stepIndex === 2) {
+        if (!payload.lastClassAttended || !payload.academicClassApplyingFor) {
+          setStatus(status, "error", "Complete all required fields in Section 3.");
+          return false;
+        }
+      }
+
+      if (stepIndex === 3) {
+        if (!payload.healthCondition) {
+          setStatus(status, "error", "Select whether the student has an existing medical condition.");
+          return false;
+        }
+
+        if (payload.healthCondition.toLowerCase() === "yes" && !payload.healthConditionDetails) {
+          setStatus(status, "error", "List the existing medical condition(s) in Section 4.");
+          return false;
+        }
+      }
+
+      if (focusStepOnError) {
+        setStatus(status, "", "");
+      }
+
+      return true;
+    };
+
+    form.addEventListener("input", () => {
+      setStatus(status, "", "");
+      if (activeStepIndex === stepSections.length - 1) {
+        renderReviewPanel();
+      }
+    });
+
+    form.addEventListener("change", () => {
+      toggleHealthConditionDetails();
+      if (activeStepIndex === stepSections.length - 1) {
+        renderReviewPanel();
+      }
+    });
+
+    form.querySelectorAll("[data-admission-step-next]").forEach((button) => {
+      button.addEventListener("click", () => {
+        if (!validateStep(activeStepIndex, false)) {
+          return;
+        }
+        setStep(activeStepIndex + 1);
+      });
+    });
+
+    form.querySelectorAll("[data-admission-step-prev]").forEach((button) => {
+      button.addEventListener("click", () => {
+        setStep(activeStepIndex - 1);
+      });
+    });
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+
+      if (activeStepIndex !== stepSections.length - 1) {
+        if (validateStep(activeStepIndex, false)) {
+          setStep(activeStepIndex + 1);
+        }
         return;
       }
 
-      if (
-        !payload.firstName ||
-        !payload.lastName ||
-        !payload.gender ||
-        !payload.dateOfBirth ||
-        !payload.classApplyingFor ||
-        !payload.previousSchool ||
-        !payload.guardianFullName ||
-        !payload.guardianRelationship ||
-        !payload.guardianPhone ||
-        !payload.guardianEmail ||
-        !payload.guardianAddress ||
-        !payload.guardianOccupation ||
-        !payload.lastClassAttended ||
-        !payload.academicClassApplyingFor ||
-        !payload.healthCondition
-      ) {
-        setStatus(
-          status,
-          "error",
-          "Please complete all fields marked with a red asterisk before submitting the application.",
-        );
-        return;
+      for (let step = 0; step < stepSections.length - 1; step += 1) {
+        if (!validateStep(step, false)) {
+          setStep(step);
+          return;
+        }
       }
+
+      const workspaceId = normalizeWorkspaceId(workspaceInput.value || "");
+      const payload = getPayload();
 
       if (payload.email && !EMAIL_REGEX.test(payload.email)) {
         setStatus(status, "error", "Applicant email format is invalid.");
@@ -9153,6 +9328,8 @@
 
       form.reset();
       workspaceInput.value = workspaceId;
+      toggleHealthConditionDetails();
+      setStep(0);
       clearFormDraftFor(form);
       setStatus(
         status,
@@ -9160,6 +9337,9 @@
         `Application submitted successfully for <strong>${escapeHtml(payload.fullName)}</strong>. The school admin will review and update the status.`,
       );
     });
+
+    toggleHealthConditionDetails();
+    setStep(0);
   }
 
   function renderAdminMetricCards(target, snapshot) {
@@ -10350,7 +10530,7 @@
               <div class="portal-class-extended-item"><span>Guardian Address</span><strong>${escapeHtml(entry.guardianAddress || "—")}</strong></div>
               <div class="portal-class-extended-item"><span>Academic Background</span><strong>${escapeHtml(entry.lastClassAttended || "—")} → ${escapeHtml(entry.academicClassApplyingFor || "—")}</strong></div>
               <div class="portal-class-extended-item"><span>Previous School</span><strong>${escapeHtml(entry.previousSchool || entry.previousSchoolName || "—")}</strong></div>
-              <div class="portal-class-extended-item"><span>Health</span><strong>${escapeHtml(entry.healthCondition || "—")} ${entry.healthAllergies ? `• Allergies: ${escapeHtml(entry.healthAllergies)}` : ""}</strong></div>
+              <div class="portal-class-extended-item"><span>Health</span><strong>${escapeHtml(`${entry.healthCondition || "—"}${entry.healthConditionDetails ? ` • Condition: ${entry.healthConditionDetails}` : ""}${entry.healthAllergies ? ` • Allergies: ${entry.healthAllergies}` : ""}`)}</strong></div>
               <div class="portal-class-extended-item"><span>Uploaded Documents</span><strong>${escapeHtml(
                 [
                   entry.passportPhotoName,

@@ -3972,10 +3972,48 @@ body.auth-page[data-page="admissions-apply"] .admissions-form-section {
   margin-top: 8px;
 }
 
+body.auth-page[data-page="admissions-apply"] .admissions-step-indicator {
+  margin: 0;
+  color: #36527a;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
 body.auth-page[data-page="admissions-apply"] .admissions-form-section h3 {
   margin: 0 0 8px;
   color: #1b3458;
   font-size: 0.9rem;
+}
+
+body.auth-page[data-page="admissions-apply"] .admissions-step-actions {
+  margin-top: 10px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+body.auth-page[data-page="admissions-apply"] .admissions-review-panel {
+  display: grid;
+  gap: 10px;
+}
+
+body.auth-page[data-page="admissions-apply"] .admissions-review-group {
+  border: 1px solid #dce5f3;
+  border-radius: 12px;
+  padding: 10px;
+  background: #ffffff;
+}
+
+body.auth-page[data-page="admissions-apply"] .admissions-review-group h4 {
+  margin: 0 0 6px;
+  color: #1b3458;
+  font-size: 0.82rem;
+}
+
+body.auth-page[data-page="admissions-apply"] .admissions-review-group p {
+  margin: 4px 0;
+  color: #395377;
+  font-size: 0.78rem;
 }
 
 body.auth-page[data-page="admissions-apply"] .auth-line-field {
@@ -4665,6 +4703,10 @@ body.admin-dashboard-page .admin-sidebar-link:hover {
 body.admin-dashboard-page .admin-sidebar-link.is-active {
   background: #f1f2f7;
   color: #5d54ff;
+}
+
+body.admin-dashboard-page .admin-sidebar-nav .admin-sidebar-link[href="./admin-feature-modules.html"] {
+  display: none;
 }
 
 body.admin-dashboard-page .admin-sidebar-icon {

@@ -24,6 +24,7 @@
 
             <form id="admissions-apply-form" class="auth-form-clean" novalidate>
               <div id="admissions-apply-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+              <p id="admissions-step-indicator" class="admissions-step-indicator">Section 1 of 6</p>
 
               <div class="auth-field-block">
                 <label class="auth-field-label" for="admissions-workspace-id">School workspace ID <span class="form-required">*</span></label>
@@ -32,7 +33,7 @@
                 </label>
               </div>
 
-              <section class="admissions-form-section">
+              <section class="admissions-form-section" data-admissions-step="1">
                 <h3>Section 1: Student Details</h3>
                 <div class="auth-field-block">
                   <label class="auth-field-label" for="apply-first-name">First Name <span class="form-required">*</span></label>
@@ -75,21 +76,12 @@
                     <input id="apply-passport-photo" name="passportPhoto" type="file" accept=".jpg,.jpeg,.png,.webp" />
                   </label>
                 </div>
-                <div class="auth-field-block">
-                  <label class="auth-field-label" for="apply-class-applying-for">Class Applying For <span class="form-required">*</span></label>
-                  <label class="auth-line-field" for="apply-class-applying-for">
-                    <input id="apply-class-applying-for" name="classApplyingFor" type="text" placeholder="Primary 4, JSS 1, SS 1, 100L..." />
-                  </label>
-                </div>
-                <div class="auth-field-block">
-                  <label class="auth-field-label" for="apply-previous-school">Previous School <span class="form-required">*</span></label>
-                  <label class="auth-line-field" for="apply-previous-school">
-                    <input id="apply-previous-school" name="previousSchool" type="text" placeholder="Sunrise Academy" />
-                  </label>
+                <div class="admissions-step-actions">
+                  <button class="button button-primary" type="button" data-admission-step-next>Next</button>
                 </div>
               </section>
 
-              <section class="admissions-form-section">
+              <section class="admissions-form-section" data-admissions-step="2" hidden>
                 <h3>Section 2: Parent/Guardian Details</h3>
                 <div class="auth-field-block">
                   <label class="auth-field-label" for="apply-guardian-full-name">Parent/Guardian Full Name <span class="form-required">*</span></label>
@@ -127,9 +119,13 @@
                     <input id="apply-guardian-occupation" name="guardianOccupation" type="text" placeholder="Civil Servant" />
                   </label>
                 </div>
+                <div class="admissions-step-actions">
+                  <button class="button button-outline" type="button" data-admission-step-prev>Previous</button>
+                  <button class="button button-primary" type="button" data-admission-step-next>Next</button>
+                </div>
               </section>
 
-              <section class="admissions-form-section">
+              <section class="admissions-form-section" data-admissions-step="3" hidden>
                 <h3>Section 3: Academic Background</h3>
                 <div class="auth-field-block">
                   <label class="auth-field-label" for="apply-last-class-attended">Last Class Attended <span class="form-required">*</span></label>
@@ -155,9 +151,13 @@
                     <input id="apply-previous-school-address" name="previousSchoolAddress" type="text" placeholder="School address" />
                   </label>
                 </div>
+                <div class="admissions-step-actions">
+                  <button class="button button-outline" type="button" data-admission-step-prev>Previous</button>
+                  <button class="button button-primary" type="button" data-admission-step-next>Next</button>
+                </div>
               </section>
 
-              <section class="admissions-form-section">
+              <section class="admissions-form-section" data-admissions-step="4" hidden>
                 <h3>Section 4: Health Information</h3>
                 <div class="auth-field-block">
                   <label class="auth-field-label" for="apply-health-condition">Any existing medical condition? <span class="form-required">*</span></label>
@@ -167,6 +167,12 @@
                       <option value="No">No</option>
                       <option value="Yes">Yes</option>
                     </select>
+                  </label>
+                </div>
+                <div id="health-condition-details-wrap" class="auth-field-block" hidden>
+                  <label class="auth-field-label" for="apply-health-condition-details">List medical condition(s) <span class="form-required">*</span></label>
+                  <label class="auth-line-field" for="apply-health-condition-details">
+                    <input id="apply-health-condition-details" name="healthConditionDetails" type="text" placeholder="e.g. Asthma, Peanut allergy" />
                   </label>
                 </div>
                 <div class="auth-field-block">
@@ -181,9 +187,13 @@
                     <input id="apply-health-medications" name="healthMedications" type="text" placeholder="Medication details" />
                   </label>
                 </div>
+                <div class="admissions-step-actions">
+                  <button class="button button-outline" type="button" data-admission-step-prev>Previous</button>
+                  <button class="button button-primary" type="button" data-admission-step-next>Next</button>
+                </div>
               </section>
 
-              <section class="admissions-form-section">
+              <section class="admissions-form-section" data-admissions-step="5" hidden>
                 <h3>Section 5: Document Upload</h3>
                 <div class="auth-field-block">
                   <label class="auth-field-label" for="apply-previous-report">Previous Result / Report Card Upload (optional)</label>
@@ -221,11 +231,20 @@
                     <input id="apply-other-document" name="docOther" type="file" />
                   </label>
                 </div>
+                <div class="admissions-step-actions">
+                  <button class="button button-outline" type="button" data-admission-step-prev>Previous</button>
+                  <button class="button button-primary" type="button" data-admission-step-next>Next</button>
+                </div>
               </section>
 
-              <section class="admissions-form-section">
+              <section class="admissions-form-section" data-admissions-step="6" hidden>
                 <h3>Section 6: Submit Application</h3>
-                <button class="auth-submit" type="submit">Submit Application</button>
+                <p class="auth-flow-note">Review all submitted details before final submission.</p>
+                <div id="admissions-review-panel" class="admissions-review-panel"></div>
+                <div class="admissions-step-actions">
+                  <button class="button button-outline" type="button" data-admission-step-prev>Previous</button>
+                  <button class="auth-submit" type="submit">Submit Application</button>
+                </div>
               </section>
             </form>
           </div>
