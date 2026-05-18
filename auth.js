@@ -1206,6 +1206,8 @@
       updatedAt: record.updatedAt || nowIso(),
       reviewedAt: record.reviewedAt || null,
       reviewedBy: String(record.reviewedBy || "").trim(),
+      convertedStudentId: String(record.convertedStudentId || "").trim(),
+      convertedAt: String(record.convertedAt || "").trim(),
       workspaceId: normalizeWorkspaceId(workspaceId || record.workspaceId || getCurrentWorkspaceId()),
     };
   }
@@ -7438,7 +7440,6 @@
     const importPreviewButton = document.querySelector("[data-student-import-preview]");
     const importConfirmButton = document.querySelector("[data-student-import-confirm]");
     const importPreviewTarget = document.getElementById("portal-student-import-preview");
-    const classLevelSet = getActiveClassLevelTokenSet();
     let importPreviewRows = [];
     let isStudentListExpanded = false;
 
@@ -10514,7 +10515,10 @@
 
     target.innerHTML = admissions
       .map(
-        (entry) => `
+        (entry) => {
+          const isApproved = normalizeAdmissionStatus(entry.status) === "approved";
+          const isConverted = Boolean(String(entry.convertedAt || "").trim());
+          return `
           <article class="portal-class-card">
             <div class="portal-class-meta">
               <div class="portal-class-meta-item"><span>Applicant</span><strong>${escapeHtml(entry.fullName)}</strong></div>
@@ -10544,15 +10548,18 @@
                   .filter(Boolean)
                   .join(", ") || "None",
               )}</strong></div>
+              <div class="portal-class-extended-item"><span>Student Conversion</span><strong>${isConverted ? `Converted on ${escapeHtml(formatTimestamp(entry.convertedAt))}` : "Not converted yet"}</strong></div>
             </div>
             <div class="portal-class-actions">
               <button class="portal-class-button" type="button" data-admission-action="review" data-admission-id="${entry.id}" ${isAdmin ? "" : "disabled"}>Review</button>
               <button class="portal-class-button" type="button" data-admission-action="shortlisted" data-admission-id="${entry.id}" ${isAdmin ? "" : "disabled"}>Shortlist</button>
               <button class="portal-class-button is-archive" type="button" data-admission-action="rejected" data-admission-id="${entry.id}" ${isAdmin ? "" : "disabled"}>Reject</button>
               <button class="portal-class-button is-restore" type="button" data-admission-action="approved" data-admission-id="${entry.id}" ${isAdmin ? "" : "disabled"}>Accept</button>
+              <button class="portal-class-button" type="button" data-admission-action="convert" data-admission-id="${entry.id}" ${isAdmin && isApproved && !isConverted ? "" : "disabled"}>${isConverted ? "Converted" : "Convert to Student"}</button>
             </div>
           </article>
-        `,
+        `;
+        },
       )
       .join("");
   }
@@ -10563,9 +10570,84 @@
     }
 
     const workspaceId = normalizeWorkspaceId(getCurrentWorkspaceId());
+    const studentManager = getStudentManager();
+
+    const buildStudentPayloadFromAdmission = (entry) => {
+      const classLevelSet = getActiveClassLevelTokenSet();
+      const level = String(entry.academicClassApplyingFor || entry.classApplyingFor || entry.level || "").trim();
+      const firstName = String(entry.firstName || "").trim() || String(entry.fullName || "").trim().split(/\s+/)[0] || "";
+      const lastName =
+        String(entry.lastName || "").trim() ||
+        String(entry.fullName || "")
+          .trim()
+          .split(/\s+/)
+          .slice(1)
+          .join(" ") ||
+        "Applicant";
+      const fullName = [entry.firstName, entry.middleName, entry.lastName]
+        .map((value) => String(value || "").trim())
+        .filter(Boolean)
+        .join(" ");
+      const guardians = [
+        {
+          id: createId(),
+          name: String(entry.guardianFullName || entry.guardianName || "").trim(),
+          relationship: String(entry.guardianRelationship || "Guardian").trim() || "Guardian",
+          phone: String(entry.guardianPhone || "").trim(),
+          email: String(entry.guardianEmail || "").trim(),
+        },
+      ];
+
+      if (!firstName || !lastName) {
+        return { error: "Applicant name is incomplete; edit the application before converting." };
+      }
+
+      if (!level) {
+        return { error: "Class applying for is missing. Update the application first." };
+      }
+
+      if (!isKnownClassLevel(level, classLevelSet)) {
+        return { error: "Invalid class. Create this class in Class Management before converting." };
+      }
+
+      if (!guardians[0].name || !guardians[0].email) {
+        return { error: "Guardian details are incomplete. A guardian email is required for parent login." };
+      }
+
+      if (!EMAIL_REGEX.test(guardians[0].email)) {
+        return { error: "Guardian email format is invalid." };
+      }
+
+      if (guardians[0].phone && !isValidPhoneNumber(guardians[0].phone)) {
+        return { error: "Guardian phone number format is invalid." };
+      }
+
+      const studentId = createId();
+      const admissionNo = generateAdmissionNumber({
+        manager: studentManager,
+        levelValue: level,
+      });
+
+      return {
+        payload: {
+          id: studentId,
+          firstName,
+          lastName,
+          fullName: fullName || [firstName, lastName].join(" ").trim(),
+          admissionNo,
+          level,
+          dateOfBirth: String(entry.dateOfBirth || "").trim(),
+          gender: String(entry.gender || "").trim(),
+          guardians,
+          status: "active",
+        },
+      };
+    };
 
     const refresh = () => {
-      const admissions = getAdmissions(workspaceId);
+      const admissions = getAdmissions(workspaceId).filter(
+        (entry) => !String(entry.convertedAt || "").trim(),
+      );
       renderAdmissionsSummary(summaryTarget, admissions);
       renderAdmissionsList(listTarget, admissions, isAdmin);
     };
@@ -10672,7 +10754,7 @@
       setStatus(status, "success", `Application for <strong>${escapeHtml(payload.fullName)}</strong> added.`);
     });
 
-    listTarget.addEventListener("click", (event) => {
+    listTarget.addEventListener("click", async (event) => {
       const button = event.target.closest("[data-admission-action]");
 
       if (!button || !isAdmin) {
@@ -10680,7 +10762,93 @@
       }
 
       const admissionId = String(button.dataset.admissionId || "");
-      const nextStatus = normalizeAdmissionStatus(button.dataset.admissionAction || "review");
+      const action = String(button.dataset.admissionAction || "").trim().toLowerCase();
+
+      if (action === "convert") {
+        if (!studentManager || typeof studentManager.upsertStudent !== "function") {
+          setStatus(status, "error", "Student manager is not available right now.");
+          return;
+        }
+
+        const admission = getAdmissions(workspaceId).find((entry) => entry.id === admissionId);
+        if (!admission) {
+          setStatus(status, "error", "Application not found.");
+          return;
+        }
+
+        if (normalizeAdmissionStatus(admission.status) !== "approved") {
+          setStatus(status, "error", "Only approved applications can be converted.");
+          return;
+        }
+
+        if (admission.convertedAt) {
+          setStatus(status, "info", "This application has already been converted to a student.");
+          return;
+        }
+
+        const conversion = buildStudentPayloadFromAdmission(admission);
+        if (conversion.error) {
+          setStatus(status, "error", conversion.error);
+          return;
+        }
+
+        const studentPayload = conversion.payload;
+        studentManager.upsertStudent(studentPayload);
+        const parentProvisioning = await provisionParentAccountsForStudent(studentPayload);
+        upsertAdmission(
+          {
+            ...admission,
+            convertedStudentId: studentPayload.id,
+            convertedAt: nowIso(),
+            status: "approved",
+            statusNote: "Converted to student record",
+          },
+          workspaceId,
+        );
+
+        recordAuditEvent({
+          action: "converted",
+          entityType: "admission-application",
+          entityId: admission.id,
+          summary: `Converted approved applicant ${admission.fullName} to student`,
+          details: `${studentPayload.admissionNo} • ${studentPayload.level}`,
+          workspaceId,
+        });
+
+        pushNotification(
+          {
+            title: `Applicant converted: ${admission.fullName}`,
+            message: `Student record created as ${studentPayload.admissionNo}.`,
+            entityType: "student",
+            entityId: studentPayload.admissionNo,
+            action: "created",
+            visibleToRoles: ["Admin"],
+          },
+          workspaceId,
+        );
+
+        const createdParentCopy = parentProvisioning.created.length
+          ? ` Parent login created with default password <strong>${escapeHtml(DEFAULT_PARENT_PASSWORD)}</strong>.`
+          : "";
+        const googleParentCopy = parentProvisioning.existingGoogle.length
+          ? ` ${parentProvisioning.existingGoogle.length} guardian account(s) already use Google sign-in.`
+          : "";
+        const failedParentCopy = parentProvisioning.failed?.length
+          ? ` ${parentProvisioning.failed.length} guardian account(s) could not be provisioned.`
+          : "";
+
+        refresh();
+        setStatus(
+          status,
+          "success",
+          `Converted <strong>${escapeHtml(admission.fullName)}</strong> into student <strong>${escapeHtml(
+            studentPayload.admissionNo,
+          )}</strong> without retyping.${createdParentCopy}${googleParentCopy}${failedParentCopy}`,
+        );
+        return;
+      }
+
+      const nextStatus = normalizeAdmissionStatus(action || "review");
       const updated = setAdmissionStatus(admissionId, nextStatus, {
         workspaceId,
         reviewedBy: getSession()?.email || "admin",
@@ -11137,8 +11305,6 @@
       !lastUpdated ||
       !metrics ||
       !events ||
-      !links ||
-      !details ||
       !gate
     ) {
       return;
@@ -11236,8 +11402,12 @@
           </article>
         `;
       }
-      links.innerHTML = "";
-      details.innerHTML = "";
+      if (links) {
+        links.innerHTML = "";
+      }
+      if (details) {
+        details.innerHTML = "";
+      }
       gate.innerHTML = `<a class="admin-signout-button" href="./login.html">${buttonLabel}</a>`;
     };
 
@@ -11303,43 +11473,47 @@
       });
     }
 
-    const availableLinks = DASHBOARD_SECTION_LINKS.filter((item) => canAccessPermission(roleLabel, item.permissionKey));
-    links.innerHTML = availableLinks.map(
-      (item) => `
-        <a class="admin-link-card" href="${item.href}">
-          <strong>${item.label}</strong>
-          <p>${item.copy}</p>
-          <span>Open section</span>
-        </a>
-      `,
-    ).join("");
+    if (links) {
+      const availableLinks = DASHBOARD_SECTION_LINKS.filter((item) => canAccessPermission(roleLabel, item.permissionKey));
+      links.innerHTML = availableLinks.map(
+        (item) => `
+          <a class="admin-link-card" href="${item.href}">
+            <strong>${item.label}</strong>
+            <p>${item.copy}</p>
+            <span>Open section</span>
+          </a>
+        `,
+      ).join("");
+    }
 
-    details.innerHTML = `
-      <div class="admin-session-card">
-        <span>Email</span>
-        <strong>${escapeHtml(user.email)}</strong>
-      </div>
-      <div class="admin-session-card">
-        <span>Sign-in method</span>
-        <strong>${user.provider === "google" ? "Google" : "Email and password"}</strong>
-      </div>
-      <div class="admin-session-card">
-        <span>Email confirmed</span>
-        <strong>${user.isConfirmed ? "Yes" : "No"}</strong>
-      </div>
-      <div class="admin-session-card">
-        <span>Selected role</span>
-        <strong>${escapeHtml(normalizeRoleLabel(session.role || user.role || DEFAULT_AUTH_ROLE))}</strong>
-      </div>
-      <div class="admin-session-card">
-        <span>Session type</span>
-        <strong>${session.persistence === "persistent" ? "Stay logged in" : "Browser session only"}</strong>
-      </div>
-      <div class="admin-session-card">
-        <span>Password status</span>
-        <strong>${user.provider === "google" ? "Managed by Google" : user.mustChangePassword ? "Default password active" : "Updated password"}</strong>
-      </div>
-    `;
+    if (details) {
+      details.innerHTML = `
+        <div class="admin-session-card">
+          <span>Email</span>
+          <strong>${escapeHtml(user.email)}</strong>
+        </div>
+        <div class="admin-session-card">
+          <span>Sign-in method</span>
+          <strong>${user.provider === "google" ? "Google" : "Email and password"}</strong>
+        </div>
+        <div class="admin-session-card">
+          <span>Email confirmed</span>
+          <strong>${user.isConfirmed ? "Yes" : "No"}</strong>
+        </div>
+        <div class="admin-session-card">
+          <span>Selected role</span>
+          <strong>${escapeHtml(normalizeRoleLabel(session.role || user.role || DEFAULT_AUTH_ROLE))}</strong>
+        </div>
+        <div class="admin-session-card">
+          <span>Session type</span>
+          <strong>${session.persistence === "persistent" ? "Stay logged in" : "Browser session only"}</strong>
+        </div>
+        <div class="admin-session-card">
+          <span>Password status</span>
+          <strong>${user.provider === "google" ? "Managed by Google" : user.mustChangePassword ? "Default password active" : "Updated password"}</strong>
+        </div>
+      `;
+    }
 
     gate.innerHTML = `
       <a class="admin-signout-button" href="./user-settings.html">My settings</a>
