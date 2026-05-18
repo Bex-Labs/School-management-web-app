@@ -3943,6 +3943,57 @@ body.auth-page .auth-line-field input {
   font-size: 0.88rem;
 }
 
+body.auth-page .auth-line-field select,
+body.auth-page .auth-line-field input[type="file"] {
+  height: 48px;
+  font-size: 0.88rem;
+  color: #233855;
+  background: transparent;
+  border: 0;
+  width: 100%;
+}
+
+body.auth-page .form-required {
+  color: #d93025;
+  font-weight: 800;
+}
+
+body.auth-page[data-page="admissions-apply"] .auth-form-clean {
+  max-height: 70vh;
+  overflow: auto;
+  padding-right: 6px;
+}
+
+body.auth-page[data-page="admissions-apply"] .admissions-form-section {
+  border: 1px solid #dce5f3;
+  border-radius: 16px;
+  padding: 12px;
+  background: #fbfdff;
+  margin-top: 8px;
+}
+
+body.auth-page[data-page="admissions-apply"] .admissions-form-section h3 {
+  margin: 0 0 8px;
+  color: #1b3458;
+  font-size: 0.9rem;
+}
+
+body.auth-page[data-page="admissions-apply"] .auth-line-field {
+  grid-template-columns: minmax(0, 1fr);
+  padding: 0 12px;
+}
+
+body.auth-page[data-page="admissions-apply"] .auth-line-field input,
+body.auth-page[data-page="admissions-apply"] .auth-line-field select {
+  grid-column: 1 / -1;
+}
+
+body.auth-page[data-page="admissions-apply"] .auth-line-field input[type="file"] {
+  grid-column: 1 / -1;
+  padding: 10px 0;
+  height: auto;
+}
+
 body.auth-page .auth-line-icon,
 body.auth-page .auth-line-trail {
   color: #8191aa;
@@ -5612,6 +5663,41 @@ body.admin-dashboard-page .portal-class-layout {
   gap: 18px;
   margin-top: 18px;
   align-items: start;
+}
+
+body.admin-dashboard-page .portal-admission-share {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: start;
+}
+
+body.admin-dashboard-page .portal-admission-share-copy {
+  display: grid;
+  gap: 10px;
+}
+
+body.admin-dashboard-page .portal-admission-qr {
+  margin: 0;
+  border: 1px solid #dce5f1;
+  border-radius: 16px;
+  background: #ffffff;
+  padding: 10px;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+
+body.admin-dashboard-page .portal-admission-qr img {
+  width: 150px;
+  height: 150px;
+  border-radius: 10px;
+}
+
+body.admin-dashboard-page .portal-admission-qr figcaption {
+  color: #4f6182;
+  font-size: 0.78rem;
 }
 
 body.admin-dashboard-page[data-page="admin-students"] .portal-class-layout {

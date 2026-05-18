@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Apply | SchoolSphere Admissions</title>
+    <meta name="description" content="Student admissions application form for SchoolSphere workspaces." />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body data-page="admissions-apply" class="auth-page">
+    <main class="auth-screen">
+      <section class="auth-shell">
+        <article class="auth-pane auth-pane-left">
+          <div class="auth-left-inner">
+            <a class="auth-brand" href="./index.html" aria-label="SchoolSphere home">
+              <span class="auth-brand-mark">S</span>
+              <span class="auth-brand-text">SchoolSphere</span>
+            </a>
+
+            <div class="auth-copy-block">
+              <h1 class="auth-page-title">Student Application Form</h1>
+              <p id="admissions-apply-copy" class="auth-flow-note">Complete the sections below and submit for school admin review.</p>
+            </div>
+
+            <form id="admissions-apply-form" class="auth-form-clean" novalidate>
+              <div id="admissions-apply-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+
+              <div class="auth-field-block">
+                <label class="auth-field-label" for="admissions-workspace-id">School workspace ID <span class="form-required">*</span></label>
+                <label class="auth-line-field" for="admissions-workspace-id">
+                  <input id="admissions-workspace-id" name="workspaceId" type="text" placeholder="e.g. capital-science-academy" />
+                </label>
+              </div>
+
+              <section class="admissions-form-section">
+                <h3>Section 1: Student Details</h3>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="apply-first-name">First Name <span class="form-required">*</span></label>
+                  <label class="auth-line-field" for="apply-first-name">
+                    <input id="apply-first-name" name="firstName" type="text" placeholder="Amina" />
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="apply-middle-name">Middle Name (optional)</label>
+                  <label class="auth-line-field" for="apply-middle-name">
+                    <input id="apply-middle-name" name="middleName" type="text" placeholder="Binta" />
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="apply-last-name">Last Name <span class="form-required">*</span></label>
+                  <label class="auth-line-field" for="apply-last-name">
+                    <input id="apply-last-name" name="lastName" type="text" placeholder="Yusuf" />
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="apply-gender">Gender <span class="form-required">*</span></label>
+                  <label class="auth-line-field" for="apply-gender">
+                    <select id="apply-gender" name="gender">
+                      <option value="">Select gender</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Prefer not to say">Prefer not to say</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="apply-date-of-birth">Date of Birth <span class="form-required">*</span></label>
+                  <label class="auth-line-field" for="apply-date-of-birth">
+                    <input id="apply-date-of-birth" name="dateOfBirth" type="date" />
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="apply-passport-photo">Passport Photo (optional)</label>
+                  <label class="auth-line-field" for="apply-passport-photo">
+                    <input id="apply-passport-photo" name="passportPhoto" type="file" accept=".jpg,.jpeg,.png,.webp" />
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="apply-class-applying-for">Class Applying For <span class="form-required">*</span></label>
+                  <label class="auth-line-field" for="apply-class-applying-for">
+                    <input id="apply-class-applying-for" name="classApplyingFor" type="text" placeholder="Primary 4, JSS 1, SS 1, 100L..." />
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="apply-previous-school">Previous School <span class="form-required">*</span></label>
+                  <label class="auth-line-field" for="apply-previous-school">
+                    <input id="apply-previous-school" name="previousSchool" type="text" placeholder="Sunrise Academy" />
+                  </label>
+                </div>
+              </section>
+
+              <section class="admissions-form-section">
+                <h3>Section 2: Parent/Guardian Details</h3>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="apply-guardian-full-name">Parent/Guardian Full Name <span class="form-required">*</span></label>
+                  <label class="auth-line-field" for="apply-guardian-full-name">
+                    <input id="apply-guardian-full-name" name="guardianFullName" type="text" placeholder="Mary Yusuf" />
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="apply-guardian-relationship">Relationship to Student <span class="form-required">*</span></label>
+                  <label class="auth-line-field" for="apply-guardian-relationship">
+                    <input id="apply-guardian-relationship" name="guardianRelationship" type="text" placeholder="Mother, Father, Uncle..." />
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="apply-guardian-phone">Phone Number <span class="form-required">*</span></label>
+                  <label class="auth-line-field" for="apply-guardian-phone">
+                    <input id="apply-guardian-phone" name="guardianPhone" type="text" placeholder="+234..." />
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="apply-guardian-email">Email Address <span class="form-required">*</span></label>
+                  <label class="auth-line-field" for="apply-guardian-email">
+                    <input id="apply-guardian-email" name="guardianEmail" type="email" placeholder="guardian@email.com" />
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="apply-guardian-address">Home Address <span class="form-required">*</span></label>
+                  <label class="auth-line-field" for="apply-guardian-address">
+                    <input id="apply-guardian-address" name="guardianAddress" type="text" placeholder="Street, city, state" />
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="apply-guardian-occupation">Occupation <span class="form-required">*</span></label>
+                  <label class="auth-line-field" for="apply-guardian-occupation">
+                    <input id="apply-guardian-occupation" name="guardianOccupation" type="text" placeholder="Civil Servant" />
+                  </label>
+                </div>
+              </section>
+
+              <section class="admissions-form-section">
+                <h3>Section 3: Academic Background</h3>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="apply-last-class-attended">Last Class Attended <span class="form-required">*</span></label>
+                  <label class="auth-line-field" for="apply-last-class-attended">
+                    <input id="apply-last-class-attended" name="lastClassAttended" type="text" placeholder="Primary 5, JSS 2..." />
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="apply-academic-class">Class Applying For <span class="form-required">*</span></label>
+                  <label class="auth-line-field" for="apply-academic-class">
+                    <input id="apply-academic-class" name="academicClassApplyingFor" type="text" placeholder="Primary 6, JSS 3, SS 1..." />
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="apply-previous-school-name">Previous School Name (optional)</label>
+                  <label class="auth-line-field" for="apply-previous-school-name">
+                    <input id="apply-previous-school-name" name="previousSchoolName" type="text" placeholder="Sunrise Academy" />
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="apply-previous-school-address">Previous School Address (optional)</label>
+                  <label class="auth-line-field" for="apply-previous-school-address">
+                    <input id="apply-previous-school-address" name="previousSchoolAddress" type="text" placeholder="School address" />
+                  </label>
+                </div>
+              </section>
+
+              <section class="admissions-form-section">
+                <h3>Section 4: Health Information</h3>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="apply-health-condition">Any existing medical condition? <span class="form-required">*</span></label>
+                  <label class="auth-line-field" for="apply-health-condition">
+                    <select id="apply-health-condition" name="healthCondition">
+                      <option value="">Select option</option>
+                      <option value="No">No</option>
+                      <option value="Yes">Yes</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="apply-health-allergies">Allergies (optional)</label>
+                  <label class="auth-line-field" for="apply-health-allergies">
+                    <input id="apply-health-allergies" name="healthAllergies" type="text" placeholder="None / list allergies" />
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="apply-health-medications">Current medications (optional)</label>
+                  <label class="auth-line-field" for="apply-health-medications">
+                    <input id="apply-health-medications" name="healthMedications" type="text" placeholder="Medication details" />
+                  </label>
+                </div>
+              </section>
+
+              <section class="admissions-form-section">
+                <h3>Section 5: Document Upload</h3>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="apply-previous-report">Previous Result / Report Card Upload (optional)</label>
+                  <label class="auth-line-field" for="apply-previous-report">
+                    <input id="apply-previous-report" name="docPreviousReport" type="file" />
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="apply-birth-certificate">Birth Certificate (optional)</label>
+                  <label class="auth-line-field" for="apply-birth-certificate">
+                    <input id="apply-birth-certificate" name="docBirthCertificate" type="file" />
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="apply-previous-school-result">Previous School Result (optional)</label>
+                  <label class="auth-line-field" for="apply-previous-school-result">
+                    <input id="apply-previous-school-result" name="docPreviousSchoolResult" type="file" />
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="apply-transfer-certificate">Transfer Certificate (optional)</label>
+                  <label class="auth-line-field" for="apply-transfer-certificate">
+                    <input id="apply-transfer-certificate" name="docTransferCertificate" type="file" />
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="apply-passport-document">Passport Photograph (optional)</label>
+                  <label class="auth-line-field" for="apply-passport-document">
+                    <input id="apply-passport-document" name="docPassportPhotograph" type="file" accept=".jpg,.jpeg,.png,.webp" />
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="apply-other-document">Other Document (optional)</label>
+                  <label class="auth-line-field" for="apply-other-document">
+                    <input id="apply-other-document" name="docOther" type="file" />
+                  </label>
+                </div>
+              </section>
+
+              <section class="admissions-form-section">
+                <h3>Section 6: Submit Application</h3>
+                <button class="auth-submit" type="submit">Submit Application</button>
+              </section>
+            </form>
+          </div>
+        </article>
+
+        <article class="auth-pane auth-pane-right">
+          <div class="auth-stage">
+            <div class="auth-stage-copy">
+              <h2>Admissions, clearly managed.</h2>
+              <p>After submitting this form, school admins can review, shortlist, reject, or approve your application.</p>
+            </div>
+
+            <div class="auth-preview-scene" aria-hidden="true">
+              <div class="auth-preview-browser">
+                <div class="auth-preview-browser-bar">
+                  <div class="auth-preview-dots">
+                    <span></span><span></span><span></span>
+                  </div>
+                  <div class="auth-preview-search">Application Status Pipeline</div>
+                </div>
+                <div class="auth-preview-browser-body">
+                  <div class="auth-preview-main">
+                    <div class="auth-preview-metrics">
+                      <article class="auth-preview-tile"><strong>1</strong><span>Submitted</span></article>
+                      <article class="auth-preview-tile"><strong>2</strong><span>In Review</span></article>
+                      <article class="auth-preview-tile"><strong>3</strong><span>Decision</span></article>
+                    </div>
+                    <div class="auth-preview-panels">
+                      <div class="auth-preview-panel">
+                        <strong>Pending Queue</strong>
+                        <span class="auth-preview-bar auth-preview-bar-lg"></span>
+                        <span class="auth-preview-bar auth-preview-bar-sm"></span>
+                      </div>
+                      <div class="auth-preview-panel">
+                        <strong>Outcome</strong>
+                        <div class="auth-preview-list"><span></span><span></span><span></span></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+    <script src="./supabase-config.js"></script>
+    <script src="./auth.js"></script>
+  </body>
+</html>

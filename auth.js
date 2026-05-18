@@ -21,6 +21,8 @@
   const AUTH_ROLES = ["Admin", "Teacher", "Student", "Parent"];
   const PARENT_SELECTION_STORAGE_PREFIX = "schoolsphere.parent.selected-child.v1";
   const PARENT_FEES_STORAGE_PREFIX = "schoolsphere.parent.fees.v1";
+  const ADMISSIONS_STORAGE_KEY_BASE = "schoolsphere.admissions.v1";
+  const ADMISSIONS_EVENT_NAME = "schoolsphere:admissions:updated";
   const ROLE_HOME_ROUTES = {
     Admin: "./portal.html",
     Teacher: "./portal.html",
@@ -43,6 +45,12 @@
       href: "./admin-students.html",
       permissionKey: "students_manage",
       copy: "Open the student records page for admissions, guardian links, and roster checks.",
+    },
+    {
+      label: "Admissions",
+      href: "./admin-admissions.html",
+      permissionKey: "students_manage",
+      copy: "Review, shortlist, reject, or approve incoming student applications in one queue.",
     },
     {
       label: "Classes",
@@ -97,6 +105,7 @@
   const PAGE_PERMISSION_KEYS = {
     portal: "dashboard_view",
     "admin-students": "students_manage",
+    "admin-admissions": "students_manage",
     "admin-teachers": "teachers_manage",
     "admin-classes": "classes_manage",
     "admin-courses": "courses_manage",
@@ -213,6 +222,7 @@
     initParentPages();
     initAdminShellPages();
     initAdminStudentsPage();
+    initAdminAdmissionsPage();
     initAdminTeachersPage();
     initAdminClassesPage();
     initAdminCoursesPage();
@@ -220,6 +230,7 @@
     initAdminFeatureModulesPage();
     initAdminSettingsPage();
     initUserSettingsPage();
+    initAdmissionsApplyPage();
     initFormDraftPersistence();
   });
 
@@ -543,6 +554,7 @@
       { formId: "portal-academic-calendar-form", restorer: restoreClassFormDraft },
       { formId: "portal-student-form", serializer: serializeStudentFormDraft, restorer: restoreStudentFormDraft },
       { formId: "portal-staff-form" },
+      { formId: "admissions-apply-form" },
       { formId: "user-settings-form", serializer: serializeAuthFormDraft, restorer: restoreAuthFormDraft },
     ].forEach(initializeDraftForForm);
   }
@@ -1105,6 +1117,176 @@
     }
 
     sessionStorage.setItem(ACCESS_GUARD_NOTICE_KEY, message);
+  }
+
+  function getAdmissionsStorageKey(workspaceId = null) {
+    return `${ADMISSIONS_STORAGE_KEY_BASE}:${normalizeWorkspaceId(workspaceId || getCurrentWorkspaceId())}`;
+  }
+
+  function normalizeAdmissionStatus(value) {
+    const normalized = String(value || "").trim().toLowerCase();
+
+    if (
+      normalized === "review" ||
+      normalized === "shortlisted" ||
+      normalized === "rejected" ||
+      normalized === "approved"
+    ) {
+      return normalized;
+    }
+
+    return "pending";
+  }
+
+  function composeAdmissionFullName(record = {}) {
+    const direct = String(record.fullName || "").trim();
+
+    if (direct) {
+      return direct;
+    }
+
+    return [
+      String(record.firstName || "").trim(),
+      String(record.middleName || "").trim(),
+      String(record.lastName || "").trim(),
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+  }
+
+  function normalizeAdmissionRecord(record = {}, workspaceId = null) {
+    const classApplyingFor = String(record.classApplyingFor || record.level || "").trim();
+    const academicClassApplyingFor = String(
+      record.academicClassApplyingFor || record.classApplyingFor || record.level || "",
+    ).trim();
+    const guardianFullName = String(record.guardianFullName || record.guardianName || "").trim();
+    const guardianEmail = String(record.guardianEmail || "").trim();
+
+    return {
+      id: String(record.id || createId()),
+      fullName: composeAdmissionFullName(record),
+      firstName: String(record.firstName || "").trim(),
+      middleName: String(record.middleName || "").trim(),
+      lastName: String(record.lastName || "").trim(),
+      gender: String(record.gender || "").trim(),
+      dateOfBirth: String(record.dateOfBirth || "").trim(),
+      email: String(record.email || "").trim(),
+      phone: String(record.phone || "").trim(),
+      level: String(record.level || classApplyingFor || academicClassApplyingFor).trim(),
+      classApplyingFor,
+      previousSchool: String(record.previousSchool || "").trim(),
+      passportPhotoName: String(record.passportPhotoName || "").trim(),
+      guardianName: guardianFullName,
+      guardianFullName,
+      guardianRelationship: String(record.guardianRelationship || "").trim(),
+      guardianEmail,
+      guardianPhone: String(record.guardianPhone || "").trim(),
+      guardianAddress: String(record.guardianAddress || "").trim(),
+      guardianOccupation: String(record.guardianOccupation || "").trim(),
+      lastClassAttended: String(record.lastClassAttended || "").trim(),
+      academicClassApplyingFor,
+      previousSchoolName: String(record.previousSchoolName || "").trim(),
+      previousSchoolAddress: String(record.previousSchoolAddress || "").trim(),
+      healthCondition: String(record.healthCondition || "").trim(),
+      healthAllergies: String(record.healthAllergies || "").trim(),
+      healthMedications: String(record.healthMedications || "").trim(),
+      docPreviousReportName: String(record.docPreviousReportName || "").trim(),
+      docBirthCertificateName: String(record.docBirthCertificateName || "").trim(),
+      docPreviousSchoolResultName: String(record.docPreviousSchoolResultName || "").trim(),
+      docTransferCertificateName: String(record.docTransferCertificateName || "").trim(),
+      docPassportPhotographName: String(record.docPassportPhotographName || "").trim(),
+      docOtherName: String(record.docOtherName || "").trim(),
+      notes: String(record.notes || "").trim(),
+      status: normalizeAdmissionStatus(record.status),
+      statusNote: String(record.statusNote || "").trim(),
+      source: String(record.source || "web").trim(),
+      createdAt: record.createdAt || nowIso(),
+      updatedAt: record.updatedAt || nowIso(),
+      reviewedAt: record.reviewedAt || null,
+      reviewedBy: String(record.reviewedBy || "").trim(),
+      workspaceId: normalizeWorkspaceId(workspaceId || record.workspaceId || getCurrentWorkspaceId()),
+    };
+  }
+
+  function getAdmissions(workspaceId = null) {
+    const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId || getCurrentWorkspaceId());
+    const stored = parseJSON(localStorage.getItem(getAdmissionsStorageKey(normalizedWorkspaceId)), []);
+
+    if (!Array.isArray(stored)) {
+      return [];
+    }
+
+    return stored
+      .map((record) => normalizeAdmissionRecord(record, normalizedWorkspaceId))
+      .filter((record) => record.fullName && (record.level || record.classApplyingFor || record.academicClassApplyingFor))
+      .sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)));
+  }
+
+  function saveAdmissions(records, workspaceId = null) {
+    const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId || getCurrentWorkspaceId());
+    const normalized = Array.isArray(records)
+      ? records.map((record) => normalizeAdmissionRecord(record, normalizedWorkspaceId))
+      : [];
+    localStorage.setItem(getAdmissionsStorageKey(normalizedWorkspaceId), JSON.stringify(normalized));
+    window.dispatchEvent(
+      new CustomEvent(ADMISSIONS_EVENT_NAME, {
+        detail: { workspaceId: normalizedWorkspaceId },
+      }),
+    );
+    return normalized;
+  }
+
+  function upsertAdmission(record = {}, workspaceId = null) {
+    const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId || record.workspaceId || getCurrentWorkspaceId());
+    const admissions = getAdmissions(normalizedWorkspaceId);
+    const nextRecord = normalizeAdmissionRecord(
+      {
+        ...record,
+        updatedAt: nowIso(),
+      },
+      normalizedWorkspaceId,
+    );
+    const index = admissions.findIndex((entry) => entry.id === nextRecord.id);
+
+    if (index >= 0) {
+      admissions[index] = {
+        ...admissions[index],
+        ...nextRecord,
+        createdAt: admissions[index].createdAt,
+      };
+    } else {
+      admissions.unshift(nextRecord);
+    }
+
+    return saveAdmissions(admissions, normalizedWorkspaceId);
+  }
+
+  function setAdmissionStatus(admissionId, status, options = {}) {
+    const normalizedWorkspaceId = normalizeWorkspaceId(options.workspaceId || getCurrentWorkspaceId());
+    const normalizedStatus = normalizeAdmissionStatus(status);
+    const admissions = getAdmissions(normalizedWorkspaceId);
+    const index = admissions.findIndex((entry) => entry.id === admissionId);
+
+    if (index < 0) {
+      return null;
+    }
+
+    const reviewedBy = String(options.reviewedBy || "").trim();
+    const statusNote = String(options.statusNote || "").trim();
+    admissions[index] = normalizeAdmissionRecord(
+      {
+        ...admissions[index],
+        status: normalizedStatus,
+        statusNote,
+        reviewedBy,
+        reviewedAt: nowIso(),
+        updatedAt: nowIso(),
+      },
+      normalizedWorkspaceId,
+    );
+    saveAdmissions(admissions, normalizedWorkspaceId);
+    return admissions[index];
   }
 
   function normalizeAccessMethod(value) {
@@ -2199,6 +2381,39 @@
     } else if (nav && getPage() === "admin-courses") {
       nav.querySelectorAll(".admin-sidebar-link").forEach((link) => {
         const isActive = link.getAttribute("href") === "./admin-courses.html";
+        link.classList.toggle("is-active", isActive);
+      });
+    }
+
+    const shouldInjectAdmissionsLink =
+      getPage() !== "user-settings" &&
+      !isParentPage() &&
+      !nav?.querySelector('a[href="./admin-admissions.html"]');
+
+    if (nav && shouldInjectAdmissionsLink) {
+      const studentsLink = nav.querySelector('a[href="./admin-students.html"]');
+      const admissionsLink = document.createElement("a");
+      const isAdmissionsPage = getPage() === "admin-admissions";
+      admissionsLink.className = `admin-sidebar-link${isAdmissionsPage ? " is-active" : ""}`;
+      admissionsLink.href = "./admin-admissions.html";
+      admissionsLink.innerHTML = `
+        <span class="admin-sidebar-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3 3 7.5 12 12l9-4.5L12 3Z"></path>
+            <path d="M6 10.5V15.8c0 .4.2.8.6 1 1.4.9 3.3 1.5 5.4 1.5s4-.6 5.4-1.5c.4-.2.6-.6.6-1v-5.3"></path>
+          </svg>
+        </span>
+        <span>Admissions</span>
+      `;
+
+      if (studentsLink?.nextSibling) {
+        nav.insertBefore(admissionsLink, studentsLink.nextSibling);
+      } else {
+        nav.append(admissionsLink);
+      }
+    } else if (nav && getPage() === "admin-admissions") {
+      nav.querySelectorAll(".admin-sidebar-link").forEach((link) => {
+        const isActive = link.getAttribute("href") === "./admin-admissions.html";
         link.classList.toggle("is-active", isActive);
       });
     }
@@ -8800,6 +9015,153 @@
     }, 1400);
   }
 
+  function initAdmissionsApplyPage() {
+    if (getPage() !== "admissions-apply") {
+      return;
+    }
+
+    const form = document.getElementById("admissions-apply-form");
+    const status = document.getElementById("admissions-apply-status");
+    const workspaceInput = document.getElementById("admissions-workspace-id");
+    const pageCopy = document.getElementById("admissions-apply-copy");
+
+    if (!form || !status || !workspaceInput) {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const rawWorkspace = String(params.get("workspace") || "").trim();
+    const prefilledWorkspace = rawWorkspace ? normalizeWorkspaceId(rawWorkspace) : "";
+
+    if (prefilledWorkspace && prefilledWorkspace !== "public") {
+      workspaceInput.value = prefilledWorkspace;
+      if (pageCopy) {
+        pageCopy.textContent = `Applying to workspace: ${prefilledWorkspace}`;
+      }
+    }
+
+    form.addEventListener("input", () => {
+      setStatus(status, "", "");
+    });
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+
+      const workspaceId = normalizeWorkspaceId(workspaceInput.value || "");
+      const readFileName = (fieldName) => {
+        const file = form.elements[fieldName]?.files?.[0];
+        return file ? String(file.name || "").trim() : "";
+      };
+
+      const firstName = String(form.elements.firstName?.value || "").trim();
+      const middleName = String(form.elements.middleName?.value || "").trim();
+      const lastName = String(form.elements.lastName?.value || "").trim();
+      const fullName = [firstName, middleName, lastName].filter(Boolean).join(" ").trim();
+      const payload = {
+        fullName,
+        firstName,
+        middleName,
+        lastName,
+        gender: String(form.elements.gender?.value || "").trim(),
+        dateOfBirth: String(form.elements.dateOfBirth?.value || "").trim(),
+        classApplyingFor: String(form.elements.classApplyingFor?.value || "").trim(),
+        previousSchool: String(form.elements.previousSchool?.value || "").trim(),
+        passportPhotoName: readFileName("passportPhoto"),
+        email: String(form.elements.email?.value || "").trim(),
+        phone: String(form.elements.phone?.value || "").trim(),
+        level: String(form.elements.classApplyingFor?.value || "").trim(),
+        guardianName: String(form.elements.guardianFullName?.value || "").trim(),
+        guardianFullName: String(form.elements.guardianFullName?.value || "").trim(),
+        guardianRelationship: String(form.elements.guardianRelationship?.value || "").trim(),
+        guardianEmail: String(form.elements.guardianEmail?.value || "").trim(),
+        guardianPhone: String(form.elements.guardianPhone?.value || "").trim(),
+        guardianAddress: String(form.elements.guardianAddress?.value || "").trim(),
+        guardianOccupation: String(form.elements.guardianOccupation?.value || "").trim(),
+        lastClassAttended: String(form.elements.lastClassAttended?.value || "").trim(),
+        academicClassApplyingFor: String(form.elements.academicClassApplyingFor?.value || "").trim(),
+        previousSchoolName: String(form.elements.previousSchoolName?.value || "").trim(),
+        previousSchoolAddress: String(form.elements.previousSchoolAddress?.value || "").trim(),
+        healthCondition: String(form.elements.healthCondition?.value || "").trim(),
+        healthAllergies: String(form.elements.healthAllergies?.value || "").trim(),
+        healthMedications: String(form.elements.healthMedications?.value || "").trim(),
+        docPreviousReportName: readFileName("docPreviousReport"),
+        docBirthCertificateName: readFileName("docBirthCertificate"),
+        docPreviousSchoolResultName: readFileName("docPreviousSchoolResult"),
+        docTransferCertificateName: readFileName("docTransferCertificate"),
+        docPassportPhotographName: readFileName("docPassportPhotograph"),
+        docOtherName: readFileName("docOther"),
+        notes: String(form.elements.notes?.value || "").trim(),
+        status: "pending",
+        source: "public-apply",
+      };
+
+      if (!workspaceId || workspaceId === "public") {
+        setStatus(status, "error", "Enter the school workspace ID provided by the school.");
+        return;
+      }
+
+      if (
+        !payload.firstName ||
+        !payload.lastName ||
+        !payload.gender ||
+        !payload.dateOfBirth ||
+        !payload.classApplyingFor ||
+        !payload.previousSchool ||
+        !payload.guardianFullName ||
+        !payload.guardianRelationship ||
+        !payload.guardianPhone ||
+        !payload.guardianEmail ||
+        !payload.guardianAddress ||
+        !payload.guardianOccupation ||
+        !payload.lastClassAttended ||
+        !payload.academicClassApplyingFor ||
+        !payload.healthCondition
+      ) {
+        setStatus(
+          status,
+          "error",
+          "Please complete all fields marked with a red asterisk before submitting the application.",
+        );
+        return;
+      }
+
+      if (payload.email && !EMAIL_REGEX.test(payload.email)) {
+        setStatus(status, "error", "Applicant email format is invalid.");
+        return;
+      }
+
+      if (!EMAIL_REGEX.test(payload.guardianEmail)) {
+        setStatus(status, "error", "Guardian email format is invalid.");
+        return;
+      }
+
+      payload.level = payload.classApplyingFor || payload.academicClassApplyingFor;
+
+      const admissions = upsertAdmission(payload, workspaceId);
+      const latest = admissions[0] || payload;
+      pushNotification(
+        {
+          title: `New application: ${payload.fullName}`,
+          message: `${payload.level} application submitted by guardian ${payload.guardianFullName}.`,
+          entityType: "admission-application",
+          entityId: latest.id || "",
+          action: "submitted",
+          visibleToRoles: ["Admin"],
+        },
+        workspaceId,
+      );
+
+      form.reset();
+      workspaceInput.value = workspaceId;
+      clearFormDraftFor(form);
+      setStatus(
+        status,
+        "success",
+        `Application submitted successfully for <strong>${escapeHtml(payload.fullName)}</strong>. The school admin will review and update the status.`,
+      );
+    });
+  }
+
   function renderAdminMetricCards(target, snapshot) {
     if (!target) {
       return;
@@ -9915,6 +10277,295 @@
     `;
     wireSignOutButton(gate);
     initAdminSectionQuickNav();
+  }
+
+  function statusLabelForAdmission(value) {
+    const status = normalizeAdmissionStatus(value);
+
+    if (status === "review") {
+      return "In Review";
+    }
+    if (status === "shortlisted") {
+      return "Shortlisted";
+    }
+    if (status === "rejected") {
+      return "Rejected";
+    }
+    if (status === "approved") {
+      return "Approved";
+    }
+    return "Pending";
+  }
+
+  function renderAdmissionsSummary(target, admissions = []) {
+    if (!target) {
+      return;
+    }
+
+    const counts = admissions.reduce(
+      (sum, entry) => {
+        const status = normalizeAdmissionStatus(entry.status);
+        sum[status] += 1;
+        return sum;
+      },
+      { pending: 0, review: 0, shortlisted: 0, rejected: 0, approved: 0 },
+    );
+
+    target.innerHTML = `
+      <span><strong>${admissions.length}</strong> applications</span>
+      <span>${counts.pending} pending • ${counts.review} in review • ${counts.shortlisted} shortlisted • ${counts.approved} approved • ${counts.rejected} rejected</span>
+    `;
+  }
+
+  function renderAdmissionsList(target, admissions = [], isAdmin = false) {
+    if (!target) {
+      return;
+    }
+
+    if (!admissions.length) {
+      target.innerHTML = `
+        <article class="portal-class-empty">
+          <strong>No applications yet</strong>
+          <p>Share the application link so prospective students can apply.</p>
+        </article>
+      `;
+      return;
+    }
+
+    target.innerHTML = admissions
+      .map(
+        (entry) => `
+          <article class="portal-class-card">
+            <div class="portal-class-meta">
+              <div class="portal-class-meta-item"><span>Applicant</span><strong>${escapeHtml(entry.fullName)}</strong></div>
+              <div class="portal-class-meta-item"><span>Class Applying For</span><strong>${escapeHtml(entry.classApplyingFor || entry.academicClassApplyingFor || entry.level)}</strong></div>
+              <div class="portal-class-meta-item"><span>Gender / DOB</span><strong>${escapeHtml(entry.gender || "—")} • ${escapeHtml(entry.dateOfBirth || "—")}</strong></div>
+              <div class="portal-class-meta-item"><span>Status</span><strong>${escapeHtml(statusLabelForAdmission(entry.status))}</strong></div>
+              <div class="portal-class-meta-item"><span>Applied</span><strong>${escapeHtml(formatTimestamp(entry.createdAt))}</strong></div>
+            </div>
+            <div class="portal-class-extended">
+              <div class="portal-class-extended-item"><span>Email</span><strong>${escapeHtml(entry.email || "—")}</strong></div>
+              <div class="portal-class-extended-item"><span>Guardian</span><strong>${escapeHtml(entry.guardianFullName || entry.guardianName || "—")} (${escapeHtml(entry.guardianRelationship || "—")})</strong></div>
+              <div class="portal-class-extended-item"><span>Guardian Contact</span><strong>${escapeHtml(entry.guardianPhone || "—")} • ${escapeHtml(entry.guardianEmail || "—")}</strong></div>
+              <div class="portal-class-extended-item"><span>Guardian Address</span><strong>${escapeHtml(entry.guardianAddress || "—")}</strong></div>
+              <div class="portal-class-extended-item"><span>Academic Background</span><strong>${escapeHtml(entry.lastClassAttended || "—")} → ${escapeHtml(entry.academicClassApplyingFor || "—")}</strong></div>
+              <div class="portal-class-extended-item"><span>Previous School</span><strong>${escapeHtml(entry.previousSchool || entry.previousSchoolName || "—")}</strong></div>
+              <div class="portal-class-extended-item"><span>Health</span><strong>${escapeHtml(entry.healthCondition || "—")} ${entry.healthAllergies ? `• Allergies: ${escapeHtml(entry.healthAllergies)}` : ""}</strong></div>
+              <div class="portal-class-extended-item"><span>Uploaded Documents</span><strong>${escapeHtml(
+                [
+                  entry.passportPhotoName,
+                  entry.docBirthCertificateName,
+                  entry.docPreviousReportName,
+                  entry.docPreviousSchoolResultName,
+                  entry.docTransferCertificateName,
+                  entry.docPassportPhotographName,
+                  entry.docOtherName,
+                ]
+                  .filter(Boolean)
+                  .join(", ") || "None",
+              )}</strong></div>
+            </div>
+            <div class="portal-class-actions">
+              <button class="portal-class-button" type="button" data-admission-action="review" data-admission-id="${entry.id}" ${isAdmin ? "" : "disabled"}>Review</button>
+              <button class="portal-class-button" type="button" data-admission-action="shortlisted" data-admission-id="${entry.id}" ${isAdmin ? "" : "disabled"}>Shortlist</button>
+              <button class="portal-class-button is-archive" type="button" data-admission-action="rejected" data-admission-id="${entry.id}" ${isAdmin ? "" : "disabled"}>Reject</button>
+              <button class="portal-class-button is-restore" type="button" data-admission-action="approved" data-admission-id="${entry.id}" ${isAdmin ? "" : "disabled"}>Accept</button>
+            </div>
+          </article>
+        `,
+      )
+      .join("");
+  }
+
+  function initAdmissionsControls({ isAdmin, form, status, summaryTarget, listTarget, applyLinkTarget }) {
+    if (!form || !status || !summaryTarget || !listTarget) {
+      return;
+    }
+
+    const workspaceId = normalizeWorkspaceId(getCurrentWorkspaceId());
+
+    const refresh = () => {
+      const admissions = getAdmissions(workspaceId);
+      renderAdmissionsSummary(summaryTarget, admissions);
+      renderAdmissionsList(listTarget, admissions, isAdmin);
+    };
+
+    if (applyLinkTarget) {
+      const linkUrl = new URL("./admissions-apply.html", window.location.href);
+      linkUrl.searchParams.set("workspace", workspaceId);
+      applyLinkTarget.href = linkUrl.toString();
+      applyLinkTarget.textContent = "Open/Share Application Form";
+
+      const linkValueInput = document.getElementById("portal-admission-link-value");
+      const copyLinkButton = document.getElementById("portal-admission-copy-link");
+      const qrImage = document.getElementById("portal-admission-qr-image");
+      const normalizedLink = linkUrl.toString();
+
+      if (linkValueInput) {
+        linkValueInput.value = normalizedLink;
+      }
+
+      if (qrImage) {
+        qrImage.src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
+          normalizedLink,
+        )}`;
+      }
+
+      if (copyLinkButton) {
+        copyLinkButton.addEventListener("click", async () => {
+          try {
+            await navigator.clipboard.writeText(normalizedLink);
+            setStatus(status, "success", "Application link copied.");
+          } catch {
+            setStatus(status, "info", "Copy failed on this browser. You can copy the link from the input.");
+          }
+        });
+      }
+    }
+
+    form.addEventListener("input", () => {
+      if (isAdmin) {
+        setStatus(status, "", "");
+      }
+    });
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+
+      if (!isAdmin) {
+        setStatus(status, "info", "Only administrators can create admission records here.");
+        return;
+      }
+
+      const payload = {
+        fullName: String(form.elements.fullName?.value || "").trim(),
+        email: String(form.elements.email?.value || "").trim(),
+        phone: String(form.elements.phone?.value || "").trim(),
+        level: String(form.elements.level?.value || "").trim(),
+        guardianName: String(form.elements.guardianName?.value || "").trim(),
+        guardianEmail: String(form.elements.guardianEmail?.value || "").trim(),
+        guardianPhone: String(form.elements.guardianPhone?.value || "").trim(),
+        notes: String(form.elements.notes?.value || "").trim(),
+        status: "pending",
+        source: "admin",
+      };
+
+      if (!payload.fullName || !payload.level || !payload.guardianName || !payload.guardianEmail) {
+        setStatus(status, "error", "Full name, level, guardian name, and guardian email are required.");
+        return;
+      }
+
+      if (payload.email && !EMAIL_REGEX.test(payload.email)) {
+        setStatus(status, "error", "Applicant email format is invalid.");
+        return;
+      }
+
+      if (!EMAIL_REGEX.test(payload.guardianEmail)) {
+        setStatus(status, "error", "Guardian email format is invalid.");
+        return;
+      }
+
+      const saved = upsertAdmission(payload, workspaceId)[0];
+      recordAuditEvent({
+        action: "created",
+        entityType: "admission-application",
+        entityId: saved?.id || payload.fullName,
+        summary: `Admission application received for ${payload.fullName}`,
+        details: `${payload.level} • ${payload.guardianName}`,
+        workspaceId,
+      });
+      pushNotification(
+        {
+          title: `Admission application: ${payload.fullName}`,
+          message: `${payload.level} applicant submitted and awaiting review.`,
+          entityType: "admission-application",
+          entityId: saved?.id || "",
+          action: "submitted",
+          visibleToRoles: ["Admin"],
+        },
+        workspaceId,
+      );
+
+      form.reset();
+      clearFormDraftFor(form);
+      refresh();
+      setStatus(status, "success", `Application for <strong>${escapeHtml(payload.fullName)}</strong> added.`);
+    });
+
+    listTarget.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-admission-action]");
+
+      if (!button || !isAdmin) {
+        return;
+      }
+
+      const admissionId = String(button.dataset.admissionId || "");
+      const nextStatus = normalizeAdmissionStatus(button.dataset.admissionAction || "review");
+      const updated = setAdmissionStatus(admissionId, nextStatus, {
+        workspaceId,
+        reviewedBy: getSession()?.email || "admin",
+      });
+
+      if (!updated) {
+        setStatus(status, "error", "Could not update this application.");
+        return;
+      }
+
+      recordAuditEvent({
+        action: nextStatus,
+        entityType: "admission-application",
+        entityId: updated.id,
+        summary: `${updated.fullName} marked as ${statusLabelForAdmission(nextStatus)}`,
+        details: `${updated.level} • ${updated.guardianName}`,
+        workspaceId,
+      });
+      pushNotification(
+        {
+          title: `${updated.fullName}: ${statusLabelForAdmission(nextStatus)}`,
+          message: `Application status updated to ${statusLabelForAdmission(nextStatus)}.`,
+          entityType: "admission-application",
+          entityId: updated.id,
+          action: nextStatus,
+          visibleToRoles: ["Admin"],
+        },
+        workspaceId,
+      );
+
+      refresh();
+      setStatus(status, "success", `Application moved to <strong>${escapeHtml(statusLabelForAdmission(nextStatus))}</strong>.`);
+    });
+
+    window.addEventListener(ADMISSIONS_EVENT_NAME, (event) => {
+      const eventWorkspaceId = normalizeWorkspaceId(event?.detail?.workspaceId || workspaceId);
+      if (eventWorkspaceId === workspaceId) {
+        refresh();
+      }
+    });
+
+    refresh();
+  }
+
+  function initAdminAdmissionsPage() {
+    if (getPage() !== "admin-admissions") {
+      return;
+    }
+
+    const { isAdmin, roleLabel } = getAdminAccessContext();
+    const canManageAdmissions = isAdmin && canAccessPermission(roleLabel, PAGE_PERMISSION_KEYS["admin-admissions"]);
+    const form = document.getElementById("portal-admission-form");
+    const status = document.getElementById("portal-admission-status");
+    const summaryTarget = document.getElementById("portal-admission-summary");
+    const listTarget = document.getElementById("portal-admission-list");
+    const applyLinkTarget = document.getElementById("portal-admission-apply-link");
+
+    initAdmissionsControls({
+      isAdmin: canManageAdmissions,
+      form,
+      status,
+      summaryTarget,
+      listTarget,
+      applyLinkTarget,
+    });
   }
 
   function initAdminStudentsPage() {
