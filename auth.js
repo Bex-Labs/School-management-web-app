@@ -5530,6 +5530,9 @@
     if (form.elements.staffId) {
       form.elements.staffId.value = "";
     }
+    if (form.elements.role) {
+      form.elements.role.value = "Teacher";
+    }
 
     const submitButton = form.querySelector("[data-staff-submit]");
     const cancelButton = form.querySelector("[data-staff-cancel]");
@@ -5557,6 +5560,18 @@
     form.elements.staffId.value = user.id;
     form.elements.displayName.value = user.displayName || "";
     form.elements.email.value = user.email || "";
+    if (form.elements.role) {
+      form.elements.role.value = normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE);
+    }
+    if (form.elements.phone) {
+      form.elements.phone.value = user.phone || "";
+    }
+    if (form.elements.department) {
+      form.elements.department.value = user.department || "";
+    }
+    if (form.elements.title) {
+      form.elements.title.value = user.title || "";
+    }
     form.elements.tempPassword.value = "";
 
     const submitButton = form.querySelector("[data-staff-submit]");
@@ -5584,38 +5599,45 @@
 
     const allUsers = getUsers();
     const workspaceId = getCurrentWorkspaceId();
-    const staffUsers = allUsers
+    const managedUsers = allUsers
       .filter(
         (user) =>
-          normalizeRoleLabel(user.role) === "Teacher" &&
-          normalizeWorkspaceId(user.workspaceId) === workspaceId,
+          normalizeWorkspaceId(user.workspaceId) === workspaceId &&
+          (user.staffProfileManaged === true || normalizeRoleLabel(user.role) === "Teacher"),
       )
       .sort((left, right) => String(right.createdAt || "").localeCompare(String(left.createdAt || "")));
-    const activeCount = staffUsers.filter((user) => normalizeUserStatus(user.status) === "active").length;
-    const inactiveCount = staffUsers.length - activeCount;
+    const activeCount = managedUsers.filter((user) => normalizeUserStatus(user.status) === "active").length;
+    const inactiveCount = managedUsers.length - activeCount;
+    const roleCount = AUTH_ROLES.reduce((acc, role) => {
+      acc[role] = managedUsers.filter((user) => normalizeRoleLabel(user.role) === role).length;
+      return acc;
+    }, {});
 
     summaryTarget.innerHTML = `
       <strong>${activeCount} active staff account${activeCount === 1 ? "" : "s"}</strong>
       <span>${
         isAdmin
-          ? `${inactiveCount} deactivated. New staff can be created directly by admin here.`
-          : "Only administrators can create or update staff accounts."
+          ? `${inactiveCount} deactivated • Roles: Admin ${roleCount.Admin || 0}, Teacher ${
+              roleCount.Teacher || 0
+            }, Student ${roleCount.Student || 0}, Parent ${roleCount.Parent || 0}.`
+          : "Only administrators can create or update staff profiles and role assignments."
       }</span>
     `;
 
-    if (!staffUsers.length) {
+    if (!managedUsers.length) {
       listTarget.innerHTML = `
         <article class="portal-class-empty">
-          <strong>No staff accounts yet</strong>
-          <p>Create the first staff account to enable teacher login access.</p>
+          <strong>No staff profiles yet</strong>
+          <p>Create the first staff profile and assign one of the four standard roles.</p>
         </article>
       `;
       return;
     }
 
-    listTarget.innerHTML = staffUsers
+    listTarget.innerHTML = managedUsers
       .map((user) => {
         const status = normalizeUserStatus(user.status) === "active" ? "Active" : "Deactivated";
+        const role = normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE);
         const passwordMode =
           user.provider === "google"
             ? "Google sign-in"
@@ -5639,8 +5661,26 @@
                 <strong>${escapeHtml(status)}</strong>
               </div>
               <div class="portal-class-meta-item">
+                <span>Role</span>
+                <strong>${escapeHtml(role)}</strong>
+              </div>
+              <div class="portal-class-meta-item">
                 <span>Sign-in</span>
                 <strong>${escapeHtml(passwordMode)}</strong>
+              </div>
+            </div>
+            <div class="portal-class-extended">
+              <div class="portal-class-extended-item">
+                <span>Phone</span>
+                <strong>${escapeHtml(user.phone || "—")}</strong>
+              </div>
+              <div class="portal-class-extended-item">
+                <span>Department</span>
+                <strong>${escapeHtml(user.department || "—")}</strong>
+              </div>
+              <div class="portal-class-extended-item">
+                <span>Title</span>
+                <strong>${escapeHtml(user.title || "—")}</strong>
               </div>
             </div>
             <div class="portal-class-actions">
@@ -5698,6 +5738,10 @@
       const staffId = String(form.elements.staffId?.value || "").trim();
       const displayName = form.elements.displayName.value.trim();
       const email = form.elements.email.value.trim();
+      const role = normalizeRoleLabel(form.elements.role?.value || DEFAULT_AUTH_ROLE);
+      const phone = String(form.elements.phone?.value || "").trim();
+      const department = String(form.elements.department?.value || "").trim();
+      const title = String(form.elements.title?.value || "").trim();
       const tempPassword = form.elements.tempPassword.value;
 
       let hasError = false;
@@ -5712,6 +5756,16 @@
         hasError = true;
       } else if (!EMAIL_REGEX.test(email)) {
         setPortalStaffError(form, "email", "Enter a valid email format.");
+        hasError = true;
+      }
+
+      if (!AUTH_ROLES.includes(role)) {
+        setPortalStaffError(form, "role", "Select a valid role.");
+        hasError = true;
+      }
+
+      if (phone && !isValidPhoneNumber(phone)) {
+        setPortalStaffError(form, "phone", "Wrong phone number format.");
         hasError = true;
       }
 
@@ -5731,7 +5785,7 @@
         ? await provisionSupabaseManagedUser({
             email,
             displayName,
-            role: "Teacher",
+            role,
             password: activePassword,
             workspaceId,
             mustChangePassword: !tempPassword,
@@ -5739,7 +5793,7 @@
         : await upsertManagedPasswordUser({
             email,
             displayName,
-            role: "Teacher",
+            role,
             password: activePassword,
             workspaceId,
             preserveExistingPassword: !tempPassword,
@@ -5750,7 +5804,7 @@
         const localFallback = await upsertManagedPasswordUser({
           email,
           displayName,
-          role: "Teacher",
+          role,
           password: activePassword,
           workspaceId,
           preserveExistingPassword: !tempPassword,
@@ -5780,13 +5834,22 @@
         return;
       }
 
+      const updatedProfile = updateUser(result.user.id, (currentUser) => ({
+        ...currentUser,
+        role,
+        phone,
+        department,
+        title,
+        staffProfileManaged: true,
+      }));
+
       upsertAccessGrant({
         email: result.user.email,
-        role: "Teacher",
+        role,
         authMethod: "password",
         status: "active",
       }, workspaceId);
-      markAccessGrantClaimed(result.user.email, "Teacher", "password", result.user.id, workspaceId);
+      markAccessGrantClaimed(result.user.email, role, "password", result.user.id, workspaceId);
 
       recordAuditEvent({
         action: staffId ? "updated" : "created",
@@ -5795,7 +5858,7 @@
         summary: staffId
           ? `Updated staff account for ${result.user.displayName || result.user.email}`
           : `Created staff account for ${result.user.displayName || result.user.email}`,
-        details: tempPassword ? "Custom password set by admin." : "Default password issued.",
+        details: `${role} • ${tempPassword ? "Custom password set by admin." : "Default password issued."}`,
       });
 
       resetPortalStaffForm(form, isAdmin);
@@ -5806,10 +5869,12 @@
         status,
         "success",
         staffId
-          ? `Updated staff account for <strong>${escapeHtml(result.user.email)}</strong>.`
+          ? `Updated staff profile for <strong>${escapeHtml(result.user.email)}</strong> as <strong>${escapeHtml(
+              role,
+            )}</strong>.`
           : `Staff account created for <strong>${escapeHtml(result.user.email)}</strong>. Default password: <strong>${escapeHtml(
               DEFAULT_STAFF_PASSWORD,
-            )}</strong>.`,
+            )}</strong> • Role: <strong>${escapeHtml(role)}</strong>.`,
       );
     });
 
