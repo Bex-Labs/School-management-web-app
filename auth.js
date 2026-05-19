@@ -9737,12 +9737,16 @@
     const params = new URLSearchParams(window.location.search);
     const rawWorkspace = String(params.get("workspace") || "").trim();
     const prefilledWorkspace = rawWorkspace ? normalizeWorkspaceId(rawWorkspace) : "";
+    const lockedWorkspaceId =
+      prefilledWorkspace && prefilledWorkspace !== "public" ? prefilledWorkspace : "";
 
-    if (prefilledWorkspace && prefilledWorkspace !== "public") {
-      workspaceInput.value = prefilledWorkspace;
+    if (lockedWorkspaceId) {
+      workspaceInput.value = lockedWorkspaceId;
       if (pageCopy) {
-        pageCopy.textContent = `Applying to workspace: ${prefilledWorkspace}`;
+        pageCopy.textContent = "Complete the sections below and submit for school admin review.";
       }
+    } else if (pageCopy) {
+      pageCopy.textContent = "Use the official school application link to open this form.";
     }
 
     const stepSections = Array.from(form.querySelectorAll("[data-admissions-step]"));
@@ -9891,10 +9895,14 @@
 
     const validateStep = (stepIndex, focusStepOnError = true) => {
       const payload = getPayload();
-      const workspaceId = normalizeWorkspaceId(workspaceInput.value || "");
+      const workspaceId = lockedWorkspaceId;
 
       if (!workspaceId || workspaceId === "public") {
-        setStatus(status, "error", "Enter the school workspace ID provided by the school.");
+        setStatus(
+          status,
+          "error",
+          "This application link is incomplete. Open the official school link/QR provided by the admin.",
+        );
         return false;
       }
 
@@ -9996,7 +10004,7 @@
         }
       }
 
-      const workspaceId = normalizeWorkspaceId(workspaceInput.value || "");
+      const workspaceId = lockedWorkspaceId;
       const payload = getPayload();
 
       if (payload.email && !EMAIL_REGEX.test(payload.email)) {
@@ -10039,6 +10047,14 @@
 
     toggleHealthConditionDetails();
     setStep(0);
+
+    if (!lockedWorkspaceId) {
+      setStatus(
+        status,
+        "info",
+        "Open this form using the school-provided application link or QR so the workspace is auto-selected.",
+      );
+    }
   }
 
   function renderAdminMetricCards(target, snapshot) {

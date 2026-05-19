@@ -25,13 +25,7 @@
             <form id="admissions-apply-form" class="auth-form-clean" novalidate>
               <div id="admissions-apply-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
               <p id="admissions-step-indicator" class="admissions-step-indicator">Section 1 of 6</p>
-
-              <div class="auth-field-block">
-                <label class="auth-field-label" for="admissions-workspace-id">School workspace ID <span class="form-required">*</span></label>
-                <label class="auth-line-field" for="admissions-workspace-id">
-                  <input id="admissions-workspace-id" name="workspaceId" type="text" placeholder="e.g. capital-science-academy" />
-                </label>
-              </div>
+              <input id="admissions-workspace-id" name="workspaceId" type="hidden" />
 
               <section class="admissions-form-section" data-admissions-step="1">
                 <h3>Section 1: Student Details</h3>
