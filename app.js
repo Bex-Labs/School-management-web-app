@@ -1438,6 +1438,20 @@ function normalizeStudentProgressionEntry(entry = {}) {
   };
 }
 
+function normalizeStudentDocumentRecord(record = {}) {
+  const sizeBytes = Number.parseInt(record.sizeBytes, 10);
+  return {
+    id: String(record.id || createStorageId("student-document")),
+    name: String(record.name || "").trim(),
+    documentType: String(record.documentType || "Other").trim() || "Other",
+    mimeType: String(record.mimeType || "").trim(),
+    sizeBytes: Number.isFinite(sizeBytes) && sizeBytes >= 0 ? sizeBytes : 0,
+    dataUrl: String(record.dataUrl || "").trim(),
+    uploadedBy: String(record.uploadedBy || "").trim(),
+    uploadedAt: String(record.uploadedAt || record.createdAt || new Date().toISOString()).trim(),
+  };
+}
+
 function normalizeStudentRecord(record = {}) {
   const timestamp = new Date().toISOString();
   const status =
@@ -1478,6 +1492,11 @@ function normalizeStudentRecord(record = {}) {
   const progressionHistory = Array.isArray(record.progressionHistory)
     ? record.progressionHistory.map((entry) => normalizeStudentProgressionEntry(entry))
     : [];
+  const documents = Array.isArray(record.documents)
+    ? record.documents
+        .map((entry) => normalizeStudentDocumentRecord(entry))
+        .filter((entry) => entry.name)
+    : [];
 
   return {
     id: String(record.id || createStorageId("student")),
@@ -1490,6 +1509,7 @@ function normalizeStudentRecord(record = {}) {
     gender: String(record.gender || "").trim(),
     guardians,
     progressionHistory,
+    documents,
     status,
     promotionDecision: normalizePromotionDecision(record.promotionDecision),
     examOutcome: normalizeExamOutcome(record.examOutcome),

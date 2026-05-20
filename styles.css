@@ -6027,6 +6027,52 @@ body.admin-dashboard-page .portal-student-view-guardians h4 {
   font-size: 0.9rem;
 }
 
+body.admin-dashboard-page .portal-student-docs-head {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+body.admin-dashboard-page .portal-student-docs-head strong {
+  color: #152741;
+  font-size: 0.96rem;
+}
+
+body.admin-dashboard-page .portal-student-docs-head span {
+  color: #657792;
+  font-size: 0.82rem;
+}
+
+body.admin-dashboard-page .portal-student-doc-list {
+  margin-top: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+body.admin-dashboard-page .portal-student-doc-item {
+  border: 1px solid #e3e7f0;
+  border-radius: 12px;
+  background: #fbfcff;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+body.admin-dashboard-page .portal-student-doc-meta {
+  display: grid;
+  gap: 3px;
+}
+
+body.admin-dashboard-page .portal-student-doc-meta strong {
+  color: #142947;
+  font-size: 0.9rem;
+}
+
+body.admin-dashboard-page .portal-student-doc-meta span {
+  color: #667993;
+  font-size: 0.8rem;
+}
+
 @media (max-width: 760px) {
   body.admin-dashboard-page .portal-student-view-grid {
     grid-template-columns: 1fr;

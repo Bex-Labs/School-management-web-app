@@ -5889,7 +5889,13 @@
       const action = button.dataset.staffAction;
       const user = getUsers().find((entry) => entry.id === staffId);
 
-      if (!user || normalizeRoleLabel(user.role) !== "Teacher") {
+      if (
+        !user ||
+        !(
+          user.staffProfileManaged === true ||
+          AUTH_ROLES.includes(normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE))
+        )
+      ) {
         return;
       }
 
@@ -6752,10 +6758,22 @@
                         : isTransferred
                           ? "Transferred"
                           : "Active";
+                      const documentCount = Array.isArray(record.documents) ? record.documents.length : 0;
+                      const manageDocsAction = `
+                        <button
+                          class="portal-class-button"
+                          type="button"
+                          data-student-action="manage-docs"
+                          data-student-id="${record.id}"
+                        >
+                          Documents
+                        </button>
+                      `;
                       const adminActions = !isAdmin
                         ? ""
                         : isArchived || isTransferred
                           ? `
+                            ${manageDocsAction}
                             <button
                               class="portal-class-button is-restore"
                               type="button"
@@ -6766,6 +6784,7 @@
                             </button>
                           `
                           : `
+                            ${manageDocsAction}
                             <button
                               class="portal-class-button"
                               type="button"
@@ -6835,6 +6854,7 @@
                                   ? "Resit required"
                                   : "Auto promote",
                             )}</span>
+                            <span>${documentCount} document${documentCount === 1 ? "" : "s"}</span>
                           </div>
                           <span class="portal-class-status ${statusClass}">${statusLabel}</span>
                         </button>
@@ -7693,6 +7713,20 @@
     ];
   }
 
+  function formatFileSize(bytes) {
+    const value = Number(bytes);
+    if (!Number.isFinite(value) || value <= 0) {
+      return "0 B";
+    }
+    if (value < 1024) {
+      return `${Math.round(value)} B`;
+    }
+    if (value < 1024 * 1024) {
+      return `${(value / 1024).toFixed(1)} KB`;
+    }
+    return `${(value / (1024 * 1024)).toFixed(2)} MB`;
+  }
+
   function runAutomaticPromotionForClosedSession(sessionRecord, studentManager) {
     const summary = {
       processed: 0,
@@ -7831,6 +7865,14 @@
     const importOverlay = document.getElementById("portal-student-import-overlay");
     const viewOverlay = document.getElementById("portal-student-view-overlay");
     const viewContent = document.getElementById("portal-student-view-content");
+    const docsOverlay = document.getElementById("portal-student-docs-overlay");
+    const docsStatus = document.getElementById("portal-student-docs-status");
+    const docsList = document.getElementById("portal-student-doc-list");
+    const docsStudentIdInput = document.getElementById("portal-student-docs-student-id");
+    const docsStudentName = document.getElementById("portal-student-docs-student-name");
+    const docsTypeSelect = document.getElementById("portal-student-doc-type");
+    const docsFileInput = document.getElementById("portal-student-doc-file");
+    const docsUploadButton = document.querySelector("[data-student-doc-upload]");
     const classFiltersTarget = document.getElementById("portal-student-class-filters");
     const searchInput = document.getElementById("portal-student-search");
     const importStatus = document.getElementById("portal-student-import-status");
@@ -7849,7 +7891,7 @@
         return;
       }
       overlay.hidden = !isVisible;
-      const hasOpenOverlay = [createOverlay, importOverlay, viewOverlay].some(
+      const hasOpenOverlay = [createOverlay, importOverlay, viewOverlay, docsOverlay].some(
         (item) => item && !item.hidden,
       );
       document.body.classList.toggle("portal-overlay-open", hasOpenOverlay);
@@ -7872,6 +7914,78 @@
       if (importToggleButton) {
         importToggleButton.textContent = "Import Students";
       }
+    };
+
+    const renderStudentDocuments = (record) => {
+      if (!docsList) {
+        return;
+      }
+
+      const documents = Array.isArray(record?.documents) ? record.documents : [];
+
+      if (!documents.length) {
+        docsList.innerHTML = `
+          <article class="portal-class-empty">
+            <strong>No documents uploaded yet</strong>
+            <p>Use the upload controls above to attach student files.</p>
+          </article>
+        `;
+        return;
+      }
+
+      docsList.innerHTML = documents
+        .map(
+          (entry) => `
+            <article class="portal-student-doc-item">
+              <div class="portal-student-doc-meta">
+                <strong>${escapeHtml(entry.name || "Document")}</strong>
+                <span>${escapeHtml(entry.documentType || "Other")} • ${escapeHtml(
+                  formatFileSize(entry.sizeBytes),
+                )} • ${escapeHtml(formatTimestamp(entry.uploadedAt || nowIso()))}</span>
+              </div>
+              <div class="portal-class-actions">
+                <button
+                  class="portal-class-button"
+                  type="button"
+                  data-student-doc-action="download"
+                  data-student-doc-id="${escapeHtml(entry.id)}"
+                >
+                  Download
+                </button>
+                <button
+                  class="portal-class-button is-archive"
+                  type="button"
+                  data-student-doc-action="delete"
+                  data-student-doc-id="${escapeHtml(entry.id)}"
+                  ${isAdmin ? "" : "disabled"}
+                >
+                  Delete
+                </button>
+              </div>
+            </article>
+          `,
+        )
+        .join("");
+    };
+
+    const openStudentDocuments = (record) => {
+      if (!docsOverlay || !docsStudentIdInput || !docsStudentName || !docsList) {
+        return;
+      }
+
+      docsStudentIdInput.value = String(record?.id || "");
+      docsStudentName.textContent = record?.fullName
+        ? `${record.fullName} (${record.admissionNo || "No Admission No."})`
+        : "Student documents";
+      if (docsFileInput) {
+        docsFileInput.value = "";
+      }
+      if (docsTypeSelect) {
+        docsTypeSelect.value = "Passport Photograph";
+      }
+      setStatus(docsStatus, "", "");
+      renderStudentDocuments(record);
+      setOverlayState(docsOverlay, true);
     };
 
     const tryAutoFillAdmissionNo = () => {
@@ -7990,6 +8104,12 @@
       });
     });
 
+    document.querySelectorAll("[data-student-docs-close]").forEach((button) => {
+      button.addEventListener("click", () => {
+        setOverlayState(docsOverlay, false);
+      });
+    });
+
     window.addEventListener("keydown", (event) => {
       if (event.key !== "Escape") {
         return;
@@ -8003,11 +8123,169 @@
       if (viewOverlay && !viewOverlay.hidden) {
         setOverlayState(viewOverlay, false);
       }
+      if (docsOverlay && !docsOverlay.hidden) {
+        setOverlayState(docsOverlay, false);
+      }
     });
 
     if (!manager) {
       setStudentFormVisibility(false);
       return;
+    }
+
+    if (docsUploadButton && docsStudentIdInput && docsFileInput) {
+      docsUploadButton.disabled = !isAdmin;
+      docsUploadButton.addEventListener("click", async () => {
+        if (!isAdmin) {
+          setStatus(docsStatus, "info", "Only administrators can upload student documents.");
+          return;
+        }
+
+        const studentId = String(docsStudentIdInput.value || "").trim();
+        const record = manager.getStudents().find((item) => item.id === studentId);
+        const file = docsFileInput.files?.[0] || null;
+
+        if (!record) {
+          setStatus(docsStatus, "error", "Select a valid student first.");
+          return;
+        }
+
+        if (!file) {
+          setStatus(docsStatus, "error", "Choose a document file to upload.");
+          return;
+        }
+
+        const maxBytes = 8 * 1024 * 1024;
+        if (file.size > maxBytes) {
+          setStatus(docsStatus, "error", "File too large. Max upload size is 8MB.");
+          return;
+        }
+
+        let dataUrl = "";
+        try {
+          dataUrl = await readFileAsDataUrl(file);
+        } catch {
+          setStatus(docsStatus, "error", "Could not read the selected file.");
+          return;
+        }
+
+        if (!dataUrl) {
+          setStatus(docsStatus, "error", "Upload failed. Try another file.");
+          return;
+        }
+
+        const documentType = String(docsTypeSelect?.value || "Other").trim() || "Other";
+        const newDocument = {
+          id: createId(),
+          name: String(file.name || "Document").trim() || "Document",
+          documentType,
+          mimeType: String(file.type || "").trim(),
+          sizeBytes: Number(file.size) || 0,
+          dataUrl,
+          uploadedAt: nowIso(),
+          uploadedBy: getSession()?.email || "admin",
+        };
+
+        manager.updateStudentProgression(studentId, (current) => ({
+          ...current,
+          documents: [...(Array.isArray(current.documents) ? current.documents : []), newDocument],
+        }));
+
+        recordAuditEvent({
+          action: "uploaded",
+          entityType: "student-document",
+          entityId: record.admissionNo || record.id,
+          summary: `Uploaded ${newDocument.documentType} for ${record.fullName}`,
+          details: newDocument.name,
+        });
+
+        if (docsFileInput) {
+          docsFileInput.value = "";
+        }
+
+        const updated = manager.getStudents().find((item) => item.id === studentId) || record;
+        renderStudentDocuments(updated);
+        refreshStudentSection();
+        setStatus(
+          docsStatus,
+          "success",
+          `Uploaded <strong>${escapeHtml(newDocument.name)}</strong> for <strong>${escapeHtml(
+            record.fullName,
+          )}</strong>.`,
+        );
+      });
+    }
+
+    if (docsList) {
+      docsList.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-student-doc-action]");
+
+        if (!button) {
+          return;
+        }
+
+        const studentId = String(docsStudentIdInput?.value || "").trim();
+        const record = manager.getStudents().find((item) => item.id === studentId);
+
+        if (!record) {
+          return;
+        }
+
+        const action = String(button.dataset.studentDocAction || "").trim();
+        const docId = String(button.dataset.studentDocId || "").trim();
+        const doc = (record.documents || []).find((item) => String(item.id || "") === docId);
+
+        if (!doc) {
+          return;
+        }
+
+        if (action === "download") {
+          if (!doc.dataUrl) {
+            setStatus(docsStatus, "error", "This file source is missing.");
+            return;
+          }
+          const link = document.createElement("a");
+          link.href = doc.dataUrl;
+          link.download = doc.name || "document";
+          link.rel = "noopener";
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          return;
+        }
+
+        if (action === "delete") {
+          if (!isAdmin) {
+            return;
+          }
+
+          manager.updateStudentProgression(studentId, (current) => ({
+            ...current,
+            documents: (current.documents || []).filter(
+              (entry) => String(entry.id || "") !== docId,
+            ),
+          }));
+
+          recordAuditEvent({
+            action: "deleted",
+            entityType: "student-document",
+            entityId: record.admissionNo || record.id,
+            summary: `Deleted ${doc.documentType || "document"} for ${record.fullName}`,
+            details: doc.name || "",
+          });
+
+          const updated = manager.getStudents().find((item) => item.id === studentId) || record;
+          renderStudentDocuments(updated);
+          refreshStudentSection();
+          setStatus(
+            docsStatus,
+            "success",
+            `Removed <strong>${escapeHtml(doc.name || "document")}</strong> from <strong>${escapeHtml(
+              record.fullName,
+            )}</strong>.`,
+          );
+        }
+      });
     }
 
     if (isAdmin) {
@@ -8325,9 +8603,37 @@
                   : `<p>No guardian contacts saved for this student.</p>`
               }
             </div>
+            <div class="portal-student-view-guardians">
+              <h4>Documents</h4>
+              ${
+                (record.documents || []).length
+                  ? (record.documents || [])
+                      .map(
+                        (doc) => `
+                          <article class="portal-student-guardian-chip">
+                            <strong>${escapeHtml(doc.name || "Document")}</strong>
+                            <span>${escapeHtml(doc.documentType || "Other")}</span>
+                            <small>${escapeHtml(
+                              `${formatFileSize(doc.sizeBytes)} • ${formatTimestamp(doc.uploadedAt || nowIso())}`,
+                            )}</small>
+                          </article>
+                        `,
+                      )
+                      .join("")
+                  : `<p>No student documents uploaded yet.</p>`
+              }
+            </div>
           `;
         }
         setOverlayState(viewOverlay, true);
+        return;
+      }
+
+      if (action === "manage-docs") {
+        if (!isAdmin) {
+          return;
+        }
+        openStudentDocuments(record);
         return;
       }
 
