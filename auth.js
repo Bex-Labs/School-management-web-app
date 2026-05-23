@@ -97,12 +97,6 @@
       copy: "Review printable summaries, exports, and school-wide reporting outputs.",
     },
     {
-      label: "Feature Modules",
-      href: "./admin-feature-modules.html",
-      permissionKey: "settings_manage",
-      copy: "Turn major platform modules on or off without redeploying the application.",
-    },
-    {
       label: "Settings",
       href: "./admin-settings.html",
       permissionKey: "settings_manage",
@@ -11324,6 +11318,7 @@
     const importConfirmButton = document.querySelector("[data-student-import-confirm]");
     const importPreviewTarget = document.getElementById("portal-student-import-preview");
     const classLevelSet = getActiveClassLevelTokenSet();
+    const createTitle = document.getElementById("portal-student-create-title");
     let importPreviewRows = [];
     let selectedClass = "all";
     let searchQuery = "";
@@ -11346,6 +11341,12 @@
       if (formToggleButton) {
         formToggleButton.textContent = "Create student";
         formToggleButton.setAttribute("aria-expanded", String(isVisible));
+      }
+
+      if (isVisible) {
+        window.setTimeout(() => {
+          form.elements.firstName?.focus?.();
+        }, 0);
       }
     };
 
@@ -11493,7 +11494,17 @@
 
     if (formToggleButton) {
       formToggleButton.disabled = !isAdmin || !manager;
-      formToggleButton.addEventListener("click", toggleStudentFormVisibility);
+      formToggleButton.addEventListener("click", () => {
+        if (createTitle) {
+          createTitle.textContent = "Create Student";
+        }
+        if (createOverlay?.hidden) {
+          clearPortalStudentErrors(form);
+          resetPortalStudentForm(form, guardianList, isAdmin);
+          setStatus(status, "", "");
+        }
+        toggleStudentFormVisibility();
+      });
     }
 
     if (importToggleButton) {
@@ -11978,12 +11989,30 @@
         const classToken = String(classToggleButton.dataset.studentClassToggle || "").trim();
 
         if (classToken) {
-          if (expandedClassTokens.has(classToken)) {
-            expandedClassTokens.delete(classToken);
-          } else {
+          const shouldExpand = !expandedClassTokens.has(classToken);
+          if (shouldExpand) {
             expandedClassTokens.add(classToken);
+          } else {
+            expandedClassTokens.delete(classToken);
           }
-          refreshStudentSection();
+
+          const group = classToggleButton.closest(".portal-student-group");
+          const groupList = group ? group.querySelector(".portal-student-group-list") : null;
+          const arrow = classToggleButton.querySelector(".portal-student-group-toggle-arrow");
+
+          classToggleButton.setAttribute("aria-expanded", shouldExpand ? "true" : "false");
+          classToggleButton.setAttribute(
+            "aria-label",
+            shouldExpand ? "Collapse class list" : "Expand class list",
+          );
+
+          if (groupList) {
+            groupList.hidden = !shouldExpand;
+          }
+
+          if (arrow) {
+            arrow.textContent = shouldExpand ? "▴" : "▾";
+          }
         }
         return;
       }
@@ -12087,6 +12116,9 @@
       clearPortalStudentErrors(form);
 
       if (action === "edit") {
+        if (createTitle) {
+          createTitle.textContent = "Edit Student";
+        }
         populatePortalStudentForm(form, guardianList, record, isAdmin);
         setStudentFormVisibility(true);
         setStatus(
@@ -14172,6 +14204,36 @@
       existingNav.remove();
     }
 
+    if (ADMIN_SETTINGS_PAGES.has(getPage()) || getPage() === "admin-feature-modules") {
+      const settingsLinks = Array.from(main.querySelectorAll(".admin-settings-subnav a"));
+
+      const quickSettingsLinks = settingsLinks.filter((link) => link.textContent.trim() !== "All Settings");
+
+      if (quickSettingsLinks.length > 1) {
+        const nav = document.createElement("nav");
+        nav.className = "admin-section-quick-nav";
+        nav.setAttribute("aria-label", "Quick settings navigation");
+        nav.innerHTML = `
+          <span class="admin-section-quick-label">Quick jump</span>
+          <div class="admin-section-quick-links">
+            ${quickSettingsLinks
+              .map(
+                (link) => `
+                  <a href="${escapeHtml(link.getAttribute("href") || "#")}" class="admin-section-quick-link ${
+                    link.classList.contains("is-active") ? "is-active" : ""
+                  }">
+                    ${escapeHtml(link.textContent.trim())}
+                  </a>
+                `,
+              )
+              .join("")}
+          </div>
+        `;
+        topbar.insertAdjacentElement("afterend", nav);
+        return;
+      }
+    }
+
     const cards = Array.from(main.querySelectorAll(".admin-surface-card")).filter(
       (card) => card.querySelector(".admin-surface-head h2"),
     );
@@ -14947,6 +15009,8 @@
       lastUpdated.textContent = session && user ? `Updated ${formatTimestamp(nowIso())}` : "Awaiting sign-in";
     }
 
+    initAdminSectionQuickNav();
+
     if (!profileAvatar || !profileName || !profileRole || !gate) {
       return;
     }
@@ -14967,7 +15031,6 @@
       <button class="admin-signout-button" type="button" data-signout>Log out</button>
     `;
     wireSignOutButton(gate);
-    initAdminSectionQuickNav();
   }
 
   function statusLabelForAdmission(value) {
@@ -15003,8 +15066,26 @@
     );
 
     target.innerHTML = `
-      <span><strong>${admissions.length}</strong> applications</span>
-      <span>${counts.pending} pending • ${counts.review} in review • ${counts.shortlisted} shortlisted • ${counts.approved} approved • ${counts.rejected} rejected</span>
+      <article class="portal-class-stat portal-class-stat-blue">
+        <span>Total applications</span>
+        <strong>${admissions.length}</strong>
+        <p>${counts.pending} pending and ${counts.review} in review.</p>
+      </article>
+      <article class="portal-class-stat portal-class-stat-green">
+        <span>Shortlisted</span>
+        <strong>${counts.shortlisted}</strong>
+        <p>Applicants currently being considered.</p>
+      </article>
+      <article class="portal-class-stat portal-class-stat-violet">
+        <span>Approved</span>
+        <strong>${counts.approved}</strong>
+        <p>Accepted applicants pending conversion or already processed.</p>
+      </article>
+      <article class="portal-class-stat portal-class-stat-rose">
+        <span>Declined</span>
+        <strong>${counts.rejected}</strong>
+        <p>Applications not moving forward.</p>
+      </article>
     `;
   }
 
@@ -15027,9 +15108,19 @@
       <div class="portal-admission-name-list">
         ${admissions
           .map((entry) => {
+            const status = normalizeAdmissionStatus(entry.status);
+            const level = entry.academicClassApplyingFor || entry.classApplyingFor || entry.level || "Class not set";
+            const guardian = entry.guardianFullName || entry.guardianName || "Guardian not set";
             return `
               <button class="portal-admission-name-item" type="button" data-admission-open="${escapeHtml(entry.id)}">
-                <span class="portal-admission-name-main">${escapeHtml(entry.fullName)}</span>
+                <span class="portal-admission-name-copy">
+                  <strong>${escapeHtml(entry.fullName)}</strong>
+                  <small>${escapeHtml(level)} • ${escapeHtml(guardian)}</small>
+                </span>
+                <span class="portal-admission-name-meta">
+                  <span class="portal-class-status is-${status === "approved" || status === "shortlisted" ? "active" : status === "rejected" ? "archived" : "pending"}">${escapeHtml(statusLabelForAdmission(status))}</span>
+                  <small>${escapeHtml(formatTimestamp(entry.createdAt))}</small>
+                </span>
               </button>
             `;
           })
@@ -15202,13 +15293,28 @@
           <div class="portal-admission-modal-item"><span>Guardian Relationship</span><strong>${escapeHtml(admission.guardianRelationship || "—")}</strong></div>
           <div class="portal-admission-modal-item"><span>Address</span><strong>${escapeHtml(admission.guardianAddress || "—")}</strong></div>
           <div class="portal-admission-modal-item"><span>Academic Background</span><strong>${escapeHtml(admission.lastClassAttended || "—")} → ${escapeHtml(admission.academicClassApplyingFor || "—")}</strong></div>
+          <div class="portal-admission-modal-item"><span>Previous School</span><strong>${escapeHtml(admission.previousSchoolName || admission.previousSchool || "—")}</strong></div>
+          <div class="portal-admission-modal-item"><span>Health</span><strong>${escapeHtml(admission.healthCondition || "—")}${admission.healthConditionDetails ? ` • ${escapeHtml(admission.healthConditionDetails)}` : ""}</strong></div>
+          <div class="portal-admission-modal-item"><span>Allergies / Medication</span><strong>${escapeHtml(admission.healthAllergies || "—")} • ${escapeHtml(admission.healthMedications || "—")}</strong></div>
+          <div class="portal-admission-modal-item"><span>Documents</span><strong>${escapeHtml(
+            [
+              admission.passportPhotoName,
+              admission.docPreviousReportName,
+              admission.docBirthCertificateName,
+              admission.docPreviousSchoolResultName,
+              admission.docTransferCertificateName,
+              admission.docPassportPhotographName,
+              admission.docOtherName,
+            ].filter(Boolean).join(", ") || "No uploaded document names",
+          )}</strong></div>
+          <div class="portal-admission-modal-item portal-admission-modal-item-wide"><span>Notes</span><strong>${escapeHtml(admission.notes || admission.statusNote || "—")}</strong></div>
         </div>
         <div class="portal-admission-modal-actions">
           <button class="portal-class-button" type="button" data-admission-action="review" data-admission-id="${escapeHtml(admission.id)}" ${isAdmin ? "" : "disabled"}>Review</button>
           <button class="portal-class-button" type="button" data-admission-action="shortlisted" data-admission-id="${escapeHtml(admission.id)}" ${isAdmin ? "" : "disabled"}>Shortlist</button>
-          <button class="portal-class-button is-archive" type="button" data-admission-action="rejected" data-admission-id="${escapeHtml(admission.id)}" ${isAdmin ? "" : "disabled"}>Reject</button>
+          <button class="portal-class-button is-archive" type="button" data-admission-action="rejected" data-admission-id="${escapeHtml(admission.id)}" ${isAdmin ? "" : "disabled"}>Decline</button>
           <button class="portal-class-button is-restore" type="button" data-admission-action="approved" data-admission-id="${escapeHtml(admission.id)}" ${isAdmin ? "" : "disabled"}>Accept</button>
-          <button class="portal-class-button" type="button" data-admission-action="convert" data-admission-id="${escapeHtml(admission.id)}" ${isAdmin && isApproved && !isConverted ? "" : "disabled"}>${isConverted ? "Converted" : "Convert to Student"}</button>
+          <button class="portal-class-button" type="button" data-admission-action="convert" data-admission-id="${escapeHtml(admission.id)}" ${isAdmin && isApproved && !isConverted ? "" : "disabled"}>${isConverted ? "Added to Students" : "Add to Students"}</button>
         </div>
       `;
     };
@@ -15357,33 +15463,26 @@
       setStatus(status, "success", `Application for <strong>${escapeHtml(payload.fullName)}</strong> added.`);
     });
 
-    const handleAdmissionAction = async (admissionId, action) => {
-      if (action === "convert") {
+    const convertAdmissionToStudent = async (admission) => {
         if (!studentManager || typeof studentManager.upsertStudent !== "function") {
           setStatus(status, "error", "Student manager is not available right now.");
-          return;
-        }
-
-        const admission = getAdmissions(workspaceId).find((entry) => entry.id === admissionId);
-        if (!admission) {
-          setStatus(status, "error", "Application not found.");
-          return;
+          return null;
         }
 
         if (normalizeAdmissionStatus(admission.status) !== "approved") {
           setStatus(status, "error", "Only approved applications can be converted.");
-          return;
+          return null;
         }
 
         if (admission.convertedAt) {
           setStatus(status, "info", "This application has already been converted to a student.");
-          return;
+          return null;
         }
 
         const conversion = buildStudentPayloadFromAdmission(admission);
         if (conversion.error) {
           setStatus(status, "error", conversion.error);
-          return;
+          return null;
         }
 
         const studentPayload = conversion.payload;
@@ -15438,14 +15537,50 @@
         setStatus(
           status,
           "success",
-          `Converted <strong>${escapeHtml(admission.fullName)}</strong> into student <strong>${escapeHtml(
+          `Accepted <strong>${escapeHtml(admission.fullName)}</strong> and added them as student <strong>${escapeHtml(
             studentPayload.admissionNo,
-          )}</strong> without retyping.${createdParentCopy}${googleParentCopy}${failedParentCopy}`,
+          )}</strong> in <strong>${escapeHtml(studentPayload.level)}</strong>.${createdParentCopy}${googleParentCopy}${failedParentCopy}`,
         );
+        return studentPayload;
+    };
+
+    const handleAdmissionAction = async (admissionId, action) => {
+      if (action === "convert") {
+        const admission = getAdmissions(workspaceId).find((entry) => entry.id === admissionId);
+        if (!admission) {
+          setStatus(status, "error", "Application not found.");
+          return;
+        }
+        await convertAdmissionToStudent(admission);
         return;
       }
 
       const nextStatus = normalizeAdmissionStatus(action || "review");
+
+      if (nextStatus === "approved") {
+        const admission = getAdmissions(workspaceId).find((entry) => entry.id === admissionId);
+        if (!admission) {
+          setStatus(status, "error", "Application not found.");
+          return;
+        }
+
+        if (!studentManager || typeof studentManager.upsertStudent !== "function") {
+          setStatus(status, "error", "Student manager is not available right now.");
+          return;
+        }
+
+        if (admission.convertedAt) {
+          setStatus(status, "info", "This application has already been added to Students.");
+          return;
+        }
+
+        const conversion = buildStudentPayloadFromAdmission(admission);
+        if (conversion.error) {
+          setStatus(status, "error", conversion.error);
+          return;
+        }
+      }
+
       const updated = setAdmissionStatus(admissionId, nextStatus, {
         workspaceId,
         reviewedBy: getSession()?.email || "admin",
@@ -15475,6 +15610,11 @@
         },
         workspaceId,
       );
+
+      if (nextStatus === "approved") {
+        await convertAdmissionToStudent(updated);
+        return;
+      }
 
       refresh();
       if (modalElement && !modalElement.hidden) {
