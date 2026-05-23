@@ -208,6 +208,99 @@
               <div id="portal-academic-calendar-list" class="portal-class-list"></div>
             </div>
           </article>
+
+          <article class="admin-surface-card admin-class-management-card">
+            <div class="admin-surface-head">
+              <div>
+                <h2>Class Timetable</h2>
+                <span>Create timetable rows by class, term, and session, then publish when ready.</span>
+              </div>
+            </div>
+
+            <div id="portal-timetable-summary" class="portal-class-summary"></div>
+
+            <div class="portal-class-layout">
+              <div class="portal-class-form-shell">
+                <button class="button button-primary" type="button" data-timetable-form-toggle>
+                  Create timetable row
+                </button>
+
+                <form id="portal-timetable-form" class="portal-class-form" novalidate hidden>
+                  <div id="portal-timetable-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+                  <input type="hidden" name="timetableEntryId" />
+
+                  <div class="portal-settings-grid">
+                    <label class="portal-field" for="timetable-session-id">
+                      <span>Session</span>
+                      <select id="timetable-session-id" name="sessionId"></select>
+                      <p class="portal-field-error" data-timetable-error-for="sessionId"></p>
+                    </label>
+
+                    <label class="portal-field" for="timetable-term-id">
+                      <span>Term</span>
+                      <select id="timetable-term-id" name="termId"></select>
+                      <p class="portal-field-error" data-timetable-error-for="termId"></p>
+                    </label>
+
+                    <label class="portal-field portal-field-span-2" for="timetable-class-level">
+                      <span>Class</span>
+                      <select id="timetable-class-level" name="classLevel"></select>
+                      <p class="portal-field-error" data-timetable-error-for="classLevel"></p>
+                    </label>
+
+                    <label class="portal-field" for="timetable-day">
+                      <span>Day</span>
+                      <select id="timetable-day" name="day">
+                        <option value="Monday">Monday</option>
+                        <option value="Tuesday">Tuesday</option>
+                        <option value="Wednesday">Wednesday</option>
+                        <option value="Thursday">Thursday</option>
+                        <option value="Friday">Friday</option>
+                        <option value="Saturday">Saturday</option>
+                        <option value="Sunday">Sunday</option>
+                      </select>
+                    </label>
+
+                    <label class="portal-field" for="timetable-subject">
+                      <span>Subject</span>
+                      <input id="timetable-subject" name="subject" type="text" placeholder="Mathematics" />
+                      <p class="portal-field-error" data-timetable-error-for="subject"></p>
+                    </label>
+
+                    <label class="portal-field" for="timetable-start-time">
+                      <span>Start time</span>
+                      <input id="timetable-start-time" name="startTime" type="time" />
+                      <p class="portal-field-error" data-timetable-error-for="startTime"></p>
+                    </label>
+
+                    <label class="portal-field" for="timetable-end-time">
+                      <span>End time</span>
+                      <input id="timetable-end-time" name="endTime" type="time" />
+                      <p class="portal-field-error" data-timetable-error-for="endTime"></p>
+                    </label>
+
+                    <label class="portal-field" for="timetable-teacher">
+                      <span>Teacher</span>
+                      <input id="timetable-teacher" name="teacher" type="text" placeholder="Mrs. Ahmed" />
+                      <p class="portal-field-error" data-timetable-error-for="teacher"></p>
+                    </label>
+
+                    <label class="portal-field" for="timetable-room">
+                      <span>Room (optional)</span>
+                      <input id="timetable-room" name="room" type="text" placeholder="Room 101" />
+                    </label>
+                  </div>
+
+                  <div class="utility-actions">
+                    <button class="button button-primary" type="submit" data-timetable-submit>Save timetable row</button>
+                    <button class="button button-outline" type="button" data-timetable-cancel hidden>Cancel edit</button>
+                  </div>
+                </form>
+              </div>
+
+              <div id="portal-timetable-list" class="portal-class-list"></div>
+            </div>
+          </article>
         </section>
       </section>
     </main>
