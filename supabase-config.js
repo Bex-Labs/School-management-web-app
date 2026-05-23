@@ -13,6 +13,7 @@ window.SchoolSphereSupabaseConfig = {
   redirectPath: "/portal.html",
   emailRedirectPath: "/login.html",
   userProvisionFunctionName: "provision-user",
+  admissionsSubmitFunctionName: "submit-admission",
 
   // ─────────────────────────────────────────────────────────────────────────
   // IMPORTANT — Supabase dashboard setup for password reset emails
