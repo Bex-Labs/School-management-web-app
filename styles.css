@@ -45,42 +45,17 @@ body {
   bottom: 14px;
   transform: translateX(-50%);
   width: min(760px, calc(100% - 24px));
-  padding: 10px 10px 10px 14px;
+  padding: 11px 14px;
   border: 1px solid rgba(16, 132, 255, 0.22);
   border-radius: 12px;
   background: rgba(9, 35, 61, 0.92);
   color: #f0f8ff;
   font-size: 0.92rem;
   line-height: 1.45;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  text-align: center;
   box-shadow: 0 10px 26px rgba(5, 23, 40, 0.28);
   backdrop-filter: blur(8px);
   z-index: 120;
-}
-
-.network-resilience-banner-message {
-  flex: 1 1 auto;
-}
-
-.network-resilience-banner-dismiss {
-  width: 28px;
-  height: 28px;
-  flex: 0 0 auto;
-  border: 0;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.14);
-  color: #f0f8ff;
-  font-size: 1.15rem;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.network-resilience-banner-dismiss:hover,
-.network-resilience-banner-dismiss:focus-visible {
-  background: rgba(255, 255, 255, 0.24);
 }
 
 .network-resilience-banner[hidden] {
@@ -3943,95 +3918,6 @@ body.auth-page .auth-line-field input {
   font-size: 0.88rem;
 }
 
-body.auth-page .auth-line-field select,
-body.auth-page .auth-line-field input[type="file"] {
-  height: 48px;
-  font-size: 0.88rem;
-  color: #233855;
-  background: transparent;
-  border: 0;
-  width: 100%;
-}
-
-body.auth-page .form-required {
-  color: #d93025;
-  font-weight: 800;
-}
-
-body.auth-page[data-page="admissions-apply"] .auth-form-clean {
-  max-height: 70vh;
-  overflow: auto;
-  padding-right: 6px;
-}
-
-body.auth-page[data-page="admissions-apply"] .admissions-form-section {
-  border: 1px solid #dce5f3;
-  border-radius: 16px;
-  padding: 12px;
-  background: #fbfdff;
-  margin-top: 8px;
-}
-
-body.auth-page[data-page="admissions-apply"] .admissions-step-indicator {
-  margin: 0;
-  color: #36527a;
-  font-size: 0.8rem;
-  font-weight: 700;
-}
-
-body.auth-page[data-page="admissions-apply"] .admissions-form-section h3 {
-  margin: 0 0 8px;
-  color: #1b3458;
-  font-size: 0.9rem;
-}
-
-body.auth-page[data-page="admissions-apply"] .admissions-step-actions {
-  margin-top: 10px;
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-body.auth-page[data-page="admissions-apply"] .admissions-review-panel {
-  display: grid;
-  gap: 10px;
-}
-
-body.auth-page[data-page="admissions-apply"] .admissions-review-group {
-  border: 1px solid #dce5f3;
-  border-radius: 12px;
-  padding: 10px;
-  background: #ffffff;
-}
-
-body.auth-page[data-page="admissions-apply"] .admissions-review-group h4 {
-  margin: 0 0 6px;
-  color: #1b3458;
-  font-size: 0.82rem;
-}
-
-body.auth-page[data-page="admissions-apply"] .admissions-review-group p {
-  margin: 4px 0;
-  color: #395377;
-  font-size: 0.78rem;
-}
-
-body.auth-page[data-page="admissions-apply"] .auth-line-field {
-  grid-template-columns: minmax(0, 1fr);
-  padding: 0 12px;
-}
-
-body.auth-page[data-page="admissions-apply"] .auth-line-field input,
-body.auth-page[data-page="admissions-apply"] .auth-line-field select {
-  grid-column: 1 / -1;
-}
-
-body.auth-page[data-page="admissions-apply"] .auth-line-field input[type="file"] {
-  grid-column: 1 / -1;
-  padding: 10px 0;
-  height: auto;
-}
-
 body.auth-page .auth-line-icon,
 body.auth-page .auth-line-trail {
   color: #8191aa;
@@ -4049,7 +3935,7 @@ body.auth-page .auth-check {
 body.auth-page .auth-link-inline,
 body.auth-page .auth-bottom-link a,
 body.auth-page .auth-check a {
-  color: #106fff;
+  color: #2a86ff;
 }
 
 body.auth-page .auth-submit,
@@ -4705,10 +4591,6 @@ body.admin-dashboard-page .admin-sidebar-link.is-active {
   color: #5d54ff;
 }
 
-body.admin-dashboard-page .admin-sidebar-nav .admin-sidebar-link[href="./admin-feature-modules.html"] {
-  display: none;
-}
-
 body.admin-dashboard-page .admin-sidebar-icon {
   display: inline-flex;
   width: 20px;
@@ -4765,7 +4647,6 @@ body.admin-dashboard-page .admin-profile-copy span {
 body.admin-dashboard-page .admin-profile-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
 }
 
 body.admin-dashboard-page .admin-signout-button {
@@ -4780,7 +4661,6 @@ body.admin-dashboard-page .admin-signout-button {
   color: #17233a;
   font-size: 0.78rem;
   font-weight: 700;
-  text-decoration: none;
   transition: transform 140ms ease, box-shadow 180ms ease, background 180ms ease;
 }
 
@@ -4956,7 +4836,6 @@ body.admin-dashboard-page .admin-notification-button {
   background: #ffffff;
   color: #17233a;
   box-shadow: 0 12px 24px rgba(63, 78, 103, 0.08);
-  cursor: pointer;
 }
 
 body.admin-dashboard-page .admin-notification-button svg {
@@ -4974,131 +4853,6 @@ body.admin-dashboard-page .admin-notification-dot {
   border-radius: 50%;
   background: #ff5c63;
   box-shadow: 0 0 0 3px #ffffff;
-}
-
-body.admin-dashboard-page.admin-notification-open {
-  overflow: hidden;
-}
-
-body.admin-dashboard-page .admin-notification-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 95;
-  display: grid;
-  place-items: center;
-}
-
-body.admin-dashboard-page .admin-notification-overlay[hidden] {
-  display: none !important;
-}
-
-body.admin-dashboard-page .admin-notification-backdrop {
-  position: absolute;
-  inset: 0;
-  border: 0;
-  background: rgba(15, 30, 52, 0.42);
-}
-
-body.admin-dashboard-page .admin-notification-panel {
-  position: relative;
-  width: min(92vw, 560px);
-  max-height: min(80vh, 760px);
-  padding: 18px 18px 14px;
-  border: 1px solid #d6e1f0;
-  border-radius: 20px;
-  background: #f8fbff;
-  box-shadow: 0 24px 50px rgba(15, 43, 74, 0.24);
-  display: grid;
-  gap: 12px;
-  overflow: hidden;
-}
-
-body.admin-dashboard-page .admin-notification-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-body.admin-dashboard-page .admin-notification-head h2 {
-  margin: 0;
-  color: #17233a;
-  font-size: 1.12rem;
-}
-
-body.admin-dashboard-page .admin-notification-close {
-  width: 36px;
-  height: 36px;
-  border: 1px solid #d4dfef;
-  border-radius: 50%;
-  background: #ffffff;
-  color: #334f72;
-  font-size: 1.25rem;
-  line-height: 1;
-  cursor: pointer;
-}
-
-body.admin-dashboard-page .admin-notification-list {
-  display: grid;
-  gap: 10px;
-  overflow-y: auto;
-  padding-right: 2px;
-  max-height: min(64vh, 590px);
-}
-
-body.admin-dashboard-page .admin-notification-item,
-body.admin-dashboard-page .admin-notification-empty {
-  border: 1px solid #e1e8f2;
-  border-radius: 14px;
-  background: #ffffff;
-  padding: 12px;
-}
-
-body.admin-dashboard-page .admin-notification-item-main {
-  display: grid;
-  gap: 4px;
-}
-
-body.admin-dashboard-page .admin-notification-item-main strong {
-  color: #17233a;
-  font-size: 0.95rem;
-}
-
-body.admin-dashboard-page .admin-notification-item-main span {
-  color: #5e7496;
-  font-size: 0.8rem;
-  text-transform: capitalize;
-}
-
-body.admin-dashboard-page .admin-notification-item-main p {
-  margin: 0;
-  color: #62728d;
-  font-size: 0.86rem;
-  line-height: 1.45;
-}
-
-body.admin-dashboard-page .admin-notification-item small {
-  display: block;
-  margin-top: 8px;
-  color: #7f8aa0;
-  font-size: 0.78rem;
-}
-
-body.admin-dashboard-page .admin-notification-empty strong {
-  color: #17233a;
-  font-size: 0.95rem;
-}
-
-body.admin-dashboard-page .admin-notification-empty p {
-  margin: 8px 0 0;
-  color: #6e7d96;
-  font-size: 0.84rem;
-  line-height: 1.45;
-}
-
-body.admin-dashboard-page .admin-notification-actions {
-  display: flex;
-  justify-content: flex-end;
 }
 
 body.admin-dashboard-page .admin-metrics-grid,
@@ -5550,74 +5304,6 @@ body.admin-dashboard-page .admin-class-grid {
   margin-top: 22px;
 }
 
-body.admin-dashboard-page .admin-settings-subnav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 16px;
-}
-
-body.admin-dashboard-page .admin-settings-subnav a {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 36px;
-  padding: 0 14px;
-  border: 1px solid #d7e1ee;
-  border-radius: 999px;
-  background: #ffffff;
-  color: #3a5578;
-  font-size: 0.82rem;
-  font-weight: 700;
-  transition: transform 180ms ease, border-color 180ms ease, color 180ms ease, box-shadow 180ms ease;
-}
-
-body.admin-dashboard-page .admin-settings-subnav a:hover {
-  transform: translateY(-1px);
-  border-color: #afc7e5;
-  box-shadow: 0 10px 18px rgba(15, 43, 74, 0.1);
-}
-
-body.admin-dashboard-page .admin-settings-subnav a.is-active {
-  border-color: var(--sky-700);
-  background: linear-gradient(135deg, var(--sky-700), var(--sky-600));
-  color: #ffffff;
-}
-
-body.admin-dashboard-page .admin-settings-hub-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  margin-top: 18px;
-}
-
-body.admin-dashboard-page .admin-settings-hub-link {
-  display: grid;
-  gap: 8px;
-  padding: 18px;
-  border: 1px solid #d7e1ee;
-  border-radius: 18px;
-  background: #f8fbff;
-  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
-}
-
-body.admin-dashboard-page .admin-settings-hub-link strong {
-  color: #152741;
-  font-size: 0.98rem;
-}
-
-body.admin-dashboard-page .admin-settings-hub-link span {
-  color: #5b6f8f;
-  font-size: 0.84rem;
-  line-height: 1.5;
-}
-
-body.admin-dashboard-page .admin-settings-hub-link:hover {
-  transform: translateY(-2px);
-  border-color: #aec7e6;
-  box-shadow: 0 12px 24px rgba(15, 43, 74, 0.09);
-}
-
 body.admin-dashboard-page[data-page="admin-feature-modules"] .admin-controls-grid {
   grid-template-columns: 1fr;
 }
@@ -5707,489 +5393,15 @@ body.admin-dashboard-page .portal-class-layout {
   align-items: start;
 }
 
-body.admin-dashboard-page .portal-admission-share {
-  margin-top: 16px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 16px;
-  align-items: start;
-}
-
-body.admin-dashboard-page .portal-admission-share-copy {
-  display: grid;
-  gap: 10px;
-}
-
-body.admin-dashboard-page .portal-admission-qr {
-  margin: 0;
-  border: 1px solid #dce5f1;
-  border-radius: 16px;
-  background: #ffffff;
-  padding: 10px;
-  display: grid;
-  justify-items: center;
-  gap: 8px;
-}
-
-body.admin-dashboard-page .portal-admission-qr img {
-  width: 150px;
-  height: 150px;
-  border-radius: 10px;
-}
-
-body.admin-dashboard-page .portal-admission-qr figcaption {
-  color: #4f6182;
-  font-size: 0.78rem;
-}
-
-body.admin-dashboard-page[data-page="admin-students"] .portal-class-layout {
-  grid-template-columns: minmax(0, 1.15fr) minmax(340px, 0.85fr);
-}
-
 body.admin-dashboard-page .portal-class-form-shell {
   display: grid;
   gap: 12px;
   align-items: start;
 }
 
-body.admin-dashboard-page .portal-student-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-body.admin-dashboard-page .portal-student-browser {
-  margin-top: 14px;
-  display: grid;
-  gap: 12px;
-}
-
-body.admin-dashboard-page .portal-student-search {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
-  min-height: 48px;
-  padding: 0 14px;
-  border: 1px solid #dce5f1;
-  border-radius: 14px;
-  background: #ffffff;
-}
-
-body.admin-dashboard-page .portal-student-search-icon {
-  width: 18px;
-  height: 18px;
-  color: #7f8ca6;
-}
-
-body.admin-dashboard-page .portal-student-search input {
-  width: 100%;
-  min-height: 46px;
-  border: 0;
-  background: transparent;
-  color: #1c2e49;
-  font-size: 0.9rem;
-}
-
-body.admin-dashboard-page .portal-student-search input:focus {
-  outline: none;
-}
-
-body.admin-dashboard-page .portal-student-class-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-body.admin-dashboard-page .portal-student-class-filter {
-  min-height: 36px;
-  padding: 0 12px;
-  border: 1px solid #dce5f1;
-  border-radius: 999px;
-  background: #f8fbff;
-  color: #375073;
-  font-size: 0.82rem;
-  font-weight: 700;
-}
-
-body.admin-dashboard-page .portal-student-class-filter.is-active {
-  border-color: #a7c7f5;
-  background: #eaf4ff;
-  color: #1558b3;
-}
-
-body.admin-dashboard-page .portal-student-group {
-  padding: 16px;
-  border: 1px solid #e3e7f0;
-  border-radius: 18px;
-  background: #ffffff;
-  box-shadow: 0 12px 28px rgba(63, 78, 103, 0.05);
-}
-
-body.admin-dashboard-page .portal-student-group + .portal-student-group {
-  margin-top: 12px;
-}
-
-body.admin-dashboard-page .portal-student-group-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-body.admin-dashboard-page .portal-student-group-title {
-  display: grid;
-  gap: 2px;
-}
-
-body.admin-dashboard-page .portal-student-group-head h3 {
-  margin: 0;
-  color: #17233a;
-  font-size: 0.96rem;
-}
-
-body.admin-dashboard-page .portal-student-group-head span {
-  color: #70819e;
-  font-size: 0.8rem;
-  font-weight: 700;
-}
-
-body.admin-dashboard-page .portal-student-group-toggle {
-  min-height: 32px;
-  padding: 0 10px;
-  border: 1px solid #dce5f1;
-  border-radius: 999px;
-  background: #f8fbff;
-  color: #35557d;
-  font-size: 0.76rem;
-  font-weight: 700;
-}
-
-body.admin-dashboard-page .portal-student-group-list {
-  display: grid;
-  gap: 8px;
-}
-
-body.admin-dashboard-page .portal-student-group-list[hidden] {
-  display: none !important;
-}
-
-body.admin-dashboard-page .portal-student-row {
-  border: 1px solid #e3e7f0;
-  border-radius: 12px;
-  background: #fbfcff;
-  padding: 10px;
-  display: grid;
-  gap: 8px;
-}
-
-body.admin-dashboard-page .portal-student-row.is-archived {
-  border-style: dashed;
-  background: #f8f9fc;
-}
-
-body.admin-dashboard-page .portal-student-row-main {
-  border: 0;
-  background: transparent;
-  padding: 0;
-  margin: 0;
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  text-align: left;
-  cursor: pointer;
-}
-
-body.admin-dashboard-page .portal-student-row-copy {
-  display: grid;
-  gap: 4px;
-}
-
-body.admin-dashboard-page .portal-student-row-copy strong {
-  color: #162a47;
-  font-size: 0.94rem;
-}
-
-body.admin-dashboard-page .portal-student-row-copy span {
-  color: #6f7f99;
-  font-size: 0.82rem;
-}
-
-body.admin-dashboard-page .portal-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 110;
-  display: grid;
-  place-items: center;
-  padding: 18px;
-}
-
-body.admin-dashboard-page .portal-overlay[hidden] {
-  display: none;
-}
-
-body.admin-dashboard-page.portal-overlay-open {
-  overflow: hidden;
-}
-
-body.admin-dashboard-page .portal-overlay-backdrop {
-  position: absolute;
-  inset: 0;
-  border: 0;
-  background: rgba(15, 34, 58, 0.48);
-}
-
-body.admin-dashboard-page .portal-overlay-panel {
-  position: relative;
-  z-index: 1;
-  width: min(100%, 920px);
-  max-height: calc(100vh - 36px);
-  overflow: auto;
-  border: 1px solid #dce4f2;
-  border-radius: 16px;
-  background: #ffffff;
-  box-shadow: 0 28px 56px rgba(14, 40, 72, 0.25);
-  padding: 16px;
-}
-
-body.admin-dashboard-page .portal-overlay-panel-sm {
-  width: min(100%, 620px);
-}
-
-body.admin-dashboard-page .portal-overlay-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
-body.admin-dashboard-page .portal-overlay-head h3 {
-  margin: 0;
-  color: #152741;
-  font-size: 1.05rem;
-}
-
-body.admin-dashboard-page .portal-overlay-close {
-  width: 34px;
-  height: 34px;
-  border: 1px solid #d2ddec;
-  border-radius: 50%;
-  background: #ffffff;
-  color: #29476f;
-  font-size: 1.15rem;
-  line-height: 1;
-}
-
-body.admin-dashboard-page .portal-student-view-content {
-  display: grid;
-  gap: 14px;
-}
-
-body.admin-dashboard-page .portal-student-view-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-body.admin-dashboard-page .portal-student-view-grid div {
-  border: 1px solid #e3e7f0;
-  border-radius: 10px;
-  background: #f9fbff;
-  padding: 10px;
-  display: grid;
-  gap: 4px;
-}
-
-body.admin-dashboard-page .portal-student-view-grid span {
-  color: #6c7f9c;
-  font-size: 0.76rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-body.admin-dashboard-page .portal-student-view-grid strong {
-  color: #162a47;
-  font-size: 0.9rem;
-}
-
-body.admin-dashboard-page .portal-student-view-guardians {
-  display: grid;
-  gap: 8px;
-}
-
-body.admin-dashboard-page .portal-student-view-guardians h4 {
-  margin: 0;
-  color: #162a47;
-  font-size: 0.9rem;
-}
-
-body.admin-dashboard-page .portal-student-docs-head {
-  display: grid;
-  gap: 4px;
-  margin-bottom: 10px;
-}
-
-body.admin-dashboard-page .portal-student-docs-head strong {
-  color: #152741;
-  font-size: 0.96rem;
-}
-
-body.admin-dashboard-page .portal-student-docs-head span {
-  color: #657792;
-  font-size: 0.82rem;
-}
-
-body.admin-dashboard-page .portal-student-doc-list {
-  margin-top: 12px;
-  display: grid;
-  gap: 10px;
-}
-
-body.admin-dashboard-page .portal-student-doc-item {
-  border: 1px solid #e3e7f0;
-  border-radius: 12px;
-  background: #fbfcff;
-  padding: 10px;
-  display: grid;
-  gap: 8px;
-}
-
-body.admin-dashboard-page .portal-student-doc-meta {
-  display: grid;
-  gap: 3px;
-}
-
-body.admin-dashboard-page .portal-student-doc-meta strong {
-  color: #142947;
-  font-size: 0.9rem;
-}
-
-body.admin-dashboard-page .portal-student-doc-meta span {
-  color: #667993;
-  font-size: 0.8rem;
-}
-
-@media (max-width: 760px) {
-  body.admin-dashboard-page .portal-student-view-grid {
-    grid-template-columns: 1fr;
-  }
-
-  body.admin-dashboard-page .portal-student-row-main {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-}
-
-body.admin-dashboard-page .portal-student-quick-add .admin-surface-head h3,
-body.admin-dashboard-page .portal-student-import-panel .admin-surface-head h3 {
-  margin: 0;
-  color: #17233a;
-  font-size: 1rem;
-}
-
-body.admin-dashboard-page .portal-student-import-preview {
-  margin-top: 10px;
-  display: grid;
-  gap: 10px;
-}
-
-body.admin-dashboard-page .portal-import-summary {
-  padding: 12px 14px;
-  border: 1px solid #dce5f1;
-  border-radius: 14px;
-  background: #f8fbff;
-  color: #3a5679;
-  font-size: 0.88rem;
-}
-
-body.admin-dashboard-page .portal-import-table-wrap {
-  overflow: auto;
-  border: 1px solid #e2e8f2;
-  border-radius: 14px;
-  background: #ffffff;
-}
-
-body.admin-dashboard-page .portal-import-table {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 900px;
-}
-
-body.admin-dashboard-page .portal-import-table th,
-body.admin-dashboard-page .portal-import-table td {
-  padding: 10px 12px;
-  text-align: left;
-  border-bottom: 1px solid #edf1f7;
-  font-size: 0.84rem;
-  color: #304766;
-  vertical-align: top;
-}
-
-body.admin-dashboard-page .portal-import-table th {
-  background: #f4f8fd;
-  color: #18314f;
-  font-weight: 800;
-}
-
-body.admin-dashboard-page .portal-import-row-error {
-  background: #fff5f5;
-}
-
-body.admin-dashboard-page .portal-import-errors {
-  margin: 0;
-  padding-left: 16px;
-  color: #b84040;
-  font-size: 0.8rem;
-  line-height: 1.4;
-}
-
 body.admin-dashboard-page .portal-guardian-stack {
   display: grid;
   gap: 10px;
-}
-
-body.admin-dashboard-page .portal-assignment-builder {
-  display: grid;
-  gap: 10px;
-}
-
-body.admin-dashboard-page .portal-assignment-list {
-  display: grid;
-  gap: 8px;
-}
-
-body.admin-dashboard-page .portal-assignment-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-  gap: 8px;
-  padding: 10px;
-  border: 1px solid #e3e7f0;
-  border-radius: 10px;
-  background: #ffffff;
-}
-
-body.admin-dashboard-page .portal-assignment-row select {
-  width: 100%;
-  min-height: 42px;
-  border: 1px solid #dce2ef;
-  border-radius: 9px;
-  background: #fdfdff;
-  color: #17233a;
-  padding: 8px 10px;
-  font-size: 0.85rem;
-}
-
-body.admin-dashboard-page .portal-assignment-remove {
-  border: 1px solid #e0e5f2;
-  border-radius: 9px;
-  background: #fff7f7;
-  color: #9f2f3f;
-  font-weight: 700;
-  padding: 0 12px;
 }
 
 body.admin-dashboard-page .portal-guardian-head {
@@ -6312,77 +5524,6 @@ body.admin-dashboard-page .portal-audit-entry-main p {
 body.admin-dashboard-page .portal-audit-entry small {
   color: #7b859a;
   font-size: 0.78rem;
-}
-
-body.admin-dashboard-page .admin-audit-drawer {
-  position: fixed;
-  inset: 0;
-  z-index: 80;
-  display: flex;
-  justify-content: flex-end;
-}
-
-body.admin-dashboard-page.admin-audit-open {
-  overflow: hidden;
-}
-
-body.admin-dashboard-page .admin-audit-backdrop {
-  position: absolute;
-  inset: 0;
-  border: 0;
-  background: rgba(15, 34, 58, 0.34);
-}
-
-body.admin-dashboard-page .admin-audit-panel {
-  position: relative;
-  width: min(100%, 460px);
-  height: 100%;
-  margin-left: auto;
-  padding: 20px 18px 18px;
-  border-left: 1px solid #d9e3f0;
-  background: #f8fbff;
-  box-shadow: -22px 0 44px rgba(15, 43, 74, 0.2);
-  overflow-y: auto;
-}
-
-body.admin-dashboard-page .admin-audit-panel-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-body.admin-dashboard-page .admin-audit-panel-head h2 {
-  margin: 0;
-  color: #142a45;
-  font-size: 1.1rem;
-}
-
-body.admin-dashboard-page .admin-audit-close {
-  width: 36px;
-  height: 36px;
-  border: 1px solid #d2ddec;
-  border-radius: 50%;
-  background: #ffffff;
-  color: #29476f;
-  font-size: 1.25rem;
-  line-height: 1;
-}
-
-body.admin-dashboard-page .admin-audit-panel-actions {
-  margin-top: 14px;
-  display: flex;
-  justify-content: flex-end;
-}
-
-body.admin-dashboard-page .portal-student-list-toggle-row {
-  display: grid;
-  gap: 10px;
-}
-
-body.admin-dashboard-page .portal-student-list-toggle-button {
-  justify-self: start;
 }
 
 body.admin-dashboard-page[data-page="admin-classes"] .portal-class-layout {
@@ -6665,10 +5806,6 @@ body.admin-dashboard-page .portal-class-empty p {
   body.admin-dashboard-page .portal-guardian-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-
-  body.admin-dashboard-page .portal-assignment-row {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (max-width: 1024px) {
@@ -6739,14 +5876,6 @@ body.admin-dashboard-page .portal-class-empty p {
   }
 
   body.admin-dashboard-page .portal-guardian-row {
-    grid-template-columns: 1fr;
-  }
-
-  body.admin-dashboard-page .portal-assignment-row {
-    grid-template-columns: 1fr;
-  }
-
-  body.admin-dashboard-page .admin-settings-hub-grid {
     grid-template-columns: 1fr;
   }
 
@@ -7586,13 +6715,4 @@ body.admin-dashboard-page .portal-class-button.is-restore {
 body.admin-dashboard-page .portal-class-route-links a:hover,
 body.admin-dashboard-page .portal-class-button:hover:not(:disabled) {
   box-shadow: 0 10px 18px rgba(15, 43, 74, 0.12);
-}
-
-.parent-child-switch {
-  min-width: 260px;
-  margin: 0;
-}
-
-.parent-child-switch select {
-  min-width: 260px;
 }

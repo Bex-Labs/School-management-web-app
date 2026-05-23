@@ -13,6 +13,7 @@
   const AUTH_PENDING_ROLE_KEY = "schoolsphere.auth.pending.role.v1";
   const ACCESS_GRANTS_STORAGE_KEY = "schoolsphere.access.grants.v1";
   const ACCESS_GUARD_NOTICE_KEY = "schoolsphere.access.guard.notice.v1";
+  const ACCESS_GRANTS_EVENT_NAME = "schoolsphere:access-grants:updated";
   const NOTIFICATION_STORAGE_PREFIX = "schoolsphere.notifications.v1";
   const NOTIFICATION_EVENT_NAME = "schoolsphere:notifications:updated";
   const FORM_DRAFT_STORAGE_PREFIX = "schoolsphere.form-draft.v1";
@@ -21,6 +22,7 @@
   const AUTH_ROLES = ["Admin", "Teacher", "Student", "Parent"];
   const PARENT_SELECTION_STORAGE_PREFIX = "schoolsphere.parent.selected-child.v1";
   const PARENT_FEES_STORAGE_PREFIX = "schoolsphere.parent.fees.v1";
+  const PARENT_FEES_EVENT_NAME = "schoolsphere:parent-fees:updated";
   const ADMISSIONS_STORAGE_KEY_BASE = "schoolsphere.admissions.v1";
   const ADMISSIONS_EVENT_NAME = "schoolsphere:admissions:updated";
   const ROLE_HOME_ROUTES = {
@@ -77,6 +79,12 @@
       copy: "Manage timetable windows, room usage, and class-day sequencing.",
     },
     {
+      label: "Fees",
+      href: "./admin-fees.html",
+      permissionKey: "fees_manage",
+      copy: "Configure fee items by class, term, and session from one billing registry.",
+    },
+    {
       label: "Attendance",
       href: "./admin-attendance.html",
       permissionKey: "attendance_manage",
@@ -110,6 +118,7 @@
     "admin-classes": "classes_manage",
     "admin-courses": "courses_manage",
     "admin-schedule": "classes_manage",
+    "admin-fees": "fees_manage",
     "admin-attendance": "attendance_manage",
     "admin-reports": "reports_view",
     "admin-feature-modules": "settings_manage",
@@ -207,9 +216,56 @@
   const STUDENT_LIST_PREVIEW_COUNT = 5;
   const DEFAULT_PARENT_PASSWORD = "Parent@123";
   const DEFAULT_STAFF_PASSWORD = "Staff@123";
+  const WORKSPACE_SCOPED_STATE_KEYS = Object.freeze([
+    "schoolsphere.schoolSettings.v1",
+    "schoolsphere.academicCycles.v1",
+    "schoolsphere.academicCalendar.v1",
+    "schoolsphere.admissionConfig.v1",
+    "schoolsphere.timetable.v1",
+    "schoolsphere.feeItems.v1",
+    "schoolsphere.classes.v1",
+    "schoolsphere.courses.v1",
+    "schoolsphere.students.v1",
+    "schoolsphere.featureModules.v1",
+    "schoolsphere.rolePermissions.v1",
+    "schoolsphere.auditTrail.v1",
+  ]);
+  const SUPABASE_STATE_KEY_FEATURE_MODULES = "schoolsphere.featureModules.v1";
+  const SUPABASE_STATE_KEY_ROLE_PERMISSIONS = "schoolsphere.rolePermissions.v1";
+  const SUPABASE_STATE_KEY_CLASSES = "schoolsphere.classes.v1";
+  const SUPABASE_STATE_KEY_COURSES = "schoolsphere.courses.v1";
+  const SUPABASE_STATE_KEY_STUDENTS = "schoolsphere.students.v1";
+  const SUPABASE_STATE_KEY_FEE_ITEMS = "schoolsphere.feeItems.v1";
+  const SUPABASE_STATE_KEY_ACADEMIC_CYCLES = "schoolsphere.academicCycles.v1";
+  const SUPABASE_STATE_KEY_ADMISSION_CONFIG = "schoolsphere.admissionConfig.v1";
+  const SUPABASE_STATE_KEY_ACADEMIC_CALENDAR = "schoolsphere.academicCalendar.v1";
+  const SUPABASE_STATE_KEY_TIMETABLE = "schoolsphere.timetable.v1";
+  const SUPABASE_STATE_KEY_ADMISSIONS = "schoolsphere.admissions.v1";
+  const SUPABASE_STATE_KEY_NOTIFICATIONS = "schoolsphere.notifications.v1";
+  const SUPABASE_STATE_KEY_PARENT_FEES = "schoolsphere.parentFees.v1";
+  const SUPABASE_STATE_KEY_ACCESS_GRANTS = "schoolsphere.accessGrants.v1";
+  const SUPABASE_WORKSPACE_HYDRATE_KEYS = Object.freeze([
+    SUPABASE_STATE_KEY_CLASSES,
+    SUPABASE_STATE_KEY_COURSES,
+    SUPABASE_STATE_KEY_STUDENTS,
+    SUPABASE_STATE_KEY_FEE_ITEMS,
+    SUPABASE_STATE_KEY_ACADEMIC_CYCLES,
+    SUPABASE_STATE_KEY_ADMISSION_CONFIG,
+    SUPABASE_STATE_KEY_ACADEMIC_CALENDAR,
+    SUPABASE_STATE_KEY_TIMETABLE,
+    SUPABASE_STATE_KEY_ADMISSIONS,
+    SUPABASE_STATE_KEY_NOTIFICATIONS,
+    SUPABASE_STATE_KEY_PARENT_FEES,
+    SUPABASE_STATE_KEY_ACCESS_GRANTS,
+    SUPABASE_STATE_KEY_FEATURE_MODULES,
+    SUPABASE_STATE_KEY_ROLE_PERMISSIONS,
+  ]);
+  let isHydratingWorkspaceStateFromSupabase = false;
 
   document.addEventListener("DOMContentLoaded", async () => {
     await initSupabaseAuthBridge();
+    await hydrateSchoolSettingsFromSupabase();
+    await hydrateWorkspaceStateCollectionsFromSupabase();
     initConnectionResilienceBanner();
     initAdminSidebarUi();
     initPasswordToggles();
@@ -227,11 +283,13 @@
     initAdminClassesPage();
     initAdminCoursesPage();
     initAdminSchedulePage();
+    initAdminFeesPage();
     initAdminFeatureModulesPage();
     initAdminSettingsPage();
     initUserSettingsPage();
     initAdmissionsApplyPage();
     initFormDraftPersistence();
+    initSupabaseWorkspaceStateLiveSync();
   });
 
   function getPage() {
@@ -1186,6 +1244,9 @@
       guardianOccupation: String(record.guardianOccupation || "").trim(),
       lastClassAttended: String(record.lastClassAttended || "").trim(),
       academicClassApplyingFor,
+      admissionSessionId: String(record.admissionSessionId || "").trim(),
+      admissionSessionName: String(record.admissionSessionName || "").trim(),
+      applicationStage: String(record.applicationStage || "").trim(),
       previousSchoolName: String(record.previousSchoolName || "").trim(),
       previousSchoolAddress: String(record.previousSchoolAddress || "").trim(),
       healthCondition: String(record.healthCondition || "").trim(),
@@ -1277,10 +1338,22 @@
 
     const reviewedBy = String(options.reviewedBy || "").trim();
     const statusNote = String(options.statusNote || "").trim();
+    const applicationStage = String(options.applicationStage || "").trim();
     admissions[index] = normalizeAdmissionRecord(
       {
         ...admissions[index],
         status: normalizedStatus,
+        applicationStage:
+          applicationStage ||
+          (normalizedStatus === "review"
+            ? "Review"
+            : normalizedStatus === "shortlisted"
+              ? "Shortlisted"
+              : normalizedStatus === "rejected"
+                ? "Rejected"
+                : normalizedStatus === "approved"
+                  ? "Approved"
+                  : admissions[index].applicationStage || "Submitted"),
         statusNote,
         reviewedBy,
         reviewedAt: nowIso(),
@@ -1395,6 +1468,14 @@
 
     if (!targetWorkspaceId || options.allWorkspaces) {
       localStorage.setItem(ACCESS_GRANTS_STORAGE_KEY, JSON.stringify(normalizedIncoming));
+      window.dispatchEvent(
+        new CustomEvent(ACCESS_GRANTS_EVENT_NAME, {
+          detail: {
+            workspaceId: targetWorkspaceId || normalizeWorkspaceId(getCurrentWorkspaceId()),
+            allWorkspaces: Boolean(options.allWorkspaces),
+          },
+        }),
+      );
       return normalizedIncoming;
     }
 
@@ -1404,6 +1485,14 @@
     );
     const merged = [...preserved, ...normalizedIncoming];
     localStorage.setItem(ACCESS_GRANTS_STORAGE_KEY, JSON.stringify(merged));
+    window.dispatchEvent(
+      new CustomEvent(ACCESS_GRANTS_EVENT_NAME, {
+        detail: {
+          workspaceId: targetWorkspaceId,
+          allWorkspaces: false,
+        },
+      }),
+    );
     return normalizedIncoming;
   }
 
@@ -1613,8 +1702,1476 @@
     return configuredName || "provision-user";
   }
 
+  function getSupabaseAdmissionsSubmitFunctionName() {
+    const config = getSupabaseConfig();
+    const configuredName = String(config?.admissionsSubmitFunctionName || "").trim();
+    return configuredName || "submit-admission";
+  }
+
   function normalizeAuthProvider(value) {
     return String(value || "").trim().toLowerCase() === "google" ? "google" : "password";
+  }
+
+  function createUuidV4() {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") {
+      return window.crypto.randomUUID();
+    }
+
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (token) => {
+      const random = Math.floor(Math.random() * 16);
+      const next = token === "x" ? random : (random & 0x3) | 0x8;
+      return next.toString(16);
+    });
+  }
+
+  function buildWorkspaceScopedStateKey(baseKey, workspaceId) {
+    return `${baseKey}::${normalizeWorkspaceId(workspaceId || getCurrentWorkspaceId())}`;
+  }
+
+  function parseWorkspaceScopedState(baseKey, workspaceId, fallback = null) {
+    const storageKey = buildWorkspaceScopedStateKey(baseKey, workspaceId);
+    const raw = localStorage.getItem(storageKey);
+
+    if (raw === null) {
+      return null;
+    }
+
+    return {
+      storageKey,
+      data: parseJSON(raw, fallback),
+    };
+  }
+
+  function collectWorkspaceStatesForMigration(workspaceId) {
+    const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId || getCurrentWorkspaceId());
+    const collected = [];
+
+    WORKSPACE_SCOPED_STATE_KEYS.forEach((baseKey) => {
+      const parsed = parseWorkspaceScopedState(baseKey, normalizedWorkspaceId, null);
+
+      if (!parsed) {
+        return;
+      }
+
+      collected.push({
+        stateKey: baseKey,
+        payload: {
+          workspaceId: normalizedWorkspaceId,
+          data: parsed.data,
+          sourceStorageKey: parsed.storageKey,
+        },
+      });
+    });
+
+    const notificationsKey = `${NOTIFICATION_STORAGE_PREFIX}:${normalizedWorkspaceId}`;
+    const notificationsRaw = localStorage.getItem(notificationsKey);
+    if (notificationsRaw !== null) {
+      collected.push({
+        stateKey: "schoolsphere.notifications.v1",
+        payload: {
+          workspaceId: normalizedWorkspaceId,
+          data: parseJSON(notificationsRaw, []),
+          sourceStorageKey: notificationsKey,
+        },
+      });
+    }
+
+    const admissionsKey = `${ADMISSIONS_STORAGE_KEY_BASE}:${normalizedWorkspaceId}`;
+    const admissionsRaw = localStorage.getItem(admissionsKey);
+    if (admissionsRaw !== null) {
+      collected.push({
+        stateKey: "schoolsphere.admissions.v1",
+        payload: {
+          workspaceId: normalizedWorkspaceId,
+          data: parseJSON(admissionsRaw, []),
+          sourceStorageKey: admissionsKey,
+        },
+      });
+    }
+
+    const parentFeesKey = `${PARENT_FEES_STORAGE_PREFIX}:${normalizedWorkspaceId}`;
+    const parentFeesRaw = localStorage.getItem(parentFeesKey);
+    if (parentFeesRaw !== null) {
+      collected.push({
+        stateKey: "schoolsphere.parentFees.v1",
+        payload: {
+          workspaceId: normalizedWorkspaceId,
+          data: parseJSON(parentFeesRaw, {}),
+          sourceStorageKey: parentFeesKey,
+        },
+      });
+    }
+
+    const rawAccessGrants = parseJSON(localStorage.getItem(ACCESS_GRANTS_STORAGE_KEY), []);
+    const accessGrants =
+      Array.isArray(rawAccessGrants)
+        ? rawAccessGrants.filter(
+            (entry) => normalizeWorkspaceId(entry?.workspaceId || "public") === normalizedWorkspaceId,
+          )
+        : [];
+
+    if (accessGrants.length) {
+      collected.push({
+        stateKey: "schoolsphere.accessGrants.v1",
+        payload: {
+          workspaceId: normalizedWorkspaceId,
+          data: accessGrants,
+          sourceStorageKey: ACCESS_GRANTS_STORAGE_KEY,
+        },
+      });
+    }
+
+    return collected;
+  }
+
+  function mapSchoolSettingsToInstitutionPayload(settings = {}, userId) {
+    const schoolName = String(settings.schoolName || "").trim() || "SchoolSphere";
+
+    return {
+      id: createUuidV4(),
+      name: schoolName,
+      logo_url: String(settings.logoUrl || "").trim() || null,
+      school_profile: String(settings.schoolProfile || "").trim() || null,
+      address: String(settings.address || "").trim() || null,
+      campus_details: String(settings.campusDetails || "").trim() || null,
+      phone: String(settings.phone || "").trim() || null,
+      website: String(settings.website || "").trim() || null,
+      has_nursery: Boolean(settings.hasNursery),
+      has_higher_institution: Boolean(settings.hasHigherInstitution),
+      academic_year_start: String(settings.academicYearStart || "").trim() || null,
+      academic_year_end: String(settings.academicYearEnd || "").trim() || null,
+      created_by: userId,
+    };
+  }
+
+  async function ensureSupabaseInstitutionId({
+    client,
+    userId,
+    workspaceId,
+    schoolSettings,
+    profileRole,
+  }) {
+    const {
+      data: profile,
+      error: profileError,
+    } = await withNetworkTimeout(
+      client
+        .from("profiles")
+        .select("id, institution_id, role")
+        .eq("id", userId)
+        .maybeSingle(),
+    );
+
+    if (profileError) {
+      throw new Error(formatSupabaseAuthError(profileError, "Could not read your Supabase profile."));
+    }
+
+    if (profile?.institution_id) {
+      return profile.institution_id;
+    }
+
+    const institutionPayload = mapSchoolSettingsToInstitutionPayload(schoolSettings, userId);
+    const { error: insertInstitutionError } = await withNetworkTimeout(
+      client.from("institutions").insert(institutionPayload),
+    );
+
+    if (insertInstitutionError) {
+      throw new Error(
+        formatSupabaseAuthError(
+          insertInstitutionError,
+          "Could not create your school workspace in Supabase.",
+        ),
+      );
+    }
+
+    const normalizedRole = normalizeRoleLabel(profileRole || profile?.role || DEFAULT_AUTH_ROLE);
+    const profileRoleForDb = normalizedRole === "Admin" ? "Administrator" : normalizedRole;
+    const { error: updateProfileError } = await withNetworkTimeout(
+      client
+        .from("profiles")
+        .update({
+          institution_id: institutionPayload.id,
+          role: profileRoleForDb,
+        })
+        .eq("id", userId),
+    );
+
+    if (updateProfileError) {
+      throw new Error(
+        formatSupabaseAuthError(
+          updateProfileError,
+          "Created the workspace, but could not link it to your profile.",
+        ),
+      );
+    }
+
+    return institutionPayload.id;
+  }
+
+  async function syncInstitutionSnapshot(client, institutionId, schoolSettings = {}) {
+    const payload = {
+      name: String(schoolSettings.schoolName || "").trim() || "SchoolSphere",
+      logo_url: String(schoolSettings.logoUrl || "").trim() || null,
+      school_profile: String(schoolSettings.schoolProfile || "").trim() || null,
+      address: String(schoolSettings.address || "").trim() || null,
+      campus_details: String(schoolSettings.campusDetails || "").trim() || null,
+      phone: String(schoolSettings.phone || "").trim() || null,
+      website: String(schoolSettings.website || "").trim() || null,
+      has_nursery: Boolean(schoolSettings.hasNursery),
+      has_higher_institution: Boolean(schoolSettings.hasHigherInstitution),
+      academic_year_start: String(schoolSettings.academicYearStart || "").trim() || null,
+      academic_year_end: String(schoolSettings.academicYearEnd || "").trim() || null,
+    };
+
+    const { error } = await withNetworkTimeout(
+      client.from("institutions").update(payload).eq("id", institutionId),
+    );
+
+    if (error) {
+      throw new Error(formatSupabaseAuthError(error, "Could not sync school settings to Supabase."));
+    }
+  }
+
+  function mapInstitutionToSchoolSettings(institution = {}) {
+    const manager = getSchoolSettingsManager();
+    const defaults =
+      manager && typeof manager.defaults === "object"
+        ? manager.defaults
+        : getDefaultAdminSchoolSettings();
+
+    return {
+      schoolName: String(institution.name || defaults.schoolName || "SchoolSphere").trim(),
+      logoUrl: String(institution.logo_url || "").trim(),
+      schoolProfile: String(institution.school_profile || "").trim(),
+      address: String(institution.address || "").trim(),
+      campusDetails: String(institution.campus_details || "").trim(),
+      phone: String(institution.phone || "").trim(),
+      website: String(institution.website || "").trim(),
+      academicYearStart: String(institution.academic_year_start || "").trim(),
+      academicYearEnd: String(institution.academic_year_end || "").trim(),
+      hasNursery: Boolean(institution.has_nursery),
+      hasHigherInstitution: Boolean(institution.has_higher_institution),
+    };
+  }
+
+  async function hydrateSchoolSettingsFromSupabase() {
+    if (!isSupabaseConfigured()) {
+      return;
+    }
+
+    const manager = getSchoolSettingsManager();
+    const session = getSession();
+
+    if (
+      !manager ||
+      typeof manager.saveSettings !== "function" ||
+      !session ||
+      session.source !== "supabase"
+    ) {
+      return;
+    }
+
+    const client = await getSupabaseClient();
+    const {
+      data: { session: supabaseSession },
+      error: sessionError,
+    } = await withNetworkTimeout(client.auth.getSession());
+
+    if (sessionError || !supabaseSession?.user?.id) {
+      return;
+    }
+
+    const { data: profile, error: profileError } = await withNetworkTimeout(
+      client
+        .from("profiles")
+        .select("institution_id")
+        .eq("id", supabaseSession.user.id)
+        .maybeSingle(),
+    );
+
+    if (profileError || !profile?.institution_id) {
+      return;
+    }
+
+    const { data: institution, error: institutionError } = await withNetworkTimeout(
+      client
+        .from("institutions")
+        .select(
+          "name, logo_url, school_profile, address, campus_details, phone, website, has_nursery, has_higher_institution, academic_year_start, academic_year_end",
+        )
+        .eq("id", profile.institution_id)
+        .maybeSingle(),
+    );
+
+    if (institutionError || !institution) {
+      return;
+    }
+
+    manager.saveSettings(mapInstitutionToSchoolSettings(institution));
+  }
+
+  async function persistSchoolSettingsToSupabase(payload, roleLabel = DEFAULT_AUTH_ROLE) {
+    if (!isSupabaseConfigured()) {
+      return { synced: false, reason: "not_configured" };
+    }
+
+    const localSession = getSession();
+
+    if (!localSession || localSession.source !== "supabase") {
+      return { synced: false, reason: "non_supabase_session" };
+    }
+
+    const client = await getSupabaseClient();
+    const {
+      data: { session: supabaseSession },
+      error: sessionError,
+    } = await withNetworkTimeout(client.auth.getSession());
+
+    if (sessionError || !supabaseSession?.user?.id) {
+      throw new Error("Could not verify your Supabase session while saving school settings.");
+    }
+
+    const workspaceId = normalizeWorkspaceId(localSession.workspaceId || getCurrentWorkspaceId());
+    const institutionId = await ensureSupabaseInstitutionId({
+      client,
+      userId: supabaseSession.user.id,
+      workspaceId,
+      schoolSettings: payload,
+      profileRole: roleLabel,
+    });
+
+    await syncInstitutionSnapshot(client, institutionId, payload);
+    return { synced: true, institutionId };
+  }
+
+  async function getSupabaseInstitutionContext(roleLabel = DEFAULT_AUTH_ROLE) {
+    if (!isSupabaseConfigured()) {
+      return null;
+    }
+
+    const localSession = getSession();
+    if (!localSession || localSession.source !== "supabase") {
+      return null;
+    }
+
+    const client = await getSupabaseClient();
+    const {
+      data: { session: supabaseSession },
+      error: sessionError,
+    } = await withNetworkTimeout(client.auth.getSession());
+
+    if (sessionError || !supabaseSession?.user?.id) {
+      return null;
+    }
+
+    const workspaceId = normalizeWorkspaceId(localSession.workspaceId || getCurrentWorkspaceId());
+    const schoolSettingsManager = getSchoolSettingsManager();
+    const schoolSettings = schoolSettingsManager?.getSettings
+      ? schoolSettingsManager.getSettings()
+      : getDefaultAdminSchoolSettings();
+    const institutionId = await ensureSupabaseInstitutionId({
+      client,
+      userId: supabaseSession.user.id,
+      workspaceId,
+      schoolSettings,
+      profileRole: roleLabel,
+    });
+
+    return {
+      client,
+      workspaceId,
+      institutionId,
+      userId: supabaseSession.user.id,
+    };
+  }
+
+  function supportsTableNativeState(stateKey) {
+    return (
+      stateKey === SUPABASE_STATE_KEY_FEATURE_MODULES ||
+      stateKey === SUPABASE_STATE_KEY_ROLE_PERMISSIONS ||
+      stateKey === SUPABASE_STATE_KEY_CLASSES ||
+      stateKey === SUPABASE_STATE_KEY_COURSES ||
+      stateKey === SUPABASE_STATE_KEY_STUDENTS ||
+      stateKey === SUPABASE_STATE_KEY_FEE_ITEMS ||
+      stateKey === SUPABASE_STATE_KEY_ACADEMIC_CYCLES ||
+      stateKey === SUPABASE_STATE_KEY_ADMISSION_CONFIG ||
+      stateKey === SUPABASE_STATE_KEY_ADMISSIONS ||
+      stateKey === SUPABASE_STATE_KEY_NOTIFICATIONS ||
+      stateKey === SUPABASE_STATE_KEY_PARENT_FEES ||
+      stateKey === SUPABASE_STATE_KEY_ACCESS_GRANTS ||
+      stateKey === SUPABASE_STATE_KEY_ACADEMIC_CALENDAR ||
+      stateKey === SUPABASE_STATE_KEY_TIMETABLE
+    );
+  }
+
+  function asArray(value) {
+    return Array.isArray(value) ? value : [];
+  }
+
+  function asTextArray(value) {
+    return asArray(value)
+      .map((entry) => String(entry || "").trim())
+      .filter(Boolean);
+  }
+
+  function asObject(value, fallback = {}) {
+    return value && typeof value === "object" && !Array.isArray(value) ? value : fallback;
+  }
+
+  async function syncSupabaseTableRows({
+    context,
+    tableName,
+    rows,
+    conflictKey = "record_id",
+  }) {
+    const normalizedRows = Array.isArray(rows) ? rows : [];
+    const ids = normalizedRows
+      .map((row) => String(row?.[conflictKey] || "").trim())
+      .filter(Boolean);
+    const idSet = new Set(ids);
+
+    const { data: existingRows, error: existingError } = await withNetworkTimeout(
+      context.client
+        .from(tableName)
+        .select(conflictKey)
+        .eq("institution_id", context.institutionId),
+    );
+
+    if (existingError) {
+      throw new Error(
+        formatSupabaseAuthError(
+          existingError,
+          `Could not read existing rows for ${tableName}.`,
+        ),
+      );
+    }
+
+    const staleIds = asArray(existingRows)
+      .map((row) => String(row?.[conflictKey] || "").trim())
+      .filter((recordId) => recordId && !idSet.has(recordId));
+
+    if (staleIds.length) {
+      const { error: deleteError } = await withNetworkTimeout(
+        context.client
+          .from(tableName)
+          .delete()
+          .eq("institution_id", context.institutionId)
+          .in(conflictKey, staleIds),
+      );
+
+      if (deleteError) {
+        throw new Error(
+          formatSupabaseAuthError(deleteError, `Could not remove stale rows in ${tableName}.`),
+        );
+      }
+    }
+
+    if (normalizedRows.length) {
+      const { error: upsertError } = await withNetworkTimeout(
+        context.client.from(tableName).upsert(normalizedRows, {
+          onConflict: `institution_id,${conflictKey}`,
+        }),
+      );
+
+      if (upsertError) {
+        throw new Error(
+          formatSupabaseAuthError(upsertError, `Could not save rows to ${tableName}.`),
+        );
+      }
+    }
+  }
+
+  async function loadTableNativeStatePayloadFromSupabase(stateKey, context) {
+    if (!supportsTableNativeState(stateKey) || !context) {
+      return { handled: false, payload: null };
+    }
+
+    if (stateKey === SUPABASE_STATE_KEY_FEATURE_MODULES) {
+      const { data, error } = await withNetworkTimeout(
+        context.client
+          .from("feature_modules")
+          .select("module_key, enabled")
+          .eq("institution_id", context.institutionId),
+      );
+
+      if (error) {
+        throw new Error(
+          formatSupabaseAuthError(error, "Could not load feature modules from Supabase."),
+        );
+      }
+
+      const payload = {};
+      asArray(data).forEach((row) => {
+        const key = String(row?.module_key || "").trim();
+        if (!key) return;
+        payload[key] = Boolean(row?.enabled);
+      });
+      return { handled: true, payload };
+    }
+
+    if (stateKey === SUPABASE_STATE_KEY_ROLE_PERMISSIONS) {
+      const { data, error } = await withNetworkTimeout(
+        context.client
+          .from("role_permissions")
+          .select("role_key, permission_key, enabled")
+          .eq("institution_id", context.institutionId),
+      );
+
+      if (error) {
+        throw new Error(
+          formatSupabaseAuthError(error, "Could not load role permissions from Supabase."),
+        );
+      }
+
+      const payload = {};
+      asArray(data).forEach((row) => {
+        const role = normalizeRoleLabel(row?.role_key || "Admin");
+        const permissionKey = String(row?.permission_key || "").trim();
+        if (!permissionKey) return;
+        if (!payload[role]) {
+          payload[role] = {};
+        }
+        payload[role][permissionKey] = Boolean(row?.enabled);
+      });
+      return { handled: true, payload };
+    }
+
+    if (stateKey === SUPABASE_STATE_KEY_CLASSES) {
+      const { data, error } = await withNetworkTimeout(
+        context.client
+          .from("classes")
+          .select(
+            "record_id, name, level, capacity, class_teacher, arms, subjects, teacher_assignments, status, archived_at, created_at, updated_at",
+          )
+          .eq("institution_id", context.institutionId)
+          .order("updated_at", { ascending: false }),
+      );
+
+      if (error) {
+        throw new Error(formatSupabaseAuthError(error, "Could not load classes from Supabase."));
+      }
+
+      return {
+        handled: true,
+        payload: asArray(data).map((row) => ({
+          id: String(row?.record_id || "").trim() || createId(),
+          name: String(row?.name || "").trim(),
+          level: String(row?.level || "").trim(),
+          capacity: Number.parseInt(row?.capacity, 10) || 0,
+          classTeacher: String(row?.class_teacher || "").trim(),
+          arms: asTextArray(row?.arms),
+          subjects: asTextArray(row?.subjects),
+          teacherAssignments: asArray(row?.teacher_assignments)
+            .map((assignment) => ({
+              subject: String(assignment?.subject || "").trim(),
+              teacher: String(assignment?.teacher || "").trim(),
+            }))
+            .filter((assignment) => assignment.subject && assignment.teacher),
+          status: String(row?.status || "active").trim().toLowerCase() === "archived" ? "archived" : "active",
+          createdAt: String(row?.created_at || nowIso()),
+          updatedAt: String(row?.updated_at || nowIso()),
+          archivedAt: row?.archived_at ? String(row.archived_at) : null,
+        })),
+      };
+    }
+
+    const tableByState = {
+      [SUPABASE_STATE_KEY_COURSES]: "courses",
+      [SUPABASE_STATE_KEY_STUDENTS]: "students",
+      [SUPABASE_STATE_KEY_FEE_ITEMS]: "fee_items",
+      [SUPABASE_STATE_KEY_ACADEMIC_CYCLES]: "academic_cycles_state",
+      [SUPABASE_STATE_KEY_ADMISSION_CONFIG]: "admission_config_state",
+      [SUPABASE_STATE_KEY_ADMISSIONS]: "admissions_applications",
+      [SUPABASE_STATE_KEY_NOTIFICATIONS]: "notifications_log",
+      [SUPABASE_STATE_KEY_PARENT_FEES]: "parent_fee_records",
+      [SUPABASE_STATE_KEY_ACCESS_GRANTS]: "access_grants",
+      [SUPABASE_STATE_KEY_ACADEMIC_CALENDAR]: "academic_calendar_events",
+      [SUPABASE_STATE_KEY_TIMETABLE]: "timetable_entries",
+    };
+
+    const tableName = tableByState[stateKey];
+
+    const { data, error } = await withNetworkTimeout(
+      context.client
+        .from(tableName)
+        .select("record_id, payload, created_at, updated_at")
+        .eq("institution_id", context.institutionId)
+        .order("updated_at", { ascending: false }),
+    );
+
+    if (error) {
+      throw new Error(
+        formatSupabaseAuthError(error, `Could not load ${stateKey} from Supabase.`),
+      );
+    }
+
+    if (
+      stateKey === SUPABASE_STATE_KEY_ACADEMIC_CYCLES ||
+      stateKey === SUPABASE_STATE_KEY_ADMISSION_CONFIG ||
+      stateKey === SUPABASE_STATE_KEY_PARENT_FEES
+    ) {
+      const firstRow = asArray(data)[0] || null;
+      const firstPayload = asObject(firstRow?.payload, null);
+      return {
+        handled: true,
+        payload: firstPayload,
+      };
+    }
+
+    return {
+      handled: true,
+      payload: asArray(data).map((row) => {
+        const payload = asObject(row?.payload, {});
+        return {
+          ...payload,
+          id: String(row?.record_id || payload.id || createId()).trim(),
+          createdAt: payload.createdAt || String(row?.created_at || nowIso()),
+          updatedAt: payload.updatedAt || String(row?.updated_at || nowIso()),
+        };
+      }),
+    };
+  }
+
+  async function saveTableNativeStatePayloadToSupabase(stateKey, payload, context) {
+    if (!supportsTableNativeState(stateKey) || !context) {
+      return { handled: false };
+    }
+
+    if (stateKey === SUPABASE_STATE_KEY_FEATURE_MODULES) {
+      const source = asObject(payload, {});
+      const moduleRows = Object.entries(source)
+        .map(([moduleKey, enabled]) => ({
+          institution_id: context.institutionId,
+          module_key: String(moduleKey || "").trim(),
+          enabled: Boolean(enabled),
+        }))
+        .filter((row) => row.module_key);
+
+      if (moduleRows.length) {
+        const { error } = await withNetworkTimeout(
+          context.client.from("feature_modules").upsert(moduleRows, {
+            onConflict: "institution_id,module_key",
+          }),
+        );
+        if (error) {
+          throw new Error(
+            formatSupabaseAuthError(error, "Could not save feature modules to Supabase."),
+          );
+        }
+      }
+
+      return { handled: true };
+    }
+
+    if (stateKey === SUPABASE_STATE_KEY_ROLE_PERMISSIONS) {
+      const source = asObject(payload, {});
+      const permissionRows = Object.entries(source).flatMap(([role, permissions]) =>
+        Object.entries(asObject(permissions, {}))
+          .map(([permissionKey, enabled]) => ({
+            institution_id: context.institutionId,
+            role_key: normalizeRoleLabel(role) === "Admin" ? "Administrator" : normalizeRoleLabel(role),
+            permission_key: String(permissionKey || "").trim(),
+            enabled: Boolean(enabled),
+          }))
+          .filter((row) => row.permission_key),
+      );
+
+      if (permissionRows.length) {
+        const { error } = await withNetworkTimeout(
+          context.client.from("role_permissions").upsert(permissionRows, {
+            onConflict: "institution_id,role_key,permission_key",
+          }),
+        );
+        if (error) {
+          throw new Error(
+            formatSupabaseAuthError(error, "Could not save role permissions to Supabase."),
+          );
+        }
+      }
+
+      return { handled: true };
+    }
+
+    const rows =
+      stateKey === SUPABASE_STATE_KEY_ACADEMIC_CYCLES ||
+      stateKey === SUPABASE_STATE_KEY_ADMISSION_CONFIG ||
+      stateKey === SUPABASE_STATE_KEY_PARENT_FEES
+        ? [asObject(payload, {})]
+        : asArray(payload);
+
+    if (stateKey === SUPABASE_STATE_KEY_CLASSES) {
+      await syncSupabaseTableRows({
+        context,
+        tableName: "classes",
+        rows: rows
+          .map((record) => {
+            const normalized = asObject(record, {});
+            const recordId = String(normalized.id || "").trim();
+
+            if (!recordId) {
+              return null;
+            }
+
+            return {
+              institution_id: context.institutionId,
+              record_id: recordId,
+              name: String(normalized.name || "").trim() || "Class",
+              level: String(normalized.level || "").trim() || "General",
+              capacity: Math.max(1, Number.parseInt(normalized.capacity, 10) || 1),
+              class_teacher: String(normalized.classTeacher || "").trim() || null,
+              arms: asTextArray(normalized.arms),
+              subjects: asTextArray(normalized.subjects),
+              teacher_assignments: asArray(normalized.teacherAssignments)
+                .map((assignment) => ({
+                  subject: String(assignment?.subject || "").trim(),
+                  teacher: String(assignment?.teacher || "").trim(),
+                }))
+                .filter((assignment) => assignment.subject && assignment.teacher),
+              status:
+                String(normalized.status || "active").trim().toLowerCase() === "archived"
+                  ? "archived"
+                  : "active",
+              archived_at:
+                String(normalized.status || "active").trim().toLowerCase() === "archived"
+                  ? String(normalized.archivedAt || normalized.updatedAt || nowIso())
+                  : null,
+              created_by: context.userId,
+              created_at: String(normalized.createdAt || nowIso()),
+              updated_at: String(normalized.updatedAt || nowIso()),
+            };
+          })
+          .filter(Boolean),
+      });
+
+      return { handled: true };
+    }
+
+    const tableByState = {
+      [SUPABASE_STATE_KEY_COURSES]: {
+        table: "courses",
+        map: (record) => {
+          const normalized = asObject(record, {});
+          const recordId = String(normalized.id || "").trim();
+          if (!recordId) return null;
+          return {
+            institution_id: context.institutionId,
+            record_id: recordId,
+            name: String(normalized.name || "").trim() || "Course",
+            code: String(normalized.code || "").trim() || null,
+            description: String(normalized.description || "").trim() || null,
+            level: String(normalized.level || "").trim() || null,
+            teacher_assignments: asTextArray(normalized.teacherAssignments),
+            student_assignments: asTextArray(normalized.studentAssignments),
+            status:
+              String(normalized.status || "active").trim().toLowerCase() === "archived"
+                ? "archived"
+                : "active",
+            archived_at:
+              String(normalized.status || "active").trim().toLowerCase() === "archived"
+                ? String(normalized.archivedAt || normalized.updatedAt || nowIso())
+                : null,
+            payload: normalized,
+            created_by: context.userId,
+            created_at: String(normalized.createdAt || nowIso()),
+            updated_at: String(normalized.updatedAt || nowIso()),
+          };
+        },
+      },
+      [SUPABASE_STATE_KEY_STUDENTS]: {
+        table: "students",
+        map: (record) => {
+          const normalized = asObject(record, {});
+          const recordId = String(normalized.id || "").trim();
+          if (!recordId) return null;
+          return {
+            institution_id: context.institutionId,
+            record_id: recordId,
+            first_name: String(normalized.firstName || "").trim() || null,
+            last_name: String(normalized.lastName || "").trim() || null,
+            full_name: String(normalized.fullName || "").trim() || "Student",
+            admission_no: String(normalized.admissionNo || "").trim() || null,
+            level: String(normalized.level || "").trim() || null,
+            date_of_birth: String(normalized.dateOfBirth || "").trim() || null,
+            gender: String(normalized.gender || "").trim() || null,
+            guardians: asArray(normalized.guardians),
+            progression_history: asArray(normalized.progressionHistory),
+            documents: asArray(normalized.documents),
+            status: (() => {
+              const status = String(normalized.status || "active").trim().toLowerCase();
+              return status === "archived" || status === "transferred" ? status : "active";
+            })(),
+            promotion_decision: String(normalized.promotionDecision || "").trim() || null,
+            exam_outcome: String(normalized.examOutcome || "").trim() || null,
+            last_promotion_session_id:
+              String(normalized.lastPromotionSessionId || "").trim() || null,
+            last_promotion_outcome:
+              String(normalized.lastPromotionOutcome || "").trim() || null,
+            transfer_reason: String(normalized.transferReason || "").trim() || null,
+            payload: normalized,
+            created_by: context.userId,
+            archived_at: normalized.archivedAt ? String(normalized.archivedAt) : null,
+            transferred_at: normalized.transferredAt ? String(normalized.transferredAt) : null,
+            created_at: String(normalized.createdAt || nowIso()),
+            updated_at: String(normalized.updatedAt || nowIso()),
+          };
+        },
+      },
+      [SUPABASE_STATE_KEY_FEE_ITEMS]: {
+        table: "fee_items",
+        map: (record) => {
+          const normalized = asObject(record, {});
+          const recordId = String(normalized.id || "").trim();
+          if (!recordId) return null;
+          return {
+            institution_id: context.institutionId,
+            record_id: recordId,
+            name: String(normalized.name || "").trim() || "Fee Item",
+            description: String(normalized.description || "").trim() || null,
+            amount: Number.isFinite(Number.parseFloat(normalized.amount))
+              ? Number.parseFloat(normalized.amount)
+              : 0,
+            class_level: String(normalized.classLevel || "").trim() || null,
+            session_id: String(normalized.sessionId || "").trim() || null,
+            term_id: String(normalized.termId || "").trim() || null,
+            due_date: String(normalized.dueDate || "").trim() || null,
+            status:
+              String(normalized.status || "active").trim().toLowerCase() === "archived"
+                ? "archived"
+                : "active",
+            archived_at: normalized.archivedAt ? String(normalized.archivedAt) : null,
+            payload: normalized,
+            created_by: context.userId,
+            created_at: String(normalized.createdAt || nowIso()),
+            updated_at: String(normalized.updatedAt || nowIso()),
+          };
+        },
+      },
+      [SUPABASE_STATE_KEY_ACADEMIC_CYCLES]: {
+        table: "academic_cycles_state",
+        map: (record) => {
+          const normalized = asObject(record, {});
+          const recordId = String(normalized.id || "default").trim() || "default";
+          return {
+            institution_id: context.institutionId,
+            record_id: recordId,
+            payload: normalized,
+            created_by: context.userId,
+            created_at: String(normalized.createdAt || nowIso()),
+            updated_at: String(normalized.updatedAt || nowIso()),
+          };
+        },
+      },
+      [SUPABASE_STATE_KEY_ADMISSION_CONFIG]: {
+        table: "admission_config_state",
+        map: (record) => {
+          const normalized = asObject(record, {});
+          const recordId = String(normalized.id || "default").trim() || "default";
+          return {
+            institution_id: context.institutionId,
+            record_id: recordId,
+            payload: normalized,
+            created_by: context.userId,
+            created_at: String(normalized.createdAt || nowIso()),
+            updated_at: String(normalized.updatedAt || nowIso()),
+          };
+        },
+      },
+      [SUPABASE_STATE_KEY_ADMISSIONS]: {
+        table: "admissions_applications",
+        map: (record) => {
+          const normalized = asObject(record, {});
+          const recordId = String(normalized.id || "").trim();
+          if (!recordId) return null;
+          return {
+            institution_id: context.institutionId,
+            record_id: recordId,
+            full_name: String(normalized.fullName || "").trim() || "Applicant",
+            level: String(
+              normalized.level || normalized.classApplyingFor || normalized.academicClassApplyingFor || "",
+            ).trim() || "Unspecified",
+            status: String(normalized.status || "pending").trim().toLowerCase(),
+            guardian_name:
+              String(normalized.guardianName || normalized.guardianFullName || "").trim() || null,
+            guardian_email: String(normalized.guardianEmail || "").trim() || null,
+            application_stage: String(normalized.applicationStage || "").trim() || null,
+            payload: normalized,
+            created_by: context.userId,
+            created_at: String(normalized.createdAt || nowIso()),
+            updated_at: String(normalized.updatedAt || nowIso()),
+          };
+        },
+      },
+      [SUPABASE_STATE_KEY_PARENT_FEES]: {
+        table: "parent_fee_records",
+        map: (record) => {
+          const normalized = asObject(record, {});
+          return {
+            institution_id: context.institutionId,
+            record_id: "default",
+            payload: normalized,
+            created_by: context.userId,
+            created_at: String(normalized.createdAt || nowIso()),
+            updated_at: String(normalized.updatedAt || nowIso()),
+          };
+        },
+      },
+      [SUPABASE_STATE_KEY_ACCESS_GRANTS]: {
+        table: "access_grants",
+        map: (record) => {
+          const normalized = asObject(record, {});
+          const recordId = String(normalized.id || "").trim();
+          if (!recordId) return null;
+          return {
+            institution_id: context.institutionId,
+            record_id: recordId,
+            email: String(normalized.email || "").trim() || null,
+            normalized_email: normalizeEmail(
+              normalized.normalizedEmail || normalized.email || "",
+            ) || null,
+            role_key: normalizeRoleLabel(normalized.role || DEFAULT_AUTH_ROLE),
+            auth_method: normalizeAccessMethod(normalized.authMethod),
+            status: normalizeAccessStatus(normalized.status),
+            workspace_id: normalizeWorkspaceId(normalized.workspaceId || context.workspaceId),
+            claimed_at: normalized.claimedAt ? String(normalized.claimedAt) : null,
+            claimed_by_user_id: normalized.claimedByUserId || null,
+            payload: normalized,
+            created_by: context.userId,
+            created_at: String(normalized.createdAt || nowIso()),
+            updated_at: String(normalized.updatedAt || nowIso()),
+          };
+        },
+      },
+      [SUPABASE_STATE_KEY_NOTIFICATIONS]: {
+        table: "notifications_log",
+        map: (record) => {
+          const normalized = asObject(record, {});
+          const recordId = String(normalized.id || "").trim();
+          if (!recordId) return null;
+          return {
+            institution_id: context.institutionId,
+            record_id: recordId,
+            title: String(normalized.title || normalized.summary || "System activity").trim(),
+            message: String(normalized.message || normalized.details || "").trim() || null,
+            entity_type: String(normalized.entityType || "system").trim() || null,
+            entity_id: String(normalized.entityId || "").trim() || null,
+            action: String(normalized.action || "updated").trim() || null,
+            actor_name: String(normalized.actorName || "System").trim() || null,
+            visible_to_roles: asTextArray(normalized.visibleToRoles).length
+              ? asTextArray(normalized.visibleToRoles)
+              : ["Admin"],
+            payload: normalized,
+            created_by: context.userId,
+            created_at: String(normalized.createdAt || nowIso()),
+            updated_at: String(normalized.updatedAt || nowIso()),
+          };
+        },
+      },
+      [SUPABASE_STATE_KEY_ACADEMIC_CALENDAR]: {
+        table: "academic_calendar_events",
+        map: (record) => {
+          const normalized = asObject(record, {});
+          const recordId = String(normalized.id || "").trim();
+          if (!recordId) return null;
+          return {
+            institution_id: context.institutionId,
+            record_id: recordId,
+            event_name: String(normalized.title || "").trim() || "Event",
+            event_type: String(normalized.type || "term").trim().toLowerCase() || "term",
+            start_date: String(normalized.startDate || "").trim() || null,
+            end_date: String(normalized.endDate || "").trim() || null,
+            status:
+              String(normalized.status || "active").trim().toLowerCase() === "archived"
+                ? "archived"
+                : "active",
+            payload: normalized,
+            created_by: context.userId,
+            created_at: String(normalized.createdAt || nowIso()),
+            updated_at: String(normalized.updatedAt || nowIso()),
+          };
+        },
+      },
+      [SUPABASE_STATE_KEY_TIMETABLE]: {
+        table: "timetable_entries",
+        map: (record) => {
+          const normalized = asObject(record, {});
+          const recordId = String(normalized.id || "").trim();
+          if (!recordId) return null;
+          return {
+            institution_id: context.institutionId,
+            record_id: recordId,
+            day_of_week: String(normalized.day || "").trim() || null,
+            class_level: String(normalized.classLevel || "").trim() || null,
+            subject: String(normalized.subject || "").trim() || null,
+            teacher: String(normalized.teacher || "").trim() || null,
+            venue: String(normalized.room || "").trim() || null,
+            start_time: String(normalized.startTime || "").trim() || null,
+            end_time: String(normalized.endTime || "").trim() || null,
+            status: String(normalized.status || "draft").trim().toLowerCase() || "draft",
+            payload: normalized,
+            created_by: context.userId,
+            created_at: String(normalized.createdAt || nowIso()),
+            updated_at: String(normalized.updatedAt || nowIso()),
+          };
+        },
+      },
+    };
+
+    const config = tableByState[stateKey];
+
+    await syncSupabaseTableRows({
+      context,
+      tableName: config.table,
+      rows: rows.map(config.map).filter(Boolean),
+    });
+
+    return { handled: true };
+  }
+
+  async function loadWorkspaceStatePayloadFromSupabase(
+    stateKey,
+    roleLabel = DEFAULT_AUTH_ROLE,
+    existingContext = null,
+  ) {
+    const context = existingContext || (await getSupabaseInstitutionContext(roleLabel));
+
+    if (!context) {
+      return { synced: false, payload: null, context: null };
+    }
+
+    const tableStateResult = await loadTableNativeStatePayloadFromSupabase(stateKey, context);
+
+    if (tableStateResult.handled) {
+      return {
+        synced: true,
+        payload: tableStateResult.payload,
+        context,
+        source: "table-native",
+      };
+    }
+
+    const { data, error } = await withNetworkTimeout(
+      context.client
+        .from("workspace_states")
+        .select("payload")
+        .eq("institution_id", context.institutionId)
+        .eq("state_key", stateKey)
+        .maybeSingle(),
+    );
+
+    if (error) {
+      throw new Error(formatSupabaseAuthError(error, "Could not load workspace state from Supabase."));
+    }
+
+    const rowPayload = data?.payload;
+    const payload =
+      rowPayload && typeof rowPayload === "object" && "data" in rowPayload
+        ? rowPayload.data
+        : rowPayload || null;
+
+    return { synced: true, payload, context, source: "workspace-states" };
+  }
+
+  async function saveWorkspaceStatePayloadToSupabase(
+    stateKey,
+    payload,
+    roleLabel = DEFAULT_AUTH_ROLE,
+    existingContext = null,
+  ) {
+    const context = existingContext || (await getSupabaseInstitutionContext(roleLabel));
+
+    if (!context) {
+      return { synced: false, context: null };
+    }
+
+    const tableSaveResult = await saveTableNativeStatePayloadToSupabase(stateKey, payload, context);
+
+    if (tableSaveResult.handled) {
+      return { synced: true, context, source: "table-native" };
+    }
+
+    const row = {
+      institution_id: context.institutionId,
+      state_key: stateKey,
+      payload: {
+        workspaceId: context.workspaceId,
+        data: payload,
+        syncedAt: nowIso(),
+      },
+      source: "web-client",
+      migrated_by: context.userId,
+    };
+
+    const { error } = await withNetworkTimeout(
+      context.client.from("workspace_states").upsert(row, {
+        onConflict: "institution_id,state_key",
+      }),
+    );
+
+    if (error) {
+      throw new Error(formatSupabaseAuthError(error, "Could not save workspace state to Supabase."));
+    }
+
+    return { synced: true, context, source: "workspace-states" };
+  }
+
+  function getWorkspaceStateStorageKeyForState(stateKey, workspaceId) {
+    const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId || getCurrentWorkspaceId());
+
+    if (stateKey === SUPABASE_STATE_KEY_NOTIFICATIONS) {
+      return `${NOTIFICATION_STORAGE_PREFIX}:${normalizedWorkspaceId}`;
+    }
+
+    if (stateKey === SUPABASE_STATE_KEY_ADMISSIONS) {
+      return `${ADMISSIONS_STORAGE_KEY_BASE}:${normalizedWorkspaceId}`;
+    }
+
+    if (stateKey === SUPABASE_STATE_KEY_PARENT_FEES) {
+      return `${PARENT_FEES_STORAGE_PREFIX}:${normalizedWorkspaceId}`;
+    }
+
+    if (stateKey === SUPABASE_STATE_KEY_ACCESS_GRANTS) {
+      return ACCESS_GRANTS_STORAGE_KEY;
+    }
+
+    return buildWorkspaceScopedStateKey(stateKey, normalizedWorkspaceId);
+  }
+
+  function writeWorkspaceStatePayloadToLocal(stateKey, payload, workspaceId) {
+    if (stateKey === SUPABASE_STATE_KEY_ACCESS_GRANTS) {
+      const targetWorkspaceId = normalizeWorkspaceId(workspaceId || getCurrentWorkspaceId());
+      const existing = parseJSON(localStorage.getItem(ACCESS_GRANTS_STORAGE_KEY), []);
+      const preserved = Array.isArray(existing)
+        ? existing.filter(
+            (record) =>
+              normalizeWorkspaceId(record?.workspaceId || "public") !== targetWorkspaceId,
+          )
+        : [];
+      const currentWorkspaceGrants = asArray(payload).map((record) =>
+        normalizeAccessGrant(record, targetWorkspaceId),
+      );
+      localStorage.setItem(
+        ACCESS_GRANTS_STORAGE_KEY,
+        JSON.stringify([...preserved, ...currentWorkspaceGrants]),
+      );
+      return;
+    }
+
+    const storageKey = getWorkspaceStateStorageKeyForState(stateKey, workspaceId);
+    localStorage.setItem(storageKey, JSON.stringify(payload));
+  }
+
+  async function hydrateWorkspaceStateCollectionsFromSupabase(roleLabel = DEFAULT_AUTH_ROLE) {
+    if (!isSupabaseConfigured()) {
+      return;
+    }
+
+    const context = await getSupabaseInstitutionContext(roleLabel);
+
+    if (!context) {
+      return;
+    }
+
+    isHydratingWorkspaceStateFromSupabase = true;
+
+    try {
+      for (const stateKey of SUPABASE_WORKSPACE_HYDRATE_KEYS) {
+        try {
+          const result = await loadWorkspaceStatePayloadFromSupabase(
+            stateKey,
+            roleLabel,
+            context,
+          );
+
+          if (!result?.synced) {
+            continue;
+          }
+
+          if (result.payload === undefined || result.payload === null) {
+            continue;
+          }
+
+          writeWorkspaceStatePayloadToLocal(
+            stateKey,
+            result.payload,
+            result.context?.workspaceId || getCurrentWorkspaceId(),
+          );
+        } catch {
+          // Continue hydrating remaining keys even if one key fails.
+        }
+      }
+    } finally {
+      isHydratingWorkspaceStateFromSupabase = false;
+    }
+  }
+
+  function initSupabaseWorkspaceStateLiveSync() {
+    if (!isSupabaseConfigured()) {
+      return;
+    }
+
+    const { isAdmin } = getAdminAccessContext();
+
+    if (!isAdmin) {
+      return;
+    }
+
+    const debounceHandles = new Map();
+
+    const queueSync = (stateKey, getPayload) => {
+      if (isHydratingWorkspaceStateFromSupabase) {
+        return;
+      }
+
+      if (debounceHandles.has(stateKey)) {
+        window.clearTimeout(debounceHandles.get(stateKey));
+      }
+
+      const handle = window.setTimeout(async () => {
+        try {
+          await saveWorkspaceStatePayloadToSupabase(stateKey, getPayload());
+        } catch {
+          // Keep UI responsive even when background sync fails.
+        } finally {
+          debounceHandles.delete(stateKey);
+        }
+      }, 260);
+
+      debounceHandles.set(stateKey, handle);
+    };
+
+    const managerBindings = [
+      {
+        manager: getClassManager(),
+        stateKey: SUPABASE_STATE_KEY_CLASSES,
+        getPayload: (manager) => manager.getClasses(),
+      },
+      {
+        manager: getCourseManager(),
+        stateKey: SUPABASE_STATE_KEY_COURSES,
+        getPayload: (manager) => manager.getCourses(),
+      },
+      {
+        manager: getStudentManager(),
+        stateKey: SUPABASE_STATE_KEY_STUDENTS,
+        getPayload: (manager) => manager.getStudents(),
+      },
+      {
+        manager: getFeeItemManager(),
+        stateKey: SUPABASE_STATE_KEY_FEE_ITEMS,
+        getPayload: (manager) => manager.getItems(),
+      },
+      {
+        manager: getAcademicCycleManager(),
+        stateKey: SUPABASE_STATE_KEY_ACADEMIC_CYCLES,
+        getPayload: (manager) => manager.getState(),
+      },
+      {
+        manager: getAdmissionConfigManager(),
+        stateKey: SUPABASE_STATE_KEY_ADMISSION_CONFIG,
+        getPayload: (manager) => manager.getState(),
+      },
+      {
+        manager: getAcademicCalendarManager(),
+        stateKey: SUPABASE_STATE_KEY_ACADEMIC_CALENDAR,
+        getPayload: (manager) => manager.getEvents(),
+      },
+      {
+        manager: getTimetableManager(),
+        stateKey: SUPABASE_STATE_KEY_TIMETABLE,
+        getPayload: (manager) => manager.getEntries(),
+      },
+      {
+        manager: getFeatureModuleManager(),
+        stateKey: SUPABASE_STATE_KEY_FEATURE_MODULES,
+        getPayload: (manager) => manager.getState(),
+      },
+      {
+        manager: getRolePermissionManager(),
+        stateKey: SUPABASE_STATE_KEY_ROLE_PERMISSIONS,
+        getPayload: (manager) => manager.getPermissions(),
+      },
+    ];
+
+    managerBindings.forEach((binding) => {
+      if (!binding.manager || !binding.manager.eventName || typeof binding.getPayload !== "function") {
+        return;
+      }
+
+      window.addEventListener(binding.manager.eventName, () => {
+        queueSync(binding.stateKey, () => binding.getPayload(binding.manager));
+      });
+    });
+
+    window.addEventListener(ADMISSIONS_EVENT_NAME, () => {
+      const workspaceId = normalizeWorkspaceId(getCurrentWorkspaceId());
+      queueSync(SUPABASE_STATE_KEY_ADMISSIONS, () => getAdmissions(workspaceId));
+    });
+
+    window.addEventListener(NOTIFICATION_EVENT_NAME, () => {
+      const workspaceId = normalizeWorkspaceId(getCurrentWorkspaceId());
+      queueSync(SUPABASE_STATE_KEY_NOTIFICATIONS, () => getNotifications(workspaceId));
+    });
+
+    window.addEventListener(PARENT_FEES_EVENT_NAME, (event) => {
+      const workspaceId = normalizeWorkspaceId(
+        event?.detail?.workspaceId || getCurrentWorkspaceId(),
+      );
+      queueSync(SUPABASE_STATE_KEY_PARENT_FEES, () => readParentFeesState(workspaceId));
+    });
+
+    window.addEventListener(ACCESS_GRANTS_EVENT_NAME, (event) => {
+      const workspaceId = normalizeWorkspaceId(
+        event?.detail?.workspaceId || getCurrentWorkspaceId(),
+      );
+      queueSync(SUPABASE_STATE_KEY_ACCESS_GRANTS, () =>
+        getAccessGrants({ workspaceId }),
+      );
+    });
+  }
+
+  async function migrateWorkspaceStateToSupabase() {
+    if (!isSupabaseConfigured()) {
+      throw new Error("Supabase is not configured. Update supabase-config.js first.");
+    }
+
+    const client = await getSupabaseClient();
+    const {
+      data: { session },
+      error: sessionError,
+    } = await withNetworkTimeout(client.auth.getSession());
+
+    if (sessionError) {
+      throw new Error(formatSupabaseAuthError(sessionError, "Could not verify your Supabase session."));
+    }
+
+    if (!session?.user?.id) {
+      throw new Error("You are not signed in to Supabase. Please sign in again.");
+    }
+
+    const { user, roleLabel, isAdmin } = getAdminAccessContext();
+
+    if (!isAdmin) {
+      throw new Error("Only administrators can migrate workspace data.");
+    }
+
+    const workspaceId = normalizeWorkspaceId(user?.workspaceId || getCurrentWorkspaceId());
+    const schoolSettingsManager = getSchoolSettingsManager();
+    const schoolSettings = schoolSettingsManager?.getSettings
+      ? schoolSettingsManager.getSettings()
+      : getDefaultAdminSchoolSettings();
+    const institutionId = await ensureSupabaseInstitutionId({
+      client,
+      userId: session.user.id,
+      workspaceId,
+      schoolSettings,
+      profileRole: roleLabel,
+    });
+
+    await syncInstitutionSnapshot(client, institutionId, schoolSettings);
+
+    const stateEntries = collectWorkspaceStatesForMigration(workspaceId);
+    const context = {
+      client,
+      institutionId,
+      workspaceId,
+      userId: session.user.id,
+    };
+
+    for (const entry of stateEntries) {
+      const statePayload =
+        entry.payload && typeof entry.payload === "object" && "data" in entry.payload
+          ? entry.payload.data
+          : entry.payload;
+      await saveWorkspaceStatePayloadToSupabase(
+        entry.stateKey,
+        statePayload,
+        roleLabel,
+        context,
+      );
+    }
+
+    const migratedKeys = stateEntries.map((entry) => entry.stateKey);
+    const { error: migrationRunError } = await withNetworkTimeout(
+      client.from("workspace_migration_runs").insert({
+        institution_id: institutionId,
+        triggered_by: session.user.id,
+        source: "web-client",
+        migrated_keys: migratedKeys,
+        notes: `Workspace ${workspaceId} migrated from browser localStorage.`,
+      }),
+    );
+
+    if (migrationRunError) {
+      throw new Error(
+        formatSupabaseAuthError(
+          migrationRunError,
+          "Workspace data migrated, but migration log could not be written.",
+        ),
+      );
+    }
+
+    return {
+      migratedKeys,
+      workspaceId,
+      institutionId,
+    };
+  }
+
+  function initWorkspaceStateMigrationControls({ isAdmin, triggerButton, statusTarget }) {
+    if (!triggerButton || !statusTarget) {
+      return;
+    }
+
+    const configured = isSupabaseConfigured();
+    triggerButton.disabled = !isAdmin || !configured;
+
+    if (!isAdmin) {
+      setStatus(statusTarget, "info", "Only administrators can run Supabase migration.");
+      return;
+    }
+
+    if (!configured) {
+      setStatus(
+        statusTarget,
+        "info",
+        "Supabase is currently disabled. Add project URL and anon key in <code>supabase-config.js</code> first.",
+      );
+      return;
+    }
+
+    setStatus(
+      statusTarget,
+      "info",
+      "Ready to migrate local browser workspace data to Supabase.",
+    );
+
+    triggerButton.addEventListener("click", async () => {
+      triggerButton.disabled = true;
+      setStatus(statusTarget, "info", "Migrating workspace data to Supabase...");
+
+      try {
+        const result = await migrateWorkspaceStateToSupabase();
+        const keyCount = result.migratedKeys.length;
+        const keysCopy = keyCount
+          ? ` Keys: ${escapeHtml(result.migratedKeys.join(", "))}.`
+          : " No local workspace records were found yet.";
+        setStatus(
+          statusTarget,
+          "success",
+          `Migration complete for workspace <strong>${escapeHtml(result.workspaceId)}</strong>.${keysCopy}`,
+        );
+      } catch (error) {
+        setStatus(
+          statusTarget,
+          "error",
+          escapeHtml(
+            String(error?.message || "Could not migrate local workspace data to Supabase."),
+          ),
+        );
+      } finally {
+        triggerButton.disabled = false;
+      }
+    });
   }
 
   function upsertProvisionedSupabaseUserLocal(record = {}) {
@@ -1766,6 +3323,79 @@
       status,
       user,
       message: String(payload.message || "").trim(),
+    };
+  }
+
+  async function submitPublicAdmissionToSupabase({
+    workspaceId,
+    institutionId = "",
+    payload,
+  }) {
+    if (!isSupabaseConfigured()) {
+      return {
+        ok: false,
+        message: "Supabase is not configured for online admissions yet.",
+      };
+    }
+
+    const config = getSupabaseConfig();
+    const functionName = getSupabaseAdmissionsSubmitFunctionName();
+    const url = String(config?.url || "").replace(/\/+$/g, "");
+    const anonKey = String(config?.anonKey || "").trim();
+
+    if (!url || !anonKey) {
+      return {
+        ok: false,
+        message: "Supabase URL or anon key is missing.",
+      };
+    }
+
+    const endpoint = `${url}/functions/v1/${encodeURIComponent(functionName)}`;
+    let response;
+
+    try {
+      response = await withNetworkTimeout(
+        fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: anonKey,
+          },
+          body: JSON.stringify({
+            workspaceId: normalizeWorkspaceId(workspaceId || "public"),
+            institutionId: String(institutionId || "").trim(),
+            payload,
+          }),
+        }),
+      );
+    } catch (error) {
+      return {
+        ok: false,
+        message: formatSupabaseAuthError(error, "Could not submit this application online."),
+      };
+    }
+
+    let responsePayload = null;
+    try {
+      responsePayload = await response.json();
+    } catch {
+      responsePayload = null;
+    }
+
+    if (!response.ok || !responsePayload || responsePayload.ok === false) {
+      return {
+        ok: false,
+        message:
+          String(responsePayload?.message || "").trim() ||
+          "Could not submit this application online.",
+      };
+    }
+
+    return {
+      ok: true,
+      record: responsePayload.record || null,
+      institutionId: responsePayload.institutionId || null,
+      workspaceId: responsePayload.workspaceId || null,
     };
   }
 
@@ -2421,6 +4051,40 @@
       });
     }
 
+    const shouldInjectFeesLink =
+      getPage() !== "user-settings" &&
+      !isParentPage() &&
+      !nav?.querySelector('a[href="./admin-fees.html"]');
+
+    if (nav && shouldInjectFeesLink) {
+      const scheduleLink = nav.querySelector('a[href="./admin-schedule.html"]');
+      const feesLink = document.createElement("a");
+      const isFeesPage = getPage() === "admin-fees";
+      feesLink.className = `admin-sidebar-link${isFeesPage ? " is-active" : ""}`;
+      feesLink.href = "./admin-fees.html";
+      feesLink.innerHTML = `
+        <span class="admin-sidebar-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2.5" y="6" width="19" height="12" rx="2"></rect>
+            <path d="M2.5 10.5h19"></path>
+            <path d="M7 14h4"></path>
+          </svg>
+        </span>
+        <span>Fees</span>
+      `;
+
+      if (scheduleLink?.nextSibling) {
+        nav.insertBefore(feesLink, scheduleLink.nextSibling);
+      } else {
+        nav.append(feesLink);
+      }
+    } else if (nav && getPage() === "admin-fees") {
+      nav.querySelectorAll(".admin-sidebar-link").forEach((link) => {
+        const isActive = link.getAttribute("href") === "./admin-fees.html";
+        link.classList.toggle("is-active", isActive);
+      });
+    }
+
     const existingButton = document.querySelector("[data-sidebar-toggle]");
     const toggleButton = existingButton || document.createElement("button");
 
@@ -2501,6 +4165,18 @@
 
   function getAcademicCalendarManager() {
     return window.SchoolSphereAcademicCalendar || null;
+  }
+
+  function getAdmissionConfigManager() {
+    return window.SchoolSphereAdmissionConfig || null;
+  }
+
+  function getTimetableManager() {
+    return window.SchoolSphereTimetable || null;
+  }
+
+  function getFeeItemManager() {
+    return window.SchoolSphereFeeItems || null;
   }
 
   function getClassManager() {
@@ -3718,6 +5394,929 @@
     window.addEventListener(manager.eventName, refreshAcademicCalendarSection);
   }
 
+  function initAdmissionConfigurationControls({
+    isAdmin,
+    manager,
+    summaryTarget,
+    sessionForm,
+    sessionStatus,
+    sessionListTarget,
+    classForm,
+    classStatus,
+    classListTarget,
+    stageForm,
+    stageStatus,
+    stageListTarget,
+    applyFormClassField = null,
+  }) {
+    if (
+      !summaryTarget ||
+      !sessionForm ||
+      !sessionStatus ||
+      !sessionListTarget ||
+      !classForm ||
+      !classStatus ||
+      !classListTarget ||
+      !stageForm ||
+      !stageStatus ||
+      !stageListTarget
+    ) {
+      return;
+    }
+
+    const resetSessionForm = () => {
+      sessionForm.reset();
+      if (sessionForm.elements.sessionId) {
+        sessionForm.elements.sessionId.value = "";
+      }
+      if (sessionForm.elements.status) {
+        sessionForm.elements.status.value = "closed";
+      }
+      const submitButton = sessionForm.querySelector("[data-admission-session-submit]");
+      const cancelButton = sessionForm.querySelector("[data-admission-session-cancel]");
+      if (submitButton) submitButton.textContent = "Save session";
+      if (cancelButton) cancelButton.hidden = true;
+      Array.from(sessionForm.elements).forEach((field) => {
+        if (field instanceof HTMLElement) {
+          field.disabled = !isAdmin;
+        }
+      });
+    };
+
+    const resetClassForm = () => {
+      classForm.reset();
+      if (classForm.elements.classOptionId) {
+        classForm.elements.classOptionId.value = "";
+      }
+      if (classForm.elements.status) {
+        classForm.elements.status.value = "active";
+      }
+      const submitButton = classForm.querySelector("[data-admission-class-submit]");
+      const cancelButton = classForm.querySelector("[data-admission-class-cancel]");
+      if (submitButton) submitButton.textContent = "Save class option";
+      if (cancelButton) cancelButton.hidden = true;
+      Array.from(classForm.elements).forEach((field) => {
+        if (field instanceof HTMLElement) {
+          field.disabled = !isAdmin;
+        }
+      });
+    };
+
+    const resetStageForm = () => {
+      stageForm.reset();
+      if (stageForm.elements.stageId) {
+        stageForm.elements.stageId.value = "";
+      }
+      if (stageForm.elements.status) {
+        stageForm.elements.status.value = "active";
+      }
+      const submitButton = stageForm.querySelector("[data-admission-stage-submit]");
+      const cancelButton = stageForm.querySelector("[data-admission-stage-cancel]");
+      if (submitButton) submitButton.textContent = "Save stage";
+      if (cancelButton) cancelButton.hidden = true;
+      Array.from(stageForm.elements).forEach((field) => {
+        if (field instanceof HTMLElement) {
+          field.disabled = !isAdmin;
+        }
+      });
+    };
+
+    const refresh = () => {
+      renderAdmissionConfigurationSection({
+        isAdmin,
+        manager,
+        summaryTarget,
+        sessionListTarget,
+        classListTarget,
+        stageListTarget,
+      });
+
+      if (applyFormClassField && manager && typeof manager.summarize === "function") {
+        const state = manager.summarize();
+        const classOptions = (state.activeClasses || []).map((entry) => entry.name).filter(Boolean);
+        if (classOptions.length) {
+          applyFormClassField.setAttribute("list", "portal-admission-class-options");
+          let datalist = document.getElementById("portal-admission-class-options");
+          if (!datalist) {
+            datalist = document.createElement("datalist");
+            datalist.id = "portal-admission-class-options";
+            applyFormClassField.insertAdjacentElement("afterend", datalist);
+          }
+          datalist.innerHTML = classOptions
+            .map((option) => `<option value="${escapeHtml(option)}"></option>`)
+            .join("");
+        }
+      }
+    };
+
+    clearPortalAdmissionConfigErrors(sessionForm);
+    clearPortalAdmissionConfigErrors(classForm);
+    clearPortalAdmissionConfigErrors(stageForm);
+    resetSessionForm();
+    resetClassForm();
+    resetStageForm();
+    refresh();
+
+    if (!manager) {
+      return;
+    }
+
+    sessionForm.addEventListener("input", () => {
+      clearPortalAdmissionConfigErrors(sessionForm);
+      if (isAdmin) setStatus(sessionStatus, "", "");
+    });
+
+    classForm.addEventListener("input", () => {
+      clearPortalAdmissionConfigErrors(classForm);
+      if (isAdmin) setStatus(classStatus, "", "");
+    });
+
+    stageForm.addEventListener("input", () => {
+      clearPortalAdmissionConfigErrors(stageForm);
+      if (isAdmin) setStatus(stageStatus, "", "");
+    });
+
+    sessionForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      if (!isAdmin) {
+        setStatus(sessionStatus, "info", "Only administrators can configure admission sessions.");
+        return;
+      }
+
+      clearPortalAdmissionConfigErrors(sessionForm);
+      setStatus(sessionStatus, "", "");
+      const payload = {
+        id: sessionForm.elements.sessionId.value || undefined,
+        name: String(sessionForm.elements.name.value || "").trim(),
+        startDate: String(sessionForm.elements.startDate.value || "").trim(),
+        endDate: String(sessionForm.elements.endDate.value || "").trim(),
+        status: sessionForm.elements.status.value === "open" ? "open" : "closed",
+      };
+
+      let hasError = false;
+      if (!payload.name) {
+        setPortalAdmissionConfigError(sessionForm, "name", "Enter session name.");
+        hasError = true;
+      }
+      if (payload.startDate && payload.endDate && payload.endDate < payload.startDate) {
+        setPortalAdmissionConfigError(sessionForm, "endDate", "End date must be after start date.");
+        hasError = true;
+      }
+      if (hasError) {
+        setStatus(sessionStatus, "error", "Fix the highlighted session fields.");
+        return;
+      }
+
+      manager.upsertSession(payload);
+      recordAuditEvent({
+        action: payload.id ? "updated" : "created",
+        entityType: "admission-session",
+        entityId: payload.name,
+        summary: `${payload.id ? "Updated" : "Created"} admission session ${payload.name}`,
+        details: `${payload.status} • ${payload.startDate || "no start"} to ${payload.endDate || "no end"}`,
+      });
+      setStatus(sessionStatus, "success", `Admission session <strong>${escapeHtml(payload.name)}</strong> saved.`);
+      clearFormDraftFor(sessionForm);
+      resetSessionForm();
+      refresh();
+    });
+
+    classForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      if (!isAdmin) {
+        setStatus(classStatus, "info", "Only administrators can configure admission classes.");
+        return;
+      }
+
+      clearPortalAdmissionConfigErrors(classForm);
+      setStatus(classStatus, "", "");
+      const payload = {
+        id: classForm.elements.classOptionId.value || undefined,
+        name: String(classForm.elements.name.value || "").trim(),
+        status: classForm.elements.status.value === "archived" ? "archived" : "active",
+      };
+      if (!payload.name) {
+        setPortalAdmissionConfigError(classForm, "name", "Enter class option.");
+        setStatus(classStatus, "error", "Class option is required.");
+        return;
+      }
+
+      manager.upsertClassOption(payload);
+      recordAuditEvent({
+        action: payload.id ? "updated" : "created",
+        entityType: "admission-class-option",
+        entityId: payload.name,
+        summary: `${payload.id ? "Updated" : "Added"} admission class option ${payload.name}`,
+        details: `Status: ${payload.status}`,
+      });
+      setStatus(classStatus, "success", `Admission class option <strong>${escapeHtml(payload.name)}</strong> saved.`);
+      clearFormDraftFor(classForm);
+      resetClassForm();
+      refresh();
+    });
+
+    stageForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      if (!isAdmin) {
+        setStatus(stageStatus, "info", "Only administrators can configure application stages.");
+        return;
+      }
+
+      clearPortalAdmissionConfigErrors(stageForm);
+      setStatus(stageStatus, "", "");
+      const payload = {
+        id: stageForm.elements.stageId.value || undefined,
+        name: String(stageForm.elements.name.value || "").trim(),
+        order: Number.parseInt(stageForm.elements.order.value, 10) || 1,
+        status: stageForm.elements.status.value === "archived" ? "archived" : "active",
+      };
+
+      if (!payload.name) {
+        setPortalAdmissionConfigError(stageForm, "name", "Enter stage name.");
+        setStatus(stageStatus, "error", "Stage name is required.");
+        return;
+      }
+
+      manager.upsertStage(payload);
+      recordAuditEvent({
+        action: payload.id ? "updated" : "created",
+        entityType: "admission-stage",
+        entityId: payload.name,
+        summary: `${payload.id ? "Updated" : "Added"} admission stage ${payload.name}`,
+        details: `Order ${payload.order} • ${payload.status}`,
+      });
+      setStatus(stageStatus, "success", `Application stage <strong>${escapeHtml(payload.name)}</strong> saved.`);
+      clearFormDraftFor(stageForm);
+      resetStageForm();
+      refresh();
+    });
+
+    const sessionCancel = sessionForm.querySelector("[data-admission-session-cancel]");
+    if (sessionCancel) {
+      sessionCancel.addEventListener("click", () => {
+        clearPortalAdmissionConfigErrors(sessionForm);
+        resetSessionForm();
+        setStatus(sessionStatus, "", "");
+      });
+    }
+
+    const classCancel = classForm.querySelector("[data-admission-class-cancel]");
+    if (classCancel) {
+      classCancel.addEventListener("click", () => {
+        clearPortalAdmissionConfigErrors(classForm);
+        resetClassForm();
+        setStatus(classStatus, "", "");
+      });
+    }
+
+    const stageCancel = stageForm.querySelector("[data-admission-stage-cancel]");
+    if (stageCancel) {
+      stageCancel.addEventListener("click", () => {
+        clearPortalAdmissionConfigErrors(stageForm);
+        resetStageForm();
+        setStatus(stageStatus, "", "");
+      });
+    }
+
+    sessionListTarget.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-admission-session-action]");
+      if (!button || !isAdmin) {
+        return;
+      }
+      const action = String(button.dataset.admissionSessionAction || "").trim();
+      const sessionId = String(button.dataset.admissionSessionId || "").trim();
+      const record = manager.getState().sessions.find((entry) => entry.id === sessionId);
+      if (!record) {
+        return;
+      }
+
+      if (action === "edit") {
+        sessionForm.elements.sessionId.value = record.id;
+        sessionForm.elements.name.value = record.name || "";
+        sessionForm.elements.startDate.value = record.startDate || "";
+        sessionForm.elements.endDate.value = record.endDate || "";
+        sessionForm.elements.status.value = record.status || "closed";
+        const submitButton = sessionForm.querySelector("[data-admission-session-submit]");
+        const cancelButton = sessionForm.querySelector("[data-admission-session-cancel]");
+        if (submitButton) submitButton.textContent = "Save changes";
+        if (cancelButton) cancelButton.hidden = false;
+        setStatus(sessionStatus, "info", `Editing admission session <strong>${escapeHtml(record.name)}</strong>.`);
+        return;
+      }
+
+      if (action === "open" || action === "close") {
+        manager.setSessionStatus(record.id, action === "open" ? "open" : "closed");
+        setStatus(sessionStatus, "success", `Session <strong>${escapeHtml(record.name)}</strong> ${action === "open" ? "opened" : "closed"}.`);
+        recordAuditEvent({
+          action: action === "open" ? "opened" : "closed",
+          entityType: "admission-session",
+          entityId: record.id,
+          summary: `${action === "open" ? "Opened" : "Closed"} admission session ${record.name}`,
+          details: "",
+        });
+        refresh();
+      }
+    });
+
+    classListTarget.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-admission-class-action]");
+      if (!button || !isAdmin) {
+        return;
+      }
+      const action = String(button.dataset.admissionClassAction || "").trim();
+      const classId = String(button.dataset.admissionClassId || "").trim();
+      const record = manager.getState().classes.find((entry) => entry.id === classId);
+      if (!record) {
+        return;
+      }
+
+      if (action === "edit") {
+        classForm.elements.classOptionId.value = record.id;
+        classForm.elements.name.value = record.name || "";
+        classForm.elements.status.value = record.status || "active";
+        const submitButton = classForm.querySelector("[data-admission-class-submit]");
+        const cancelButton = classForm.querySelector("[data-admission-class-cancel]");
+        if (submitButton) submitButton.textContent = "Save changes";
+        if (cancelButton) cancelButton.hidden = false;
+        setStatus(classStatus, "info", `Editing class option <strong>${escapeHtml(record.name)}</strong>.`);
+        return;
+      }
+
+      if (action === "archive" || action === "activate") {
+        manager.setClassOptionStatus(record.id, action === "archive" ? "archived" : "active");
+        setStatus(classStatus, "success", `Class option <strong>${escapeHtml(record.name)}</strong> ${action === "archive" ? "archived" : "reactivated"}.`);
+        recordAuditEvent({
+          action: action === "archive" ? "archived" : "reactivated",
+          entityType: "admission-class-option",
+          entityId: record.id,
+          summary: `${action === "archive" ? "Archived" : "Reactivated"} class option ${record.name}`,
+          details: "",
+        });
+        refresh();
+      }
+    });
+
+    stageListTarget.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-admission-stage-action]");
+      if (!button || !isAdmin) {
+        return;
+      }
+      const action = String(button.dataset.admissionStageAction || "").trim();
+      const stageId = String(button.dataset.admissionStageId || "").trim();
+      const record = manager.getState().stages.find((entry) => entry.id === stageId);
+      if (!record) {
+        return;
+      }
+
+      if (action === "edit") {
+        stageForm.elements.stageId.value = record.id;
+        stageForm.elements.name.value = record.name || "";
+        stageForm.elements.order.value = record.order || 1;
+        stageForm.elements.status.value = record.status || "active";
+        const submitButton = stageForm.querySelector("[data-admission-stage-submit]");
+        const cancelButton = stageForm.querySelector("[data-admission-stage-cancel]");
+        if (submitButton) submitButton.textContent = "Save changes";
+        if (cancelButton) cancelButton.hidden = false;
+        setStatus(stageStatus, "info", `Editing stage <strong>${escapeHtml(record.name)}</strong>.`);
+        return;
+      }
+
+      if (action === "archive" || action === "activate") {
+        manager.setStageStatus(record.id, action === "archive" ? "archived" : "active");
+        setStatus(stageStatus, "success", `Stage <strong>${escapeHtml(record.name)}</strong> ${action === "archive" ? "archived" : "reactivated"}.`);
+        recordAuditEvent({
+          action: action === "archive" ? "archived" : "reactivated",
+          entityType: "admission-stage",
+          entityId: record.id,
+          summary: `${action === "archive" ? "Archived" : "Reactivated"} stage ${record.name}`,
+          details: "",
+        });
+        refresh();
+      }
+    });
+
+    window.addEventListener(manager.eventName, refresh);
+  }
+
+  function initTimetableControls({
+    isAdmin,
+    manager,
+    summaryTarget,
+    form,
+    status,
+    listTarget,
+  }) {
+    if (!summaryTarget || !form || !status || !listTarget) {
+      return;
+    }
+
+    const formToggleButton =
+      form.parentElement?.querySelector("[data-timetable-form-toggle]") ||
+      document.querySelector("[data-timetable-form-toggle]");
+    const cycleManager = getAcademicCycleManager();
+    const classManager = getClassManager();
+
+    const setFormVisibility = (visible) => {
+      form.hidden = !visible;
+      if (formToggleButton) {
+        formToggleButton.textContent = visible ? "Hide timetable form" : "Create timetable row";
+        formToggleButton.setAttribute("aria-expanded", String(visible));
+      }
+    };
+
+    const applySessionTermClassOptions = () => {
+      const cycles = cycleManager && typeof cycleManager.getState === "function"
+        ? cycleManager.getState()
+        : { sessions: [], terms: [] };
+      const classes = classManager && typeof classManager.getClasses === "function"
+        ? classManager.getClasses().filter((item) => item.status !== "archived")
+        : [];
+
+      const sessionSelect = form.elements.sessionId;
+      const termSelect = form.elements.termId;
+      const classSelect = form.elements.classLevel;
+      const selectedSessionId = String(sessionSelect?.value || "").trim();
+      const activeSessionId = (cycles.sessions || []).find((session) => session.status === "open")?.id || "";
+      const sessionId = selectedSessionId || activeSessionId;
+
+      if (sessionSelect) {
+        const sessionOptions = (cycles.sessions || [])
+          .map((session) => `<option value="${escapeHtml(session.id)}">${escapeHtml(session.name)} ${session.status === "open" ? "(Open)" : ""}</option>`)
+          .join("");
+        sessionSelect.innerHTML = `<option value="">Select session</option>${sessionOptions}`;
+        if (sessionId) {
+          sessionSelect.value = sessionId;
+        }
+      }
+
+      if (termSelect) {
+        const termOptions = (cycles.terms || [])
+          .filter((term) => !sessionId || term.sessionId === sessionId)
+          .map((term) => `<option value="${escapeHtml(term.id)}">${escapeHtml(term.name)} ${term.status === "open" ? "(Open)" : ""}</option>`)
+          .join("");
+        termSelect.innerHTML = `<option value="">Select term</option>${termOptions}`;
+      }
+
+      if (classSelect) {
+        const classOptions = classes
+          .map((record) => `<option value="${escapeHtml(record.level)}">${escapeHtml(record.level)} • ${escapeHtml(record.name)}</option>`)
+          .join("");
+        classSelect.innerHTML = `<option value="">Select class</option>${classOptions}`;
+      }
+    };
+
+    const refresh = () => {
+      renderTimetableSection({ isAdmin, manager, summaryTarget, listTarget });
+      applySessionTermClassOptions();
+    };
+
+    const toggleVisibility = () => {
+      if (!isAdmin || !manager) {
+        return;
+      }
+
+      const shouldOpen = form.hidden;
+      setFormVisibility(shouldOpen);
+      if (!shouldOpen) {
+        clearPortalTimetableErrors(form);
+        resetPortalTimetableForm(form, isAdmin);
+        setStatus(status, "", "");
+      }
+    };
+
+    clearPortalTimetableErrors(form);
+    resetPortalTimetableForm(form, isAdmin);
+    refresh();
+    setFormVisibility(false);
+
+    if (formToggleButton) {
+      formToggleButton.disabled = !isAdmin || !manager;
+      formToggleButton.addEventListener("click", toggleVisibility);
+    }
+
+    if (!manager) {
+      return;
+    }
+
+    form.addEventListener("input", () => {
+      clearPortalTimetableErrors(form);
+      if (isAdmin) setStatus(status, "", "");
+    });
+
+    form.elements.sessionId?.addEventListener("change", () => {
+      applySessionTermClassOptions();
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (!isAdmin) {
+        setStatus(status, "info", "Only administrators can create class timetable rows.");
+        return;
+      }
+
+      clearPortalTimetableErrors(form);
+      setStatus(status, "", "");
+
+      const entryId = form.elements.timetableEntryId.value || "";
+      const existing = manager.getEntries().find((row) => row.id === entryId) || null;
+      const payload = {
+        id: entryId || undefined,
+        sessionId: String(form.elements.sessionId.value || "").trim(),
+        termId: String(form.elements.termId.value || "").trim(),
+        classLevel: String(form.elements.classLevel.value || "").trim(),
+        day: String(form.elements.day.value || "Monday").trim(),
+        startTime: String(form.elements.startTime.value || "").trim(),
+        endTime: String(form.elements.endTime.value || "").trim(),
+        subject: String(form.elements.subject.value || "").trim(),
+        teacher: String(form.elements.teacher.value || "").trim(),
+        room: String(form.elements.room.value || "").trim(),
+        status: existing ? existing.status : "draft",
+      };
+
+      let hasError = false;
+      if (!payload.sessionId) {
+        setPortalTimetableError(form, "sessionId", "Select session.");
+        hasError = true;
+      }
+      if (!payload.termId) {
+        setPortalTimetableError(form, "termId", "Select term.");
+        hasError = true;
+      }
+      if (!payload.classLevel) {
+        setPortalTimetableError(form, "classLevel", "Select class.");
+        hasError = true;
+      }
+      if (!payload.startTime) {
+        setPortalTimetableError(form, "startTime", "Select start time.");
+        hasError = true;
+      }
+      if (!payload.endTime) {
+        setPortalTimetableError(form, "endTime", "Select end time.");
+        hasError = true;
+      } else if (payload.startTime && payload.endTime <= payload.startTime) {
+        setPortalTimetableError(form, "endTime", "End time must be after start time.");
+        hasError = true;
+      }
+      if (!payload.subject) {
+        setPortalTimetableError(form, "subject", "Enter subject.");
+        hasError = true;
+      }
+      if (!payload.teacher) {
+        setPortalTimetableError(form, "teacher", "Enter teacher.");
+        hasError = true;
+      }
+
+      if (hasError) {
+        setStatus(status, "error", "Fix the highlighted timetable fields.");
+        return;
+      }
+
+      manager.upsertEntry(payload);
+      recordAuditEvent({
+        action: existing ? "updated" : "created",
+        entityType: "timetable",
+        entityId: payload.classLevel,
+        summary: `${existing ? "Updated" : "Created"} timetable row for ${payload.classLevel}`,
+        details: `${payload.day} ${payload.startTime}-${payload.endTime} • ${payload.subject}`,
+      });
+      setStatus(status, "success", `Timetable row for <strong>${escapeHtml(payload.classLevel)}</strong> saved as ${escapeHtml(payload.status)}.`);
+      clearFormDraftFor(form);
+      resetPortalTimetableForm(form, isAdmin);
+      setFormVisibility(false);
+      refresh();
+    });
+
+    const cancelButton = form.querySelector("[data-timetable-cancel]");
+    if (cancelButton) {
+      cancelButton.addEventListener("click", () => {
+        clearPortalTimetableErrors(form);
+        resetPortalTimetableForm(form, isAdmin);
+        setFormVisibility(false);
+        setStatus(status, "", "");
+      });
+    }
+
+    listTarget.addEventListener("click", (event) => {
+      const rowActionButton = event.target.closest("[data-timetable-action]");
+      const groupActionButton = event.target.closest("[data-timetable-group-action]");
+
+      if (!isAdmin) {
+        return;
+      }
+
+      if (rowActionButton) {
+        const action = String(rowActionButton.dataset.timetableAction || "").trim();
+        const rowId = String(rowActionButton.dataset.timetableId || "").trim();
+        const row = manager.getEntries().find((entry) => entry.id === rowId);
+        if (!row) {
+          return;
+        }
+
+        if (action === "edit") {
+          populatePortalTimetableForm(form, row, isAdmin);
+          setFormVisibility(true);
+          setStatus(status, "info", `Editing timetable row for <strong>${escapeHtml(row.classLevel)}</strong>.`);
+          form.scrollIntoView({ behavior: "smooth", block: "start" });
+          return;
+        }
+
+        if (action === "archive" || action === "activate") {
+          if (action === "archive") {
+            manager.archiveEntry(row.id);
+          } else {
+            manager.activateEntry(row.id);
+          }
+          recordAuditEvent({
+            action: action === "archive" ? "archived" : "reactivated",
+            entityType: "timetable",
+            entityId: row.id,
+            summary: `${action === "archive" ? "Archived" : "Reactivated"} timetable row`,
+            details: `${row.classLevel} • ${row.day} ${row.startTime}-${row.endTime}`,
+          });
+          setStatus(status, "success", `Timetable row ${action === "archive" ? "archived" : "reactivated"}.`);
+          refresh();
+          return;
+        }
+      }
+
+      if (groupActionButton) {
+        const action = String(groupActionButton.dataset.timetableGroupAction || "").trim();
+        const criteria = {
+          sessionId: String(groupActionButton.dataset.timetableSessionId || "").trim(),
+          termId: String(groupActionButton.dataset.timetableTermId || "").trim(),
+          classLevel: String(groupActionButton.dataset.timetableClass || "").trim(),
+        };
+        if (!criteria.sessionId || !criteria.termId || !criteria.classLevel) {
+          return;
+        }
+
+        if (action === "publish") {
+          manager.publishGroup(criteria);
+          recordAuditEvent({
+            action: "published",
+            entityType: "timetable",
+            entityId: criteria.classLevel,
+            summary: `Published timetable for ${criteria.classLevel}`,
+            details: `${criteria.sessionId} • ${criteria.termId}`,
+          });
+          setStatus(status, "success", `Timetable for <strong>${escapeHtml(criteria.classLevel)}</strong> published.`);
+        } else if (action === "unpublish") {
+          manager.unpublishGroup(criteria);
+          recordAuditEvent({
+            action: "unpublished",
+            entityType: "timetable",
+            entityId: criteria.classLevel,
+            summary: `Unpublished timetable for ${criteria.classLevel}`,
+            details: `${criteria.sessionId} • ${criteria.termId}`,
+          });
+          setStatus(status, "success", `Timetable for <strong>${escapeHtml(criteria.classLevel)}</strong> moved back to draft.`);
+        }
+        refresh();
+      }
+    });
+
+    window.addEventListener(manager.eventName, refresh);
+    if (cycleManager?.eventName) {
+      window.addEventListener(cycleManager.eventName, refresh);
+    }
+    if (classManager?.eventName) {
+      window.addEventListener(classManager.eventName, refresh);
+    }
+  }
+
+  function initFeeManagementControls({
+    isAdmin,
+    manager,
+    summaryTarget,
+    form,
+    status,
+    listTarget,
+  }) {
+    if (!summaryTarget || !form || !status || !listTarget) {
+      return;
+    }
+
+    const formToggleButton =
+      form.parentElement?.querySelector("[data-fee-form-toggle]") ||
+      document.querySelector("[data-fee-form-toggle]");
+    const cycleManager = getAcademicCycleManager();
+    const classManager = getClassManager();
+
+    const setFormVisibility = (visible) => {
+      form.hidden = !visible;
+      if (formToggleButton) {
+        formToggleButton.textContent = visible ? "Hide fee form" : "Create fee item";
+        formToggleButton.setAttribute("aria-expanded", String(visible));
+      }
+    };
+
+    const applyContextOptions = () => {
+      const cycles = cycleManager && typeof cycleManager.getState === "function"
+        ? cycleManager.getState()
+        : { sessions: [], terms: [] };
+      const classes = classManager && typeof classManager.getClasses === "function"
+        ? classManager.getClasses().filter((item) => item.status !== "archived")
+        : [];
+
+      const sessionSelect = form.elements.sessionId;
+      const termSelect = form.elements.termId;
+      const classSelect = form.elements.classLevel;
+      const selectedSessionId = String(sessionSelect?.value || "").trim();
+      const activeSessionId = (cycles.sessions || []).find((session) => session.status === "open")?.id || "";
+      const sessionId = selectedSessionId || activeSessionId;
+
+      if (sessionSelect) {
+        sessionSelect.innerHTML = `<option value="">Select session</option>${(cycles.sessions || [])
+          .map(
+            (session) =>
+              `<option value="${escapeHtml(session.id)}">${escapeHtml(session.name)} ${session.status === "open" ? "(Open)" : ""}</option>`,
+          )
+          .join("")}`;
+        if (sessionId) {
+          sessionSelect.value = sessionId;
+        }
+      }
+
+      if (termSelect) {
+        termSelect.innerHTML = `<option value="">Select term</option>${(cycles.terms || [])
+          .filter((term) => !sessionId || term.sessionId === sessionId)
+          .map(
+            (term) =>
+              `<option value="${escapeHtml(term.id)}">${escapeHtml(term.name)} ${term.status === "open" ? "(Open)" : ""}</option>`,
+          )
+          .join("")}`;
+      }
+
+      if (classSelect) {
+        classSelect.innerHTML = `<option value="">Select class</option>${classes
+          .map((record) => `<option value="${escapeHtml(record.level)}">${escapeHtml(record.level)} • ${escapeHtml(record.name)}</option>`)
+          .join("")}`;
+      }
+    };
+
+    const refresh = () => {
+      renderFeeManagementSection({ isAdmin, manager, summaryTarget, listTarget });
+      applyContextOptions();
+    };
+
+    const toggleVisibility = () => {
+      if (!isAdmin || !manager) {
+        return;
+      }
+      const shouldOpen = form.hidden;
+      setFormVisibility(shouldOpen);
+      if (!shouldOpen) {
+        clearPortalFeeErrors(form);
+        resetPortalFeeForm(form, isAdmin);
+        setStatus(status, "", "");
+      }
+    };
+
+    clearPortalFeeErrors(form);
+    resetPortalFeeForm(form, isAdmin);
+    refresh();
+    setFormVisibility(false);
+
+    if (formToggleButton) {
+      formToggleButton.disabled = !isAdmin || !manager;
+      formToggleButton.addEventListener("click", toggleVisibility);
+    }
+
+    if (!manager) {
+      return;
+    }
+
+    form.addEventListener("input", () => {
+      clearPortalFeeErrors(form);
+      if (isAdmin) setStatus(status, "", "");
+    });
+
+    form.elements.sessionId?.addEventListener("change", () => {
+      applyContextOptions();
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (!isAdmin) {
+        setStatus(status, "info", "Only administrators can configure fee items.");
+        return;
+      }
+
+      clearPortalFeeErrors(form);
+      setStatus(status, "", "");
+
+      const itemId = form.elements.feeItemId.value || "";
+      const existing = manager.getItems().find((item) => item.id === itemId) || null;
+      const payload = {
+        id: itemId || undefined,
+        name: String(form.elements.name.value || "").trim(),
+        amount: Number.parseFloat(form.elements.amount.value || "0"),
+        classLevel: String(form.elements.classLevel.value || "").trim(),
+        sessionId: String(form.elements.sessionId.value || "").trim(),
+        termId: String(form.elements.termId.value || "").trim(),
+        dueDate: String(form.elements.dueDate.value || "").trim(),
+        description: String(form.elements.description.value || "").trim(),
+        status: existing ? existing.status : "active",
+      };
+
+      let hasError = false;
+      if (!payload.name) {
+        setPortalFeeError(form, "name", "Enter fee item name.");
+        hasError = true;
+      }
+      if (!Number.isFinite(payload.amount) || payload.amount <= 0) {
+        setPortalFeeError(form, "amount", "Enter a valid amount.");
+        hasError = true;
+      }
+      if (!payload.classLevel) {
+        setPortalFeeError(form, "classLevel", "Select class.");
+        hasError = true;
+      }
+      if (!payload.sessionId) {
+        setPortalFeeError(form, "sessionId", "Select session.");
+        hasError = true;
+      }
+      if (!payload.termId) {
+        setPortalFeeError(form, "termId", "Select term.");
+        hasError = true;
+      }
+      if (hasError) {
+        setStatus(status, "error", "Fix the highlighted fee item fields.");
+        return;
+      }
+
+      manager.upsertItem(payload);
+      recordAuditEvent({
+        action: existing ? "updated" : "created",
+        entityType: "fee-item",
+        entityId: payload.name,
+        summary: `${existing ? "Updated" : "Created"} fee item ${payload.name}`,
+        details: `${payload.classLevel} • ${formatCurrencyAmount(payload.amount)}`,
+      });
+      setStatus(status, "success", `Fee item <strong>${escapeHtml(payload.name)}</strong> saved.`);
+      clearFormDraftFor(form);
+      resetPortalFeeForm(form, isAdmin);
+      setFormVisibility(false);
+      refresh();
+    });
+
+    const cancelButton = form.querySelector("[data-fee-cancel]");
+    if (cancelButton) {
+      cancelButton.addEventListener("click", () => {
+        clearPortalFeeErrors(form);
+        resetPortalFeeForm(form, isAdmin);
+        setFormVisibility(false);
+        setStatus(status, "", "");
+      });
+    }
+
+    listTarget.addEventListener("click", (event) => {
+      const actionButton = event.target.closest("[data-fee-action]");
+      if (!actionButton || !isAdmin) {
+        return;
+      }
+      const action = String(actionButton.dataset.feeAction || "").trim();
+      const itemId = String(actionButton.dataset.feeId || "").trim();
+      const record = manager.getItems().find((item) => item.id === itemId);
+      if (!record) {
+        return;
+      }
+
+      if (action === "edit") {
+        populatePortalFeeForm(form, record, isAdmin);
+        setFormVisibility(true);
+        setStatus(status, "info", `Editing fee item <strong>${escapeHtml(record.name)}</strong>.`);
+        form.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+
+      if (action === "archive" || action === "activate") {
+        if (action === "archive") {
+          manager.archiveItem(record.id);
+        } else {
+          manager.activateItem(record.id);
+        }
+        recordAuditEvent({
+          action: action === "archive" ? "archived" : "reactivated",
+          entityType: "fee-item",
+          entityId: record.id,
+          summary: `${action === "archive" ? "Archived" : "Reactivated"} fee item ${record.name}`,
+          details: `${record.classLevel} • ${formatCurrencyAmount(record.amount)}`,
+        });
+        setStatus(status, "success", `Fee item <strong>${escapeHtml(record.name)}</strong> ${action === "archive" ? "archived" : "reactivated"}.`);
+        refresh();
+      }
+    });
+
+    window.addEventListener(manager.eventName, refresh);
+    if (cycleManager?.eventName) {
+      window.addEventListener(cycleManager.eventName, refresh);
+    }
+    if (classManager?.eventName) {
+      window.addEventListener(classManager.eventName, refresh);
+    }
+  }
+
   function initSchoolSettingsControls({
     isAdmin,
     manager,
@@ -3826,7 +6425,7 @@
       return;
     }
 
-    form.addEventListener("submit", (event) => {
+    form.addEventListener("submit", async (event) => {
       event.preventDefault();
 
       if (!isAdmin) {
@@ -3886,6 +6485,23 @@
         return;
       }
 
+      if (isSupabaseConfigured()) {
+        try {
+          await persistSchoolSettingsToSupabase(payload);
+        } catch (error) {
+          setStatus(
+            status,
+            "error",
+            escapeHtml(
+              String(
+                error?.message || "Could not save school settings to Supabase. Please retry.",
+              ),
+            ),
+          );
+          return;
+        }
+      }
+
       manager.saveSettings(payload);
       clearFormDraftFor(form);
       recordAuditEvent({
@@ -3901,20 +6517,42 @@
       setStatus(
         status,
         "success",
-        `School settings saved for <strong>${escapeHtml(payload.schoolName)}</strong>. The updated identity is now reflected across the site.`,
+        `School settings saved for <strong>${escapeHtml(payload.schoolName)}</strong>. The updated identity is now reflected across the app.`,
       );
     });
 
     const resetButton = form.querySelector("[data-reset-school-settings]");
 
     if (resetButton) {
-      resetButton.addEventListener("click", () => {
+      resetButton.addEventListener("click", async () => {
         if (!isAdmin) {
           setStatus(status, "info", "Only administrators can update school settings.");
           return;
         }
 
         clearPortalSettingsErrors(form);
+        const defaultSettings =
+          manager && typeof manager.defaults === "object"
+            ? manager.defaults
+            : getDefaultAdminSchoolSettings();
+
+        if (isSupabaseConfigured()) {
+          try {
+            await persistSchoolSettingsToSupabase(defaultSettings);
+          } catch (error) {
+            setStatus(
+              status,
+              "error",
+              escapeHtml(
+                String(
+                  error?.message || "Could not reset school settings in Supabase. Please retry.",
+                ),
+              ),
+            );
+            return;
+          }
+        }
+
         manager.resetSettings();
         clearFormDraftFor(form);
         recordAuditEvent({
@@ -3938,10 +6576,45 @@
     }
   }
 
-  function initFeatureToggleControls({ isAdmin, manager, summaryTarget, gridTarget }) {
+  function initFeatureToggleControls({
+    isAdmin,
+    manager,
+    summaryTarget,
+    gridTarget,
+    statusTarget = null,
+  }) {
     if (!summaryTarget || !gridTarget) {
       return;
     }
+
+    let isHydratingSupabase = false;
+    let syncTimer = null;
+
+    const scheduleSupabaseSync = () => {
+      if (!isAdmin || !manager || !isSupabaseConfigured() || isHydratingSupabase) {
+        return;
+      }
+
+      if (syncTimer) {
+        window.clearTimeout(syncTimer);
+      }
+
+      syncTimer = window.setTimeout(async () => {
+        try {
+          await saveWorkspaceStatePayloadToSupabase(
+            SUPABASE_STATE_KEY_FEATURE_MODULES,
+            manager.getState(),
+          );
+          if (statusTarget) {
+            setStatus(statusTarget, "success", "Feature modules synced to Supabase.");
+          }
+        } catch (error) {
+          if (statusTarget) {
+            setStatus(statusTarget, "error", escapeHtml(String(error?.message || "Could not sync feature modules to Supabase.")));
+          }
+        }
+      }, 320);
+    };
 
     const refreshFeatureToggleSection = () => {
       renderPortalFeatureToggleSection({
@@ -3958,7 +6631,37 @@
       return;
     }
 
+    if (isAdmin && isSupabaseConfigured()) {
+      isHydratingSupabase = true;
+      loadWorkspaceStatePayloadFromSupabase(SUPABASE_STATE_KEY_FEATURE_MODULES)
+        .then(({ payload, synced }) => {
+          if (synced && payload && typeof payload === "object") {
+            manager.saveState(payload);
+            if (statusTarget) {
+              setStatus(statusTarget, "info", "Feature modules loaded from Supabase.");
+            }
+          } else if (statusTarget) {
+            setStatus(statusTarget, "info", "Using local feature modules until first Supabase sync.");
+          }
+        })
+        .catch((error) => {
+          if (statusTarget) {
+            setStatus(
+              statusTarget,
+              "error",
+              escapeHtml(
+                String(error?.message || "Could not load feature modules from Supabase."),
+              ),
+            );
+          }
+        })
+        .finally(() => {
+          isHydratingSupabase = false;
+        });
+    }
+
     window.addEventListener(manager.eventName, refreshFeatureToggleSection);
+    window.addEventListener(manager.eventName, scheduleSupabaseSync);
   }
 
   function initRolePermissionControls({
@@ -3967,10 +6670,37 @@
     summaryTarget,
     gridTarget,
     resetButton,
+    statusTarget = null,
   }) {
     if (!summaryTarget || !gridTarget) {
       return;
     }
+
+    let isHydratingSupabase = false;
+
+    const syncPermissionsToSupabase = async (successMessage = "Role permissions synced to Supabase.") => {
+      if (!isAdmin || !manager || !isSupabaseConfigured()) {
+        return;
+      }
+
+      try {
+        await saveWorkspaceStatePayloadToSupabase(
+          SUPABASE_STATE_KEY_ROLE_PERMISSIONS,
+          manager.getPermissions(),
+        );
+        if (statusTarget) {
+          setStatus(statusTarget, "success", successMessage);
+        }
+      } catch (error) {
+        if (statusTarget) {
+          setStatus(
+            statusTarget,
+            "error",
+            escapeHtml(String(error?.message || "Could not sync role permissions to Supabase.")),
+          );
+        }
+      }
+    };
 
     const refreshRolePermissionSection = () => {
       renderPortalRolePermissionSection({
@@ -3985,6 +6715,35 @@
 
     if (!manager) {
       return;
+    }
+
+    if (isAdmin && isSupabaseConfigured()) {
+      isHydratingSupabase = true;
+      loadWorkspaceStatePayloadFromSupabase(SUPABASE_STATE_KEY_ROLE_PERMISSIONS)
+        .then(({ payload, synced }) => {
+          if (synced && payload && typeof payload === "object") {
+            manager.savePermissions(payload);
+            if (statusTarget) {
+              setStatus(statusTarget, "info", "Role permissions loaded from Supabase.");
+            }
+          } else if (statusTarget) {
+            setStatus(statusTarget, "info", "Using local role permissions until first Supabase sync.");
+          }
+        })
+        .catch((error) => {
+          if (statusTarget) {
+            setStatus(
+              statusTarget,
+              "error",
+              escapeHtml(
+                String(error?.message || "Could not load role permissions from Supabase."),
+              ),
+            );
+          }
+        })
+        .finally(() => {
+          isHydratingSupabase = false;
+        });
     }
 
     gridTarget.addEventListener("change", (event) => {
@@ -4004,6 +6763,10 @@
         input.checked,
       );
 
+      if (!isHydratingSupabase) {
+        syncPermissionsToSupabase();
+      }
+
       recordAuditEvent({
         action: input.checked ? "granted" : "revoked",
         entityType: "role-permission",
@@ -4020,6 +6783,9 @@
           return;
         }
         manager.resetPermissions();
+        if (!isHydratingSupabase) {
+          syncPermissionsToSupabase("Role permissions reset and synced to Supabase.");
+        }
         recordAuditEvent({
           action: "reset",
           entityType: "role-permission",
@@ -4921,6 +7687,203 @@
     });
   }
 
+  function clearPortalAdmissionConfigErrors(form) {
+    form.querySelectorAll(".portal-field").forEach((field) => field.classList.remove("is-invalid"));
+    form.querySelectorAll("[data-admission-config-error-for]").forEach((error) => {
+      error.textContent = "";
+    });
+  }
+
+  function setPortalAdmissionConfigError(form, fieldName, message) {
+    const error = form.querySelector(`[data-admission-config-error-for="${fieldName}"]`);
+    const control = form.elements[fieldName];
+    const field = control ? control.closest(".portal-field") : null;
+
+    if (error) {
+      error.textContent = message;
+    }
+    if (field) {
+      field.classList.add("is-invalid");
+    }
+  }
+
+  function clearPortalTimetableErrors(form) {
+    form.querySelectorAll(".portal-field").forEach((field) => field.classList.remove("is-invalid"));
+    form.querySelectorAll("[data-timetable-error-for]").forEach((error) => {
+      error.textContent = "";
+    });
+  }
+
+  function setPortalTimetableError(form, fieldName, message) {
+    const error = form.querySelector(`[data-timetable-error-for="${fieldName}"]`);
+    const control = form.elements[fieldName];
+    const field = control ? control.closest(".portal-field") : null;
+
+    if (error) {
+      error.textContent = message;
+    }
+    if (field) {
+      field.classList.add("is-invalid");
+    }
+  }
+
+  function clearPortalFeeErrors(form) {
+    form.querySelectorAll(".portal-field").forEach((field) => field.classList.remove("is-invalid"));
+    form.querySelectorAll("[data-fee-error-for]").forEach((error) => {
+      error.textContent = "";
+    });
+  }
+
+  function setPortalFeeError(form, fieldName, message) {
+    const error = form.querySelector(`[data-fee-error-for="${fieldName}"]`);
+    const control = form.elements[fieldName];
+    const field = control ? control.closest(".portal-field") : null;
+
+    if (error) {
+      error.textContent = message;
+    }
+    if (field) {
+      field.classList.add("is-invalid");
+    }
+  }
+
+  function resetPortalTimetableForm(form, isAdmin) {
+    if (!form) {
+      return;
+    }
+
+    form.reset();
+
+    if (form.elements.timetableEntryId) {
+      form.elements.timetableEntryId.value = "";
+    }
+
+    if (form.elements.day) {
+      form.elements.day.value = "Monday";
+    }
+
+    const submitButton = form.querySelector("[data-timetable-submit]");
+    const cancelButton = form.querySelector("[data-timetable-cancel]");
+
+    if (submitButton) {
+      submitButton.textContent = "Save timetable row";
+    }
+
+    if (cancelButton) {
+      cancelButton.hidden = true;
+    }
+
+    Array.from(form.elements).forEach((field) => {
+      if (field instanceof HTMLElement) {
+        field.disabled = !isAdmin;
+      }
+    });
+  }
+
+  function populatePortalTimetableForm(form, record, isAdmin) {
+    if (!form || !record) {
+      return;
+    }
+
+    form.elements.timetableEntryId.value = record.id;
+    form.elements.sessionId.value = record.sessionId || "";
+    form.elements.termId.value = record.termId || "";
+    form.elements.classLevel.value = record.classLevel || "";
+    form.elements.day.value = record.day || "Monday";
+    form.elements.startTime.value = record.startTime || "";
+    form.elements.endTime.value = record.endTime || "";
+    form.elements.subject.value = record.subject || "";
+    form.elements.teacher.value = record.teacher || "";
+    form.elements.room.value = record.room || "";
+
+    const submitButton = form.querySelector("[data-timetable-submit]");
+    const cancelButton = form.querySelector("[data-timetable-cancel]");
+
+    if (submitButton) {
+      submitButton.textContent = "Save changes";
+    }
+
+    if (cancelButton) {
+      cancelButton.hidden = !isAdmin;
+    }
+
+    Array.from(form.elements).forEach((field) => {
+      if (field instanceof HTMLElement) {
+        field.disabled = !isAdmin;
+      }
+    });
+  }
+
+  function resetPortalFeeForm(form, isAdmin) {
+    if (!form) {
+      return;
+    }
+
+    form.reset();
+
+    if (form.elements.feeItemId) {
+      form.elements.feeItemId.value = "";
+    }
+
+    const submitButton = form.querySelector("[data-fee-submit]");
+    const cancelButton = form.querySelector("[data-fee-cancel]");
+
+    if (submitButton) {
+      submitButton.textContent = "Save fee item";
+    }
+
+    if (cancelButton) {
+      cancelButton.hidden = true;
+    }
+
+    Array.from(form.elements).forEach((field) => {
+      if (field instanceof HTMLElement) {
+        field.disabled = !isAdmin;
+      }
+    });
+  }
+
+  function populatePortalFeeForm(form, record, isAdmin) {
+    if (!form || !record) {
+      return;
+    }
+
+    form.elements.feeItemId.value = record.id;
+    form.elements.name.value = record.name || "";
+    form.elements.amount.value = record.amount || "";
+    form.elements.classLevel.value = record.classLevel || "";
+    form.elements.sessionId.value = record.sessionId || "";
+    form.elements.termId.value = record.termId || "";
+    form.elements.dueDate.value = record.dueDate || "";
+    form.elements.description.value = record.description || "";
+
+    const submitButton = form.querySelector("[data-fee-submit]");
+    const cancelButton = form.querySelector("[data-fee-cancel]");
+
+    if (submitButton) {
+      submitButton.textContent = "Save changes";
+    }
+
+    if (cancelButton) {
+      cancelButton.hidden = !isAdmin;
+    }
+
+    Array.from(form.elements).forEach((field) => {
+      if (field instanceof HTMLElement) {
+        field.disabled = !isAdmin;
+      }
+    });
+  }
+
+  function formatCurrencyAmount(value) {
+    const amount = Number(value || 0);
+    return new Intl.NumberFormat("en-NG", {
+      style: "currency",
+      currency: "NGN",
+      maximumFractionDigits: 2,
+    }).format(Number.isFinite(amount) ? amount : 0);
+  }
+
   function buildSchoolPreviewHtml(settings, isAdmin) {
     const initial = (settings.schoolName || "S").charAt(0).toUpperCase();
     const yearLabel = settings.academicYearStart
@@ -5592,7 +8555,26 @@
     });
   }
 
-  function renderPortalStaffManagementSection({ isAdmin, summaryTarget, listTarget }) {
+  function getStaffSignInLabel(user) {
+    if (!user) {
+      return "Password";
+    }
+    if (user.provider === "google") {
+      return "Google sign-in";
+    }
+    if (user.mustChangePassword) {
+      return "Default password (change required)";
+    }
+    return "Custom password";
+  }
+
+  function renderPortalStaffManagementSection({
+    isAdmin,
+    summaryTarget,
+    listTarget,
+    searchQuery = "",
+    statusFilter = "all",
+  }) {
     if (!summaryTarget || !listTarget) {
       return;
     }
@@ -5603,102 +8585,68 @@
       .filter(
         (user) =>
           normalizeWorkspaceId(user.workspaceId) === workspaceId &&
-          (user.staffProfileManaged === true || normalizeRoleLabel(user.role) === "Teacher"),
+          normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE) === "Teacher",
       )
       .sort((left, right) => String(right.createdAt || "").localeCompare(String(left.createdAt || "")));
     const activeCount = managedUsers.filter((user) => normalizeUserStatus(user.status) === "active").length;
     const inactiveCount = managedUsers.length - activeCount;
-    const roleCount = AUTH_ROLES.reduce((acc, role) => {
-      acc[role] = managedUsers.filter((user) => normalizeRoleLabel(user.role) === role).length;
-      return acc;
-    }, {});
+    const normalizedQuery = String(searchQuery || "").trim().toLowerCase();
+    const normalizedStatusFilter = String(statusFilter || "all").trim().toLowerCase();
+    const filteredUsers = managedUsers.filter((user) => {
+      const statusToken = normalizeUserStatus(user.status) === "active" ? "active" : "deactivated";
+      if (normalizedStatusFilter !== "all" && statusToken !== normalizedStatusFilter) {
+        return false;
+      }
+      if (!normalizedQuery) {
+        return true;
+      }
+      const nameValue = String(user.displayName || "").toLowerCase();
+      const emailValue = String(user.email || "").toLowerCase();
+      return nameValue.includes(normalizedQuery) || emailValue.includes(normalizedQuery);
+    });
 
     summaryTarget.innerHTML = `
-      <strong>${activeCount} active staff account${activeCount === 1 ? "" : "s"}</strong>
+      <strong>${activeCount} active teacher account${activeCount === 1 ? "" : "s"}</strong>
       <span>${
         isAdmin
-          ? `${inactiveCount} deactivated • Roles: Admin ${roleCount.Admin || 0}, Teacher ${
-              roleCount.Teacher || 0
-            }, Student ${roleCount.Student || 0}, Parent ${roleCount.Parent || 0}.`
-          : "Only administrators can create or update staff profiles and role assignments."
+          ? `${inactiveCount} deactivated teacher account${inactiveCount === 1 ? "" : "s"}.`
+          : "Only administrators can create or update teacher profiles."
       }</span>
     `;
 
     if (!managedUsers.length) {
       listTarget.innerHTML = `
         <article class="portal-class-empty">
-          <strong>No staff profiles yet</strong>
-          <p>Create the first staff profile and assign one of the four standard roles.</p>
+          <strong>No teacher profiles yet</strong>
+          <p>Create the first teacher profile.</p>
         </article>
       `;
       return;
     }
 
-    listTarget.innerHTML = managedUsers
-      .map((user) => {
-        const status = normalizeUserStatus(user.status) === "active" ? "Active" : "Deactivated";
-        const role = normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE);
-        const passwordMode =
-          user.provider === "google"
-            ? "Google sign-in"
-            : user.mustChangePassword
-              ? "Default password (change required)"
-              : "Custom password";
+    if (!filteredUsers.length) {
+      listTarget.innerHTML = `
+        <article class="portal-class-empty">
+          <strong>No teachers match this filter</strong>
+          <p>Try another name, email, or status option.</p>
+        </article>
+      `;
+      return;
+    }
 
+    listTarget.innerHTML = `
+      <div class="portal-staff-name-list">
+        ${filteredUsers
+      .map((user) => {
         return `
-          <article class="portal-class-card">
-            <div class="portal-class-meta">
-              <div class="portal-class-meta-item">
-                <span>Name</span>
-                <strong>${escapeHtml(user.displayName || "Staff User")}</strong>
-              </div>
-              <div class="portal-class-meta-item">
-                <span>Email</span>
-                <strong>${escapeHtml(user.email)}</strong>
-              </div>
-              <div class="portal-class-meta-item">
-                <span>Status</span>
-                <strong>${escapeHtml(status)}</strong>
-              </div>
-              <div class="portal-class-meta-item">
-                <span>Role</span>
-                <strong>${escapeHtml(role)}</strong>
-              </div>
-              <div class="portal-class-meta-item">
-                <span>Sign-in</span>
-                <strong>${escapeHtml(passwordMode)}</strong>
-              </div>
-            </div>
-            <div class="portal-class-extended">
-              <div class="portal-class-extended-item">
-                <span>Phone</span>
-                <strong>${escapeHtml(user.phone || "—")}</strong>
-              </div>
-              <div class="portal-class-extended-item">
-                <span>Department</span>
-                <strong>${escapeHtml(user.department || "—")}</strong>
-              </div>
-              <div class="portal-class-extended-item">
-                <span>Title</span>
-                <strong>${escapeHtml(user.title || "—")}</strong>
-              </div>
-            </div>
-            <div class="portal-class-actions">
-              <button class="portal-class-button" type="button" data-staff-action="edit" data-staff-id="${user.id}" ${
-          isAdmin ? "" : "disabled"
-        }>
-                Edit
-              </button>
-              <button class="portal-class-button ${status === "Active" ? "is-archive" : "is-restore"}" type="button" data-staff-action="${
-          status === "Active" ? "deactivate" : "activate"
-        }" data-staff-id="${user.id}" ${isAdmin ? "" : "disabled"}>
-                ${status === "Active" ? "Deactivate" : "Activate"}
-              </button>
-            </div>
-          </article>
+          <button class="portal-staff-name-item" type="button" data-staff-open="${escapeHtml(user.id)}">
+            <strong>${escapeHtml(user.displayName || user.email || "Teacher")}</strong>
+          </button>
         `;
       })
-      .join("");
+      .join("")}
+      </div>
+    `;
   }
 
   function initStaffManagementControls({ isAdmin, summaryTarget, form, status, listTarget }) {
@@ -5706,12 +8654,162 @@
       return;
     }
 
+    const filterSearchInput = document.getElementById("portal-staff-filter-search");
+    const filterStatusSelect = document.getElementById("portal-staff-filter-status");
+    let searchQuery = String(filterSearchInput?.value || "").trim();
+    let statusFilter = String(filterStatusSelect?.value || "all").trim().toLowerCase() || "all";
+    let selectedStaffId = "";
+    let staffViewOverlay = null;
+    let staffViewGrid = null;
+
+    const ensureStaffViewOverlay = () => {
+      if (staffViewOverlay) {
+        return staffViewOverlay;
+      }
+
+      let overlay = document.getElementById("portal-staff-view-overlay");
+      if (!overlay) {
+        document.body.insertAdjacentHTML(
+          "beforeend",
+          `
+          <div id="portal-staff-view-overlay" class="portal-overlay" hidden>
+            <button class="portal-overlay-backdrop" type="button" data-staff-view-close aria-label="Close teacher details"></button>
+            <section class="portal-overlay-panel portal-overlay-panel-sm" role="dialog" aria-modal="true" aria-labelledby="portal-staff-view-title">
+              <header class="portal-overlay-head">
+                <h3 id="portal-staff-view-title">Teacher details</h3>
+                <button class="portal-overlay-close" type="button" data-staff-view-close aria-label="Close teacher details">&times;</button>
+              </header>
+              <div class="portal-staff-view-content">
+                <div id="portal-staff-view-grid" class="portal-student-view-grid"></div>
+                <div class="portal-class-actions">
+                  <button class="button button-outline" type="button" data-staff-view-edit>Edit profile</button>
+                  <button class="portal-class-button is-archive" type="button" data-staff-view-status>Deactivate</button>
+                  <button class="button button-outline" type="button" data-staff-view-close>Cancel</button>
+                </div>
+              </div>
+            </section>
+          </div>
+          `,
+        );
+        overlay = document.getElementById("portal-staff-view-overlay");
+      }
+
+      staffViewOverlay = overlay;
+      staffViewGrid = document.getElementById("portal-staff-view-grid");
+      return overlay;
+    };
+
+    const setOverlayState = (isVisible) => {
+      const overlay = ensureStaffViewOverlay();
+      if (!overlay) {
+        return;
+      }
+      overlay.hidden = !isVisible;
+      const hasOpenOverlay = Boolean(document.querySelector(".portal-overlay:not([hidden])"));
+      document.body.classList.toggle("portal-overlay-open", hasOpenOverlay);
+      if (!isVisible) {
+        selectedStaffId = "";
+      }
+    };
+
+    const getStaffById = (staffId) => {
+      const workspaceId = getCurrentWorkspaceId();
+      return getUsers().find(
+        (entry) =>
+          entry.id === staffId &&
+          normalizeWorkspaceId(entry.workspaceId) === workspaceId &&
+          normalizeRoleLabel(entry.role || DEFAULT_AUTH_ROLE) === "Teacher",
+      );
+    };
+
+    const renderStaffViewContent = (user) => {
+      if (!staffViewGrid || !user) {
+        return;
+      }
+      const statusValue = normalizeUserStatus(user.status) === "active" ? "Active" : "Deactivated";
+      staffViewGrid.innerHTML = `
+        <div><span>Name</span><strong>${escapeHtml(user.displayName || "Teacher")}</strong></div>
+        <div><span>Email</span><strong>${escapeHtml(user.email || "—")}</strong></div>
+        <div><span>Status</span><strong>${escapeHtml(statusValue)}</strong></div>
+        <div><span>Sign-in</span><strong>${escapeHtml(getStaffSignInLabel(user))}</strong></div>
+        <div><span>Phone</span><strong>${escapeHtml(user.phone || "—")}</strong></div>
+        <div><span>Department</span><strong>${escapeHtml(user.department || "—")}</strong></div>
+        <div><span>Title</span><strong>${escapeHtml(user.title || "—")}</strong></div>
+        <div><span>Created</span><strong>${escapeHtml(formatTimestamp(user.createdAt))}</strong></div>
+      `;
+
+      const overlay = ensureStaffViewOverlay();
+      const editButton = overlay.querySelector("[data-staff-view-edit]");
+      const statusButton = overlay.querySelector("[data-staff-view-status]");
+      if (editButton) {
+        editButton.disabled = !isAdmin;
+      }
+      if (statusButton) {
+        const isActive = normalizeUserStatus(user.status) === "active";
+        statusButton.disabled = !isAdmin;
+        statusButton.dataset.staffNextStatus = isActive ? "deactivated" : "active";
+        statusButton.classList.toggle("is-archive", isActive);
+        statusButton.classList.toggle("is-restore", !isActive);
+        statusButton.textContent = isActive ? "Deactivate" : "Activate";
+      }
+    };
+
+    const openStaffModal = (user) => {
+      const overlay = ensureStaffViewOverlay();
+      if (!overlay || !user) {
+        return;
+      }
+      selectedStaffId = user.id;
+      renderStaffViewContent(user);
+      setOverlayState(true);
+    };
+
+    const applyStaffStatusAction = (user, nextStatus) => {
+      const updatedUser = updateUser(user.id, (currentUser) => ({
+        ...currentUser,
+        status: nextStatus,
+      }));
+      const matchingGrant = getAccessGrants({ workspaceId: getCurrentWorkspaceId() }).find(
+        (grant) => grant.normalizedEmail === normalizeEmail(user.email),
+      );
+      if (matchingGrant) {
+        setAccessGrantStatus(
+          matchingGrant.id,
+          nextStatus === "active" ? "active" : "revoked",
+          getCurrentWorkspaceId(),
+        );
+      }
+      recordAuditEvent({
+        action: nextStatus === "active" ? "activated" : "deactivated",
+        entityType: "staff-account",
+        entityId: user.email,
+        summary: `${nextStatus === "active" ? "Activated" : "Deactivated"} staff account ${user.email}`,
+        details: `Role: ${normalizeRoleLabel(updatedUser?.role || user.role)}`,
+      });
+      refreshStaff();
+      setStatus(
+        status,
+        "success",
+        `Staff account <strong>${escapeHtml(user.email)}</strong> is now <strong>${escapeHtml(nextStatus)}</strong>.`,
+      );
+    };
+
     const refreshStaff = () => {
       renderPortalStaffManagementSection({
         isAdmin,
         summaryTarget,
         listTarget,
+        searchQuery,
+        statusFilter,
       });
+      if (selectedStaffId) {
+        const user = getStaffById(selectedStaffId);
+        if (user) {
+          renderStaffViewContent(user);
+        } else {
+          setOverlayState(false);
+        }
+      }
     };
 
     form.addEventListener("input", () => {
@@ -5723,6 +8821,20 @@
 
     refreshStaff();
     resetPortalStaffForm(form, isAdmin);
+
+    if (filterSearchInput) {
+      filterSearchInput.addEventListener("input", () => {
+        searchQuery = String(filterSearchInput.value || "").trim();
+        refreshStaff();
+      });
+    }
+
+    if (filterStatusSelect) {
+      filterStatusSelect.addEventListener("change", () => {
+        statusFilter = String(filterStatusSelect.value || "all").trim().toLowerCase() || "all";
+        refreshStaff();
+      });
+    }
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -5738,7 +8850,7 @@
       const staffId = String(form.elements.staffId?.value || "").trim();
       const displayName = form.elements.displayName.value.trim();
       const email = form.elements.email.value.trim();
-      const role = normalizeRoleLabel(form.elements.role?.value || DEFAULT_AUTH_ROLE);
+      const role = "Teacher";
       const phone = String(form.elements.phone?.value || "").trim();
       const department = String(form.elements.department?.value || "").trim();
       const title = String(form.elements.title?.value || "").trim();
@@ -5756,11 +8868,6 @@
         hasError = true;
       } else if (!EMAIL_REGEX.test(email)) {
         setPortalStaffError(form, "email", "Enter a valid email format.");
-        hasError = true;
-      }
-
-      if (!AUTH_ROLES.includes(role)) {
-        setPortalStaffError(form, "role", "Select a valid role.");
         hasError = true;
       }
 
@@ -5864,6 +8971,7 @@
       resetPortalStaffForm(form, isAdmin);
       clearFormDraftFor(form);
       refreshStaff();
+      setOverlayState(false);
 
       setStatus(
         status,
@@ -5879,68 +8987,77 @@
     });
 
     listTarget.addEventListener("click", (event) => {
-      const button = event.target.closest("[data-staff-action]");
+      const button = event.target.closest("[data-staff-open]");
 
-      if (!button || !isAdmin) {
+      if (!button) {
         return;
       }
 
-      const staffId = button.dataset.staffId;
-      const action = button.dataset.staffAction;
-      const user = getUsers().find((entry) => entry.id === staffId);
+      const staffId = button.dataset.staffOpen;
+      const user = getStaffById(staffId);
 
-      if (
-        !user ||
-        !(
-          user.staffProfileManaged === true ||
-          AUTH_ROLES.includes(normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE))
-        )
-      ) {
+      if (!user) {
         return;
       }
 
-      if (action === "edit") {
-        clearPortalStaffErrors(form);
-        populatePortalStaffForm(form, user, isAdmin);
-        setStatus(status, "info", `Editing staff account for <strong>${escapeHtml(user.email)}</strong>.`);
-        return;
-      }
+      openStaffModal(user);
+    });
 
-      if (action === "deactivate" || action === "activate") {
-        const nextStatus = action === "activate" ? "active" : "deactivated";
-        const updatedUser = updateUser(user.id, (currentUser) => ({
-          ...currentUser,
-          status: nextStatus,
-        }));
-
-        const matchingGrant = getAccessGrants({ workspaceId: getCurrentWorkspaceId() }).find(
-          (grant) => grant.normalizedEmail === normalizeEmail(user.email),
-        );
-
-        if (matchingGrant) {
-          setAccessGrantStatus(
-            matchingGrant.id,
-            nextStatus === "active" ? "active" : "revoked",
-            getCurrentWorkspaceId(),
-          );
+    const overlay = ensureStaffViewOverlay();
+    if (overlay) {
+      overlay.addEventListener("click", (event) => {
+        const closeButton = event.target.closest("[data-staff-view-close]");
+        if (closeButton) {
+          setOverlayState(false);
+          return;
         }
 
-        recordAuditEvent({
-          action: nextStatus === "active" ? "activated" : "deactivated",
-          entityType: "staff-account",
-          entityId: user.email,
-          summary: `${nextStatus === "active" ? "Activated" : "Deactivated"} staff account ${user.email}`,
-          details: `Role: ${normalizeRoleLabel(updatedUser?.role || user.role)}`,
-        });
+        const editButton = event.target.closest("[data-staff-view-edit]");
+        if (editButton) {
+          if (!isAdmin || !selectedStaffId) {
+            return;
+          }
+          const user = getStaffById(selectedStaffId);
+          if (!user) {
+            setOverlayState(false);
+            return;
+          }
+          clearPortalStaffErrors(form);
+          populatePortalStaffForm(form, user, isAdmin);
+          setStatus(status, "info", `Editing staff account for <strong>${escapeHtml(user.email)}</strong>.`);
+          setOverlayState(false);
+          return;
+        }
 
-        refreshStaff();
-        setStatus(
-          status,
-          "success",
-          `Staff account <strong>${escapeHtml(user.email)}</strong> is now <strong>${escapeHtml(nextStatus)}</strong>.`,
-        );
-      }
-    });
+        const statusButton = event.target.closest("[data-staff-view-status]");
+        if (statusButton) {
+          if (!isAdmin || !selectedStaffId) {
+            return;
+          }
+          const user = getStaffById(selectedStaffId);
+          if (!user) {
+            setOverlayState(false);
+            return;
+          }
+          const nextStatus = String(statusButton.dataset.staffNextStatus || "").trim().toLowerCase() === "active"
+            ? "active"
+            : "deactivated";
+          applyStaffStatusAction(user, nextStatus);
+          const refreshedUser = getStaffById(selectedStaffId);
+          if (refreshedUser) {
+            renderStaffViewContent(refreshedUser);
+          } else {
+            setOverlayState(false);
+          }
+        }
+      });
+
+      window.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !overlay.hidden) {
+          setOverlayState(false);
+        }
+      });
+    }
 
     const cancelButton = form.querySelector("[data-staff-cancel]");
     if (cancelButton) {
@@ -6576,6 +9693,332 @@
     if (!isAdmin) {
       setStatus(status, "info", "Only administrators can create or edit academic calendar events.");
     }
+  }
+
+  function renderAdmissionConfigurationSection({
+    isAdmin,
+    manager,
+    summaryTarget,
+    sessionListTarget,
+    classListTarget,
+    stageListTarget,
+  }) {
+    if (!summaryTarget || !sessionListTarget || !classListTarget || !stageListTarget) {
+      return;
+    }
+
+    if (!manager) {
+      summaryTarget.innerHTML = `
+        <article class="portal-class-stat">
+          <span>Admission config unavailable</span>
+          <strong>0</strong>
+          <p>The admissions configuration manager could not be loaded on this page.</p>
+        </article>
+      `;
+      sessionListTarget.innerHTML = "";
+      classListTarget.innerHTML = "";
+      stageListTarget.innerHTML = "";
+      return;
+    }
+
+    const {
+      sessions,
+      classes,
+      stages,
+      activeSessionCount,
+      activeClassCount,
+      activeStageCount,
+      openSession,
+    } = manager.summarize();
+
+    summaryTarget.innerHTML = `
+      <article class="portal-class-stat portal-class-stat-blue">
+        <span>Admission sessions</span>
+        <strong>${sessions.length}</strong>
+        <p>${activeSessionCount} currently open for applications.</p>
+      </article>
+      <article class="portal-class-stat portal-class-stat-violet">
+        <span>Admission classes</span>
+        <strong>${classes.length}</strong>
+        <p>${activeClassCount} active class options for applicants.</p>
+      </article>
+      <article class="portal-class-stat portal-class-stat-green">
+        <span>Application stages</span>
+        <strong>${stages.length}</strong>
+        <p>${activeStageCount} active stages in the review pipeline.</p>
+      </article>
+      <article class="portal-class-stat portal-class-stat-slate">
+        <span>Open session</span>
+        <strong>${escapeHtml(openSession?.name || "None")}</strong>
+        <p>Applications can be tagged to this active admission cycle.</p>
+      </article>
+    `;
+
+    sessionListTarget.innerHTML = sessions.length
+      ? sessions
+          .map(
+            (entry) => `
+              <article class="portal-class-card">
+                <div class="portal-class-meta">
+                  <div class="portal-class-meta-item"><span>Session</span><strong>${escapeHtml(entry.name)}</strong></div>
+                  <div class="portal-class-meta-item"><span>Window</span><strong>${escapeHtml(entry.startDate || "—")} to ${escapeHtml(entry.endDate || "—")}</strong></div>
+                  <div class="portal-class-meta-item"><span>Status</span><strong>${entry.status === "open" ? "Open" : "Closed"}</strong></div>
+                </div>
+                <div class="portal-class-actions">
+                  <button class="portal-class-button" type="button" data-admission-session-action="edit" data-admission-session-id="${entry.id}" ${isAdmin ? "" : "disabled"}>Edit</button>
+                  <button class="portal-class-button ${entry.status === "open" ? "is-archive" : "is-restore"}" type="button" data-admission-session-action="${entry.status === "open" ? "close" : "open"}" data-admission-session-id="${entry.id}" ${isAdmin ? "" : "disabled"}>${entry.status === "open" ? "Close session" : "Open session"}</button>
+                </div>
+              </article>
+            `,
+          )
+          .join("")
+      : `
+          <article class="portal-class-empty">
+            <strong>No admission sessions yet</strong>
+            <p>Create an admission session so applications can be organized by intake cycle.</p>
+          </article>
+        `;
+
+    classListTarget.innerHTML = classes.length
+      ? classes
+          .map(
+            (entry) => `
+              <article class="portal-class-card">
+                <div class="portal-class-meta">
+                  <div class="portal-class-meta-item"><span>Class option</span><strong>${escapeHtml(entry.name)}</strong></div>
+                  <div class="portal-class-meta-item"><span>Status</span><strong>${entry.status === "active" ? "Active" : "Archived"}</strong></div>
+                  <div class="portal-class-meta-item"><span>Updated</span><strong>${escapeHtml(formatTimestamp(entry.updatedAt))}</strong></div>
+                </div>
+                <div class="portal-class-actions">
+                  <button class="portal-class-button" type="button" data-admission-class-action="edit" data-admission-class-id="${entry.id}" ${isAdmin ? "" : "disabled"}>Edit</button>
+                  <button class="portal-class-button ${entry.status === "active" ? "is-archive" : "is-restore"}" type="button" data-admission-class-action="${entry.status === "active" ? "archive" : "activate"}" data-admission-class-id="${entry.id}" ${isAdmin ? "" : "disabled"}>${entry.status === "active" ? "Archive" : "Reactivate"}</button>
+                </div>
+              </article>
+            `,
+          )
+          .join("")
+      : `
+          <article class="portal-class-empty">
+            <strong>No class options yet</strong>
+            <p>Add class options that should appear in the admission workflow.</p>
+          </article>
+        `;
+
+    stageListTarget.innerHTML = stages.length
+      ? stages
+          .map(
+            (entry) => `
+              <article class="portal-class-card">
+                <div class="portal-class-meta">
+                  <div class="portal-class-meta-item"><span>Order</span><strong>${entry.order}</strong></div>
+                  <div class="portal-class-meta-item"><span>Stage</span><strong>${escapeHtml(entry.name)}</strong></div>
+                  <div class="portal-class-meta-item"><span>Status</span><strong>${entry.status === "active" ? "Active" : "Archived"}</strong></div>
+                </div>
+                <div class="portal-class-actions">
+                  <button class="portal-class-button" type="button" data-admission-stage-action="edit" data-admission-stage-id="${entry.id}" ${isAdmin ? "" : "disabled"}>Edit</button>
+                  <button class="portal-class-button ${entry.status === "active" ? "is-archive" : "is-restore"}" type="button" data-admission-stage-action="${entry.status === "active" ? "archive" : "activate"}" data-admission-stage-id="${entry.id}" ${isAdmin ? "" : "disabled"}>${entry.status === "active" ? "Archive" : "Reactivate"}</button>
+                </div>
+              </article>
+            `,
+          )
+          .join("")
+      : `
+          <article class="portal-class-empty">
+            <strong>No stages configured</strong>
+            <p>Add the stages your admissions team uses for screening and approval.</p>
+          </article>
+        `;
+  }
+
+  function getTermLabelFromCycle(cycleState, termId) {
+    const target = (cycleState?.terms || []).find((term) => term.id === termId);
+    return target ? target.name : "Unmapped term";
+  }
+
+  function getSessionLabelFromCycle(cycleState, sessionId) {
+    const target = (cycleState?.sessions || []).find((session) => session.id === sessionId);
+    return target ? target.name : "Unmapped session";
+  }
+
+  function renderTimetableSection({ isAdmin, manager, summaryTarget, listTarget }) {
+    if (!summaryTarget || !listTarget) {
+      return;
+    }
+
+    if (!manager) {
+      summaryTarget.innerHTML = `
+        <article class="portal-class-stat">
+          <span>Timetable unavailable</span>
+          <strong>0</strong>
+          <p>The timetable manager could not be loaded on this page.</p>
+        </article>
+      `;
+      listTarget.innerHTML = "";
+      return;
+    }
+
+    const { grouped, publishedCount, draftCount, archivedCount, classCount } = manager.summarize();
+    const cycleManager = getAcademicCycleManager();
+    const cycleState = cycleManager && typeof cycleManager.getState === "function"
+      ? cycleManager.getState()
+      : { sessions: [], terms: [] };
+
+    summaryTarget.innerHTML = `
+      <article class="portal-class-stat portal-class-stat-blue">
+        <span>Class groups</span>
+        <strong>${grouped.length}</strong>
+        <p>Timetable groups across class, term, and session.</p>
+      </article>
+      <article class="portal-class-stat portal-class-stat-violet">
+        <span>Published rows</span>
+        <strong>${publishedCount}</strong>
+        <p>Visible timetable rows currently published.</p>
+      </article>
+      <article class="portal-class-stat portal-class-stat-amber">
+        <span>Draft rows</span>
+        <strong>${draftCount}</strong>
+        <p>Rows awaiting publish action.</p>
+      </article>
+      <article class="portal-class-stat portal-class-stat-green">
+        <span>Classes covered</span>
+        <strong>${classCount}</strong>
+        <p>Unique classes with timetable rows.</p>
+      </article>
+      <article class="portal-class-stat portal-class-stat-slate">
+        <span>Archived rows</span>
+        <strong>${archivedCount}</strong>
+        <p>Hidden rows retained for audit history.</p>
+      </article>
+    `;
+
+    listTarget.innerHTML = grouped.length
+      ? grouped
+          .map((group) => {
+            const sessionName = getSessionLabelFromCycle(cycleState, group.sessionId);
+            const termName = getTermLabelFromCycle(cycleState, group.termId);
+            return `
+              <article class="portal-class-card">
+                <div class="portal-class-card-head">
+                  <div class="portal-class-title">
+                    <strong>${escapeHtml(group.classLevel)}</strong>
+                    <span>${escapeHtml(sessionName)} • ${escapeHtml(termName)} • ${group.rows.length} row${group.rows.length === 1 ? "" : "s"}</span>
+                  </div>
+                  <span class="portal-class-status ${group.isPublished ? "is-active" : "is-archived"}">${group.isPublished ? "Published" : "Draft"}</span>
+                </div>
+                <div class="portal-class-actions">
+                  <button class="portal-class-button ${group.isPublished ? "is-archive" : "is-restore"}" type="button" data-timetable-group-action="${group.isPublished ? "unpublish" : "publish"}" data-timetable-session-id="${escapeHtml(group.sessionId)}" data-timetable-term-id="${escapeHtml(group.termId)}" data-timetable-class="${escapeHtml(group.classLevel)}" ${isAdmin ? "" : "disabled"}>${group.isPublished ? "Unpublish group" : "Publish group"}</button>
+                </div>
+                <div class="portal-class-list" style="margin-top:12px">
+                  ${group.rows
+                    .map(
+                      (row) => `
+                        <div class="portal-class-card" style="padding:14px;border-radius:16px">
+                          <div class="portal-class-meta" style="margin-top:0">
+                            <div class="portal-class-meta-item"><span>Day</span><strong>${escapeHtml(row.day)}</strong></div>
+                            <div class="portal-class-meta-item"><span>Time</span><strong>${escapeHtml(row.startTime)} - ${escapeHtml(row.endTime)}</strong></div>
+                            <div class="portal-class-meta-item"><span>Subject</span><strong>${escapeHtml(row.subject)}</strong></div>
+                            <div class="portal-class-meta-item"><span>Teacher</span><strong>${escapeHtml(row.teacher)}</strong></div>
+                            <div class="portal-class-meta-item"><span>Room</span><strong>${escapeHtml(row.room || "—")}</strong></div>
+                            <div class="portal-class-meta-item"><span>Status</span><strong>${escapeHtml(row.status)}</strong></div>
+                          </div>
+                          <div class="portal-class-actions">
+                            <button class="portal-class-button" type="button" data-timetable-action="edit" data-timetable-id="${row.id}" ${isAdmin ? "" : "disabled"}>Edit</button>
+                            <button class="portal-class-button ${row.status === "archived" ? "is-restore" : "is-archive"}" type="button" data-timetable-action="${row.status === "archived" ? "activate" : "archive"}" data-timetable-id="${row.id}" ${isAdmin ? "" : "disabled"}>${row.status === "archived" ? "Reactivate" : "Archive"}</button>
+                          </div>
+                        </div>
+                      `,
+                    )
+                    .join("")}
+                </div>
+              </article>
+            `;
+          })
+          .join("")
+      : `
+          <article class="portal-class-empty">
+            <strong>No timetable rows yet</strong>
+            <p>Create class timetable rows, then publish each class group when ready.</p>
+          </article>
+        `;
+  }
+
+  function renderFeeManagementSection({ isAdmin, manager, summaryTarget, listTarget }) {
+    if (!summaryTarget || !listTarget) {
+      return;
+    }
+
+    if (!manager) {
+      summaryTarget.innerHTML = `
+        <article class="portal-class-stat">
+          <span>Fee tools unavailable</span>
+          <strong>0</strong>
+          <p>The fee item manager could not be loaded on this page.</p>
+        </article>
+      `;
+      listTarget.innerHTML = "";
+      return;
+    }
+
+    const { items, activeCount, archivedCount, classCount, activeAmount } = manager.summarize();
+    const cycleManager = getAcademicCycleManager();
+    const cycleState = cycleManager && typeof cycleManager.getState === "function"
+      ? cycleManager.getState()
+      : { sessions: [], terms: [] };
+
+    summaryTarget.innerHTML = `
+      <article class="portal-class-stat portal-class-stat-blue">
+        <span>Active fee items</span>
+        <strong>${activeCount}</strong>
+        <p>Fee lines currently available to billing operations.</p>
+      </article>
+      <article class="portal-class-stat portal-class-stat-violet">
+        <span>Archived fee items</span>
+        <strong>${archivedCount}</strong>
+        <p>Previous fee lines retained for traceability.</p>
+      </article>
+      <article class="portal-class-stat portal-class-stat-green">
+        <span>Classes covered</span>
+        <strong>${classCount}</strong>
+        <p>Unique class levels with configured fees.</p>
+      </article>
+      <article class="portal-class-stat portal-class-stat-amber">
+        <span>Total active value</span>
+        <strong>${escapeHtml(formatCurrencyAmount(activeAmount))}</strong>
+        <p>Combined amount across active fee items.</p>
+      </article>
+    `;
+
+    listTarget.innerHTML = items.length
+      ? items
+          .map((item) => `
+            <article class="portal-class-card ${item.status === "archived" ? "is-archived" : ""}">
+              <div class="portal-class-meta">
+                <div class="portal-class-meta-item"><span>Item</span><strong>${escapeHtml(item.name)}</strong></div>
+                <div class="portal-class-meta-item"><span>Amount</span><strong>${escapeHtml(formatCurrencyAmount(item.amount))}</strong></div>
+                <div class="portal-class-meta-item"><span>Class</span><strong>${escapeHtml(item.classLevel)}</strong></div>
+                <div class="portal-class-meta-item"><span>Session</span><strong>${escapeHtml(getSessionLabelFromCycle(cycleState, item.sessionId))}</strong></div>
+                <div class="portal-class-meta-item"><span>Term</span><strong>${escapeHtml(getTermLabelFromCycle(cycleState, item.termId))}</strong></div>
+                <div class="portal-class-meta-item"><span>Due Date</span><strong>${escapeHtml(item.dueDate || "Not set")}</strong></div>
+              </div>
+              <div class="portal-class-extended">
+                <div class="portal-class-extended-item portal-class-extended-item-span">
+                  <span>Description</span>
+                  <strong>${escapeHtml(item.description || "No description")}</strong>
+                </div>
+              </div>
+              <div class="portal-class-actions">
+                <button class="portal-class-button" type="button" data-fee-action="edit" data-fee-id="${item.id}" ${isAdmin ? "" : "disabled"}>Edit</button>
+                <button class="portal-class-button ${item.status === "archived" ? "is-restore" : "is-archive"}" type="button" data-fee-action="${item.status === "archived" ? "activate" : "archive"}" data-fee-id="${item.id}" ${isAdmin ? "" : "disabled"}>${item.status === "archived" ? "Reactivate" : "Archive"}</button>
+              </div>
+            </article>
+          `)
+          .join("")
+      : `
+          <article class="portal-class-empty">
+            <strong>No fee items yet</strong>
+            <p>Create fee items and map each to class, session, and term.</p>
+          </article>
+        `;
   }
 
   function renderPortalStudentManagementSection({
@@ -10042,9 +13485,16 @@
 
     const params = new URLSearchParams(window.location.search);
     const rawWorkspace = String(params.get("workspace") || "").trim();
+    const rawInstitutionId = String(params.get("institution") || "").trim();
     const prefilledWorkspace = rawWorkspace ? normalizeWorkspaceId(rawWorkspace) : "";
+    const prefilledInstitutionId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      rawInstitutionId,
+    )
+      ? rawInstitutionId
+      : "";
     const lockedWorkspaceId =
       prefilledWorkspace && prefilledWorkspace !== "public" ? prefilledWorkspace : "";
+    const lockedInstitutionId = prefilledInstitutionId;
 
     if (lockedWorkspaceId) {
       workspaceInput.value = lockedWorkspaceId;
@@ -10293,7 +13743,7 @@
       });
     });
 
-    form.addEventListener("submit", (event) => {
+    form.addEventListener("submit", async (event) => {
       event.preventDefault();
 
       if (activeStepIndex !== stepSections.length - 1) {
@@ -10324,13 +13774,45 @@
       }
 
       payload.level = payload.classApplyingFor || payload.academicClassApplyingFor;
+      const admissionConfigManager = getAdmissionConfigManager();
+      const admissionConfig =
+        admissionConfigManager && typeof admissionConfigManager.summarize === "function"
+          ? admissionConfigManager.summarize()
+          : null;
+      const openAdmissionSession = admissionConfig?.openSession || null;
+      const firstActiveStage = (admissionConfig?.activeStages || [])[0] || null;
+      payload.admissionSessionId = openAdmissionSession?.id || "";
+      payload.admissionSessionName = openAdmissionSession?.name || "";
+      payload.applicationStage = firstActiveStage?.name || "Submitted";
 
-      const admissions = upsertAdmission(payload, workspaceId);
-      const latest = admissions[0] || payload;
+      let savedPayload = payload;
+
+      if (isSupabaseConfigured()) {
+        const remoteSubmitResult = await submitPublicAdmissionToSupabase({
+          workspaceId,
+          institutionId: lockedInstitutionId,
+          payload,
+        });
+
+        if (!remoteSubmitResult.ok) {
+          setStatus(status, "error", escapeHtml(remoteSubmitResult.message || "Could not submit application."));
+          return;
+        }
+
+        if (remoteSubmitResult.record && typeof remoteSubmitResult.record === "object") {
+          savedPayload = {
+            ...payload,
+            ...remoteSubmitResult.record,
+          };
+        }
+      }
+
+      const admissions = upsertAdmission(savedPayload, workspaceId);
+      const latest = admissions[0] || savedPayload;
       pushNotification(
         {
-          title: `New application: ${payload.fullName}`,
-          message: `${payload.level} application submitted by guardian ${payload.guardianFullName}.`,
+          title: `New application: ${savedPayload.fullName}`,
+          message: `${savedPayload.level} application submitted by guardian ${savedPayload.guardianFullName}.`,
           entityType: "admission-application",
           entityId: latest.id || "",
           action: "submitted",
@@ -10347,7 +13829,7 @@
       setStatus(
         status,
         "success",
-        `Application submitted successfully for <strong>${escapeHtml(payload.fullName)}</strong>. The school admin will review and update the status.`,
+        `Application submitted successfully for <strong>${escapeHtml(savedPayload.fullName)}</strong>. The school admin will review and update the status.`,
       );
     });
 
@@ -10818,8 +14300,16 @@
   }
 
   function saveParentFeesState(state, workspaceId = null) {
-    const key = getParentFeesStorageKey(workspaceId);
+    const resolvedWorkspaceId = normalizeWorkspaceId(workspaceId || getCurrentWorkspaceId());
+    const key = getParentFeesStorageKey(resolvedWorkspaceId);
     localStorage.setItem(key, JSON.stringify(state && typeof state === "object" ? state : {}));
+    window.dispatchEvent(
+      new CustomEvent(PARENT_FEES_EVENT_NAME, {
+        detail: {
+          workspaceId: resolvedWorkspaceId,
+        },
+      }),
+    );
   }
 
   function deriveParentAttendanceSummary(student = null) {
@@ -11533,55 +15023,19 @@
       return;
     }
 
-    target.innerHTML = admissions
-      .map(
-        (entry) => {
-          const isApproved = normalizeAdmissionStatus(entry.status) === "approved";
-          const isConverted = Boolean(String(entry.convertedAt || "").trim());
-          return `
-          <article class="portal-class-card">
-            <div class="portal-class-meta">
-              <div class="portal-class-meta-item"><span>Applicant</span><strong>${escapeHtml(entry.fullName)}</strong></div>
-              <div class="portal-class-meta-item"><span>Class Applying For</span><strong>${escapeHtml(entry.classApplyingFor || entry.academicClassApplyingFor || entry.level)}</strong></div>
-              <div class="portal-class-meta-item"><span>Gender / DOB</span><strong>${escapeHtml(entry.gender || "—")} • ${escapeHtml(entry.dateOfBirth || "—")}</strong></div>
-              <div class="portal-class-meta-item"><span>Status</span><strong>${escapeHtml(statusLabelForAdmission(entry.status))}</strong></div>
-              <div class="portal-class-meta-item"><span>Applied</span><strong>${escapeHtml(formatTimestamp(entry.createdAt))}</strong></div>
-            </div>
-            <div class="portal-class-extended">
-              <div class="portal-class-extended-item"><span>Email</span><strong>${escapeHtml(entry.email || "—")}</strong></div>
-              <div class="portal-class-extended-item"><span>Guardian</span><strong>${escapeHtml(entry.guardianFullName || entry.guardianName || "—")} (${escapeHtml(entry.guardianRelationship || "—")})</strong></div>
-              <div class="portal-class-extended-item"><span>Guardian Contact</span><strong>${escapeHtml(entry.guardianPhone || "—")} • ${escapeHtml(entry.guardianEmail || "—")}</strong></div>
-              <div class="portal-class-extended-item"><span>Guardian Address</span><strong>${escapeHtml(entry.guardianAddress || "—")}</strong></div>
-              <div class="portal-class-extended-item"><span>Academic Background</span><strong>${escapeHtml(entry.lastClassAttended || "—")} → ${escapeHtml(entry.academicClassApplyingFor || "—")}</strong></div>
-              <div class="portal-class-extended-item"><span>Previous School</span><strong>${escapeHtml(entry.previousSchool || entry.previousSchoolName || "—")}</strong></div>
-              <div class="portal-class-extended-item"><span>Health</span><strong>${escapeHtml(`${entry.healthCondition || "—"}${entry.healthConditionDetails ? ` • Condition: ${entry.healthConditionDetails}` : ""}${entry.healthAllergies ? ` • Allergies: ${entry.healthAllergies}` : ""}`)}</strong></div>
-              <div class="portal-class-extended-item"><span>Uploaded Documents</span><strong>${escapeHtml(
-                [
-                  entry.passportPhotoName,
-                  entry.docBirthCertificateName,
-                  entry.docPreviousReportName,
-                  entry.docPreviousSchoolResultName,
-                  entry.docTransferCertificateName,
-                  entry.docPassportPhotographName,
-                  entry.docOtherName,
-                ]
-                  .filter(Boolean)
-                  .join(", ") || "None",
-              )}</strong></div>
-              <div class="portal-class-extended-item"><span>Student Conversion</span><strong>${isConverted ? `Converted on ${escapeHtml(formatTimestamp(entry.convertedAt))}` : "Not converted yet"}</strong></div>
-            </div>
-            <div class="portal-class-actions">
-              <button class="portal-class-button" type="button" data-admission-action="review" data-admission-id="${entry.id}" ${isAdmin ? "" : "disabled"}>Review</button>
-              <button class="portal-class-button" type="button" data-admission-action="shortlisted" data-admission-id="${entry.id}" ${isAdmin ? "" : "disabled"}>Shortlist</button>
-              <button class="portal-class-button is-archive" type="button" data-admission-action="rejected" data-admission-id="${entry.id}" ${isAdmin ? "" : "disabled"}>Reject</button>
-              <button class="portal-class-button is-restore" type="button" data-admission-action="approved" data-admission-id="${entry.id}" ${isAdmin ? "" : "disabled"}>Accept</button>
-              <button class="portal-class-button" type="button" data-admission-action="convert" data-admission-id="${entry.id}" ${isAdmin && isApproved && !isConverted ? "" : "disabled"}>${isConverted ? "Converted" : "Convert to Student"}</button>
-            </div>
-          </article>
-        `;
-        },
-      )
-      .join("");
+    target.innerHTML = `
+      <div class="portal-admission-name-list">
+        ${admissions
+          .map((entry) => {
+            return `
+              <button class="portal-admission-name-item" type="button" data-admission-open="${escapeHtml(entry.id)}">
+                <span class="portal-admission-name-main">${escapeHtml(entry.fullName)}</span>
+              </button>
+            `;
+          })
+          .join("")}
+      </div>
+    `;
   }
 
   function initAdmissionsControls({ isAdmin, form, status, summaryTarget, listTarget, applyLinkTarget }) {
@@ -11674,31 +15128,147 @@
       renderAdmissionsList(listTarget, admissions, isAdmin);
     };
 
-    if (applyLinkTarget) {
-      const linkUrl = new URL("./admissions-apply.html", window.location.href);
-      linkUrl.searchParams.set("workspace", workspaceId);
-      applyLinkTarget.href = linkUrl.toString();
-      applyLinkTarget.textContent = "Open/Share Application Form";
+    let modalElement = null;
+    let modalBody = null;
+    let activeAdmissionId = "";
 
+    const setModalOpen = (isOpen) => {
+      if (!modalElement) return;
+      modalElement.hidden = !isOpen;
+      document.body.classList.toggle("portal-admission-modal-open", isOpen);
+    };
+
+    const ensureModal = () => {
+      if (modalElement) {
+        return modalElement;
+      }
+
+      const wrapper = document.createElement("div");
+      wrapper.innerHTML = `
+        <div id="portal-admission-modal" class="portal-admission-modal" hidden>
+          <button class="portal-admission-modal-backdrop" type="button" data-admission-close aria-label="Close application details"></button>
+          <section class="portal-admission-modal-panel" role="dialog" aria-modal="true" aria-labelledby="portal-admission-modal-title">
+            <header class="portal-admission-modal-head">
+              <h2 id="portal-admission-modal-title">Application details</h2>
+              <button class="portal-admission-modal-close" type="button" data-admission-close aria-label="Close">&times;</button>
+            </header>
+            <div id="portal-admission-modal-body" class="portal-admission-modal-body"></div>
+          </section>
+        </div>
+      `;
+      document.body.appendChild(wrapper.firstElementChild);
+      modalElement = document.getElementById("portal-admission-modal");
+      modalBody = document.getElementById("portal-admission-modal-body");
+
+      modalElement.addEventListener("click", async (event) => {
+        const closeButton = event.target.closest("[data-admission-close]");
+        if (closeButton) {
+          setModalOpen(false);
+          return;
+        }
+
+        const actionButton = event.target.closest("[data-admission-action]");
+        if (!actionButton || !isAdmin) {
+          return;
+        }
+
+        const action = String(actionButton.dataset.admissionAction || "").trim().toLowerCase();
+        const admissionId = String(actionButton.dataset.admissionId || activeAdmissionId || "").trim();
+        if (!admissionId || !action) {
+          return;
+        }
+        await handleAdmissionAction(admissionId, action);
+      });
+
+      return modalElement;
+    };
+
+    const renderModalBody = (admission) => {
+      if (!modalBody || !admission) return;
+      const isApproved = normalizeAdmissionStatus(admission.status) === "approved";
+      const isConverted = Boolean(String(admission.convertedAt || "").trim());
+
+      modalBody.innerHTML = `
+        <div class="portal-admission-modal-grid">
+          <div class="portal-admission-modal-item"><span>Applicant</span><strong>${escapeHtml(admission.fullName)}</strong></div>
+          <div class="portal-admission-modal-item"><span>Class Applying For</span><strong>${escapeHtml(admission.classApplyingFor || admission.academicClassApplyingFor || admission.level || "—")}</strong></div>
+          <div class="portal-admission-modal-item"><span>Status</span><strong>${escapeHtml(statusLabelForAdmission(admission.status))}</strong></div>
+          <div class="portal-admission-modal-item"><span>Stage</span><strong>${escapeHtml(admission.applicationStage || "Submitted")}</strong></div>
+          <div class="portal-admission-modal-item"><span>Gender / DOB</span><strong>${escapeHtml(admission.gender || "—")} • ${escapeHtml(admission.dateOfBirth || "—")}</strong></div>
+          <div class="portal-admission-modal-item"><span>Applied</span><strong>${escapeHtml(formatTimestamp(admission.createdAt))}</strong></div>
+          <div class="portal-admission-modal-item"><span>Email</span><strong>${escapeHtml(admission.email || "—")}</strong></div>
+          <div class="portal-admission-modal-item"><span>Guardian</span><strong>${escapeHtml(admission.guardianFullName || admission.guardianName || "—")}</strong></div>
+          <div class="portal-admission-modal-item"><span>Guardian Contact</span><strong>${escapeHtml(admission.guardianPhone || "—")} • ${escapeHtml(admission.guardianEmail || "—")}</strong></div>
+          <div class="portal-admission-modal-item"><span>Guardian Relationship</span><strong>${escapeHtml(admission.guardianRelationship || "—")}</strong></div>
+          <div class="portal-admission-modal-item"><span>Address</span><strong>${escapeHtml(admission.guardianAddress || "—")}</strong></div>
+          <div class="portal-admission-modal-item"><span>Academic Background</span><strong>${escapeHtml(admission.lastClassAttended || "—")} → ${escapeHtml(admission.academicClassApplyingFor || "—")}</strong></div>
+        </div>
+        <div class="portal-admission-modal-actions">
+          <button class="portal-class-button" type="button" data-admission-action="review" data-admission-id="${escapeHtml(admission.id)}" ${isAdmin ? "" : "disabled"}>Review</button>
+          <button class="portal-class-button" type="button" data-admission-action="shortlisted" data-admission-id="${escapeHtml(admission.id)}" ${isAdmin ? "" : "disabled"}>Shortlist</button>
+          <button class="portal-class-button is-archive" type="button" data-admission-action="rejected" data-admission-id="${escapeHtml(admission.id)}" ${isAdmin ? "" : "disabled"}>Reject</button>
+          <button class="portal-class-button is-restore" type="button" data-admission-action="approved" data-admission-id="${escapeHtml(admission.id)}" ${isAdmin ? "" : "disabled"}>Accept</button>
+          <button class="portal-class-button" type="button" data-admission-action="convert" data-admission-id="${escapeHtml(admission.id)}" ${isAdmin && isApproved && !isConverted ? "" : "disabled"}>${isConverted ? "Converted" : "Convert to Student"}</button>
+        </div>
+      `;
+    };
+
+    const openAdmissionModal = (admissionId) => {
+      const admission = getAdmissions(workspaceId).find((entry) => entry.id === admissionId);
+      if (!admission) {
+        setStatus(status, "error", "Application not found.");
+        return;
+      }
+      ensureModal();
+      activeAdmissionId = admissionId;
+      renderModalBody(admission);
+      setModalOpen(true);
+    };
+
+    if (applyLinkTarget) {
       const linkValueInput = document.getElementById("portal-admission-link-value");
       const copyLinkButton = document.getElementById("portal-admission-copy-link");
       const qrImage = document.getElementById("portal-admission-qr-image");
-      const normalizedLink = linkUrl.toString();
+      let currentApplyLink = "";
 
-      if (linkValueInput) {
-        linkValueInput.value = normalizedLink;
-      }
+      const renderApplyLink = (institutionId = "") => {
+        const linkUrl = new URL("./admissions-apply.html", window.location.href);
+        linkUrl.searchParams.set("workspace", workspaceId);
+        if (institutionId) {
+          linkUrl.searchParams.set("institution", institutionId);
+        }
 
-      if (qrImage) {
-        qrImage.src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
-          normalizedLink,
-        )}`;
+        currentApplyLink = linkUrl.toString();
+        applyLinkTarget.href = currentApplyLink;
+        applyLinkTarget.textContent = "Open/Share Application Form";
+
+        if (linkValueInput) {
+          linkValueInput.value = currentApplyLink;
+        }
+
+        if (qrImage) {
+          qrImage.src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
+            currentApplyLink,
+          )}`;
+        }
+      };
+
+      renderApplyLink();
+
+      if (isSupabaseConfigured()) {
+        getSupabaseInstitutionContext().then((context) => {
+          if (context?.institutionId) {
+            renderApplyLink(context.institutionId);
+          }
+        }).catch(() => {
+          // Keep workspace-only apply link when institution lookup fails.
+        });
       }
 
       if (copyLinkButton) {
         copyLinkButton.addEventListener("click", async () => {
           try {
-            await navigator.clipboard.writeText(normalizedLink);
+            await navigator.clipboard.writeText(currentApplyLink);
             setStatus(status, "success", "Application link copied.");
           } catch {
             setStatus(status, "info", "Copy failed on this browser. You can copy the link from the input.");
@@ -11733,6 +15303,17 @@
         status: "pending",
         source: "admin",
       };
+
+      const admissionConfigManager = getAdmissionConfigManager();
+      const admissionConfig =
+        admissionConfigManager && typeof admissionConfigManager.summarize === "function"
+          ? admissionConfigManager.summarize()
+          : null;
+      const openAdmissionSession = admissionConfig?.openSession || null;
+      const firstActiveStage = (admissionConfig?.activeStages || [])[0] || null;
+      payload.admissionSessionId = openAdmissionSession?.id || "";
+      payload.admissionSessionName = openAdmissionSession?.name || "";
+      payload.applicationStage = firstActiveStage?.name || "Submitted";
 
       if (!payload.fullName || !payload.level || !payload.guardianName || !payload.guardianEmail) {
         setStatus(status, "error", "Full name, level, guardian name, and guardian email are required.");
@@ -11776,16 +15357,7 @@
       setStatus(status, "success", `Application for <strong>${escapeHtml(payload.fullName)}</strong> added.`);
     });
 
-    listTarget.addEventListener("click", async (event) => {
-      const button = event.target.closest("[data-admission-action]");
-
-      if (!button || !isAdmin) {
-        return;
-      }
-
-      const admissionId = String(button.dataset.admissionId || "");
-      const action = String(button.dataset.admissionAction || "").trim().toLowerCase();
-
+    const handleAdmissionAction = async (admissionId, action) => {
       if (action === "convert") {
         if (!studentManager || typeof studentManager.upsertStudent !== "function") {
           setStatus(status, "error", "Student manager is not available right now.");
@@ -11860,6 +15432,9 @@
           : "";
 
         refresh();
+        if (modalElement && !modalElement.hidden) {
+          openAdmissionModal(admission.id);
+        }
         setStatus(
           status,
           "success",
@@ -11902,7 +15477,22 @@
       );
 
       refresh();
+      if (modalElement && !modalElement.hidden) {
+        openAdmissionModal(updated.id);
+      }
       setStatus(status, "success", `Application moved to <strong>${escapeHtml(statusLabelForAdmission(nextStatus))}</strong>.`);
+    };
+
+    listTarget.addEventListener("click", (event) => {
+      const entryButton = event.target.closest("[data-admission-open]");
+      if (!entryButton) {
+        return;
+      }
+      const admissionId = String(entryButton.dataset.admissionOpen || "").trim();
+      if (!admissionId) {
+        return;
+      }
+      openAdmissionModal(admissionId);
     });
 
     window.addEventListener(ADMISSIONS_EVENT_NAME, (event) => {
@@ -12044,6 +15634,11 @@
     const calendarForm = document.getElementById("portal-academic-calendar-form");
     const calendarStatus = document.getElementById("portal-academic-calendar-status");
     const calendarList = document.getElementById("portal-academic-calendar-list");
+    const timetableManager = getTimetableManager();
+    const timetableSummary = document.getElementById("portal-timetable-summary");
+    const timetableForm = document.getElementById("portal-timetable-form");
+    const timetableStatus = document.getElementById("portal-timetable-status");
+    const timetableList = document.getElementById("portal-timetable-list");
 
     initAcademicCalendarControls({
       isAdmin: canManageSchedule,
@@ -12052,6 +15647,38 @@
       form: calendarForm,
       status: calendarStatus,
       listTarget: calendarList,
+    });
+
+    initTimetableControls({
+      isAdmin: canManageSchedule,
+      manager: timetableManager,
+      summaryTarget: timetableSummary,
+      form: timetableForm,
+      status: timetableStatus,
+      listTarget: timetableList,
+    });
+  }
+
+  function initAdminFeesPage() {
+    if (getPage() !== "admin-fees") {
+      return;
+    }
+
+    const { isAdmin, roleLabel } = getAdminAccessContext();
+    const canManageFees = isAdmin && canAccessPermission(roleLabel, PAGE_PERMISSION_KEYS["admin-fees"]);
+    const feeManager = getFeeItemManager();
+    const feeSummary = document.getElementById("portal-fee-summary");
+    const feeForm = document.getElementById("portal-fee-form");
+    const feeStatus = document.getElementById("portal-fee-status");
+    const feeList = document.getElementById("portal-fee-list");
+
+    initFeeManagementControls({
+      isAdmin: canManageFees,
+      manager: feeManager,
+      summaryTarget: feeSummary,
+      form: feeForm,
+      status: feeStatus,
+      listTarget: feeList,
     });
   }
 
@@ -12065,12 +15692,14 @@
     const featureModuleManager = getFeatureModuleManager();
     const featureToggleSummary = document.getElementById("portal-feature-toggle-summary");
     const featureToggleGrid = document.getElementById("portal-feature-toggle-grid");
+    const featureToggleStatus = document.getElementById("portal-feature-toggle-status");
 
     initFeatureToggleControls({
       isAdmin: canManageModules,
       manager: featureModuleManager,
       summaryTarget: featureToggleSummary,
       gridTarget: featureToggleGrid,
+      statusTarget: featureToggleStatus,
     });
   }
 
@@ -12096,6 +15725,7 @@
     const accessList = document.getElementById("portal-access-list");
     const rolePermissionSummary = document.getElementById("portal-role-permission-summary");
     const rolePermissionGrid = document.getElementById("portal-role-permission-grid");
+    const rolePermissionStatus = document.getElementById("portal-role-permission-status");
     const resetRolePermissionsButton = document.querySelector("[data-reset-role-permissions]");
     const academicCycleSummary = document.getElementById("portal-academic-cycle-summary");
     const sessionForm = document.getElementById("portal-session-form");
@@ -12104,6 +15734,8 @@
     const termForm = document.getElementById("portal-term-form");
     const termStatus = document.getElementById("portal-term-status");
     const termList = document.getElementById("portal-term-list");
+    const migrationButton = document.querySelector("[data-run-supabase-migration]");
+    const migrationStatus = document.getElementById("portal-supabase-migration-status");
 
     initSchoolSettingsControls({
       isAdmin: canManageSettings,
@@ -12125,6 +15757,7 @@
       summaryTarget: rolePermissionSummary,
       gridTarget: rolePermissionGrid,
       resetButton: resetRolePermissionsButton,
+      statusTarget: rolePermissionStatus,
     });
 
     initAccessProvisioningControls({
@@ -12145,6 +15778,12 @@
       termForm,
       termStatus,
       termListTarget: termList,
+    });
+
+    initWorkspaceStateMigrationControls({
+      isAdmin: canManageSettings,
+      triggerButton: migrationButton,
+      statusTarget: migrationStatus,
     });
   }
 

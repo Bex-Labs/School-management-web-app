@@ -222,6 +222,24 @@ const SCHOOL_ACADEMIC_CYCLES_EVENT = "schoolsphere:academic-cycles-updated";
 const DEFAULT_ACADEMIC_CALENDAR_EVENTS = [];
 const SCHOOL_ACADEMIC_CALENDAR_STORAGE_KEY = "schoolsphere.academicCalendar.v1";
 const SCHOOL_ACADEMIC_CALENDAR_EVENT = "schoolsphere:academic-calendar-updated";
+const DEFAULT_ADMISSION_CONFIGURATION = {
+  sessions: [],
+  classes: [],
+  stages: [
+    { id: "stage-submitted", name: "Submitted", order: 1, status: "active" },
+    { id: "stage-review", name: "Review", order: 2, status: "active" },
+    { id: "stage-shortlisted", name: "Shortlisted", order: 3, status: "active" },
+    { id: "stage-approved", name: "Approved", order: 4, status: "active" },
+  ],
+};
+const SCHOOL_ADMISSION_CONFIG_STORAGE_KEY = "schoolsphere.admissionConfig.v1";
+const SCHOOL_ADMISSION_CONFIG_EVENT = "schoolsphere:admission-config-updated";
+const DEFAULT_TIMETABLE_ENTRIES = [];
+const SCHOOL_TIMETABLE_STORAGE_KEY = "schoolsphere.timetable.v1";
+const SCHOOL_TIMETABLE_EVENT = "schoolsphere:timetable-updated";
+const DEFAULT_FEE_ITEMS = [];
+const SCHOOL_FEE_ITEMS_STORAGE_KEY = "schoolsphere.feeItems.v1";
+const SCHOOL_FEE_ITEMS_EVENT = "schoolsphere:fee-items-updated";
 const DEFAULT_CLASS_RECORDS = [];
 const SCHOOL_CLASSES_STORAGE_KEY = "schoolsphere.classes.v1";
 const SCHOOL_CLASSES_EVENT = "schoolsphere:classes-updated";
@@ -332,6 +350,9 @@ function clearLegacySharedState() {
     SCHOOL_SETTINGS_STORAGE_KEY,
     SCHOOL_ACADEMIC_CYCLES_STORAGE_KEY,
     SCHOOL_ACADEMIC_CALENDAR_STORAGE_KEY,
+    SCHOOL_ADMISSION_CONFIG_STORAGE_KEY,
+    SCHOOL_TIMETABLE_STORAGE_KEY,
+    SCHOOL_FEE_ITEMS_STORAGE_KEY,
     SCHOOL_CLASSES_STORAGE_KEY,
     SCHOOL_COURSES_STORAGE_KEY,
     SCHOOL_STUDENTS_STORAGE_KEY,
@@ -1095,6 +1116,564 @@ function summarizeAcademicCalendarEvents() {
     holidayCount: activeEvents.filter((event) => event.type === "holiday").length,
     examCount: activeEvents.filter((event) => event.type === "exam").length,
     upcomingEvents: getUpcomingAcademicCalendarEvents(6),
+  };
+}
+
+function normalizeAdmissionConfigStatus(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return normalized === "archived" || normalized === "inactive" ? "archived" : "active";
+}
+
+function normalizeAdmissionConfigSession(record = {}) {
+  const timestamp = new Date().toISOString();
+  const status = String(record.status || "").trim().toLowerCase() === "open" ? "open" : "closed";
+  return {
+    id: String(record.id || createStorageId("admission-session")),
+    name: String(record.name || "").trim(),
+    startDate: String(record.startDate || "").trim(),
+    endDate: String(record.endDate || "").trim(),
+    status,
+    createdAt: record.createdAt || timestamp,
+    updatedAt: record.updatedAt || timestamp,
+  };
+}
+
+function normalizeAdmissionConfigClass(record = {}) {
+  const timestamp = new Date().toISOString();
+  return {
+    id: String(record.id || createStorageId("admission-class")),
+    name: String(record.name || "").trim(),
+    status: normalizeAdmissionConfigStatus(record.status),
+    createdAt: record.createdAt || timestamp,
+    updatedAt: record.updatedAt || timestamp,
+  };
+}
+
+function normalizeAdmissionConfigStage(record = {}) {
+  const timestamp = new Date().toISOString();
+  const parsedOrder = Number.parseInt(record.order, 10);
+  return {
+    id: String(record.id || createStorageId("admission-stage")),
+    name: String(record.name || "").trim(),
+    order: Number.isFinite(parsedOrder) && parsedOrder > 0 ? parsedOrder : 1,
+    status: normalizeAdmissionConfigStatus(record.status),
+    createdAt: record.createdAt || timestamp,
+    updatedAt: record.updatedAt || timestamp,
+  };
+}
+
+function normalizeAdmissionConfiguration(state = {}) {
+  const sessions = Array.isArray(state.sessions)
+    ? state.sessions
+        .map((record) => normalizeAdmissionConfigSession(record))
+        .filter((record) => record.name)
+        .sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)))
+    : [];
+  const classes = Array.isArray(state.classes)
+    ? state.classes
+        .map((record) => normalizeAdmissionConfigClass(record))
+        .filter((record) => record.name)
+        .sort((left, right) => left.name.localeCompare(right.name, undefined, { numeric: true }))
+    : [];
+  const stagesSource = Array.isArray(state.stages) && state.stages.length
+    ? state.stages
+    : DEFAULT_ADMISSION_CONFIGURATION.stages;
+  const stages = stagesSource
+    .map((record) => normalizeAdmissionConfigStage(record))
+    .filter((record) => record.name)
+    .sort((left, right) => left.order - right.order || left.name.localeCompare(right.name));
+  return { sessions, classes, stages };
+}
+
+function getAdmissionConfiguration() {
+  const stored = readWorkspaceState(
+    SCHOOL_ADMISSION_CONFIG_STORAGE_KEY,
+    DEFAULT_ADMISSION_CONFIGURATION,
+  );
+  return normalizeAdmissionConfiguration(stored);
+}
+
+function emitAdmissionConfigurationUpdate(state = getAdmissionConfiguration()) {
+  window.dispatchEvent(
+    new CustomEvent(SCHOOL_ADMISSION_CONFIG_EVENT, {
+      detail: { state },
+    }),
+  );
+}
+
+function saveAdmissionConfiguration(state) {
+  const normalized = normalizeAdmissionConfiguration(state);
+  writeWorkspaceState(SCHOOL_ADMISSION_CONFIG_STORAGE_KEY, normalized);
+  emitAdmissionConfigurationUpdate(normalized);
+  return normalized;
+}
+
+function upsertAdmissionConfigSession(record = {}) {
+  const state = getAdmissionConfiguration();
+  const timestamp = new Date().toISOString();
+  const nextRecord = normalizeAdmissionConfigSession({
+    ...record,
+    updatedAt: timestamp,
+  });
+  const index = state.sessions.findIndex((entry) => entry.id === nextRecord.id);
+  if (index >= 0) {
+    state.sessions[index] = {
+      ...state.sessions[index],
+      ...nextRecord,
+      createdAt: state.sessions[index].createdAt,
+      updatedAt: timestamp,
+    };
+  } else {
+    state.sessions.unshift(nextRecord);
+  }
+  if (nextRecord.status === "open") {
+    state.sessions = state.sessions.map((entry) =>
+      entry.id === nextRecord.id
+        ? entry
+        : {
+            ...entry,
+            status: "closed",
+            updatedAt: timestamp,
+          },
+    );
+  }
+  return saveAdmissionConfiguration(state);
+}
+
+function setAdmissionConfigSessionStatus(sessionId, status) {
+  const state = getAdmissionConfiguration();
+  const timestamp = new Date().toISOString();
+  state.sessions = state.sessions.map((entry) => {
+    if (entry.id === sessionId) {
+      return {
+        ...entry,
+        status: status === "open" ? "open" : "closed",
+        updatedAt: timestamp,
+      };
+    }
+    if (status === "open") {
+      return {
+        ...entry,
+        status: "closed",
+        updatedAt: timestamp,
+      };
+    }
+    return entry;
+  });
+  return saveAdmissionConfiguration(state);
+}
+
+function upsertAdmissionConfigClass(record = {}) {
+  const state = getAdmissionConfiguration();
+  const timestamp = new Date().toISOString();
+  const nextRecord = normalizeAdmissionConfigClass({
+    ...record,
+    updatedAt: timestamp,
+  });
+  const index = state.classes.findIndex((entry) => entry.id === nextRecord.id);
+  if (index >= 0) {
+    state.classes[index] = {
+      ...state.classes[index],
+      ...nextRecord,
+      createdAt: state.classes[index].createdAt,
+      updatedAt: timestamp,
+    };
+  } else {
+    state.classes.unshift(nextRecord);
+  }
+  return saveAdmissionConfiguration(state);
+}
+
+function setAdmissionConfigClassStatus(classId, status) {
+  const state = getAdmissionConfiguration();
+  const timestamp = new Date().toISOString();
+  state.classes = state.classes.map((entry) =>
+    entry.id === classId
+      ? {
+          ...entry,
+          status: normalizeAdmissionConfigStatus(status),
+          updatedAt: timestamp,
+        }
+      : entry,
+  );
+  return saveAdmissionConfiguration(state);
+}
+
+function upsertAdmissionConfigStage(record = {}) {
+  const state = getAdmissionConfiguration();
+  const timestamp = new Date().toISOString();
+  const nextRecord = normalizeAdmissionConfigStage({
+    ...record,
+    updatedAt: timestamp,
+  });
+  const index = state.stages.findIndex((entry) => entry.id === nextRecord.id);
+  if (index >= 0) {
+    state.stages[index] = {
+      ...state.stages[index],
+      ...nextRecord,
+      createdAt: state.stages[index].createdAt,
+      updatedAt: timestamp,
+    };
+  } else {
+    state.stages.push(nextRecord);
+  }
+  state.stages = state.stages
+    .sort((left, right) => left.order - right.order || left.name.localeCompare(right.name))
+    .map((entry, idx) => ({
+      ...entry,
+      order: idx + 1,
+    }));
+  return saveAdmissionConfiguration(state);
+}
+
+function setAdmissionConfigStageStatus(stageId, status) {
+  const state = getAdmissionConfiguration();
+  const timestamp = new Date().toISOString();
+  state.stages = state.stages.map((entry) =>
+    entry.id === stageId
+      ? {
+          ...entry,
+          status: normalizeAdmissionConfigStatus(status),
+          updatedAt: timestamp,
+        }
+      : entry,
+  );
+  return saveAdmissionConfiguration(state);
+}
+
+function summarizeAdmissionConfiguration() {
+  const state = getAdmissionConfiguration();
+  const openSession = state.sessions.find((entry) => entry.status === "open") || null;
+  const activeClasses = state.classes.filter((entry) => entry.status === "active");
+  const activeStages = state.stages.filter((entry) => entry.status === "active");
+  return {
+    ...state,
+    openSession,
+    activeSessionCount: state.sessions.filter((entry) => entry.status === "open").length,
+    activeClassCount: activeClasses.length,
+    activeStageCount: activeStages.length,
+    activeClasses,
+    activeStages,
+  };
+}
+
+const TIMETABLE_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+function normalizeTimetableStatus(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "published") {
+    return "published";
+  }
+  if (normalized === "archived") {
+    return "archived";
+  }
+  return "draft";
+}
+
+function normalizeTimetableDay(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  const matched = TIMETABLE_DAYS.find((day) => day.toLowerCase() === normalized);
+  return matched || "Monday";
+}
+
+function normalizeSchoolTimetableEntry(record = {}) {
+  const timestamp = new Date().toISOString();
+  const status = normalizeTimetableStatus(record.status);
+  return {
+    id: String(record.id || createStorageId("timetable")),
+    classLevel: String(record.classLevel || "").trim(),
+    sessionId: String(record.sessionId || "").trim(),
+    termId: String(record.termId || "").trim(),
+    day: normalizeTimetableDay(record.day),
+    startTime: String(record.startTime || "").trim(),
+    endTime: String(record.endTime || "").trim(),
+    subject: String(record.subject || "").trim(),
+    teacher: String(record.teacher || "").trim(),
+    room: String(record.room || "").trim(),
+    status,
+    publishedAt: status === "published" ? record.publishedAt || timestamp : null,
+    createdAt: record.createdAt || timestamp,
+    updatedAt: record.updatedAt || timestamp,
+    archivedAt: status === "archived" ? record.archivedAt || timestamp : null,
+  };
+}
+
+function compareSchoolTimetableEntries(left, right) {
+  if (left.status !== right.status) {
+    if (left.status === "published") return -1;
+    if (right.status === "published") return 1;
+    if (left.status === "draft") return -1;
+    if (right.status === "draft") return 1;
+  }
+  const classComparison = left.classLevel.localeCompare(right.classLevel, undefined, { numeric: true });
+  if (classComparison !== 0) {
+    return classComparison;
+  }
+  const dayComparison = TIMETABLE_DAYS.indexOf(left.day) - TIMETABLE_DAYS.indexOf(right.day);
+  if (dayComparison !== 0) {
+    return dayComparison;
+  }
+  return left.startTime.localeCompare(right.startTime);
+}
+
+function getSchoolTimetableEntries() {
+  const stored = readWorkspaceState(SCHOOL_TIMETABLE_STORAGE_KEY, DEFAULT_TIMETABLE_ENTRIES);
+  const source = Array.isArray(stored) ? stored : DEFAULT_TIMETABLE_ENTRIES;
+  return source
+    .map((record) => normalizeSchoolTimetableEntry(record))
+    .filter((record) => record.classLevel && record.subject && record.startTime && record.endTime)
+    .sort(compareSchoolTimetableEntries);
+}
+
+function emitSchoolTimetableUpdate(entries = getSchoolTimetableEntries()) {
+  window.dispatchEvent(
+    new CustomEvent(SCHOOL_TIMETABLE_EVENT, {
+      detail: { entries },
+    }),
+  );
+}
+
+function saveSchoolTimetableEntries(entries) {
+  const normalized = entries
+    .map((record) => normalizeSchoolTimetableEntry(record))
+    .filter((record) => record.classLevel && record.subject && record.startTime && record.endTime)
+    .sort(compareSchoolTimetableEntries);
+  writeWorkspaceState(SCHOOL_TIMETABLE_STORAGE_KEY, normalized);
+  emitSchoolTimetableUpdate(normalized);
+  return normalized;
+}
+
+function upsertSchoolTimetableEntry(record = {}) {
+  const entries = getSchoolTimetableEntries();
+  const timestamp = new Date().toISOString();
+  const nextRecord = normalizeSchoolTimetableEntry({
+    ...record,
+    updatedAt: timestamp,
+  });
+  const index = entries.findIndex((entry) => entry.id === nextRecord.id);
+  if (index >= 0) {
+    entries[index] = {
+      ...entries[index],
+      ...nextRecord,
+      createdAt: entries[index].createdAt,
+      updatedAt: timestamp,
+    };
+  } else {
+    entries.push(nextRecord);
+  }
+  return saveSchoolTimetableEntries(entries);
+}
+
+function setSchoolTimetableEntryStatus(entryId, status) {
+  const entries = getSchoolTimetableEntries();
+  const timestamp = new Date().toISOString();
+  const normalizedStatus = normalizeTimetableStatus(status);
+  const nextEntries = entries.map((entry) => {
+    if (entry.id !== entryId) {
+      return entry;
+    }
+    return {
+      ...entry,
+      status: normalizedStatus,
+      publishedAt: normalizedStatus === "published" ? timestamp : null,
+      archivedAt: normalizedStatus === "archived" ? timestamp : null,
+      updatedAt: timestamp,
+    };
+  });
+  return saveSchoolTimetableEntries(nextEntries);
+}
+
+function buildTimetableGroupKey(record = {}) {
+  return [
+    String(record.sessionId || "").trim(),
+    String(record.termId || "").trim(),
+    String(record.classLevel || "").trim().toLowerCase(),
+  ].join("|");
+}
+
+function setTimetableGroupPublished(criteria = {}, published = true) {
+  const entries = getSchoolTimetableEntries();
+  const timestamp = new Date().toISOString();
+  const classLevel = String(criteria.classLevel || "").trim().toLowerCase();
+  const sessionId = String(criteria.sessionId || "").trim();
+  const termId = String(criteria.termId || "").trim();
+
+  const nextEntries = entries.map((entry) => {
+    const matches =
+      String(entry.classLevel || "").trim().toLowerCase() === classLevel &&
+      String(entry.sessionId || "").trim() === sessionId &&
+      String(entry.termId || "").trim() === termId;
+
+    if (!matches || entry.status === "archived") {
+      return entry;
+    }
+
+    return {
+      ...entry,
+      status: published ? "published" : "draft",
+      publishedAt: published ? timestamp : null,
+      updatedAt: timestamp,
+    };
+  });
+
+  return saveSchoolTimetableEntries(nextEntries);
+}
+
+function summarizeSchoolTimetableEntries() {
+  const entries = getSchoolTimetableEntries();
+  const publishedCount = entries.filter((entry) => entry.status === "published").length;
+  const draftCount = entries.filter((entry) => entry.status === "draft").length;
+  const archivedCount = entries.filter((entry) => entry.status === "archived").length;
+  const classCount = new Set(entries.map((entry) => entry.classLevel.toLowerCase())).size;
+  const groups = new Map();
+  entries
+    .filter((entry) => entry.status !== "archived")
+    .forEach((entry) => {
+      const key = buildTimetableGroupKey(entry);
+      if (!groups.has(key)) {
+        groups.set(key, {
+          key,
+          classLevel: entry.classLevel,
+          sessionId: entry.sessionId,
+          termId: entry.termId,
+          rows: [],
+        });
+      }
+      groups.get(key).rows.push(entry);
+    });
+  const grouped = Array.from(groups.values()).map((group) => ({
+    ...group,
+    rows: group.rows.sort(compareSchoolTimetableEntries),
+    isPublished:
+      group.rows.length > 0 && group.rows.every((row) => row.status === "published"),
+  }));
+
+  return {
+    entries,
+    grouped,
+    publishedCount,
+    draftCount,
+    archivedCount,
+    classCount,
+  };
+}
+
+function normalizeFeeItemStatus(value) {
+  return String(value || "").trim().toLowerCase() === "archived" ? "archived" : "active";
+}
+
+function normalizeSchoolFeeItem(record = {}) {
+  const timestamp = new Date().toISOString();
+  const amount = Number.parseFloat(record.amount);
+  return {
+    id: String(record.id || createStorageId("fee-item")),
+    name: String(record.name || "").trim(),
+    description: String(record.description || "").trim(),
+    amount: Number.isFinite(amount) && amount >= 0 ? amount : 0,
+    classLevel: String(record.classLevel || "").trim(),
+    sessionId: String(record.sessionId || "").trim(),
+    termId: String(record.termId || "").trim(),
+    dueDate: String(record.dueDate || "").trim(),
+    status: normalizeFeeItemStatus(record.status),
+    createdAt: record.createdAt || timestamp,
+    updatedAt: record.updatedAt || timestamp,
+    archivedAt:
+      normalizeFeeItemStatus(record.status) === "archived" ? record.archivedAt || timestamp : null,
+  };
+}
+
+function compareSchoolFeeItems(left, right) {
+  if (left.status !== right.status) {
+    return left.status === "active" ? -1 : 1;
+  }
+  const classComparison = left.classLevel.localeCompare(right.classLevel, undefined, { numeric: true });
+  if (classComparison !== 0) {
+    return classComparison;
+  }
+  const nameComparison = left.name.localeCompare(right.name, undefined, { numeric: true });
+  if (nameComparison !== 0) {
+    return nameComparison;
+  }
+  return left.createdAt.localeCompare(right.createdAt);
+}
+
+function getSchoolFeeItems() {
+  const stored = readWorkspaceState(SCHOOL_FEE_ITEMS_STORAGE_KEY, DEFAULT_FEE_ITEMS);
+  const source = Array.isArray(stored) ? stored : DEFAULT_FEE_ITEMS;
+  return source
+    .map((record) => normalizeSchoolFeeItem(record))
+    .filter((record) => record.name && record.classLevel && record.sessionId && record.termId)
+    .sort(compareSchoolFeeItems);
+}
+
+function emitSchoolFeeItemsUpdate(items = getSchoolFeeItems()) {
+  window.dispatchEvent(
+    new CustomEvent(SCHOOL_FEE_ITEMS_EVENT, {
+      detail: { items },
+    }),
+  );
+}
+
+function saveSchoolFeeItems(items) {
+  const normalized = items
+    .map((record) => normalizeSchoolFeeItem(record))
+    .filter((record) => record.name && record.classLevel && record.sessionId && record.termId)
+    .sort(compareSchoolFeeItems);
+  writeWorkspaceState(SCHOOL_FEE_ITEMS_STORAGE_KEY, normalized);
+  emitSchoolFeeItemsUpdate(normalized);
+  return normalized;
+}
+
+function upsertSchoolFeeItem(record = {}) {
+  const items = getSchoolFeeItems();
+  const timestamp = new Date().toISOString();
+  const nextRecord = normalizeSchoolFeeItem({
+    ...record,
+    updatedAt: timestamp,
+  });
+  const index = items.findIndex((item) => item.id === nextRecord.id);
+  if (index >= 0) {
+    items[index] = {
+      ...items[index],
+      ...nextRecord,
+      createdAt: items[index].createdAt,
+      updatedAt: timestamp,
+    };
+  } else {
+    items.push(nextRecord);
+  }
+  return saveSchoolFeeItems(items);
+}
+
+function setSchoolFeeItemArchived(itemId, archived) {
+  const timestamp = new Date().toISOString();
+  const items = getSchoolFeeItems();
+  const nextItems = items.map((item) => {
+    if (item.id !== itemId) {
+      return item;
+    }
+    return {
+      ...item,
+      status: archived ? "archived" : "active",
+      archivedAt: archived ? timestamp : null,
+      updatedAt: timestamp,
+    };
+  });
+  return saveSchoolFeeItems(nextItems);
+}
+
+function summarizeSchoolFeeItems() {
+  const items = getSchoolFeeItems();
+  const activeItems = items.filter((item) => item.status === "active");
+  const archivedItems = items.filter((item) => item.status === "archived");
+  const activeAmount = activeItems.reduce((sum, item) => sum + item.amount, 0);
+  const classCount = new Set(activeItems.map((item) => item.classLevel.toLowerCase())).size;
+  return {
+    items,
+    activeCount: activeItems.length,
+    archivedCount: archivedItems.length,
+    classCount,
+    activeAmount,
   };
 }
 
@@ -1914,6 +2493,45 @@ window.SchoolSphereAcademicCalendar = {
   eventName: SCHOOL_ACADEMIC_CALENDAR_EVENT,
 };
 
+window.SchoolSphereAdmissionConfig = {
+  defaults: DEFAULT_ADMISSION_CONFIGURATION,
+  getState: getAdmissionConfiguration,
+  summarize: summarizeAdmissionConfiguration,
+  saveState: saveAdmissionConfiguration,
+  upsertSession: upsertAdmissionConfigSession,
+  setSessionStatus: setAdmissionConfigSessionStatus,
+  upsertClassOption: upsertAdmissionConfigClass,
+  setClassOptionStatus: setAdmissionConfigClassStatus,
+  upsertStage: upsertAdmissionConfigStage,
+  setStageStatus: setAdmissionConfigStageStatus,
+  eventName: SCHOOL_ADMISSION_CONFIG_EVENT,
+};
+
+window.SchoolSphereTimetable = {
+  defaults: DEFAULT_TIMETABLE_ENTRIES,
+  days: TIMETABLE_DAYS,
+  getEntries: getSchoolTimetableEntries,
+  summarize: summarizeSchoolTimetableEntries,
+  saveEntries: saveSchoolTimetableEntries,
+  upsertEntry: upsertSchoolTimetableEntry,
+  archiveEntry: (entryId) => setSchoolTimetableEntryStatus(entryId, "archived"),
+  activateEntry: (entryId) => setSchoolTimetableEntryStatus(entryId, "draft"),
+  publishGroup: (criteria) => setTimetableGroupPublished(criteria, true),
+  unpublishGroup: (criteria) => setTimetableGroupPublished(criteria, false),
+  eventName: SCHOOL_TIMETABLE_EVENT,
+};
+
+window.SchoolSphereFeeItems = {
+  defaults: DEFAULT_FEE_ITEMS,
+  getItems: getSchoolFeeItems,
+  summarize: summarizeSchoolFeeItems,
+  saveItems: saveSchoolFeeItems,
+  upsertItem: upsertSchoolFeeItem,
+  archiveItem: (itemId) => setSchoolFeeItemArchived(itemId, true),
+  activateItem: (itemId) => setSchoolFeeItemArchived(itemId, false),
+  eventName: SCHOOL_FEE_ITEMS_EVENT,
+};
+
 window.SchoolSphereClasses = {
   defaults: DEFAULT_CLASS_RECORDS,
   getClasses: getSchoolClasses,
@@ -1973,6 +2591,18 @@ window.addEventListener("storage", (event) => {
 
   if (isWorkspaceScopedStorageEventKey(event.key, SCHOOL_ACADEMIC_CALENDAR_STORAGE_KEY)) {
     emitAcademicCalendarUpdate(getAcademicCalendarEvents());
+  }
+
+  if (isWorkspaceScopedStorageEventKey(event.key, SCHOOL_ADMISSION_CONFIG_STORAGE_KEY)) {
+    emitAdmissionConfigurationUpdate(getAdmissionConfiguration());
+  }
+
+  if (isWorkspaceScopedStorageEventKey(event.key, SCHOOL_TIMETABLE_STORAGE_KEY)) {
+    emitSchoolTimetableUpdate(getSchoolTimetableEntries());
+  }
+
+  if (isWorkspaceScopedStorageEventKey(event.key, SCHOOL_FEE_ITEMS_STORAGE_KEY)) {
+    emitSchoolFeeItemsUpdate(getSchoolFeeItems());
   }
 
   if (isWorkspaceScopedStorageEventKey(event.key, SCHOOL_CLASSES_STORAGE_KEY)) {
