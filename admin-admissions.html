@@ -181,7 +181,7 @@
 
             <div id="portal-admission-summary" class="portal-class-summary"></div>
 
-            <div class="portal-class-layout">
+            <div class="portal-class-layout portal-class-layout-wide">
               <div class="portal-class-form-shell">
                 <form id="portal-admission-form" class="portal-class-form" novalidate>
                   <div id="portal-admission-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
@@ -192,11 +192,11 @@
                       <input id="admission-full-name" name="fullName" type="text" placeholder="Amina Yusuf" />
                     </label>
                     <label class="portal-field" for="admission-email">
-                      <span>Student email (optional)</span>
+                      <span>Student email</span>
                       <input id="admission-email" name="email" type="email" placeholder="student@email.com" />
                     </label>
                     <label class="portal-field" for="admission-phone">
-                      <span>Student phone (optional)</span>
+                      <span>Student phone</span>
                       <input id="admission-phone" name="phone" type="text" placeholder="+234..." />
                     </label>
                     <label class="portal-field" for="admission-level">
@@ -227,9 +227,11 @@
                 </form>
               </div>
 
+              <h3 class="portal-list-subheading">Applications</h3>
               <div id="portal-admission-list" class="portal-class-list"></div>
             </div>
           </article>
+
         </section>
       </section>
     </main>
