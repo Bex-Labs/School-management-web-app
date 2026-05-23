@@ -141,54 +141,44 @@
           </div>
         </header>
 
-        <section class="admin-secondary-grid">
+        <section class="admin-class-grid">
           <article class="admin-surface-card">
             <div class="admin-surface-head">
               <h2>Staff Accounts</h2>
               <span>Admins can create and manage staff login access directly.</span>
             </div>
             <div id="portal-staff-summary" class="portal-role-permission-summary"></div>
-            <form id="portal-staff-form" class="portal-settings-form" novalidate>
+            <form id="portal-staff-form" class="portal-settings-form portal-settings-form-wide" novalidate>
               <div id="portal-staff-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
               <input type="hidden" name="staffId" />
               <div class="portal-settings-grid">
                 <label class="portal-field" for="staff-name">
-                  <span>Staff name</span>
+                  <span>Staff name <span class="form-required">*</span></span>
                   <input id="staff-name" name="displayName" type="text" placeholder="Amaka Okon" />
                   <p class="portal-field-error" data-staff-error-for="displayName"></p>
                 </label>
                 <label class="portal-field" for="staff-email">
-                  <span>Staff email</span>
+                  <span>Staff email <span class="form-required">*</span></span>
                   <input id="staff-email" name="email" type="email" placeholder="teacher@school.com" />
                   <p class="portal-field-error" data-staff-error-for="email"></p>
                 </label>
-                <label class="portal-field" for="staff-role">
-                  <span>Role</span>
-                  <select id="staff-role" name="role">
-                    <option value="Teacher">Teacher</option>
-                    <option value="Admin">Admin</option>
-                    <option value="Student">Student</option>
-                    <option value="Parent">Parent</option>
-                  </select>
-                  <p class="portal-field-error" data-staff-error-for="role"></p>
-                </label>
                 <label class="portal-field" for="staff-phone">
-                  <span>Phone (optional)</span>
+                  <span>Phone</span>
                   <input id="staff-phone" name="phone" type="text" placeholder="+234 800 000 0000" />
                   <p class="portal-field-error" data-staff-error-for="phone"></p>
                 </label>
                 <label class="portal-field" for="staff-department">
-                  <span>Department (optional)</span>
+                  <span>Department</span>
                   <input id="staff-department" name="department" type="text" placeholder="Sciences" />
                   <p class="portal-field-error" data-staff-error-for="department"></p>
                 </label>
                 <label class="portal-field" for="staff-title">
-                  <span>Title (optional)</span>
+                  <span>Title</span>
                   <input id="staff-title" name="title" type="text" placeholder="Mathematics Teacher" />
                   <p class="portal-field-error" data-staff-error-for="title"></p>
                 </label>
                 <label class="portal-field portal-field-span-2" for="staff-temp-password">
-                  <span>Temporary password (optional)</span>
+                  <span>Temporary password</span>
                   <input id="staff-temp-password" name="tempPassword" type="password" placeholder="Leave blank to use default Staff@123" />
                   <p class="portal-field-error" data-staff-error-for="tempPassword"></p>
                 </label>
@@ -198,32 +188,18 @@
                 <button class="button button-outline" type="button" data-staff-cancel hidden>Cancel edit</button>
               </div>
             </form>
+            <div class="portal-list-head">
+              <h3 class="portal-list-subheading">All Staff</h3>
+              <div class="portal-staff-filters">
+                <input id="portal-staff-filter-search" type="search" placeholder="Filter by name or email" />
+                <select id="portal-staff-filter-status">
+                  <option value="all">All statuses</option>
+                  <option value="active">Active</option>
+                  <option value="deactivated">Deactivated</option>
+                </select>
+              </div>
+            </div>
             <div id="portal-staff-list" class="portal-class-list"></div>
-          </article>
-
-          <article class="admin-surface-card">
-            <div class="admin-surface-head">
-              <h2>Linked Actions</h2>
-              <span>Operational shortcuts</span>
-            </div>
-            <div class="admin-session-grid">
-              <div class="admin-session-card">
-                <span>Leave cover</span>
-                <strong>Reassign classes quickly during absences.</strong>
-              </div>
-              <div class="admin-session-card">
-                <span>Subject load</span>
-                <strong>Balance teaching periods across departments.</strong>
-              </div>
-              <div class="admin-session-card">
-                <span>Attendance impact</span>
-                <strong><a href="./admin-attendance.html">Review missing class periods</a></strong>
-              </div>
-              <div class="admin-session-card">
-                <span>School settings</span>
-                <strong><a href="./admin-settings.html">Adjust module access and identity</a></strong>
-              </div>
-            </div>
           </article>
         </section>
       </section>
