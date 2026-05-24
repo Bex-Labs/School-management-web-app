@@ -4491,31 +4491,38 @@ body.admin-dashboard-page .admin-sidebar {
 
 body.admin-dashboard-page .admin-sidebar-toggle {
   position: fixed;
-  top: 16px;
-  left: 24px;
+  top: 78px;
+  left: 238px;
   z-index: 60;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: 28px;
+  height: 28px;
   padding: 0;
-  border: 1px solid #dde3ef;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.92);
-  color: #5f6c86;
-  box-shadow: 0 12px 22px rgba(30, 47, 84, 0.12);
+  border: 1px solid rgba(126, 135, 151, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.62);
+  color: #7a8496;
+  box-shadow: none;
+  transition: left 220ms ease, color 180ms ease, background 180ms ease, border-color 180ms ease;
+}
+
+body.admin-dashboard-page .admin-sidebar-toggle:hover {
+  border-color: rgba(95, 108, 134, 0.32);
+  background: rgba(255, 255, 255, 0.9);
+  color: #17233a;
 }
 
 body.admin-dashboard-page .admin-sidebar-toggle-icon {
-  width: 18px;
-  height: 18px;
   display: inline-flex;
-}
-
-body.admin-dashboard-page .admin-sidebar-toggle-icon svg {
-  width: 100%;
-  height: 100%;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  height: auto;
+  font-size: 1.18rem;
+  line-height: 1;
+  font-weight: 800;
 }
 
 body.admin-dashboard-page .admin-sidebar-brand {
@@ -4690,6 +4697,10 @@ body.admin-dashboard-page.admin-sidebar-collapsed .admin-sidebar {
   padding-right: 0;
   border-right: 0;
   overflow: hidden;
+}
+
+body.admin-dashboard-page.admin-sidebar-collapsed .admin-sidebar-toggle {
+  left: 12px;
 }
 
 body.admin-dashboard-page .admin-dashboard-topbar {
@@ -5400,10 +5411,71 @@ body.admin-dashboard-page .portal-class-layout {
   align-items: start;
 }
 
+body.admin-dashboard-page .portal-class-layout-list-only {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 body.admin-dashboard-page .portal-class-form-shell {
   display: grid;
   gap: 12px;
   align-items: start;
+}
+
+body.admin-dashboard-page .portal-class-form-hidden {
+  display: none;
+}
+
+body.admin-dashboard-page .portal-class-template-panel {
+  display: grid;
+  gap: 14px;
+  margin: 18px 0;
+  padding: 18px;
+  border: 1px solid #dbe5f1;
+  border-radius: 18px;
+  background: #f8fbff;
+}
+
+body.admin-dashboard-page .portal-class-template-panel h3 {
+  margin: 0;
+  color: #17233a;
+  font-size: 1rem;
+}
+
+body.admin-dashboard-page .portal-class-template-panel p {
+  margin: 5px 0 0;
+  color: #667a95;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+body.admin-dashboard-page .portal-class-template-grid {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.9fr) minmax(220px, 1.2fr) minmax(140px, 0.6fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+body.admin-dashboard-page .portal-class-template-panel [hidden] {
+  display: none;
+}
+
+body.admin-dashboard-page .portal-class-advanced {
+  border: 1px solid #dbe5f1;
+  border-radius: 16px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+body.admin-dashboard-page .portal-class-advanced summary {
+  cursor: pointer;
+  color: #1e4673;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+body.admin-dashboard-page .portal-class-advanced[open] {
+  display: grid;
+  gap: 14px;
 }
 
 body.admin-dashboard-page .portal-guardian-stack {
@@ -6060,6 +6132,139 @@ body.admin-dashboard-page .portal-class-card.is-archived {
   border-style: dashed;
 }
 
+body.admin-dashboard-page .portal-class-group {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid #dfe6f2;
+  border-radius: 18px;
+  background: #f8fbff;
+}
+
+body.admin-dashboard-page .portal-class-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+body.admin-dashboard-page .portal-class-group-head div {
+  display: grid;
+  gap: 4px;
+}
+
+body.admin-dashboard-page .portal-class-group-head span,
+body.admin-dashboard-page .portal-class-group-head small {
+  color: #667188;
+  font-size: 0.84rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+body.admin-dashboard-page .portal-class-group-head strong {
+  color: #17233a;
+  font-size: 1.08rem;
+}
+
+body.admin-dashboard-page .portal-class-level-stack {
+  display: grid;
+  gap: 12px;
+}
+
+body.admin-dashboard-page .portal-class-level-group {
+  border: 1px solid #e3e9f4;
+  border-radius: 14px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+body.admin-dashboard-page .portal-class-level-group > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  list-style: none;
+}
+
+body.admin-dashboard-page .portal-class-level-group > summary::-webkit-details-marker {
+  display: none;
+}
+
+body.admin-dashboard-page .portal-class-level-group > summary div {
+  display: grid;
+  gap: 4px;
+}
+
+body.admin-dashboard-page .portal-class-level-group > summary strong {
+  color: #17233a;
+}
+
+body.admin-dashboard-page .portal-class-level-group > summary span {
+  color: #667188;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+body.admin-dashboard-page .portal-class-add-arm-button {
+  min-height: 36px;
+  margin: 0;
+  padding: 0 12px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+body.admin-dashboard-page .portal-class-arm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+  padding: 0 14px 14px;
+}
+
+body.admin-dashboard-page .portal-class-arm-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #e5eaf4;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+body.admin-dashboard-page .portal-class-arm-card.is-archived {
+  background: #fbfbfd;
+  border-style: dashed;
+}
+
+body.admin-dashboard-page .portal-class-arm-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+body.admin-dashboard-page .portal-class-arm-card-head div {
+  display: grid;
+  gap: 4px;
+}
+
+body.admin-dashboard-page .portal-class-arm-card-head strong {
+  color: #17233a;
+  font-size: 0.98rem;
+}
+
+body.admin-dashboard-page .portal-class-arm-card-head span,
+body.admin-dashboard-page .portal-class-arm-meta {
+  color: #667188;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+body.admin-dashboard-page .portal-class-arm-meta {
+  display: grid;
+  gap: 4px;
+}
+
 body.admin-dashboard-page .portal-class-list-item {
   padding: 0;
   overflow: hidden;
@@ -6255,6 +6460,12 @@ body.admin-dashboard-page .portal-class-button {
   color: #17233a;
 }
 
+body.admin-dashboard-page .portal-class-button.is-danger {
+  border-color: #ffd5d5;
+  color: #b42318;
+  background: #fff7f7;
+}
+
 body.admin-dashboard-page .portal-class-button.is-archive {
   border-color: #ffd2c8;
   background: #fff5f2;
@@ -6378,6 +6589,7 @@ body.admin-dashboard-page .portal-class-empty p {
   body.admin-dashboard-page .portal-admission-share,
   body.admin-dashboard-page .portal-admission-share-copy,
   body.admin-dashboard-page .portal-admission-modal-grid,
+  body.admin-dashboard-page .portal-class-template-grid,
   body.admin-dashboard-page .portal-class-summary,
   body.admin-dashboard-page .portal-class-meta,
   body.admin-dashboard-page .portal-class-extended {

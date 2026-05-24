@@ -141,25 +141,99 @@
 
             <div id="portal-class-summary" class="portal-class-summary"></div>
 
-            <div class="portal-class-layout">
-              <div class="portal-class-form-shell">
-                <button class="button button-primary" type="button" data-class-form-toggle>
-                  Create class
+            <section class="portal-class-template-panel" aria-labelledby="class-template-title">
+              <div>
+                <h3 id="class-template-title">Quick setup templates</h3>
+                <p>Generate an editable Nigerian school structure first, then remove or adjust any class that does not apply.</p>
+              </div>
+              <div class="portal-class-template-grid">
+                <label class="portal-field" for="class-template-type">
+                  <span>School type</span>
+                  <select id="class-template-type" data-class-template-type>
+                    <option value="">Select school type</option>
+                    <option value="nursery">Nursery</option>
+                    <option value="primary">Primary</option>
+                    <option value="secondary">Secondary</option>
+                    <option value="higher">College/Higher Institution</option>
+                    <option value="combined">Combined School</option>
+                  </select>
+                </label>
+                <label class="portal-field" for="class-template-arm" data-class-template-arm-wrap hidden>
+                  <span>Arm</span>
+                  <select id="class-template-arm" data-class-template-arm>
+                    <option value="">Select arm</option>
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                    <option value="C">C</option>
+                    <option value="D">D</option>
+                    <option value="E">E</option>
+                    <option value="F">F</option>
+                    <option value="custom">Other / custom</option>
+                  </select>
+                </label>
+                <label class="portal-field" for="class-template-custom-arm" data-class-template-custom-arm-wrap hidden>
+                  <span>Custom arm</span>
+                  <input id="class-template-custom-arm" data-class-template-custom-arm type="text" placeholder="Emerald, North, Gold..." />
+                </label>
+                <label class="portal-field" for="class-template-stream" data-class-template-stream-wrap hidden>
+                  <span>Stream</span>
+                  <select id="class-template-stream" data-class-template-stream>
+                    <option value="">Select stream</option>
+                    <option value="Science">Science</option>
+                    <option value="Arts">Arts</option>
+                    <option value="Commercial">Commercial</option>
+                    <option value="custom">Other / custom</option>
+                  </select>
+                </label>
+                <label class="portal-field" for="class-template-custom-stream" data-class-template-custom-stream-wrap hidden>
+                  <span>Custom stream</span>
+                  <input id="class-template-custom-stream" data-class-template-custom-stream type="text" placeholder="Technical, Humanities..." />
+                </label>
+                <label class="portal-field" for="class-template-faculty" data-class-template-faculty-wrap hidden>
+                  <span>Faculty</span>
+                  <select id="class-template-faculty" data-class-template-faculty>
+                    <option value="">Select faculty</option>
+                  </select>
+                </label>
+                <label class="portal-field" for="class-template-custom-faculty" data-class-template-custom-faculty-wrap hidden>
+                  <span>Custom faculty</span>
+                  <input id="class-template-custom-faculty" data-class-template-custom-faculty type="text" placeholder="Faculty name" />
+                </label>
+                <label class="portal-field" for="class-template-department" data-class-template-department-wrap hidden>
+                  <span>Department</span>
+                  <select id="class-template-department" data-class-template-department>
+                    <option value="">Select department</option>
+                  </select>
+                </label>
+                <label class="portal-field" for="class-template-custom-department" data-class-template-custom-department-wrap hidden>
+                  <span>Custom department</span>
+                  <input id="class-template-custom-department" data-class-template-custom-department type="text" placeholder="Department name" />
+                </label>
+                <label class="portal-field" for="class-template-capacity">
+                  <span>Capacity per class</span>
+                  <input id="class-template-capacity" data-class-template-capacity type="number" min="1" step="1" value="30" />
+                </label>
+                <button class="button button-primary" type="button" data-class-template-generate>
+                  Generate classes
                 </button>
+              </div>
+            </section>
 
-                <form id="portal-class-form" class="portal-class-form" novalidate data-class-form-shell hidden>
-                  <div id="portal-class-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+            <div class="portal-class-layout portal-class-layout-list-only">
+              <div id="portal-class-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+
+              <form id="portal-class-form" class="portal-class-form portal-class-form-hidden" novalidate data-class-form-shell hidden aria-hidden="true">
                   <input type="hidden" name="classId" />
 
                   <div class="portal-settings-grid">
                     <label class="portal-field" for="class-name">
-                      <span>Class name</span>
-                      <input id="class-name" name="name" type="text" placeholder="Blue, North, Science..." />
+                      <span>Arm / stream</span>
+                      <input id="class-name" name="name" type="text" placeholder="A, B, Science, Commercial..." />
                       <p class="portal-field-error" data-class-error-for="name"></p>
                     </label>
 
                     <label class="portal-field portal-field-span-2" for="class-level">
-                      <span>Level or grade</span>
+                      <span>School level</span>
                       <input id="class-level" name="level" type="text" placeholder="Primary 4, JSS2, SSS1..." />
                       <p class="portal-field-error" data-class-error-for="level"></p>
                     </label>
@@ -178,45 +252,32 @@
                       <p class="portal-field-error" data-class-error-for="classTeacher"></p>
                     </label>
 
-                    <label class="portal-field portal-field-span-2" for="class-arms">
-                      <span>Arms</span>
-                      <textarea
-                        id="class-arms"
-                        name="arms"
-                        rows="2"
-                        placeholder="A, B, C"
-                      ></textarea>
-                      <p class="portal-field-error" data-class-error-for="arms"></p>
-                    </label>
+                    <details class="portal-class-advanced portal-field-span-2">
+                      <summary>Optional subjects and teacher assignments</summary>
+                      <label class="portal-field" for="class-subjects">
+                        <span>Subjects</span>
+                        <textarea id="class-subjects" name="subjects" rows="3" placeholder="English, Mathematics, Basic Science"></textarea>
+                        <p class="portal-field-error" data-class-error-for="subjects"></p>
+                      </label>
+                      <label class="portal-field" for="teacher-assignments">
+                        <span>Teacher assignments</span>
+                        <input type="hidden" id="teacher-assignments" name="teacherAssignments" data-class-assignment-raw />
+                        <div class="portal-assignment-builder" data-teacher-assignment-shell>
+                          <div class="portal-assignment-list" data-teacher-assignment-list></div>
+                          <button type="button" class="button button-outline" data-assignment-add>Add assignment</button>
+                        </div>
+                        <p class="portal-field-error" data-class-error-for="teacherAssignments"></p>
+                      </label>
+                    </details>
 
-                    <label class="portal-field portal-field-span-2" for="class-subjects">
-                      <span>Subjects</span>
-                      <textarea
-                        id="class-subjects"
-                        name="subjects"
-                        rows="3"
-                        placeholder="Use active course names from Course Management (comma separated)"
-                      ></textarea>
-                      <p class="portal-field-error" data-class-error-for="subjects"></p>
-                    </label>
-
-                    <label class="portal-field portal-field-span-2" for="teacher-assignments">
-                      <span>Teacher assignments</span>
-                      <input type="hidden" id="teacher-assignments" name="teacherAssignments" data-class-assignment-raw />
-                      <div class="portal-assignment-builder" data-teacher-assignment-shell>
-                        <div class="portal-assignment-list" data-teacher-assignment-list></div>
-                        <button type="button" class="button button-outline" data-assignment-add>Add assignment</button>
-                      </div>
-                      <p class="portal-field-error" data-class-error-for="teacherAssignments"></p>
-                    </label>
+                    <input id="class-arms" name="arms" type="hidden" />
                   </div>
 
                   <div class="utility-actions">
                     <button class="button button-primary" type="submit" data-class-submit>Create class</button>
                     <button class="button button-outline" type="button" data-class-cancel hidden>Cancel edit</button>
                   </div>
-                </form>
-              </div>
+              </form>
 
               <div id="portal-class-list" class="portal-class-list"></div>
             </div>

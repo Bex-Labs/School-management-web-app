@@ -1801,6 +1801,10 @@ function setSchoolClassArchived(classId, archived) {
   return saveSchoolClasses(nextClasses);
 }
 
+function deleteSchoolClass(classId) {
+  return saveSchoolClasses(getSchoolClasses().filter((record) => record.id !== classId));
+}
+
 function summarizeSchoolClasses() {
   const classes = getSchoolClasses();
   const active = classes.filter((record) => record.status !== "archived");
@@ -2540,6 +2544,7 @@ window.SchoolSphereClasses = {
   upsertClass: upsertSchoolClass,
   archiveClass: (classId) => setSchoolClassArchived(classId, true),
   activateClass: (classId) => setSchoolClassArchived(classId, false),
+  deleteClass: deleteSchoolClass,
   eventName: SCHOOL_CLASSES_EVENT,
 };
 

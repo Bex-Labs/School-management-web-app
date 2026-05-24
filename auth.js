@@ -4088,13 +4088,7 @@
       toggleButton.setAttribute("data-sidebar-toggle", "");
       toggleButton.setAttribute("aria-label", "Toggle sidebar");
       toggleButton.innerHTML = `
-        <span class="admin-sidebar-toggle-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-            <path d="M4 7h16"></path>
-            <path d="M4 12h16"></path>
-            <path d="M4 17h16"></path>
-          </svg>
-        </span>
+        <span class="admin-sidebar-toggle-icon" aria-hidden="true">‹</span>
       `;
       document.body.append(toggleButton);
     }
@@ -4103,6 +4097,11 @@
       document.body.classList.toggle("admin-sidebar-collapsed", collapsed);
       toggleButton.setAttribute("aria-expanded", String(!collapsed));
       toggleButton.setAttribute("aria-label", collapsed ? "Expand sidebar" : "Collapse sidebar");
+      toggleButton.classList.toggle("is-collapsed", collapsed);
+      const icon = toggleButton.querySelector(".admin-sidebar-toggle-icon");
+      if (icon) {
+        icon.textContent = collapsed ? "›" : "‹";
+      }
       localStorage.setItem(ADMIN_SIDEBAR_STATE_KEY, collapsed ? "1" : "0");
     };
 
@@ -4330,8 +4329,29 @@
     const assignmentList = form.querySelector("[data-teacher-assignment-list]");
     const assignmentAddButton = form.querySelector("[data-assignment-add]");
     const assignmentRawInput = form.querySelector("[data-class-assignment-raw]");
+    const templateType = document.querySelector("[data-class-template-type]");
+    const templateArm = document.querySelector("[data-class-template-arm]");
+    const templateCustomArm = document.querySelector("[data-class-template-custom-arm]");
+    const templateStream = document.querySelector("[data-class-template-stream]");
+    const templateCustomStream = document.querySelector("[data-class-template-custom-stream]");
+    const templateFaculty = document.querySelector("[data-class-template-faculty]");
+    const templateCustomFaculty = document.querySelector("[data-class-template-custom-faculty]");
+    const templateDepartment = document.querySelector("[data-class-template-department]");
+    const templateCustomDepartment = document.querySelector("[data-class-template-custom-department]");
+    const templateCapacity = document.querySelector("[data-class-template-capacity]");
+    const templateGenerateButton = document.querySelector("[data-class-template-generate]");
+    const templateArmWrap = document.querySelector("[data-class-template-arm-wrap]");
+    const templateCustomArmWrap = document.querySelector("[data-class-template-custom-arm-wrap]");
+    const templateStreamWrap = document.querySelector("[data-class-template-stream-wrap]");
+    const templateCustomStreamWrap = document.querySelector("[data-class-template-custom-stream-wrap]");
+    const templateFacultyWrap = document.querySelector("[data-class-template-faculty-wrap]");
+    const templateCustomFacultyWrap = document.querySelector("[data-class-template-custom-faculty-wrap]");
+    const templateDepartmentWrap = document.querySelector("[data-class-template-department-wrap]");
+    const templateCustomDepartmentWrap = document.querySelector("[data-class-template-custom-department-wrap]");
 
     const normalizeLookupToken = (value) => String(value || "").trim().toLowerCase();
+    const normalizeClassArmName = (value) => String(value || "").trim().replace(/^Arm\s+/i, "");
+    const normalizeClassNameLookup = (value) => normalizeLookupToken(normalizeClassArmName(value));
 
     const getActiveCourseCatalog = () => {
       if (!courseManager || typeof courseManager.getActiveCatalog !== "function") {
@@ -4356,9 +4376,182 @@
 
       if (subjectField instanceof HTMLTextAreaElement) {
         subjectField.placeholder = catalog.length
-          ? "Use active course names from Course Management (comma separated)"
-          : "Create active courses first on the Courses page, then list them here";
+          ? "Optional: use active course names from Course Management"
+          : "Optional: add subjects later after creating courses";
       }
+    };
+
+    const classTemplates = {
+      nursery: { levels: ["Nursery 1", "Nursery 2", "Nursery 3"] },
+      primary: { levels: ["Primary 1", "Primary 2", "Primary 3", "Primary 4", "Primary 5", "Primary 6"] },
+      secondary: { levels: ["JSS1", "JSS2", "JSS3", "SS1", "SS2", "SS3"] },
+      higher: { levels: ["100 Level", "200 Level", "300 Level", "400 Level", "500 Level"] },
+      combined: {
+        levels: [
+          "Nursery 1",
+          "Nursery 2",
+          "Nursery 3",
+          "Primary 1",
+          "Primary 2",
+          "Primary 3",
+          "Primary 4",
+          "Primary 5",
+          "Primary 6",
+          "JSS1",
+          "JSS2",
+          "JSS3",
+          "SS1",
+          "SS2",
+          "SS3",
+        ],
+      },
+    };
+
+    const facultyDepartments = {
+      "Faculty of Science": [
+        "Computer Science",
+        "Microbiology",
+        "Biochemistry",
+        "Mathematics",
+        "Physics",
+        "Chemistry",
+      ],
+      "Faculty of Arts": [
+        "English and Literary Studies",
+        "History and International Studies",
+        "Linguistics",
+        "Philosophy",
+        "Theatre Arts",
+      ],
+      "Faculty of Social Sciences": [
+        "Economics",
+        "Political Science",
+        "Sociology",
+        "Psychology",
+        "Mass Communication",
+      ],
+      "Faculty of Management Sciences": [
+        "Accounting",
+        "Business Administration",
+        "Banking and Finance",
+        "Marketing",
+        "Public Administration",
+      ],
+      "Faculty of Education": [
+        "Educational Management",
+        "Guidance and Counselling",
+        "Science Education",
+        "Primary Education Studies",
+      ],
+      "Faculty of Engineering": [
+        "Civil Engineering",
+        "Electrical/Electronics Engineering",
+        "Mechanical Engineering",
+        "Computer Engineering",
+        "Chemical Engineering",
+      ],
+      "Faculty of Health Sciences": [
+        "Nursing Science",
+        "Public Health",
+        "Medical Laboratory Science",
+        "Anatomy",
+        "Physiology",
+      ],
+      "Faculty of Law": ["Law"],
+    };
+
+    const setTemplateFieldVisible = (wrapper, isVisible) => {
+      if (wrapper) {
+        wrapper.hidden = !isVisible;
+      }
+    };
+
+    const replaceSelectOptions = (select, options = [], placeholder = "Select option") => {
+      if (!(select instanceof HTMLSelectElement)) {
+        return;
+      }
+      select.innerHTML = "";
+      const placeholderOption = document.createElement("option");
+      placeholderOption.value = "";
+      placeholderOption.textContent = placeholder;
+      select.appendChild(placeholderOption);
+      options.forEach((value) => {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = value;
+        select.appendChild(option);
+      });
+      const customOption = document.createElement("option");
+      customOption.value = "custom";
+      customOption.textContent = "Other / custom";
+      select.appendChild(customOption);
+    };
+
+    const getSelectedTemplateValue = (select, customInput) => {
+      const selected = String(select?.value || "").trim();
+      if (selected === "custom") {
+        return String(customInput?.value || "").trim();
+      }
+      return selected;
+    };
+
+    const getTemplateTypeValue = () => String(templateType?.value || "").trim();
+
+    const updateTemplateDepartmentOptions = () => {
+      const currentDepartment = String(templateDepartment?.value || "").trim();
+      const selectedFaculty = String(templateFaculty?.value || "").trim();
+      const departmentOptions =
+        selectedFaculty && selectedFaculty !== "custom" ? facultyDepartments[selectedFaculty] || [] : [];
+
+      replaceSelectOptions(templateDepartment, departmentOptions, "Select department");
+
+      if (templateDepartment && departmentOptions.includes(currentDepartment)) {
+        templateDepartment.value = currentDepartment;
+      }
+    };
+
+    const updateTemplateVisibility = () => {
+      const type = getTemplateTypeValue();
+      const usesArm = false;
+      const usesStream = false;
+      const usesHigherFields = type === "higher";
+      const hasFacultySelection = usesHigherFields && Boolean(String(templateFaculty?.value || "").trim());
+      const usesDepartment = usesHigherFields && hasFacultySelection;
+      const usesCustomArm = usesArm && String(templateArm?.value || "") === "custom";
+      const usesCustomStream = usesStream && String(templateStream?.value || "") === "custom";
+      const usesCustomFaculty = usesHigherFields && String(templateFaculty?.value || "") === "custom";
+      const usesCustomDepartment = usesDepartment && String(templateDepartment?.value || "") === "custom";
+
+      setTemplateFieldVisible(templateArmWrap, usesArm);
+      setTemplateFieldVisible(templateCustomArmWrap, usesCustomArm);
+      setTemplateFieldVisible(templateStreamWrap, usesStream);
+      setTemplateFieldVisible(templateCustomStreamWrap, usesCustomStream);
+      setTemplateFieldVisible(templateFacultyWrap, usesHigherFields);
+      setTemplateFieldVisible(templateCustomFacultyWrap, usesCustomFaculty);
+      setTemplateFieldVisible(templateDepartmentWrap, usesDepartment);
+      setTemplateFieldVisible(templateCustomDepartmentWrap, usesCustomDepartment);
+    };
+
+    const resetTemplateSelectionsForType = () => {
+      if (templateArm) {
+        templateArm.value = "";
+      }
+      if (templateStream) {
+        templateStream.value = "";
+      }
+      if (templateFaculty) {
+        templateFaculty.value = "";
+      }
+      if (templateDepartment) {
+        templateDepartment.value = "";
+      }
+      [templateCustomArm, templateCustomStream, templateCustomFaculty, templateCustomDepartment].forEach((input) => {
+        if (input) {
+          input.value = "";
+        }
+      });
+      updateTemplateDepartmentOptions();
+      updateTemplateVisibility();
     };
 
     const getTeacherDirectory = () => {
@@ -4570,10 +4763,133 @@
     renderClassTeacherOptions("");
     renderTeacherAssignmentRows([{}]);
     setClassFormVisibility(false);
+    replaceSelectOptions(templateFaculty, Object.keys(facultyDepartments), "Select faculty");
+    updateTemplateDepartmentOptions();
+    updateTemplateVisibility();
 
     if (formToggleButton) {
       formToggleButton.disabled = !isAdmin || !manager;
       formToggleButton.addEventListener("click", toggleClassFormVisibility);
+    }
+
+    if (templateType) {
+      templateType.addEventListener("change", resetTemplateSelectionsForType);
+    }
+
+    if (templateArm) {
+      templateArm.addEventListener("change", updateTemplateVisibility);
+    }
+
+    if (templateStream) {
+      templateStream.addEventListener("change", updateTemplateVisibility);
+    }
+
+    if (templateFaculty) {
+      templateFaculty.addEventListener("change", () => {
+        if (templateDepartment) {
+          templateDepartment.value = "";
+        }
+        if (templateCustomDepartment) {
+          templateCustomDepartment.value = "";
+        }
+        updateTemplateDepartmentOptions();
+        updateTemplateVisibility();
+      });
+    }
+
+    if (templateDepartment) {
+      templateDepartment.addEventListener("change", updateTemplateVisibility);
+    }
+
+    if (templateGenerateButton) {
+      templateGenerateButton.disabled = !isAdmin || !manager;
+      templateGenerateButton.addEventListener("click", () => {
+        if (!isAdmin || !manager) {
+          setStatus(status, "info", "Only administrators can generate class templates.");
+          return;
+        }
+
+        const type = getTemplateTypeValue();
+        const template = classTemplates[type];
+
+        if (!template) {
+          setStatus(status, "error", "Select a school type before generating classes.");
+          return;
+        }
+
+        const faculty = getSelectedTemplateValue(templateFaculty, templateCustomFaculty);
+        const department = getSelectedTemplateValue(templateDepartment, templateCustomDepartment);
+        const templateArms = ["A", "B", "C", "D", "E", "F"];
+        let generatedRecords = [];
+
+        if (type === "higher") {
+          if (!faculty || !department) {
+            setStatus(status, "error", "Select or enter a faculty and department first.");
+            return;
+          }
+          generatedRecords = template.levels.map((level) => ({
+            level,
+            name: `${faculty} - ${department}`,
+            arms: [department],
+          }));
+        } else {
+          generatedRecords = template.levels.flatMap((level) =>
+            templateArms.map((arm) => ({
+              level,
+              name: arm,
+              arms: [arm],
+            })),
+          );
+        }
+
+        const capacity = Number.parseInt(templateCapacity?.value || "30", 10);
+        const safeCapacity = Number.isFinite(capacity) && capacity > 0 ? capacity : 30;
+        const existing = manager.getClasses();
+        let created = 0;
+        let skipped = 0;
+
+        generatedRecords.forEach((templateRecord) => {
+          const duplicate = existing.some(
+            (record) =>
+              normalizeLookupToken(record.level) === normalizeLookupToken(templateRecord.level) &&
+              normalizeClassNameLookup(record.name) === normalizeClassNameLookup(templateRecord.name),
+          );
+
+          if (duplicate) {
+            skipped += 1;
+            return;
+          }
+
+          manager.upsertClass({
+            level: templateRecord.level,
+            name: templateRecord.name,
+            capacity: safeCapacity,
+            classTeacher: "",
+            arms: templateRecord.arms,
+            subjects: [],
+            teacherAssignments: [],
+            status: "active",
+          });
+          created += 1;
+        });
+
+        recordAuditEvent({
+          action: "created",
+          entityType: "class-template",
+          entityId: type,
+          summary: `Generated ${created} class records from template`,
+          details: skipped ? `${skipped} duplicate class record(s) skipped` : "No duplicates skipped",
+        });
+
+        refreshClassManagementSection();
+        setStatus(
+          status,
+          "success",
+          `Generated <strong>${created}</strong> class${created === 1 ? "" : "es"}.${
+            skipped ? ` Skipped ${skipped} existing class${skipped === 1 ? "" : "es"}.` : ""
+          }`,
+        );
+      });
     }
 
     if (assignmentAddButton) {
@@ -4636,6 +4952,9 @@
         arms: parseCommaSeparatedValues(form.elements.arms.value),
         subjects: parseCommaSeparatedValues(form.elements.subjects.value),
       };
+      if (!payload.arms.length && payload.name) {
+        payload.arms = [payload.name];
+      }
       const assignmentParse = assignmentList
         ? parseTeacherAssignmentsFromBuilder()
         : parseTeacherAssignments(form.elements.teacherAssignments.value);
@@ -4646,7 +4965,7 @@
         (subject) => !courseLookup.has(normalizeLookupToken(subject)),
       );
       const unknownAssignmentSubjects = payload.teacherAssignments
-        .filter((assignment) => !courseLookup.has(normalizeLookupToken(assignment.subject)))
+        .filter((assignment) => activeCourseCatalog.length && !courseLookup.has(normalizeLookupToken(assignment.subject)))
         .map((assignment) => assignment.subject);
 
       let hasError = false;
@@ -4669,18 +4988,7 @@
         hasError = true;
       }
 
-      if (!payload.arms.length) {
-        setPortalClassError(form, "arms", "Enter at least one arm.");
-        hasError = true;
-      }
-
-      if (!payload.subjects.length) {
-        setPortalClassError(form, "subjects", "Enter at least one subject.");
-        hasError = true;
-      } else if (!activeCourseCatalog.length) {
-        setPortalClassError(form, "subjects", "Create at least one active course before assigning subjects.");
-        hasError = true;
-      } else if (unknownSubjects.length) {
+      if (payload.subjects.length && activeCourseCatalog.length && unknownSubjects.length) {
         setPortalClassError(
           form,
           "subjects",
@@ -4695,9 +5003,6 @@
           "teacherAssignments",
           "Complete both subject and teacher for each assignment row.",
         );
-        hasError = true;
-      } else if (!payload.teacherAssignments.length) {
-        setPortalClassError(form, "teacherAssignments", "Enter at least one teacher assignment.");
         hasError = true;
       } else if (unknownAssignmentSubjects.length) {
         setPortalClassError(
@@ -4788,6 +5093,64 @@
 
       const classId = actionButton.dataset.classId;
       const action = actionButton.dataset.classAction;
+
+      if (action === "add-arm") {
+        event.preventDefault();
+        event.stopPropagation();
+        const level = String(actionButton.dataset.classLevel || "").trim();
+
+        if (!level) {
+          setStatus(status, "error", "Select a class level before adding an arm.");
+          return;
+        }
+
+        const armName = normalizeClassArmName(window.prompt(`Add a custom arm for ${level}`, "") || "");
+
+        if (!armName) {
+          return;
+        }
+
+        const duplicate = manager
+          .getClasses()
+          .some(
+            (record) =>
+              normalizeLookupToken(record.level) === normalizeLookupToken(level) &&
+              normalizeClassNameLookup(record.name) === normalizeClassNameLookup(armName),
+          );
+
+        if (duplicate) {
+          setStatus(status, "error", `Arm <strong>${escapeHtml(armName)}</strong> already exists for ${escapeHtml(level)}.`);
+          return;
+        }
+
+        const levelRecords = manager
+          .getClasses()
+          .filter((record) => normalizeLookupToken(record.level) === normalizeLookupToken(level));
+        const referenceRecord = levelRecords.find((record) => record.status !== "archived") || levelRecords[0] || {};
+        const capacity = Number.parseInt(referenceRecord.capacity || templateCapacity?.value || "30", 10);
+
+        manager.upsertClass({
+          level,
+          name: armName,
+          capacity: Number.isFinite(capacity) && capacity > 0 ? capacity : 30,
+          classTeacher: "",
+          arms: [armName],
+          subjects: [],
+          teacherAssignments: [],
+          status: "active",
+        });
+        recordAuditEvent({
+          action: "created",
+          entityType: "class",
+          entityId: `${level}-${armName}`,
+          summary: `Added arm ${armName} to ${level}`,
+          details: `${Number.isFinite(capacity) && capacity > 0 ? capacity : 30} capacity`,
+        });
+        refreshClassManagementSection();
+        setStatus(status, "success", `Added <strong>${escapeHtml(armName)}</strong> to <strong>${escapeHtml(level)}</strong>.`);
+        return;
+      }
+
       const record = manager.getClasses().find((item) => item.id === classId);
 
       if (!record) {
@@ -4795,6 +5158,88 @@
       }
 
       clearPortalClassErrors(form);
+
+      if (action === "view") {
+        const studentManager = getStudentManager();
+        const studentCount =
+          studentManager && typeof studentManager.getStudents === "function"
+            ? studentManager
+                .getStudents()
+                .filter(
+                  (student) =>
+                    String(student.status || "active") === "active" &&
+                    normalizeLevelToken(student.level) === normalizeLevelToken(record.level),
+                ).length
+            : 0;
+        setStatus(
+          status,
+          "info",
+          `<strong>${escapeHtml(record.level)} ${escapeHtml(record.name)}</strong>: ${studentCount} student${
+            studentCount === 1 ? "" : "s"
+          }, ${escapeHtml(record.classTeacher || "no class teacher assigned")}. Use the mini workspace links on the class card for students, subjects, attendance, timetable, results, and announcements.`,
+        );
+        return;
+      }
+
+      if (action === "promote") {
+        const studentManager = getStudentManager();
+        const nextLevel = getNextStudentLevel(record.level);
+
+        if (!studentManager || typeof studentManager.updateStudentProgression !== "function") {
+          setStatus(status, "error", "Student manager is not available right now.");
+          return;
+        }
+
+        if (!nextLevel) {
+          setStatus(
+            status,
+            "error",
+            `No next class level found after <strong>${escapeHtml(record.level)}</strong>. Generate or create the next class first.`,
+          );
+          return;
+        }
+
+        const studentsToPromote = studentManager
+          .getStudents()
+          .filter(
+            (student) =>
+              String(student.status || "active") === "active" &&
+              normalizeLevelToken(student.level) === normalizeLevelToken(record.level),
+          );
+
+        studentsToPromote.forEach((student) => {
+          studentManager.updateStudentProgression(student.id, (current) => ({
+            ...current,
+            level: nextLevel,
+            promotionDecision: "promote",
+            examOutcome: "pass",
+            lastPromotionOutcome: "class-promoted",
+            progressionHistory: appendStudentProgression(current, {
+              type: "class-promoted",
+              fromLevel: current.level,
+              toLevel: nextLevel,
+              note: `Promoted from class workspace ${record.level}`,
+            }),
+          }));
+        });
+
+        recordAuditEvent({
+          action: "promoted",
+          entityType: "class",
+          entityId: record.id,
+          summary: `Promoted ${studentsToPromote.length} students from ${record.level} to ${nextLevel}`,
+          details: record.name || "",
+        });
+        setStatus(
+          status,
+          "success",
+          `Promoted <strong>${studentsToPromote.length}</strong> student${
+            studentsToPromote.length === 1 ? "" : "s"
+          } from <strong>${escapeHtml(record.level)}</strong> to <strong>${escapeHtml(nextLevel)}</strong>.`,
+        );
+        refreshClassManagementSection();
+        return;
+      }
 
       if (action === "edit") {
         populatePortalClassForm(form, record, isAdmin);
@@ -4831,6 +5276,31 @@
           `Class <strong>${escapeHtml(record.level)} · ${escapeHtml(
             record.name,
           )}</strong> archived. It stays available for history while being removed from live assignment.`,
+        );
+        return;
+      }
+
+      if (action === "delete") {
+        if (typeof manager.deleteClass !== "function") {
+          setStatus(status, "error", "Class removal is not available right now.");
+          return;
+        }
+        manager.deleteClass(record.id);
+        recordAuditEvent({
+          action: "deleted",
+          entityType: "class",
+          entityId: record.id,
+          summary: `Removed class ${record.level} · ${record.name}`,
+          details: `${record.capacity} capacity`,
+        });
+        resetPortalClassForm(form, isAdmin);
+        renderClassTeacherOptions("");
+        renderTeacherAssignmentRows([{}]);
+        setClassFormVisibility(false);
+        setStatus(
+          status,
+          "success",
+          `Class <strong>${escapeHtml(record.level)} · ${escapeHtml(record.name)}</strong> removed from the list.`,
         );
         return;
       }
@@ -9218,6 +9688,82 @@
     }
     const { classes, activeCount, archivedCount, totalCapacity, totalArms, totalSubjects, totalAssignments } =
       manager.summarize();
+    const studentManager = getStudentManager();
+    const students = studentManager && typeof studentManager.getStudents === "function"
+      ? studentManager.getStudents()
+      : [];
+    const countStudentsForLevel = (level) =>
+      students.filter(
+        (student) =>
+          String(student.status || "active") === "active" &&
+          normalizeLevelToken(student.level) === normalizeLevelToken(level),
+      ).length;
+    const normalizeClassArmName = (value) => String(value || "").trim().replace(/^Arm\s+/i, "");
+    const getClassSegment = (level) => {
+      const normalized = String(level || "").trim();
+      if (/^nursery/i.test(normalized)) {
+        return "Nursery";
+      }
+      if (/^primary/i.test(normalized)) {
+        return "Primary";
+      }
+      if (/^(JSS|SS)\d/i.test(normalized)) {
+        return "Secondary";
+      }
+      if (/^\d{3}\s*Level/i.test(normalized)) {
+        return "Higher Institution";
+      }
+      return "Other Classes";
+    };
+    const segmentOrder = {
+      Nursery: 1,
+      Primary: 2,
+      Secondary: 3,
+      "Higher Institution": 4,
+      "Other Classes": 5,
+    };
+    const getLevelSortValue = (level) => {
+      const normalized = String(level || "").trim();
+      const nurseryMatch = normalized.match(/^Nursery\s*(\d+)/i);
+      const primaryMatch = normalized.match(/^Primary\s*(\d+)/i);
+      const jssMatch = normalized.match(/^JSS\s*(\d+)/i);
+      const ssMatch = normalized.match(/^SS\s*(\d+)/i);
+      const levelMatch = normalized.match(/^(\d{3})\s*Level/i);
+
+      if (nurseryMatch) {
+        return 100 + Number(nurseryMatch[1]);
+      }
+      if (primaryMatch) {
+        return 200 + Number(primaryMatch[1]);
+      }
+      if (jssMatch) {
+        return 300 + Number(jssMatch[1]);
+      }
+      if (ssMatch) {
+        return 400 + Number(ssMatch[1]);
+      }
+      if (levelMatch) {
+        return 500 + Number(levelMatch[1]);
+      }
+      return 999;
+    };
+    const sortClassRecords = (left, right) => {
+      const leftSegment = getClassSegment(left.level);
+      const rightSegment = getClassSegment(right.level);
+      const segmentDifference = (segmentOrder[leftSegment] || 99) - (segmentOrder[rightSegment] || 99);
+
+      if (segmentDifference) {
+        return segmentDifference;
+      }
+
+      const levelDifference = getLevelSortValue(left.level) - getLevelSortValue(right.level);
+
+      if (levelDifference) {
+        return levelDifference;
+      }
+
+      return String(left.name || "").localeCompare(String(right.name || ""), undefined, { numeric: true });
+    };
 
     summaryTarget.innerHTML = `
       <article class="portal-class-stat portal-class-stat-blue">
@@ -9262,93 +9808,120 @@
       listTarget.innerHTML = `
         <article class="portal-class-empty">
           <strong>No classes yet</strong>
-          <p>Create the first class here to start assigning students, teachers, timetable slots, and course coverage.</p>
+          <p>Choose a school type above and generate classes to start assigning students, teachers, timetable slots, and course coverage.</p>
         </article>
       `;
     } else {
-      listTarget.innerHTML = classes
-        .map(
-          (record) => `
-            <details class="portal-class-card portal-class-list-item ${record.status === "archived" ? "is-archived" : ""}">
-              <summary class="portal-class-list-summary">
-                <div class="portal-class-list-main">
-                  <strong>${escapeHtml(record.level)} · ${escapeHtml(record.name)}</strong>
-                  <span>${Number(record.capacity).toLocaleString()} learners • ${escapeHtml(
-                    record.classTeacher || "No class teacher yet",
-                  )}</span>
-                </div>
-                <span class="portal-class-status ${record.status === "archived" ? "is-archived" : "is-active"}">
-                  ${record.status === "archived" ? "Archived" : "Active"}
-                </span>
-              </summary>
+      const groupedClasses = classes.sort(sortClassRecords).reduce((segments, record) => {
+        const segment = getClassSegment(record.level);
+        const level = String(record.level || "Unassigned").trim() || "Unassigned";
 
-              <div class="portal-class-list-body">
-                <div class="portal-class-meta">
-                  <div class="portal-class-meta-item">
-                    <span>Capacity</span>
-                    <strong>${Number(record.capacity).toLocaleString()} learners</strong>
-                  </div>
-                  <div class="portal-class-meta-item">
-                    <span>Class teacher</span>
-                    <strong>${escapeHtml(record.classTeacher || "Not assigned yet")}</strong>
-                  </div>
-                  <div class="portal-class-meta-item">
-                    <span>Updated</span>
-                    <strong>${escapeHtml(formatTimestamp(record.updatedAt))}</strong>
-                  </div>
-                </div>
+        if (!segments.has(segment)) {
+          segments.set(segment, new Map());
+        }
 
-                <div class="portal-class-extended">
-                  <div class="portal-class-extended-item">
-                    <span>Arms</span>
-                    <strong>${escapeHtml((record.arms || []).join(", ") || "None")}</strong>
-                  </div>
-                  <div class="portal-class-extended-item">
-                    <span>Subjects</span>
-                    <strong>${escapeHtml((record.subjects || []).join(", ") || "None")}</strong>
-                  </div>
-                  <div class="portal-class-extended-item portal-class-extended-item-span">
-                    <span>Teacher assignments</span>
-                    <ul>
-                      ${(record.teacherAssignments || [])
-                        .map(
-                          (assignment) =>
-                            `<li>${escapeHtml(assignment.subject)}: ${escapeHtml(assignment.teacher)}</li>`,
-                        )
-                        .join("") || "<li>No assignments yet.</li>"}
-                    </ul>
-                  </div>
-                </div>
+        if (!segments.get(segment).has(level)) {
+          segments.get(segment).set(level, []);
+        }
 
-                <div class="portal-class-route-links">
-                  <a href="./workflows.html#classroom-rhythm">Timetable</a>
-                  <a href="./admin-courses.html">Courses</a>
-                </div>
+        segments.get(segment).get(level).push(record);
+        return segments;
+      }, new Map());
 
-                <div class="portal-class-actions">
-                  <button
-                    class="portal-class-button"
-                    type="button"
-                    data-class-action="edit"
-                    data-class-id="${record.id}"
-                    ${isAdmin ? "" : "disabled"}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    class="portal-class-button ${record.status === "archived" ? "is-restore" : "is-archive"}"
-                    type="button"
-                    data-class-action="${record.status === "archived" ? "activate" : "archive"}"
-                    data-class-id="${record.id}"
-                    ${isAdmin ? "" : "disabled"}
-                  >
-                    ${record.status === "archived" ? "Reactivate" : "Archive"}
-                  </button>
+      listTarget.innerHTML = Array.from(groupedClasses.entries())
+        .map(([segment, levels]) => {
+          const segmentRecords = Array.from(levels.values()).flat();
+          return `
+            <section class="portal-class-group">
+              <div class="portal-class-group-head">
+                <div>
+                  <span>${escapeHtml(segment)}</span>
+                  <strong>${segmentRecords.length} class${segmentRecords.length === 1 ? "" : "es"}</strong>
                 </div>
+                <small>${segmentRecords.filter((record) => record.status !== "archived").length} active</small>
               </div>
-            </details>
-          `,
-        )
+              <div class="portal-class-level-stack">
+                ${Array.from(levels.entries())
+                  .map(([level, records]) => {
+                    const levelStudentCount = countStudentsForLevel(level);
+                    return `
+                      <details class="portal-class-level-group">
+                        <summary>
+                          <div>
+                            <strong>${escapeHtml(level)}</strong>
+                            <span>${records.length} arm${records.length === 1 ? "" : "s"} • ${levelStudentCount} student${
+                              levelStudentCount === 1 ? "" : "s"
+                            }</span>
+                          </div>
+                          <button
+                            class="portal-class-button portal-class-add-arm-button"
+                            type="button"
+                            data-class-action="add-arm"
+                            data-class-level="${escapeHtml(level)}"
+                            ${isAdmin ? "" : "disabled"}
+                          >
+                            Add arm
+                          </button>
+                        </summary>
+                        <div class="portal-class-arm-grid">
+                          ${records
+                            .sort(sortClassRecords)
+                            .map((record) => {
+                              const isArchived = record.status === "archived";
+                              const displayName = normalizeClassArmName(record.name) || "Unnamed class";
+                              return `
+                                <article class="portal-class-arm-card ${isArchived ? "is-archived" : ""}">
+                                  <div class="portal-class-arm-card-head">
+                                    <div>
+                                      <strong>${escapeHtml(displayName)}</strong>
+                                      <span>${Number(record.capacity).toLocaleString()} capacity • ${escapeHtml(
+                                        record.classTeacher || "No class teacher",
+                                      )}</span>
+                                    </div>
+                                    <span class="portal-class-status ${isArchived ? "is-archived" : "is-active"}">
+                                      ${isArchived ? "Archived" : "Active"}
+                                    </span>
+                                  </div>
+                                  <div class="portal-class-arm-meta">
+                                    <span>Arms: ${escapeHtml((record.arms || []).join(", ") || "None")}</span>
+                                    <span>Subjects: ${escapeHtml((record.subjects || []).join(", ") || "None")}</span>
+                                  </div>
+                                  <div class="portal-class-route-links">
+                                    <a href="./admin-students.html">Students</a>
+                                    <a href="./admin-courses.html">Subjects</a>
+                                    <a href="./admin-attendance.html">Attendance</a>
+                                    <a href="./admin-schedule.html">Timetable</a>
+                                    <a href="./admin-reports.html">Results</a>
+                                  </div>
+                                  <div class="portal-class-actions">
+                                    <button class="portal-class-button" type="button" data-class-action="view" data-class-id="${record.id}" ${
+                                      isAdmin ? "" : "disabled"
+                                    }>View</button>
+                                    <button class="portal-class-button" type="button" data-class-action="promote" data-class-id="${record.id}" ${
+                                      isAdmin ? "" : "disabled"
+                                    }>Promote</button>
+                                    <button class="portal-class-button ${isArchived ? "is-restore" : "is-archive"}" type="button" data-class-action="${
+                                      isArchived ? "activate" : "archive"
+                                    }" data-class-id="${record.id}" ${isAdmin ? "" : "disabled"}>
+                                      ${isArchived ? "Reactivate" : "Archive"}
+                                    </button>
+                                    <button class="portal-class-button is-danger" type="button" data-class-action="delete" data-class-id="${record.id}" ${
+                                      isAdmin ? "" : "disabled"
+                                    }>Remove</button>
+                                  </div>
+                                </article>
+                              `;
+                            })
+                            .join("")}
+                        </div>
+                      </details>
+                    `;
+                  })
+                  .join("")}
+              </div>
+            </section>
+          `;
+        })
         .join("");
     }
 
@@ -9356,7 +9929,7 @@
       setStatus(
         status,
         "info",
-        "Only admin accounts with class permission can create, edit, archive, or reactivate classes.",
+        "Only admin accounts with class permission can generate, adjust, archive, or reactivate classes.",
       );
     }
   }
