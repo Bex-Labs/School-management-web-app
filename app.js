@@ -208,7 +208,10 @@ const DEFAULT_SCHOOL_SETTINGS = {
   academicYearEnd: "",
   phone: "",
   website: "",
+  schoolTypes: ["primary", "secondary"],
   hasNursery: false,
+  hasPrimary: true,
+  hasSecondary: true,
   hasHigherInstitution: false,
 };
 const SCHOOL_SETTINGS_STORAGE_KEY = "schoolsphere.schoolSettings.v1";
@@ -531,15 +534,54 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
-function normalizeSchoolSettings(settings = {}) {
+const SCHOOL_TYPE_OPTIONS = [
+  { value: "nursery", label: "Nursery" },
+  { value: "primary", label: "Primary" },
+  { value: "secondary", label: "Secondary" },
+  { value: "higher", label: "Higher Institution" },
+];
+
+function normalizeSchoolTypeList(value) {
+  const rawItems = Array.isArray(value)
+    ? value
+    : String(value || "")
+        .split(",")
+        .map((item) => item.trim());
+  const allowed = new Set(SCHOOL_TYPE_OPTIONS.map((option) => option.value));
+  return Array.from(new Set(rawItems.map((item) => String(item || "").trim()).filter((item) => allowed.has(item))));
+}
+
+function deriveSchoolTypesFromLegacyFlags(settings = {}) {
   const hasNursery =
     settings.hasNursery === true ||
     settings.hasNursery === "true" ||
     settings.hasNursery === "1";
+  const hasPrimary =
+    settings.hasPrimary === false || settings.hasPrimary === "false" || settings.hasPrimary === "0"
+      ? false
+      : true;
+  const hasSecondary =
+    settings.hasSecondary === false || settings.hasSecondary === "false" || settings.hasSecondary === "0"
+      ? false
+      : true;
   const hasHigherInstitution =
     settings.hasHigherInstitution === true ||
     settings.hasHigherInstitution === "true" ||
     settings.hasHigherInstitution === "1";
+
+  return [
+    hasNursery ? "nursery" : null,
+    hasPrimary ? "primary" : null,
+    hasSecondary ? "secondary" : null,
+    hasHigherInstitution ? "higher" : null,
+  ].filter(Boolean);
+}
+
+function normalizeSchoolSettings(settings = {}) {
+  const schoolTypes = normalizeSchoolTypeList(settings.schoolTypes).length
+    ? normalizeSchoolTypeList(settings.schoolTypes)
+    : deriveSchoolTypesFromLegacyFlags(settings);
+  const normalizedSchoolTypes = schoolTypes.length ? schoolTypes : DEFAULT_SCHOOL_SETTINGS.schoolTypes;
 
   return {
     schoolName: String(settings.schoolName || "").trim() || DEFAULT_SCHOOL_SETTINGS.schoolName,
@@ -551,8 +593,11 @@ function normalizeSchoolSettings(settings = {}) {
     website: String(settings.website || "").trim(),
     academicYearStart: String(settings.academicYearStart || "").trim(),
     academicYearEnd: String(settings.academicYearEnd || "").trim(),
-    hasNursery,
-    hasHigherInstitution,
+    schoolTypes: normalizedSchoolTypes,
+    hasNursery: normalizedSchoolTypes.includes("nursery"),
+    hasPrimary: normalizedSchoolTypes.includes("primary"),
+    hasSecondary: normalizedSchoolTypes.includes("secondary"),
+    hasHigherInstitution: normalizedSchoolTypes.includes("higher"),
   };
 }
 
@@ -601,8 +646,7 @@ function hasSchoolSettingsContext(settings = getSchoolSettings()) {
       settings.campusDetails ||
       settings.phone ||
       settings.website ||
-      settings.hasNursery ||
-      settings.hasHigherInstitution ||
+      settings.schoolTypes?.length ||
       settings.academicYearStart ||
       settings.academicYearEnd ||
       settings.schoolName !== DEFAULT_PLATFORM_NAME,
@@ -1857,6 +1901,8 @@ function normalizeSchoolCourse(record = {}) {
     id: String(record.id || createStorageId("course")),
     name: String(record.name || "").trim(),
     code: String(record.code || "").trim().toUpperCase(),
+    category: String(record.category || "").trim(),
+    creditUnit: String(record.creditUnit || "").trim(),
     description: String(record.description || "").trim(),
     level: String(record.level || "").trim(),
     teacherAssignments: normalizeCourseAssignmentList(record.teacherAssignments),
@@ -1953,6 +1999,10 @@ function setSchoolCourseArchived(courseId, archived) {
   });
 
   return saveSchoolCourses(nextCourses);
+}
+
+function deleteSchoolCourse(courseId) {
+  return saveSchoolCourses(getSchoolCourses().filter((record) => record.id !== courseId));
 }
 
 function getActiveCourseCatalog() {
@@ -2463,7 +2513,9 @@ window.SchoolSphereRolePermissions = {
 
 window.SchoolSphereSiteSettings = {
   defaults: DEFAULT_SCHOOL_SETTINGS,
+  schoolTypeOptions: SCHOOL_TYPE_OPTIONS,
   getSettings: getSchoolSettings,
+  getEnabledSchoolTypes: () => getSchoolSettings().schoolTypes,
   saveSettings: saveSchoolSettings,
   resetSettings: resetSchoolSettings,
   formatAcademicYearLabel,
@@ -2556,6 +2608,7 @@ window.SchoolSphereCourses = {
   upsertCourse: upsertSchoolCourse,
   archiveCourse: (courseId) => setSchoolCourseArchived(courseId, true),
   activateCourse: (courseId) => setSchoolCourseArchived(courseId, false),
+  deleteCourse: deleteSchoolCourse,
   getActiveCatalog: getActiveCourseCatalog,
   eventName: SCHOOL_COURSES_EVENT,
 };

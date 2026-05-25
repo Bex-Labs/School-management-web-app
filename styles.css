@@ -5415,6 +5415,15 @@ body.admin-dashboard-page .portal-class-layout-list-only {
   grid-template-columns: minmax(0, 1fr);
 }
 
+body.admin-dashboard-page .portal-course-layout-wide {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+body.admin-dashboard-page .portal-course-layout-wide .portal-class-form-shell,
+body.admin-dashboard-page .portal-course-layout-wide .portal-class-form {
+  width: 100%;
+}
+
 body.admin-dashboard-page .portal-class-form-shell {
   display: grid;
   gap: 12px;
@@ -5457,6 +5466,94 @@ body.admin-dashboard-page .portal-class-template-grid {
 
 body.admin-dashboard-page .portal-class-template-panel [hidden] {
   display: none;
+}
+
+body.admin-dashboard-page .portal-course-library {
+  display: grid;
+  gap: 14px;
+  margin: 18px 0;
+  padding: 18px;
+  border: 1px solid #dbe5f1;
+  border-radius: 18px;
+  background: #f8fbff;
+}
+
+body.admin-dashboard-page .portal-course-library h3 {
+  margin: 0;
+  color: #17233a;
+  font-size: 1rem;
+}
+
+body.admin-dashboard-page .portal-course-library p {
+  margin: 5px 0 0;
+  color: #667a95;
+  font-size: 0.9rem;
+}
+
+body.admin-dashboard-page .portal-course-library-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+body.admin-dashboard-page .portal-course-wizard {
+  display: grid;
+  gap: 14px;
+}
+
+body.admin-dashboard-page .portal-course-wizard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+body.admin-dashboard-page .portal-course-wizard-actions {
+  justify-content: flex-end;
+  margin-top: 0;
+}
+
+body.admin-dashboard-page .portal-course-library-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+body.admin-dashboard-page .portal-course-library-chip {
+  display: inline-grid;
+  gap: 3px;
+  min-width: 150px;
+  padding: 10px 12px;
+  border: 1px solid #dce6f4;
+  border-radius: 12px;
+  background: #ffffff;
+  text-align: left;
+  color: #17233a;
+}
+
+body.admin-dashboard-page .portal-course-library-chip.is-summary {
+  cursor: default;
+  background: #fdfefe;
+}
+
+body.admin-dashboard-page .portal-course-library-chip strong {
+  font-size: 0.9rem;
+}
+
+body.admin-dashboard-page .portal-course-library-chip span,
+body.admin-dashboard-page .portal-course-library-empty {
+  color: #667188;
+  font-size: 0.8rem;
+}
+
+body.admin-dashboard-page .portal-course-library [hidden],
+body.admin-dashboard-page .portal-course-layout-wide [hidden],
+body.admin-dashboard-page .portal-course-wizard [hidden] {
+  display: none;
+}
+
+body.admin-dashboard-page .portal-course-level-stack-inner {
+  padding: 0 14px 14px;
 }
 
 body.admin-dashboard-page .portal-class-advanced {
@@ -6207,11 +6304,19 @@ body.admin-dashboard-page .portal-class-level-group > summary span {
   font-weight: 700;
 }
 
+body.admin-dashboard-page .portal-class-level-actions {
+  display: inline-flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-left: auto;
+}
+
 body.admin-dashboard-page .portal-class-add-arm-button {
-  min-height: 36px;
+  min-height: 30px;
   margin: 0;
-  padding: 0 12px;
-  border-radius: 10px;
+  padding: 0 9px;
+  border-radius: 9px;
+  font-size: 0.78rem;
   white-space: nowrap;
 }
 
@@ -6590,6 +6695,7 @@ body.admin-dashboard-page .portal-class-empty p {
   body.admin-dashboard-page .portal-admission-share-copy,
   body.admin-dashboard-page .portal-admission-modal-grid,
   body.admin-dashboard-page .portal-class-template-grid,
+  body.admin-dashboard-page .portal-course-wizard-grid,
   body.admin-dashboard-page .portal-class-summary,
   body.admin-dashboard-page .portal-class-meta,
   body.admin-dashboard-page .portal-class-extended {

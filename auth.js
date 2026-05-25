@@ -64,7 +64,7 @@
       label: "Courses",
       href: "./admin-courses.html",
       permissionKey: "courses_manage",
-      copy: "Define course catalog, manage codes and levels, and control teacher/student assignment from one source.",
+      copy: "Define course catalog, manage codes and levels, and control teacher assignment from one source.",
     },
     {
       label: "Teachers",
@@ -1820,6 +1820,7 @@
 
   function mapSchoolSettingsToInstitutionPayload(settings = {}, userId) {
     const schoolName = String(settings.schoolName || "").trim() || "SchoolSphere";
+    const schoolTypes = normalizeConfiguredSchoolTypes(settings);
 
     return {
       id: createUuidV4(),
@@ -1830,8 +1831,8 @@
       campus_details: String(settings.campusDetails || "").trim() || null,
       phone: String(settings.phone || "").trim() || null,
       website: String(settings.website || "").trim() || null,
-      has_nursery: Boolean(settings.hasNursery),
-      has_higher_institution: Boolean(settings.hasHigherInstitution),
+      has_nursery: schoolTypes.includes("nursery"),
+      has_higher_institution: schoolTypes.includes("higher"),
       academic_year_start: String(settings.academicYearStart || "").trim() || null,
       academic_year_end: String(settings.academicYearEnd || "").trim() || null,
       created_by: userId,
@@ -1903,6 +1904,7 @@
   }
 
   async function syncInstitutionSnapshot(client, institutionId, schoolSettings = {}) {
+    const schoolTypes = normalizeConfiguredSchoolTypes(schoolSettings);
     const payload = {
       name: String(schoolSettings.schoolName || "").trim() || "SchoolSphere",
       logo_url: String(schoolSettings.logoUrl || "").trim() || null,
@@ -1911,8 +1913,8 @@
       campus_details: String(schoolSettings.campusDetails || "").trim() || null,
       phone: String(schoolSettings.phone || "").trim() || null,
       website: String(schoolSettings.website || "").trim() || null,
-      has_nursery: Boolean(schoolSettings.hasNursery),
-      has_higher_institution: Boolean(schoolSettings.hasHigherInstitution),
+      has_nursery: schoolTypes.includes("nursery"),
+      has_higher_institution: schoolTypes.includes("higher"),
       academic_year_start: String(schoolSettings.academicYearStart || "").trim() || null,
       academic_year_end: String(schoolSettings.academicYearEnd || "").trim() || null,
     };
@@ -1933,6 +1935,12 @@
         ? manager.defaults
         : getDefaultAdminSchoolSettings();
 
+    const schoolTypes = normalizeConfiguredSchoolTypes({
+      ...defaults,
+      hasNursery: Boolean(institution.has_nursery),
+      hasHigherInstitution: Boolean(institution.has_higher_institution),
+    });
+
     return {
       schoolName: String(institution.name || defaults.schoolName || "SchoolSphere").trim(),
       logoUrl: String(institution.logo_url || "").trim(),
@@ -1943,8 +1951,11 @@
       website: String(institution.website || "").trim(),
       academicYearStart: String(institution.academic_year_start || "").trim(),
       academicYearEnd: String(institution.academic_year_end || "").trim(),
-      hasNursery: Boolean(institution.has_nursery),
-      hasHigherInstitution: Boolean(institution.has_higher_institution),
+      schoolTypes,
+      hasNursery: schoolTypes.includes("nursery"),
+      hasPrimary: schoolTypes.includes("primary"),
+      hasSecondary: schoolTypes.includes("secondary"),
+      hasHigherInstitution: schoolTypes.includes("higher"),
     };
   }
 
@@ -4195,9 +4206,84 @@
       website: "",
       academicYearStart: "",
       academicYearEnd: "",
+      schoolTypes: ["primary", "secondary"],
       hasNursery: false,
+      hasPrimary: true,
+      hasSecondary: true,
       hasHigherInstitution: false,
     };
+  }
+
+  const SCHOOL_TYPE_LABELS = {
+    nursery: "Nursery",
+    primary: "Primary",
+    secondary: "Secondary",
+    higher: "Higher Institution",
+  };
+  const SCHOOL_TYPE_ORDER = ["nursery", "primary", "secondary", "higher"];
+
+  function normalizeConfiguredSchoolTypes(settings = {}) {
+    const rawTypes = Array.isArray(settings.schoolTypes)
+      ? settings.schoolTypes
+      : String(settings.schoolTypes || "")
+          .split(",")
+          .map((item) => item.trim());
+    const normalized = Array.from(
+      new Set(rawTypes.map((type) => String(type || "").trim()).filter((type) => SCHOOL_TYPE_ORDER.includes(type))),
+    );
+
+    if (normalized.length) {
+      return normalized;
+    }
+
+    return [
+      settings.hasNursery ? "nursery" : null,
+      settings.hasPrimary === false ? null : "primary",
+      settings.hasSecondary === false ? null : "secondary",
+      settings.hasHigherInstitution ? "higher" : null,
+    ].filter(Boolean);
+  }
+
+  function getConfiguredSchoolTypes() {
+    const manager = getSchoolSettingsManager();
+    const settings = manager?.getSettings ? manager.getSettings() : getDefaultAdminSchoolSettings();
+    const enabledTypes = manager?.getEnabledSchoolTypes
+      ? manager.getEnabledSchoolTypes()
+      : normalizeConfiguredSchoolTypes(settings);
+    const normalized = normalizeConfiguredSchoolTypes({ ...settings, schoolTypes: enabledTypes });
+    return normalized.length ? normalized : getDefaultAdminSchoolSettings().schoolTypes;
+  }
+
+  function renderConfiguredSchoolTypeSelect(select, { includeCombined = false } = {}) {
+    if (!(select instanceof HTMLSelectElement)) {
+      return "";
+    }
+
+    const previousValue = String(select.value || "").trim();
+    const enabledTypes = getConfiguredSchoolTypes();
+    const options = enabledTypes
+      .filter((type) => SCHOOL_TYPE_ORDER.includes(type))
+      .map((type) => ({ value: type, label: SCHOOL_TYPE_LABELS[type] || type }));
+    const combinedTypes = enabledTypes.filter((type) => ["nursery", "primary", "secondary"].includes(type));
+
+    if (includeCombined && combinedTypes.length > 1) {
+      options.push({ value: "combined", label: "Combined School" });
+    }
+
+    select.innerHTML = `
+      <option value="">Select school type</option>
+      ${options
+        .map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`)
+        .join("")}
+    `;
+
+    if (options.some((option) => option.value === previousValue)) {
+      select.value = previousValue;
+      return previousValue;
+    }
+
+    select.value = "";
+    return "";
   }
 
   function getAdminAccessContext() {
@@ -4405,6 +4491,25 @@
           "SS3",
         ],
       },
+    };
+
+    const getTemplateLevels = (type) => {
+      if (type !== "combined") {
+        return classTemplates[type]?.levels || [];
+      }
+
+      const enabledTypes = getConfiguredSchoolTypes().filter((schoolType) =>
+        ["nursery", "primary", "secondary"].includes(schoolType),
+      );
+      return enabledTypes.flatMap((schoolType) => classTemplates[schoolType]?.levels || []);
+    };
+
+    const renderClassTemplateTypeOptions = () => {
+      const selected = renderConfiguredSchoolTypeSelect(templateType, { includeCombined: true });
+      if (!selected) {
+        resetTemplateSelectionsForType();
+      }
+      return selected;
     };
 
     const facultyDepartments = {
@@ -4763,6 +4868,7 @@
     renderClassTeacherOptions("");
     renderTeacherAssignmentRows([{}]);
     setClassFormVisibility(false);
+    renderClassTemplateTypeOptions();
     replaceSelectOptions(templateFaculty, Object.keys(facultyDepartments), "Select faculty");
     updateTemplateDepartmentOptions();
     updateTemplateVisibility();
@@ -4810,9 +4916,9 @@
         }
 
         const type = getTemplateTypeValue();
-        const template = classTemplates[type];
+        const templateLevels = getTemplateLevels(type);
 
-        if (!template) {
+        if (!templateLevels.length) {
           setStatus(status, "error", "Select a school type before generating classes.");
           return;
         }
@@ -4827,13 +4933,13 @@
             setStatus(status, "error", "Select or enter a faculty and department first.");
             return;
           }
-          generatedRecords = template.levels.map((level) => ({
+          generatedRecords = templateLevels.map((level) => ({
             level,
             name: `${faculty} - ${department}`,
             arms: [department],
           }));
         } else {
-          generatedRecords = template.levels.flatMap((level) =>
+          generatedRecords = templateLevels.flatMap((level) =>
             templateArms.map((arm) => ({
               level,
               name: arm,
@@ -5151,6 +5257,51 @@
         return;
       }
 
+      if (action === "delete-level") {
+        event.preventDefault();
+        event.stopPropagation();
+        const level = String(actionButton.dataset.classLevel || "").trim();
+        const levelRecords = manager
+          .getClasses()
+          .filter((record) => normalizeLookupToken(record.level) === normalizeLookupToken(level));
+
+        if (!level || !levelRecords.length) {
+          setStatus(status, "error", "No class level was found to delete.");
+          return;
+        }
+
+        const confirmed = window.confirm(
+          `Delete ${level} and all ${levelRecords.length} arm${levelRecords.length === 1 ? "" : "s"}? This cannot be undone.`,
+        );
+
+        if (!confirmed) {
+          return;
+        }
+
+        if (typeof manager.deleteClass !== "function") {
+          setStatus(status, "error", "Class removal is not available right now.");
+          return;
+        }
+
+        levelRecords.forEach((record) => manager.deleteClass(record.id));
+        recordAuditEvent({
+          action: "deleted",
+          entityType: "class-level",
+          entityId: level,
+          summary: `Deleted class level ${level}`,
+          details: `${levelRecords.length} arm${levelRecords.length === 1 ? "" : "s"} removed`,
+        });
+        refreshClassManagementSection();
+        setStatus(
+          status,
+          "success",
+          `Deleted <strong>${escapeHtml(level)}</strong> and ${levelRecords.length} arm${
+            levelRecords.length === 1 ? "" : "s"
+          }.`,
+        );
+        return;
+      }
+
       const record = manager.getClasses().find((item) => item.id === classId);
 
       if (!record) {
@@ -5350,13 +5501,450 @@
     const formToggleButton =
       form.parentElement?.querySelector("[data-course-form-toggle]") ||
       document.querySelector("[data-course-form-toggle]");
+    const teacherSelect = form.elements.teacherAssignments;
+    const levelSelect = form.elements.level;
+    const categoryField = form.elements.category;
+    const creditField = form.elements.creditUnit;
+    const codeFieldWrap = document.querySelector("[data-course-code-field]");
+    const levelFieldWrap = document.querySelector("[data-course-level-field]");
+    const teacherFieldWrap = document.querySelector("[data-course-teacher-field]");
+    const descriptionFieldWrap = document.querySelector("[data-course-description-field]");
+    const wizardActions = document.querySelector("[data-course-wizard-actions]");
+    const categoryFieldWrap = document.querySelector("[data-course-category-field]");
+    const nameFieldWrap = document.querySelector("[data-course-name-field]");
+    const subjectSelectWrap = document.querySelector("[data-course-subject-select-field]");
+    const subjectSelect = document.querySelector("[data-course-subject-select]");
+    const customSubjectWrap = document.querySelector("[data-course-custom-subject-field]");
+    const customSubjectField = document.querySelector("[data-course-custom-subject]");
+    const facultyFieldWrap = document.querySelector("[data-course-faculty-field]");
+    const departmentFieldWrap = document.querySelector("[data-course-department-field]");
+    const customDepartmentFieldWrap = document.querySelector("[data-course-custom-department-field]");
+    const facultySelect = document.querySelector("[data-course-faculty]");
+    const departmentSelect = document.querySelector("[data-course-department]");
+    const customDepartmentField = form.elements.customDepartment;
+    const templateType = document.querySelector("[data-course-template-type]");
+    const templateList = document.querySelector("[data-course-library-list]");
+    const classManager = getClassManager();
+    const normalizeLookupToken = (value) => String(value || "").trim().toLowerCase();
+    const facultyDepartments = {
+      "Faculty of Science": ["Computer Science", "Microbiology", "Biochemistry", "Mathematics", "Physics", "Chemistry"],
+      "Faculty of Arts": ["English and Literary Studies", "History and International Studies", "Linguistics", "Philosophy", "Theatre Arts"],
+      "Faculty of Social Sciences": ["Economics", "Political Science", "Sociology", "Psychology", "Mass Communication"],
+      "Faculty of Management Sciences": ["Accounting", "Business Administration", "Banking and Finance", "Marketing", "Public Administration"],
+      "Faculty of Education": ["Educational Management", "Guidance and Counselling", "Science Education", "Primary Education Studies"],
+      "Faculty of Engineering": ["Civil Engineering", "Electrical/Electronics Engineering", "Mechanical Engineering", "Computer Engineering", "Chemical Engineering"],
+      "Faculty of Health Sciences": ["Nursing Science", "Public Health", "Medical Laboratory Science", "Anatomy", "Physiology"],
+      "Faculty of Law": ["Law"],
+    };
+    const subjectTemplates = {
+      nursery: {
+        label: "Subjects",
+        categories: {
+          Foundation: ["Numbers", "Rhymes", "Coloring", "Social Habits", "Handwriting"],
+        },
+      },
+      primary: {
+        label: "Subjects",
+        categories: {
+          Core: ["English", "Mathematics", "Basic Science", "Civic Education", "Social Studies"],
+          Faith: ["CRS/IRS"],
+          Digital: ["Computer Studies"],
+        },
+      },
+      secondary: {
+        label: "Subjects",
+        categories: {
+          Science: ["Mathematics", "English", "Physics", "Chemistry", "Biology"],
+          Art: ["English", "Literature"],
+          Commercial: ["Mathematics", "English", "Economics"],
+        },
+      },
+      higher: {
+        label: "Courses",
+        categories: {
+          "Faculty of Science / Computer Science": ["CSC101", "CSC102", "MTH101"],
+          "Faculty of Management Sciences / Accounting": ["ACC101", "ACC102"],
+          "Faculty of Management Sciences / Business Administration": ["BUS101", "ECO101"],
+          "Faculty of Arts / English and Literary Studies": ["ENG101", "ENG102"],
+        },
+      },
+    };
+
+    const getTeacherDirectory = () => {
+      const workspaceId = normalizeWorkspaceId(getCurrentWorkspaceId());
+      return getUsers()
+        .filter(
+          (user) =>
+            normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE) === "Teacher" &&
+            !isUserDeactivated(user) &&
+            normalizeWorkspaceId(user.workspaceId || "public") === workspaceId,
+        )
+        .map((user) => {
+          const email = String(user.email || "").trim();
+          return {
+            value: email,
+            label: user.displayName ? `${user.displayName} (${email})` : email,
+          };
+        })
+        .filter((item) => item.value)
+        .sort((left, right) => left.label.localeCompare(right.label));
+    };
+
+    const renderTeacherOptions = (selected = "") => {
+      if (!(teacherSelect instanceof HTMLSelectElement)) {
+        return;
+      }
+
+      const selectedValue = String(selected || "").trim();
+      const teachers = getTeacherDirectory();
+      const hasSelected = teachers.some((teacher) => teacher.value === selectedValue);
+      teacherSelect.innerHTML = `
+        <option value="">Select registered teacher</option>
+        ${teachers
+          .map(
+            (teacher) => `
+              <option value="${escapeHtml(teacher.value)}" ${teacher.value === selectedValue ? "selected" : ""}>
+                ${escapeHtml(teacher.label)}
+              </option>
+            `,
+          )
+          .join("")}
+        ${selectedValue && !hasSelected ? `<option value="${escapeHtml(selectedValue)}" selected>${escapeHtml(selectedValue)}</option>` : ""}
+      `;
+    };
+
+    const getClassLevelOptions = () => {
+      if (!classManager || typeof classManager.getClasses !== "function") {
+        return [];
+      }
+
+      return Array.from(
+        new Set(
+          classManager
+            .getClasses()
+            .filter((record) => record.status !== "archived")
+            .map((record) => String(record.level || "").trim())
+            .filter(Boolean),
+        ),
+      ).sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
+    };
+
+    const getLevelSchoolType = (level) => {
+      const normalized = String(level || "").trim();
+      if (/^nursery/i.test(normalized)) {
+        return "nursery";
+      }
+      if (/^primary/i.test(normalized)) {
+        return "primary";
+      }
+      if (/^(JSS|SS)\d/i.test(normalized)) {
+        return "secondary";
+      }
+      if (/^\d{3}\s*Level/i.test(normalized)) {
+        return "higher";
+      }
+      return "other";
+    };
+
+    const getCourseGroupLabel = (level) => {
+      const type = getLevelSchoolType(level);
+      if (type === "nursery") return "Nursery";
+      if (type === "primary") return "Primary";
+      if (type === "secondary") return "Secondary";
+      if (type === "higher") return "Higher Institution";
+      return "Other";
+    };
+
+    const renderClassLevelOptions = (selected = []) => {
+      if (!(levelSelect instanceof HTMLSelectElement)) {
+        return;
+      }
+
+      const selectedValues = Array.isArray(selected) ? selected : [selected].filter(Boolean);
+      const type = String(templateType?.value || "").trim();
+      const options = getClassLevelOptions().filter((level) => !type || getLevelSchoolType(level) === type);
+      levelSelect.innerHTML = options.length
+        ? `<option value="">Select class / level</option>${options
+            .map(
+              (level) => `
+                <option value="${escapeHtml(level)}" ${selectedValues.includes(level) ? "selected" : ""}>
+                  ${escapeHtml(level)}
+                </option>
+              `,
+            )
+            .join("")}`
+        : `<option value="">Generate classes first</option>`;
+    };
+
+    const setSelectOptions = (select, options = [], placeholder = "Select option") => {
+      if (!(select instanceof HTMLSelectElement)) {
+        return;
+      }
+      select.innerHTML = `
+        <option value="">${escapeHtml(placeholder)}</option>
+        ${options.map((option) => `<option value="${escapeHtml(option)}">${escapeHtml(option)}</option>`).join("")}
+      `;
+    };
+
+    const getResolvedDepartment = () => {
+      const selectedDepartment = String(departmentSelect?.value || "").trim();
+      return selectedDepartment === "Other"
+        ? String(customDepartmentField?.value || "").trim()
+        : selectedDepartment;
+    };
+
+    const getSubjectOptionsForSelection = () => {
+      const type = String(templateType?.value || "").trim();
+      const template = subjectTemplates[type];
+
+      if (!template) {
+        return [];
+      }
+
+      if (type === "secondary") {
+        const stream = String(categoryField?.value || "").trim();
+        return stream ? template.categories[stream] || [] : [];
+      }
+
+      if (type === "higher") {
+        const faculty = String(facultySelect?.value || "").trim();
+        const department = getResolvedDepartment();
+        const categoryKey = [faculty, department].filter(Boolean).join(" / ");
+        return categoryKey ? template.categories[categoryKey] || [] : [];
+      }
+
+      return Array.from(new Set(Object.values(template.categories).flat()));
+    };
+
+    const syncSubjectNameFromPicker = () => {
+      const type = String(templateType?.value || "").trim();
+
+      if (!["nursery", "primary", "secondary", "higher"].includes(type)) {
+        return;
+      }
+
+      const selectedSubject = String(subjectSelect?.value || "").trim();
+      const isCustom = selectedSubject === "Other";
+
+      if (customSubjectWrap) {
+        customSubjectWrap.hidden = !isCustom;
+      }
+
+      if (form.elements.name) {
+        form.elements.name.value = isCustom
+          ? String(customSubjectField?.value || "").trim()
+          : selectedSubject;
+      }
+    };
+
+    const renderSubjectPickerOptions = (selected = "") => {
+      if (!(subjectSelect instanceof HTMLSelectElement)) {
+        return;
+      }
+
+      const options = getSubjectOptionsForSelection();
+      const selectedValue = String(selected || "").trim();
+      const type = String(templateType?.value || "").trim();
+      const placeholder = type === "higher" ? "Select course" : "Select subject";
+      subjectSelect.innerHTML = `
+        <option value="">${escapeHtml(placeholder)}</option>
+        ${options.map((option) => `<option value="${escapeHtml(option)}">${escapeHtml(option)}</option>`).join("")}
+        <option value="Other">Other</option>
+      `;
+      if (selectedValue) {
+        const hasOption = Array.from(subjectSelect.options).some((option) => option.value === selectedValue);
+        subjectSelect.value = hasOption ? selectedValue : "Other";
+        if (!hasOption && customSubjectField) {
+          customSubjectField.value = selectedValue;
+        }
+      }
+      syncSubjectNameFromPicker();
+    };
+
+    const updateSubjectPickerVisibility = () => {
+      const type = String(templateType?.value || "").trim();
+      const selectedDepartment = getResolvedDepartment();
+      const selectedLevel = String(levelSelect?.value || "").trim();
+      const usesSubjectPicker =
+        Boolean(selectedLevel) &&
+        (type === "nursery" ||
+          type === "primary" ||
+          (type === "secondary" && Boolean(String(categoryField?.value || "").trim())) ||
+          (type === "higher" && Boolean(String(facultySelect?.value || "").trim()) && Boolean(selectedDepartment)));
+
+      if (nameFieldWrap) {
+        nameFieldWrap.hidden = true;
+      }
+      if (subjectSelectWrap) {
+        subjectSelectWrap.hidden = !usesSubjectPicker;
+        const subjectLabel = subjectSelectWrap.querySelector("span");
+        if (subjectLabel) {
+          subjectLabel.textContent = type === "higher" ? "Course" : "Subject";
+        }
+      }
+      if (customSubjectWrap) {
+        customSubjectWrap.hidden = !usesSubjectPicker || subjectSelect?.value !== "Other";
+        const customSubjectLabel = customSubjectWrap.querySelector("span");
+        if (customSubjectLabel) {
+          customSubjectLabel.textContent = type === "higher" ? "Custom course" : "Custom subject";
+        }
+        const customSubjectInput = customSubjectWrap.querySelector("input");
+        if (customSubjectInput) {
+          customSubjectInput.placeholder = type === "higher" ? "Enter course name or code" : "Enter subject name";
+        }
+      }
+    };
+
+    const renderFacultyOptions = (selected = "") => {
+      setSelectOptions(facultySelect, Object.keys(facultyDepartments), "Select faculty");
+      if (facultySelect && selected) {
+        facultySelect.value = selected;
+      }
+    };
+
+    const renderDepartmentOptions = (selected = "") => {
+      const faculty = String(facultySelect?.value || "").trim();
+      setSelectOptions(departmentSelect, [...(facultyDepartments[faculty] || []), "Other"], "Select department");
+      if (departmentSelect && selected) {
+        const hasOption = Array.from(departmentSelect.options).some((option) => option.value === selected);
+        departmentSelect.value = hasOption ? selected : "Other";
+        if (!hasOption && customDepartmentField) {
+          customDepartmentField.value = selected;
+        }
+      }
+      if (customDepartmentFieldWrap) {
+        customDepartmentFieldWrap.hidden = departmentSelect?.value !== "Other";
+      }
+    };
+
+    const updateCourseTerminology = () => {
+      const type = String(templateType?.value || "").trim();
+      const template = subjectTemplates[type];
+      const label = template?.label || "Subjects / courses";
+      const heading = document.getElementById("portal-heading");
+      const createButton = document.querySelector("[data-course-form-toggle]");
+      const selectedSubject = String(form.elements.name?.value || "").trim();
+      const selectedLevel = String(levelSelect?.value || "").trim();
+      const canChooseLevel =
+        type === "nursery" ||
+        type === "primary" ||
+        (type === "secondary" && Boolean(String(categoryField?.value || "").trim())) ||
+        (type === "higher" &&
+          Boolean(String(facultySelect?.value || "").trim()) &&
+          Boolean(getResolvedDepartment()));
+      const showFinalDetails = Boolean(selectedSubject && selectedLevel);
+
+      if (heading) {
+        heading.textContent = `${label} Management`;
+      }
+      if (createButton && form.hidden) {
+        createButton.textContent = "Create";
+      }
+      if (creditField?.closest(".portal-field")) {
+        creditField.closest(".portal-field").hidden = type !== "higher" || !showFinalDetails;
+      }
+      if (codeFieldWrap) {
+        codeFieldWrap.hidden = !showFinalDetails;
+      }
+      if (levelFieldWrap) {
+        levelFieldWrap.hidden = !canChooseLevel;
+      }
+      if (teacherFieldWrap) {
+        teacherFieldWrap.hidden = !showFinalDetails;
+      }
+      if (descriptionFieldWrap) {
+        descriptionFieldWrap.hidden = !showFinalDetails;
+      }
+      if (wizardActions) {
+        wizardActions.hidden = !showFinalDetails;
+      }
+      if (categoryFieldWrap) {
+        categoryFieldWrap.hidden = type !== "secondary";
+      }
+      if (facultyFieldWrap) {
+        facultyFieldWrap.hidden = type !== "higher";
+      }
+      if (departmentFieldWrap) {
+        departmentFieldWrap.hidden = type !== "higher" || !String(facultySelect?.value || "").trim();
+      }
+      if (customDepartmentFieldWrap) {
+        customDepartmentFieldWrap.hidden = type !== "higher" || departmentSelect?.value !== "Other";
+      }
+      updateSubjectPickerVisibility();
+    };
+
+    const renderTemplateCategories = () => {
+      if (!(categoryField instanceof HTMLSelectElement)) {
+        return;
+      }
+
+      const type = String(templateType?.value || "").trim();
+      const template = subjectTemplates[type];
+      const categories = template && type === "secondary" ? Object.keys(template.categories) : [];
+      const selected = String(categoryField.value || "").trim();
+      categoryField.innerHTML = `
+        <option value="">Select stream</option>
+        ${categories.map((category) => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`).join("")}
+      `;
+      if (selected && categories.includes(selected)) {
+        categoryField.value = selected;
+      }
+    };
+
+    const renderSubjectLibrary = () => {
+      if (!templateList) {
+        return;
+      }
+
+      const type = String(templateType?.value || "").trim();
+      const template = subjectTemplates[type];
+
+      if (!template) {
+        templateList.innerHTML = `<p class="portal-course-library-empty">No subject selected</p>`;
+        return;
+      }
+
+      const selectedSubject = String(form.elements.name?.value || "").trim();
+      const selectedLevel = String(levelSelect?.value || "").trim();
+      const selectedTeacher = String(teacherSelect?.value || "").trim();
+      const selectedCategory =
+        type === "secondary"
+          ? String(categoryField?.value || "").trim()
+          : type === "higher"
+            ? [String(facultySelect?.value || "").trim(), getResolvedDepartment()].filter(Boolean).join(" / ")
+            : "";
+      const selectedTypeLabel = templateType instanceof HTMLSelectElement
+        ? templateType.options[templateType.selectedIndex]?.text || ""
+        : "";
+      const summaryItems = [
+        { label: "Type", value: template.label === "Courses" ? "Higher Institution" : selectedTypeLabel },
+        { label: type === "higher" ? "Faculty / department" : "Stream", value: selectedCategory },
+        { label: "Class / level", value: selectedLevel },
+        { label: type === "higher" ? "Course" : "Subject", value: selectedSubject },
+        { label: "Teacher", value: selectedTeacher },
+      ].filter((item) => String(item.value || "").trim());
+
+      templateList.innerHTML = summaryItems.length
+        ? summaryItems
+            .map(
+              (item) => `
+                <span class="portal-course-library-chip is-summary">
+                  <strong>${escapeHtml(item.value)}</strong>
+                  <span>${escapeHtml(item.label)}</span>
+                </span>
+              `,
+            )
+            .join("")
+        : `<p class="portal-course-library-empty">No subject selected</p>`;
+    };
 
     const setCourseFormVisibility = (isVisible) => {
-      form.hidden = !isVisible;
+      form.hidden = false;
 
       if (formToggleButton) {
-        formToggleButton.textContent = isVisible ? "Hide course form" : "Create course";
-        formToggleButton.setAttribute("aria-expanded", String(isVisible));
+        formToggleButton.hidden = true;
+        formToggleButton.textContent = isVisible ? "Hide form" : "Create";
+        formToggleButton.setAttribute("aria-expanded", "true");
       }
     };
 
@@ -5375,12 +5963,35 @@
       }
     };
 
+    const resetCourseWizardState = () => {
+      resetPortalCourseForm(form, isAdmin);
+      renderTeacherOptions("");
+      renderClassLevelOptions([]);
+      renderTemplateCategories();
+      renderFacultyOptions("");
+      renderDepartmentOptions("");
+      renderSubjectPickerOptions("");
+      updateCourseTerminology();
+      renderSubjectLibrary();
+      setCourseFormVisibility(false);
+    };
+
     form.addEventListener("input", () => {
       clearPortalCourseErrors(form);
+      syncSubjectNameFromPicker();
+      updateCourseTerminology();
+      renderSubjectLibrary();
 
       if (isAdmin) {
         setStatus(status, "", "");
       }
+    });
+
+    form.addEventListener("change", () => {
+      clearPortalCourseErrors(form);
+      syncSubjectNameFromPicker();
+      updateCourseTerminology();
+      renderSubjectLibrary();
     });
 
     const refreshCourseManagementSection = () => {
@@ -5392,11 +6003,14 @@
         status,
         listTarget,
       });
+      renderTeacherOptions(teacherSelect?.value || "");
+      renderClassLevelOptions(Array.from(levelSelect?.selectedOptions || []).map((option) => option.value));
+      updateCourseTerminology();
+      renderSubjectLibrary();
     };
 
     refreshCourseManagementSection();
-    resetPortalCourseForm(form, isAdmin);
-    setCourseFormVisibility(false);
+    resetCourseWizardState();
 
     if (formToggleButton) {
       formToggleButton.disabled = !isAdmin || !manager;
@@ -5406,6 +6020,100 @@
     if (!manager) {
       setCourseFormVisibility(false);
       return;
+    }
+
+    if (templateType) {
+      templateType.addEventListener("change", () => {
+        if (categoryField) {
+          categoryField.value = "";
+        }
+        if (customSubjectField) {
+          customSubjectField.value = "";
+        }
+        if (form.elements.name) {
+          form.elements.name.value = "";
+        }
+        renderSubjectPickerOptions("");
+        renderFacultyOptions("");
+        renderDepartmentOptions("");
+        if (customDepartmentField) {
+          customDepartmentField.value = "";
+        }
+        renderTemplateCategories();
+        renderClassLevelOptions([]);
+        updateCourseTerminology();
+        renderSubjectLibrary();
+      });
+    }
+
+    if (categoryField) {
+      categoryField.addEventListener("change", () => {
+        if (customSubjectField) {
+          customSubjectField.value = "";
+        }
+        if (form.elements.name) {
+          form.elements.name.value = "";
+        }
+        renderSubjectPickerOptions("");
+        updateCourseTerminology();
+        renderSubjectLibrary();
+      });
+    }
+
+    if (subjectSelect) {
+      subjectSelect.addEventListener("change", () => {
+        syncSubjectNameFromPicker();
+        updateCourseTerminology();
+        renderSubjectLibrary();
+      });
+    }
+
+    if (customSubjectField) {
+      customSubjectField.addEventListener("input", () => {
+        syncSubjectNameFromPicker();
+        updateCourseTerminology();
+        renderSubjectLibrary();
+      });
+    }
+
+    if (facultySelect) {
+      facultySelect.addEventListener("change", () => {
+        if (form.elements.name) {
+          form.elements.name.value = "";
+        }
+        if (customSubjectField) {
+          customSubjectField.value = "";
+        }
+        renderDepartmentOptions("");
+        renderSubjectPickerOptions("");
+        updateCourseTerminology();
+        renderSubjectLibrary();
+      });
+    }
+
+    if (departmentSelect) {
+      departmentSelect.addEventListener("change", () => {
+        if (form.elements.name) {
+          form.elements.name.value = "";
+        }
+        if (customSubjectField) {
+          customSubjectField.value = "";
+        }
+        renderSubjectPickerOptions("");
+        updateCourseTerminology();
+        renderSubjectLibrary();
+      });
+    }
+
+    if (customDepartmentField) {
+      customDepartmentField.addEventListener("input", () => {
+        if (form.elements.name) {
+          form.elements.name.value = "";
+        }
+        renderSubjectPickerOptions("");
+        updateCourseTerminology();
+        renderSubjectLibrary();
+      });
     }
 
     form.addEventListener("submit", async (event) => {
@@ -5420,14 +6128,30 @@
       setStatus(status, "", "");
 
       const courseId = form.elements.courseId.value;
+      const selectedLevels = [String(form.elements.level.value || "").trim()].filter(Boolean);
+      const isHigherCourse = String(templateType?.value || "").trim() === "higher" || getLevelSchoolType(selectedLevels[0]) === "higher";
+      const faculty = String(form.elements.faculty?.value || "").trim();
+      const selectedDepartment = String(form.elements.department?.value || "").trim();
+      const department = selectedDepartment === "Other"
+        ? String(form.elements.customDepartment?.value || "").trim()
+        : selectedDepartment;
+      const selectedType = String(templateType?.value || "").trim();
       const payload = {
         id: courseId || undefined,
         name: form.elements.name.value.trim(),
         code: form.elements.code.value.trim().toUpperCase(),
+        category: isHigherCourse
+          ? [faculty, department].filter(Boolean).join(" / ")
+          : selectedType === "secondary"
+            ? String(form.elements.category?.value || "").trim()
+            : "",
+        creditUnit: String(form.elements.creditUnit?.value || "").trim(),
         description: form.elements.description.value.trim(),
-        level: form.elements.level.value.trim(),
-        teacherAssignments: parseLineSeparatedValues(form.elements.teacherAssignments.value),
-        studentAssignments: parseLineSeparatedValues(form.elements.studentAssignments.value),
+        level: selectedLevels[0] || "",
+        teacherAssignments: form.elements.teacherAssignments.value.trim()
+          ? [form.elements.teacherAssignments.value.trim()]
+          : [],
+        studentAssignments: [],
       };
 
       let hasError = false;
@@ -5437,36 +6161,36 @@
         hasError = true;
       }
 
-      if (!payload.code) {
-        setPortalCourseError(form, "code", "Enter the course code.");
-        hasError = true;
-      }
-
-      if (!payload.description) {
-        setPortalCourseError(form, "description", "Add a short course description.");
-        hasError = true;
-      }
-
       if (!payload.level) {
-        setPortalCourseError(form, "level", "Enter the level for this course.");
+        setPortalCourseError(form, "level", "Select at least one class or level.");
         hasError = true;
       }
 
-      const duplicate = manager
-        .getCourses()
-        .find(
-          (record) =>
+      if (isHigherCourse && (!faculty || !department)) {
+        setPortalCourseError(form, "department", "Select faculty and department.");
+        hasError = true;
+      }
+
+      if (!isHigherCourse && selectedType === "secondary" && !payload.category) {
+        setPortalCourseError(form, "category", "Select Science, Art, or Commercial.");
+        hasError = true;
+      }
+
+      const duplicate = manager.getCourses().find((record) =>
+        selectedLevels.some(
+          (level) =>
             record.id !== courseId &&
-            (record.code.toLowerCase() === payload.code.toLowerCase() ||
-              (record.name.toLowerCase() === payload.name.toLowerCase() &&
-                record.level.toLowerCase() === payload.level.toLowerCase())),
-        );
+            String(record.level || "").toLowerCase() === level.toLowerCase() &&
+            ((payload.code && String(record.code || "").toLowerCase() === payload.code.toLowerCase()) ||
+              String(record.name || "").toLowerCase() === payload.name.toLowerCase()),
+        ),
+      );
 
       if (duplicate) {
         setPortalCourseError(
           form,
-          "code",
-          "This course code or same name-level combination already exists.",
+          "name",
+          "This subject/course already exists for one of the selected classes.",
         );
         hasError = true;
       }
@@ -5477,10 +6201,15 @@
       }
 
       const currentRecord = manager.getCourses().find((record) => record.id === courseId) || null;
-      manager.upsertCourse({
-        ...currentRecord,
-        ...payload,
-        status: currentRecord ? currentRecord.status : "active",
+      const levelsToSave = currentRecord ? [payload.level] : selectedLevels;
+      levelsToSave.forEach((level, index) => {
+        manager.upsertCourse({
+          ...(index === 0 ? currentRecord : null),
+          ...payload,
+          id: index === 0 ? payload.id : undefined,
+          level,
+          status: currentRecord ? currentRecord.status : "active",
+        });
       });
       recordAuditEvent({
         action: currentRecord ? "updated" : "created",
@@ -5488,23 +6217,22 @@
         entityId: payload.code || payload.name,
         summary: currentRecord
           ? `Updated course ${payload.code} · ${payload.name}`
-          : `Created course ${payload.code} · ${payload.name}`,
-        details: `${payload.level} • ${payload.teacherAssignments.length} teacher assignments • ${payload.studentAssignments.length} student assignments`,
+          : `Created course ${payload.code || "New"} · ${payload.name}`,
+        details: `${levelsToSave.join(", ")} • ${payload.teacherAssignments.length} teacher assignment`,
       });
 
-      resetPortalCourseForm(form, isAdmin);
+      resetCourseWizardState();
       clearFormDraftFor(form);
-      setCourseFormVisibility(false);
       setStatus(
         status,
         "success",
         currentRecord
-          ? `Course <strong>${escapeHtml(payload.code)} · ${escapeHtml(
+          ? `Course <strong>${escapeHtml(payload.code || "New")} · ${escapeHtml(
               payload.name,
             )}</strong> updated and now controls assignment data.`
-          : `Course <strong>${escapeHtml(payload.code)} · ${escapeHtml(
+          : `Course <strong>${escapeHtml(payload.code || "New")} · ${escapeHtml(
               payload.name,
-            )}</strong> created and ready for assignment.`,
+            )}</strong> created and assigned to ${levelsToSave.length} class${levelsToSave.length === 1 ? "" : "es"}.`,
       );
     });
 
@@ -5513,8 +6241,7 @@
     if (courseCancelButton) {
       courseCancelButton.addEventListener("click", () => {
         clearPortalCourseErrors(form);
-        resetPortalCourseForm(form, isAdmin);
-        setCourseFormVisibility(false);
+        resetCourseWizardState();
         setStatus(status, "", "");
       });
     }
@@ -5537,7 +6264,22 @@
       clearPortalCourseErrors(form);
 
       if (action === "edit") {
+        if (templateType) {
+          templateType.value = getLevelSchoolType(record.level);
+        }
+        renderTemplateCategories();
+        renderClassLevelOptions([record.level || ""]);
+        updateCourseTerminology();
+        const [faculty = "", department = ""] = String(record.category || "")
+          .split("/")
+          .map((item) => item.trim());
+        renderFacultyOptions(faculty);
+        renderDepartmentOptions(department);
         populatePortalCourseForm(form, record, isAdmin);
+        renderSubjectPickerOptions(record.name || "");
+        renderTeacherOptions((record.teacherAssignments || [])[0] || "");
+        updateCourseTerminology();
+        renderSubjectLibrary();
         setCourseFormVisibility(true);
         setStatus(
           status,
@@ -5559,14 +6301,44 @@
           summary: `Archived course ${record.code} · ${record.name}`,
           details: record.level,
         });
-        resetPortalCourseForm(form, isAdmin);
-        setCourseFormVisibility(false);
+        resetCourseWizardState();
         setStatus(
           status,
           "success",
           `Course <strong>${escapeHtml(record.code)} · ${escapeHtml(
             record.name,
           )}</strong> archived and removed from active assignment options.`,
+        );
+        return;
+      }
+
+      if (action === "delete") {
+        const confirmed = window.confirm(
+          `Delete ${record.code || record.name} from ${record.level || "this level"}? This cannot be undone.`,
+        );
+
+        if (!confirmed) {
+          return;
+        }
+
+        if (typeof manager.deleteCourse !== "function") {
+          setStatus(status, "error", "Course deletion is not available right now.");
+          return;
+        }
+
+        manager.deleteCourse(record.id);
+        recordAuditEvent({
+          action: "deleted",
+          entityType: "course",
+          entityId: record.id,
+          summary: `Deleted course ${record.code || "NO-CODE"} · ${record.name}`,
+          details: record.level,
+        });
+        resetCourseWizardState();
+        setStatus(
+          status,
+          "success",
+          `Course <strong>${escapeHtml(record.code || "NO-CODE")} · ${escapeHtml(record.name)}</strong> deleted.`,
         );
         return;
       }
@@ -5580,8 +6352,7 @@
           summary: `Reactivated course ${record.code} · ${record.name}`,
           details: record.level,
         });
-        resetPortalCourseForm(form, isAdmin);
-        setCourseFormVisibility(false);
+        resetCourseWizardState();
         setStatus(
           status,
           "success",
@@ -5593,6 +6364,7 @@
     });
 
     window.addEventListener(manager.eventName, refreshCourseManagementSection);
+    window.addEventListener(STORAGE_KEYS.users, () => renderTeacherOptions(teacherSelect?.value || ""));
   }
 
   function initAcademicCalendarControls({
@@ -6795,6 +7567,18 @@
 
     const logoFileInput = form.querySelector('input[name="logoFile"]');
     const clearLogoButton = form.querySelector("[data-clear-logo]");
+    const schoolTypeAllInput = form.querySelector("[data-school-type-all]");
+    const schoolTypeInputs = Array.from(form.querySelectorAll("[data-school-type-option]"));
+
+    const updateSchoolTypeAllState = () => {
+      if (!(schoolTypeAllInput instanceof HTMLInputElement)) {
+        return;
+      }
+
+      schoolTypeAllInput.checked = schoolTypeInputs.every(
+        (input) => input instanceof HTMLInputElement && input.checked,
+      );
+    };
 
     form.addEventListener("input", () => {
       clearPortalSettingsErrors(form);
@@ -6803,6 +7587,26 @@
       if (previewTarget) previewTarget.innerHTML = buildLivePreviewFromForm(form, isAdmin);
       // Live logo swatch
       updateLogoSwatch(form, form.elements.logoUrl?.value.trim() || "", form.elements.schoolName?.value.trim() || "");
+    });
+
+    if (schoolTypeAllInput instanceof HTMLInputElement) {
+      schoolTypeAllInput.addEventListener("change", () => {
+        schoolTypeInputs.forEach((input) => {
+          if (input instanceof HTMLInputElement) {
+            input.checked = schoolTypeAllInput.checked;
+          }
+        });
+        if (previewTarget) previewTarget.innerHTML = buildLivePreviewFromForm(form, isAdmin);
+      });
+    }
+
+    schoolTypeInputs.forEach((input) => {
+      if (input instanceof HTMLInputElement) {
+        input.addEventListener("change", () => {
+          updateSchoolTypeAllState();
+          if (previewTarget) previewTarget.innerHTML = buildLivePreviewFromForm(form, isAdmin);
+        });
+      }
     });
 
     if (logoFileInput) {
@@ -6900,6 +7704,7 @@
       clearPortalSettingsErrors(form);
       setStatus(status, "", "");
 
+      const schoolTypes = getSelectedSchoolTypesFromForm(form);
       const payload = {
         schoolName: (form.elements.schoolName?.value || "").trim(),
         logoUrl: (form.elements.logoUrl?.value || "").trim(),
@@ -6910,14 +7715,22 @@
         campusDetails: (form.elements.campusDetails?.value || "").trim(),
         academicYearStart: form.elements.academicYearStart?.value || "",
         academicYearEnd: form.elements.academicYearEnd?.value || "",
-        hasNursery: Boolean(form.elements.hasNursery?.checked),
-        hasHigherInstitution: Boolean(form.elements.hasHigherInstitution?.checked),
+        schoolTypes,
+        hasNursery: schoolTypes.includes("nursery"),
+        hasPrimary: schoolTypes.includes("primary"),
+        hasSecondary: schoolTypes.includes("secondary"),
+        hasHigherInstitution: schoolTypes.includes("higher"),
       };
 
       let hasError = false;
 
       if (!payload.schoolName) {
         setPortalSettingsError(form, "schoolName", "Enter the school name.");
+        hasError = true;
+      }
+
+      if (!payload.schoolTypes.length) {
+        setPortalSettingsError(form, "schoolTypes", "Select at least one school type.");
         hasError = true;
       }
 
@@ -8035,6 +8848,35 @@
       form.elements.teacherAssignments.value = "";
     }
 
+    if (form.elements.category) {
+      form.elements.category.value = "";
+    }
+
+    const subjectSelect = form.querySelector("[data-course-subject-select]");
+    const customSubject = form.querySelector("[data-course-custom-subject]");
+    if (subjectSelect) {
+      subjectSelect.value = "";
+    }
+    if (customSubject) {
+      customSubject.value = "";
+    }
+
+    if (form.elements.creditUnit) {
+      form.elements.creditUnit.value = "";
+    }
+
+    if (form.elements.faculty) {
+      form.elements.faculty.value = "";
+    }
+
+    if (form.elements.department) {
+      form.elements.department.value = "";
+    }
+
+    if (form.elements.customDepartment) {
+      form.elements.customDepartment.value = "";
+    }
+
     if (form.elements.studentAssignments) {
       form.elements.studentAssignments.value = "";
     }
@@ -8043,7 +8885,7 @@
     const cancelButton = form.querySelector("[data-course-cancel]");
 
     if (submitButton) {
-      submitButton.textContent = "Create course";
+      submitButton.textContent = "Create";
     }
 
     if (cancelButton) {
@@ -8065,10 +8907,46 @@
     form.elements.courseId.value = record.id;
     form.elements.name.value = record.name;
     form.elements.code.value = record.code || "";
+    if (form.elements.category) {
+      form.elements.category.value = record.category || "";
+    }
+    if (form.elements.creditUnit) {
+      form.elements.creditUnit.value = record.creditUnit || "";
+    }
+    if (form.elements.faculty || form.elements.department) {
+      const [faculty = "", department = ""] = String(record.category || "")
+        .split("/")
+        .map((item) => item.trim());
+      if (form.elements.faculty) {
+        form.elements.faculty.value = faculty;
+      }
+      if (form.elements.department) {
+        const hasDepartmentOption = Array.from(form.elements.department.options || []).some(
+          (option) => option.value === department,
+        );
+        form.elements.department.value = hasDepartmentOption ? department : department ? "Other" : "";
+      }
+      if (form.elements.customDepartment) {
+        const hasDepartmentOption = Array.from(form.elements.department?.options || []).some(
+          (option) => option.value === department,
+        );
+        form.elements.customDepartment.value = hasDepartmentOption ? "" : department;
+      }
+    }
     form.elements.description.value = record.description || "";
-    form.elements.level.value = record.level || "";
-    form.elements.teacherAssignments.value = (record.teacherAssignments || []).join("\n");
-    form.elements.studentAssignments.value = (record.studentAssignments || []).join("\n");
+    if (form.elements.level instanceof HTMLSelectElement) {
+      Array.from(form.elements.level.options).forEach((option) => {
+        option.selected = option.value === (record.level || "");
+      });
+    } else {
+      form.elements.level.value = record.level || "";
+    }
+    if (form.elements.teacherAssignments) {
+      form.elements.teacherAssignments.value = (record.teacherAssignments || [])[0] || "";
+    }
+    if (form.elements.studentAssignments) {
+      form.elements.studentAssignments.value = (record.studentAssignments || []).join("\n");
+    }
 
     const submitButton = form.querySelector("[data-course-submit]");
     const cancelButton = form.querySelector("[data-course-cancel]");
@@ -8348,6 +9226,37 @@
     }).format(Number.isFinite(amount) ? amount : 0);
   }
 
+  function getSelectedSchoolTypesFromForm(form) {
+    if (!form) {
+      return [];
+    }
+
+    return Array.from(form.querySelectorAll("[data-school-type-option]"))
+      .filter((input) => input instanceof HTMLInputElement && input.checked)
+      .map((input) => String(input.value || "").trim())
+      .filter((value) => SCHOOL_TYPE_ORDER.includes(value));
+  }
+
+  function syncSchoolTypeControls(form, selectedTypes = []) {
+    if (!form) {
+      return;
+    }
+
+    const selectedSet = new Set(normalizeConfiguredSchoolTypes({ schoolTypes: selectedTypes }));
+    const typeInputs = Array.from(form.querySelectorAll("[data-school-type-option]"));
+
+    typeInputs.forEach((input) => {
+      if (input instanceof HTMLInputElement) {
+        input.checked = selectedSet.has(input.value);
+      }
+    });
+
+    const allInput = form.querySelector("[data-school-type-all]");
+    if (allInput instanceof HTMLInputElement) {
+      allInput.checked = typeInputs.every((input) => input instanceof HTMLInputElement && input.checked);
+    }
+  }
+
   function buildSchoolPreviewHtml(settings, isAdmin) {
     const initial = (settings.schoolName || "S").charAt(0).toUpperCase();
     const yearLabel = settings.academicYearStart
@@ -8355,14 +9264,9 @@
           ? `${settings.academicYearStart} – ${settings.academicYearEnd}`
           : `From ${settings.academicYearStart}`)
       : null;
-    const structureLabel = [
-      settings.hasNursery ? "Nursery" : null,
-      "Primary 1-6",
-      "JSS 1-3",
-      "SS 1-3",
-      settings.hasHigherInstitution ? "Higher Institution" : null,
-    ]
-      .filter(Boolean)
+    const schoolTypes = normalizeConfiguredSchoolTypes(settings);
+    const structureLabel = schoolTypes
+      .map((type) => SCHOOL_TYPE_LABELS[type] || type)
       .join(" + ");
 
     const logoHtml = settings.logoUrl
@@ -8463,12 +9367,7 @@
     form.elements.campusDetails.value    = settings.campusDetails || "";
     form.elements.academicYearStart.value = settings.academicYearStart;
     form.elements.academicYearEnd.value   = settings.academicYearEnd;
-    if (form.elements.hasNursery) {
-      form.elements.hasNursery.checked = Boolean(settings.hasNursery);
-    }
-    if (form.elements.hasHigherInstitution) {
-      form.elements.hasHigherInstitution.checked = Boolean(settings.hasHigherInstitution);
-    }
+    syncSchoolTypeControls(form, normalizeConfiguredSchoolTypes(settings));
 
     // Update the logo swatch preview
     updateLogoSwatch(form, settings.logoUrl, settings.schoolName);
@@ -8494,6 +9393,7 @@
   }
 
   function buildLivePreviewFromForm(form, isAdmin) {
+    const schoolTypes = getSelectedSchoolTypesFromForm(form);
     return buildSchoolPreviewHtml({
       schoolName:       form.elements.schoolName?.value.trim()        || "",
       logoUrl:          form.elements.logoUrl?.value.trim()           || "",
@@ -8504,8 +9404,11 @@
       campusDetails:    form.elements.campusDetails?.value.trim()     || "",
       academicYearStart: form.elements.academicYearStart?.value       || "",
       academicYearEnd:   form.elements.academicYearEnd?.value         || "",
-      hasNursery:       Boolean(form.elements.hasNursery?.checked),
-      hasHigherInstitution: Boolean(form.elements.hasHigherInstitution?.checked),
+      schoolTypes,
+      hasNursery: schoolTypes.includes("nursery"),
+      hasPrimary: schoolTypes.includes("primary"),
+      hasSecondary: schoolTypes.includes("secondary"),
+      hasHigherInstitution: schoolTypes.includes("higher"),
     }, isAdmin);
   }
 
@@ -9853,15 +10756,26 @@
                               levelStudentCount === 1 ? "" : "s"
                             }</span>
                           </div>
-                          <button
-                            class="portal-class-button portal-class-add-arm-button"
-                            type="button"
-                            data-class-action="add-arm"
-                            data-class-level="${escapeHtml(level)}"
-                            ${isAdmin ? "" : "disabled"}
-                          >
-                            Add arm
-                          </button>
+                          <span class="portal-class-level-actions">
+                            <button
+                              class="portal-class-button portal-class-add-arm-button"
+                              type="button"
+                              data-class-action="add-arm"
+                              data-class-level="${escapeHtml(level)}"
+                              ${isAdmin ? "" : "disabled"}
+                            >
+                              Add arm
+                            </button>
+                            <button
+                              class="portal-class-button portal-class-add-arm-button is-danger"
+                              type="button"
+                              data-class-action="delete-level"
+                              data-class-level="${escapeHtml(level)}"
+                              ${isAdmin ? "" : "disabled"}
+                            >
+                              Delete class
+                            </button>
+                          </span>
                         </summary>
                         <div class="portal-class-arm-grid">
                           ${records
@@ -9964,14 +10878,46 @@
       archivedCount,
       levelCount,
       teacherAssignmentCount,
-      studentAssignmentCount,
     } = manager.summarize();
+    const sortCourses = (left, right) => {
+      const leftStatus = left.status === "archived" ? 1 : 0;
+      const rightStatus = right.status === "archived" ? 1 : 0;
+
+      if (leftStatus !== rightStatus) {
+        return leftStatus - rightStatus;
+      }
+
+      const levelComparison = String(left.level || "").localeCompare(String(right.level || ""), undefined, { numeric: true });
+
+      if (levelComparison) {
+        return levelComparison;
+      }
+
+      return String(left.code || left.name || "").localeCompare(String(right.code || right.name || ""), undefined, {
+        numeric: true,
+      });
+    };
+    const getLevelSchoolType = (level) => {
+      const normalized = String(level || "").trim();
+      if (/^nursery/i.test(normalized)) return "Nursery";
+      if (/^primary/i.test(normalized)) return "Primary";
+      if (/^(JSS|SS)\d/i.test(normalized)) return "Secondary";
+      if (/^\d{3}\s*Level/i.test(normalized)) return "Higher Institution";
+      return "Other";
+    };
+    const groupOrder = {
+      Nursery: 1,
+      Primary: 2,
+      Secondary: 3,
+      "Higher Institution": 4,
+      Other: 5,
+    };
 
     summaryTarget.innerHTML = `
       <article class="portal-class-stat portal-class-stat-blue">
         <span>Active courses</span>
         <strong>${activeCount}</strong>
-        <p>Available for teacher and student assignment flows.</p>
+        <p>Available for class planning and teacher assignment flows.</p>
       </article>
       <article class="portal-class-stat portal-class-stat-violet">
         <span>Archived courses</span>
@@ -9989,9 +10935,9 @@
         <p>Teacher entries linked directly to the course catalog.</p>
       </article>
       <article class="portal-class-stat portal-class-stat-rose">
-        <span>Student assignments</span>
-        <strong>${studentAssignmentCount}</strong>
-        <p>Student entries linked directly to each course.</p>
+        <span>Total courses</span>
+        <strong>${courses.length}</strong>
+        <p>Active and archived courses in the catalog.</p>
       </article>
     `;
 
@@ -10009,86 +10955,135 @@
         </article>
       `;
     } else {
-      listTarget.innerHTML = courses
+      const groupedCourses = courses.sort(sortCourses).reduce((groups, record) => {
+        const segment = getLevelSchoolType(record.level);
+        const level = String(record.level || "Unassigned").trim() || "Unassigned";
+
+        if (!groups.has(segment)) {
+          groups.set(segment, new Map());
+        }
+
+        if (!groups.get(segment).has(level)) {
+          groups.get(segment).set(level, []);
+        }
+
+        groups.get(segment).get(level).push(record);
+        return groups;
+      }, new Map());
+
+      listTarget.innerHTML = Array.from(groupedCourses.entries())
+        .sort(([left], [right]) => (groupOrder[left] || 99) - (groupOrder[right] || 99))
         .map(
-          (record) => `
-            <details class="portal-class-card portal-class-list-item ${record.status === "archived" ? "is-archived" : ""}">
-              <summary class="portal-class-list-summary">
-                <div class="portal-class-list-main">
-                  <strong>${escapeHtml(record.code || "NO-CODE")} · ${escapeHtml(record.name)}</strong>
-                  <span>${escapeHtml(record.level || "No level selected")} • ${escapeHtml(
-                    record.description || "No description yet",
-                  )}</span>
+          ([segment, levels]) => {
+            const segmentRecords = Array.from(levels.values()).flat();
+            return `
+            <section class="portal-class-group">
+              <div class="portal-class-group-head">
+                <div>
+                  <span>${escapeHtml(segment)}</span>
+                  <strong>${segmentRecords.length} ${segment === "Higher Institution" ? "course" : "subject"}${
+                    segmentRecords.length === 1 ? "" : "s"
+                  }</strong>
                 </div>
-                <span class="portal-class-status ${record.status === "archived" ? "is-archived" : "is-active"}">
-                  ${record.status === "archived" ? "Archived" : "Active"}
-                </span>
-              </summary>
-
-              <div class="portal-class-list-body">
-                <div class="portal-class-meta">
-                  <div class="portal-class-meta-item">
-                    <span>Code</span>
-                    <strong>${escapeHtml(record.code || "Not set")}</strong>
-                  </div>
-                  <div class="portal-class-meta-item">
-                    <span>Level</span>
-                    <strong>${escapeHtml(record.level || "Not set")}</strong>
-                  </div>
-                  <div class="portal-class-meta-item">
-                    <span>Updated</span>
-                    <strong>${escapeHtml(formatTimestamp(record.updatedAt))}</strong>
-                  </div>
-                </div>
-
-                <div class="portal-class-extended">
-                  <div class="portal-class-extended-item">
-                    <span>Description</span>
-                    <strong>${escapeHtml(record.description || "No description provided yet.")}</strong>
-                  </div>
-                  <div class="portal-class-extended-item">
-                    <span>Teacher assignments</span>
-                    <strong>${(record.teacherAssignments || []).length}</strong>
-                    <ul>
-                      ${(record.teacherAssignments || [])
-                        .map((entry) => `<li>${escapeHtml(entry)}</li>`)
-                        .join("") || "<li>No teacher assignments yet.</li>"}
-                    </ul>
-                  </div>
-                  <div class="portal-class-extended-item">
-                    <span>Student assignments</span>
-                    <strong>${(record.studentAssignments || []).length}</strong>
-                    <ul>
-                      ${(record.studentAssignments || [])
-                        .map((entry) => `<li>${escapeHtml(entry)}</li>`)
-                        .join("") || "<li>No student assignments yet.</li>"}
-                    </ul>
-                  </div>
-                </div>
-
-                <div class="portal-class-actions">
-                  <button
-                    class="portal-class-button"
-                    type="button"
-                    data-course-action="edit"
-                    data-course-id="${record.id}"
-                    ${isAdmin ? "" : "disabled"}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    class="portal-class-button ${record.status === "archived" ? "is-restore" : "is-archive"}"
-                    type="button"
-                    data-course-action="${record.status === "archived" ? "activate" : "archive"}"
-                    data-course-id="${record.id}"
-                    ${isAdmin ? "" : "disabled"}
-                  >
-                    ${record.status === "archived" ? "Reactivate" : "Archive"}
-                  </button>
-                </div>
+                <small>${segmentRecords.filter((record) => record.status !== "archived").length} active</small>
               </div>
-            </details>
-          `,
+              <div class="portal-class-level-stack">
+                ${Array.from(levels.entries())
+                  .map(
+                    ([level, records]) => `
+                      <details class="portal-class-level-group">
+                        <summary>
+                          <div>
+                            <strong>${escapeHtml(level)}</strong>
+                            <span>${records.length} ${segment === "Higher Institution" ? "course" : "subject"}${
+                              records.length === 1 ? "" : "s"
+                            }</span>
+                          </div>
+                        </summary>
+                        <div class="portal-class-level-stack portal-course-level-stack-inner">
+                          ${records
+                            .map(
+                              (record) => `
+                      <details class="portal-class-card portal-class-list-item ${record.status === "archived" ? "is-archived" : ""}">
+                        <summary class="portal-class-list-summary">
+                          <div class="portal-class-list-main">
+                            <strong>${escapeHtml(record.code || "NO-CODE")} · ${escapeHtml(record.name)}</strong>
+                            <span>${escapeHtml(record.description || "No description yet")}</span>
+                          </div>
+                          <span class="portal-class-status ${record.status === "archived" ? "is-archived" : "is-active"}">
+                            ${record.status === "archived" ? "Archived" : "Active"}
+                          </span>
+                        </summary>
+
+                        <div class="portal-class-list-body">
+                          <div class="portal-class-meta">
+                            <div class="portal-class-meta-item">
+                              <span>Code</span>
+                              <strong>${escapeHtml(record.code || "Not set")}</strong>
+                            </div>
+                            <div class="portal-class-meta-item">
+                              <span>Teacher</span>
+                              <strong>${escapeHtml((record.teacherAssignments || [])[0] || "Not assigned")}</strong>
+                            </div>
+                            <div class="portal-class-meta-item">
+                              <span>Category</span>
+                              <strong>${escapeHtml(record.category || "General")}</strong>
+                            </div>
+                            ${
+                              record.creditUnit
+                                ? `<div class="portal-class-meta-item"><span>Credit unit</span><strong>${escapeHtml(record.creditUnit)}</strong></div>`
+                                : ""
+                            }
+                            <div class="portal-class-meta-item">
+                              <span>Updated</span>
+                              <strong>${escapeHtml(formatTimestamp(record.updatedAt))}</strong>
+                            </div>
+                          </div>
+
+                          <div class="portal-class-extended">
+                            <div class="portal-class-extended-item portal-class-extended-item-span">
+                              <span>Description</span>
+                              <strong>${escapeHtml(record.description || "No description provided yet.")}</strong>
+                            </div>
+                          </div>
+
+                          <div class="portal-class-actions">
+                            <button class="portal-class-button" type="button" data-course-action="edit" data-course-id="${record.id}" ${
+                              isAdmin ? "" : "disabled"
+                            }>Edit</button>
+                            <button
+                              class="portal-class-button ${record.status === "archived" ? "is-restore" : "is-archive"}"
+                              type="button"
+                              data-course-action="${record.status === "archived" ? "activate" : "archive"}"
+                              data-course-id="${record.id}"
+                              ${isAdmin ? "" : "disabled"}
+                            >
+                              ${record.status === "archived" ? "Reactivate" : "Archive"}
+                            </button>
+                            <button
+                              class="portal-class-button is-danger"
+                              type="button"
+                              data-course-action="delete"
+                              data-course-id="${record.id}"
+                              ${isAdmin ? "" : "disabled"}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      </details>
+                    `,
+                            )
+                            .join("")}
+                        </div>
+                      </details>
+                    `,
+                  )
+                  .join("")}
+              </div>
+            </section>
+          `;
+          },
         )
         .join("");
     }

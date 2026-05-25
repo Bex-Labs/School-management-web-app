@@ -126,7 +126,7 @@
           <div class="admin-dashboard-greeting">
             <span class="admin-topline-chip" id="portal-last-updated">Last updated --</span>
             <h1 id="portal-heading">Course Management</h1>
-            <p id="portal-copy">Create, edit, archive, and manage course-level assignments from one source of truth.</p>
+            <p id="portal-copy">Create, edit, archive, and manage course teacher assignments from one source of truth.</p>
           </div>
         </header>
 
@@ -135,67 +135,121 @@
             <div class="admin-surface-head">
               <div>
                 <h2>Courses and Assignment Source</h2>
-                <span>Course code, level, and assignment links are centrally controlled here.</span>
+                <span>Course code, class level, and teacher assignment links are centrally controlled here.</span>
               </div>
             </div>
 
             <div id="portal-course-summary" class="portal-class-summary"></div>
 
-            <div class="portal-class-layout">
-              <div class="portal-class-form-shell">
-                <button class="button button-primary" type="button" data-course-form-toggle>
-                  Create course
-                </button>
-
-                <form id="portal-course-form" class="portal-class-form" novalidate hidden>
+            <section class="portal-course-library" aria-labelledby="course-library-title">
+              <div>
+                <h3 id="course-library-title">Subject library</h3>
+                <p>Build each subject from the library flow and create it when the final details are ready.</p>
+              </div>
+              <form id="portal-course-form" class="portal-course-wizard" novalidate>
                   <div id="portal-course-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
                   <input type="hidden" name="courseId" />
+                  <input id="course-name" name="name" type="hidden" data-course-name-field />
 
-                  <div class="portal-settings-grid">
-                    <label class="portal-field" for="course-name">
-                      <span>Course name</span>
-                      <input id="course-name" name="name" type="text" placeholder="Mathematics, Intro to Physics..." />
-                      <p class="portal-field-error" data-course-error-for="name"></p>
+                  <div class="portal-course-wizard-grid">
+                    <label class="portal-field" for="course-template-type" data-course-step="type">
+                      <span>School type</span>
+                      <select id="course-template-type" data-course-template-type>
+                        <option value="">Select school type</option>
+                        <option value="nursery">Nursery</option>
+                        <option value="primary">Primary</option>
+                        <option value="secondary">Secondary</option>
+                        <option value="higher">College/Higher Institution</option>
+                      </select>
                     </label>
 
-                    <label class="portal-field" for="course-code">
-                      <span>Course code</span>
-                      <input id="course-code" name="code" type="text" placeholder="MTH101" />
-                      <p class="portal-field-error" data-course-error-for="code"></p>
+                    <label class="portal-field" for="course-category" data-course-category-field hidden>
+                      <span>Stream</span>
+                      <select id="course-category" name="category">
+                        <option value="">Select stream</option>
+                        <option value="Science">Science</option>
+                        <option value="Art">Art</option>
+                        <option value="Commercial">Commercial</option>
+                      </select>
+                      <p class="portal-field-error" data-course-error-for="category"></p>
                     </label>
 
-                    <label class="portal-field portal-field-span-2" for="course-level">
-                      <span>Level or grade</span>
-                      <input id="course-level" name="level" type="text" placeholder="JSS 1, SS 2, 100L..." />
+                    <label class="portal-field" for="course-faculty" data-course-faculty-field hidden>
+                      <span>Faculty</span>
+                      <select id="course-faculty" name="faculty" data-course-faculty>
+                        <option value="">Select faculty</option>
+                      </select>
+                    </label>
+
+                    <label class="portal-field" for="course-department" data-course-department-field hidden>
+                      <span>Department</span>
+                      <select id="course-department" name="department" data-course-department>
+                        <option value="">Select department</option>
+                      </select>
+                      <p class="portal-field-error" data-course-error-for="department"></p>
+                    </label>
+
+                    <label class="portal-field" for="course-custom-department" data-course-custom-department-field hidden>
+                      <span>Custom department</span>
+                      <input id="course-custom-department" name="customDepartment" type="text" placeholder="Department name" />
+                    </label>
+
+                    <label class="portal-field" for="course-level" data-course-level-field hidden>
+                      <span>Assigned classes</span>
+                      <select id="course-level" name="level"></select>
                       <p class="portal-field-error" data-course-error-for="level"></p>
                     </label>
 
-                    <label class="portal-field portal-field-span-2" for="course-description">
-                      <span>Description</span>
-                      <textarea id="course-description" name="description" rows="3" placeholder="Brief summary of course focus and outcomes."></textarea>
-                      <p class="portal-field-error" data-course-error-for="description"></p>
+                    <label class="portal-field" for="course-subject-select" data-course-subject-select-field hidden>
+                      <span>Subject</span>
+                      <select id="course-subject-select" data-course-subject-select>
+                        <option value="">Select subject</option>
+                      </select>
+                      <p class="portal-field-error" data-course-error-for="name"></p>
                     </label>
 
-                    <label class="portal-field portal-field-span-2" for="course-teacher-assignments">
-                      <span>Teacher assignments (one per line)</span>
-                      <textarea id="course-teacher-assignments" name="teacherAssignments" rows="4" placeholder="Mrs. Adesina&#10;Mr. Bello"></textarea>
+                    <label class="portal-field" for="course-custom-subject" data-course-custom-subject-field hidden>
+                      <span>Custom subject</span>
+                      <input id="course-custom-subject" data-course-custom-subject type="text" placeholder="Enter subject name" />
+                    </label>
+
+                    <label class="portal-field" for="course-teacher-assignments" data-course-teacher-field hidden>
+                      <span>Teacher / lecturer</span>
+                      <select id="course-teacher-assignments" name="teacherAssignments">
+                        <option value="">Select registered teacher</option>
+                      </select>
                       <p class="portal-field-error" data-course-error-for="teacherAssignments"></p>
                     </label>
 
-                    <label class="portal-field portal-field-span-2" for="course-student-assignments">
-                      <span>Student assignments (one per line)</span>
-                      <textarea id="course-student-assignments" name="studentAssignments" rows="4" placeholder="ADM-2026-001&#10;ADM-2026-002"></textarea>
-                      <p class="portal-field-error" data-course-error-for="studentAssignments"></p>
+                    <label class="portal-field" for="course-code" data-course-code-field hidden>
+                      <span>Code</span>
+                      <input id="course-code" name="code" type="text" placeholder="Optional for schools" />
+                      <p class="portal-field-error" data-course-error-for="code"></p>
+                    </label>
+
+                    <label class="portal-field" for="course-credit-unit" data-course-credit-field hidden>
+                      <span>Credit unit</span>
+                      <input id="course-credit-unit" name="creditUnit" type="number" min="0" step="1" placeholder="For universities" />
+                    </label>
+
+                    <label class="portal-field portal-field-span-2" for="course-description" data-course-description-field hidden>
+                      <span>Notes</span>
+                      <textarea id="course-description" name="description" rows="2" placeholder="Optional notes, pass mark, grading template, practical/theory, compulsory/elective..."></textarea>
+                      <p class="portal-field-error" data-course-error-for="description"></p>
                     </label>
                   </div>
 
-                  <div class="utility-actions">
-                    <button class="button button-primary" type="submit" data-course-submit>Create course</button>
+                  <div class="portal-course-library-list" data-course-library-list></div>
+
+                  <div class="utility-actions portal-course-wizard-actions" data-course-wizard-actions hidden>
+                    <button class="button button-primary" type="submit" data-course-submit>Create</button>
                     <button class="button button-outline" type="button" data-course-cancel hidden>Cancel edit</button>
                   </div>
                 </form>
-              </div>
 
+            </section>
+
+            <div class="portal-class-layout portal-course-layout-wide">
               <div id="portal-course-list" class="portal-class-list"></div>
             </div>
           </article>
