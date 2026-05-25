@@ -5484,6 +5484,14 @@
     if (courseManager?.eventName) {
       window.addEventListener(courseManager.eventName, refreshClassManagementSection);
     }
+
+    const settingsManager = getSchoolSettingsManager();
+    if (settingsManager?.eventName) {
+      window.addEventListener(settingsManager.eventName, () => {
+        renderClassTemplateTypeOptions();
+        updateTemplateVisibility();
+      });
+    }
   }
 
   function initCourseManagementControls({
