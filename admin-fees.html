@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Fees | SchoolSphere Admin</title>
-    <meta name="description" content="Fee item configuration for class, term, and session." />
+    <meta name="description" content="Fee item configuration for class group, term or semester, and session." />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body data-page="admin-fees" class="admin-dashboard-page">
@@ -126,7 +126,7 @@
           <div class="admin-dashboard-greeting">
             <span class="admin-topline-chip" id="portal-last-updated">Last updated --</span>
             <h1 id="portal-heading">Fee Configuration</h1>
-            <p id="portal-copy">Configure fee items by class, term, and session with clear status control.</p>
+            <p id="portal-copy">Configure fee items by class group, term or semester, and session with clear status control.</p>
           </div>
         </header>
 
@@ -134,7 +134,7 @@
           <article class="admin-surface-card admin-class-management-card">
             <div class="admin-surface-head">
               <div>
-                <h2>Fee Items by Class, Term, and Session</h2>
+                <h2>Fee Items by Class Group, Period, and Session</h2>
                 <span>Create, edit, archive, and maintain the school billing source of truth.</span>
               </div>
             </div>
@@ -146,6 +146,7 @@
                 <button class="button button-primary" type="button" data-fee-form-toggle>
                   Create fee item
                 </button>
+                <div id="portal-fee-setup-notice" class="auth-status auth-status--info portal-fee-setup-notice" role="status" hidden></div>
 
                 <form id="portal-fee-form" class="portal-class-form" novalidate hidden>
                   <div id="portal-fee-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
@@ -171,13 +172,13 @@
                     </label>
 
                     <label class="portal-field" for="fee-item-term">
-                      <span>Term</span>
+                      <span>Term / Semester</span>
                       <select id="fee-item-term" name="termId"></select>
                       <p class="portal-field-error" data-fee-error-for="termId"></p>
                     </label>
 
                     <label class="portal-field" for="fee-item-class">
-                      <span>Class</span>
+                      <span>Class group</span>
                       <select id="fee-item-class" name="classLevel"></select>
                       <p class="portal-field-error" data-fee-error-for="classLevel"></p>
                     </label>

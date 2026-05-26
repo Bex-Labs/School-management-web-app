@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sessions and Terms | SchoolSphere Admin</title>
-  <meta name="description" content="Academic sessions and terms management." />
+  <title>Sessions, Terms, and Semesters | SchoolSphere Admin</title>
+  <meta name="description" content="Academic sessions, terms, and semesters management." />
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body data-page="admin-settings-academic" class="admin-dashboard-page">
@@ -125,8 +125,8 @@
       <header class="admin-dashboard-topbar">
         <div class="admin-dashboard-greeting">
           <span class="admin-topline-chip" id="portal-last-updated">Last updated --</span>
-          <h1 id="portal-heading">Academic Sessions and Terms</h1>
-          <p id="portal-copy">Open and close sessions/terms and keep your school calendar aligned.</p>
+          <h1 id="portal-heading">Academic Sessions, Terms, and Semesters</h1>
+          <p id="portal-copy">Open and close sessions, terms, and semesters to keep your school calendar aligned.</p>
           <nav class="admin-settings-subnav" aria-label="Settings sections">
             <a href="./admin-settings.html">All Settings</a>
             <a href="./admin-settings-school.html">School Settings</a>
@@ -152,8 +152,8 @@
       <section class="admin-class-grid">
         <article class="admin-surface-card">
           <div class="admin-surface-head">
-            <h2>Academic Sessions and Terms</h2>
-            <span>Create, open, and close sessions and terms from this page.</span>
+            <h2>Academic Sessions, Terms, and Semesters</h2>
+            <span>Create, open, and close sessions, terms, and semesters from this page.</span>
           </div>
 
           <div id="portal-academic-cycle-summary" class="portal-role-permission-summary"></div>
@@ -203,17 +203,25 @@
             <input type="hidden" name="termId" />
             <div class="portal-settings-grid">
               <div class="portal-settings-section-head">
-                <strong>Academic term</strong>
-                <span>Create terms and open/close each term in the active session</span>
+                <strong>Academic term / semester</strong>
+                <span>Create terms or semesters and open/close each period in the active session</span>
               </div>
               <label class="portal-field" for="term-session-id">
                 <span>Session</span>
                 <select id="term-session-id" name="sessionId"></select>
                 <p class="portal-field-error" data-term-error-for="sessionId"></p>
               </label>
+              <label class="portal-field" for="term-period-type" data-term-period-type-wrap hidden>
+                <span>Academic period</span>
+                <select id="term-period-type" name="periodType">
+                  <option value="term">Term</option>
+                  <option value="semester">Semester</option>
+                </select>
+                <p class="portal-field-error" data-term-error-for="periodType"></p>
+              </label>
               <label class="portal-field" for="term-name">
-                <span>Term name</span>
-                <input id="term-name" name="name" type="text" placeholder="First Term" />
+                <span>Term / semester name</span>
+                <input id="term-name" name="name" type="text" placeholder="First Term or First Semester" />
                 <p class="portal-field-error" data-term-error-for="name"></p>
               </label>
               <label class="portal-field" for="term-start-date">
@@ -236,7 +244,7 @@
               </label>
             </div>
             <div class="utility-actions">
-              <button class="button button-primary" type="submit" data-term-submit>Save term</button>
+              <button class="button button-primary" type="submit" data-term-submit>Save period</button>
               <button class="button button-outline" type="button" data-term-cancel hidden>Cancel edit</button>
             </div>
           </form>

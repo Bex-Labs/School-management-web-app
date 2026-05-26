@@ -126,7 +126,7 @@
           <div class="admin-dashboard-greeting">
             <span class="admin-topline-chip" id="portal-last-updated">Last updated --</span>
             <h1 id="portal-heading">Schedule and Timetable</h1>
-            <p id="portal-copy">Keep classes, teachers, rooms, and period flow aligned before the day begins.</p>
+            <p id="portal-copy">Keep classes, teachers, and period flow aligned before the day begins.</p>
           </div>
         </header>
 
@@ -201,93 +201,142 @@
           <article class="admin-surface-card admin-class-management-card">
             <div class="admin-surface-head">
               <div>
-                <h2>Class Timetable</h2>
-                <span>Create timetable rows by class, term, and session, then publish when ready.</span>
+                <h2>Timetable System</h2>
+                <span>Build class and teacher grids with period slots, workload checks, and conflict detection.</span>
               </div>
             </div>
 
             <div id="portal-timetable-summary" class="portal-class-summary"></div>
 
-            <div class="portal-class-layout">
-              <div class="portal-class-form-shell">
-                <button class="button button-primary" type="button" data-timetable-form-toggle>
-                  Create timetable row
-                </button>
+            <div class="portal-timetable-workbench">
+              <div class="portal-timetable-toolbar">
+                <label class="portal-field" for="timetable-session-id">
+                  <span>Session</span>
+                  <select id="timetable-session-id" name="sessionId"></select>
+                </label>
 
-                <form id="portal-timetable-form" class="portal-class-form" novalidate hidden>
-                  <div id="portal-timetable-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
-                  <input type="hidden" name="timetableEntryId" />
+                <label class="portal-field" for="timetable-term-id">
+                  <span>Term / Semester</span>
+                  <select id="timetable-term-id" name="termId"></select>
+                </label>
 
-                  <div class="portal-settings-grid">
-                    <label class="portal-field" for="timetable-session-id">
-                      <span>Session</span>
-                      <select id="timetable-session-id" name="sessionId"></select>
-                      <p class="portal-field-error" data-timetable-error-for="sessionId"></p>
-                    </label>
+                <label class="portal-field" for="timetable-view-mode">
+                  <span>View</span>
+                  <select id="timetable-view-mode" name="viewMode">
+                    <option value="class">Class grid</option>
+                    <option value="teacher">Teacher grid</option>
+                  </select>
+                </label>
 
-                    <label class="portal-field" for="timetable-term-id">
-                      <span>Term</span>
-                      <select id="timetable-term-id" name="termId"></select>
-                      <p class="portal-field-error" data-timetable-error-for="termId"></p>
-                    </label>
+                <label class="portal-field" for="timetable-class-level">
+                  <span>Class</span>
+                  <select id="timetable-class-level" name="classLevel"></select>
+                </label>
 
-                    <label class="portal-field portal-field-span-2" for="timetable-class-level">
-                      <span>Class</span>
-                      <select id="timetable-class-level" name="classLevel"></select>
-                      <p class="portal-field-error" data-timetable-error-for="classLevel"></p>
-                    </label>
+                <label class="portal-field" for="timetable-teacher-view">
+                  <span>Teacher</span>
+                  <select id="timetable-teacher-view" name="teacherView"></select>
+                </label>
 
-                    <label class="portal-field" for="timetable-day">
-                      <span>Day</span>
-                      <select id="timetable-day" name="day">
-                        <option value="Monday">Monday</option>
-                        <option value="Tuesday">Tuesday</option>
-                        <option value="Wednesday">Wednesday</option>
-                        <option value="Thursday">Thursday</option>
-                        <option value="Friday">Friday</option>
-                        <option value="Saturday">Saturday</option>
-                        <option value="Sunday">Sunday</option>
-                      </select>
-                    </label>
-
-                    <label class="portal-field" for="timetable-subject">
-                      <span>Subject</span>
-                      <input id="timetable-subject" name="subject" type="text" placeholder="Mathematics" />
-                      <p class="portal-field-error" data-timetable-error-for="subject"></p>
-                    </label>
-
-                    <label class="portal-field" for="timetable-start-time">
-                      <span>Start time</span>
-                      <input id="timetable-start-time" name="startTime" type="time" />
-                      <p class="portal-field-error" data-timetable-error-for="startTime"></p>
-                    </label>
-
-                    <label class="portal-field" for="timetable-end-time">
-                      <span>End time</span>
-                      <input id="timetable-end-time" name="endTime" type="time" />
-                      <p class="portal-field-error" data-timetable-error-for="endTime"></p>
-                    </label>
-
-                    <label class="portal-field" for="timetable-teacher">
-                      <span>Teacher</span>
-                      <input id="timetable-teacher" name="teacher" type="text" placeholder="Mrs. Ahmed" />
-                      <p class="portal-field-error" data-timetable-error-for="teacher"></p>
-                    </label>
-
-                    <label class="portal-field" for="timetable-room">
-                      <span>Room (optional)</span>
-                      <input id="timetable-room" name="room" type="text" placeholder="Room 101" />
-                    </label>
-                  </div>
-
-                  <div class="utility-actions">
-                    <button class="button button-primary" type="submit" data-timetable-submit>Save timetable row</button>
-                    <button class="button button-outline" type="button" data-timetable-cancel hidden>Cancel edit</button>
-                  </div>
-                </form>
+                <label class="portal-field" for="timetable-week-type">
+                  <span>Week</span>
+                  <select id="timetable-week-type" name="weekType">
+                    <option value="all">Every week</option>
+                    <option value="A">Week A</option>
+                    <option value="B">Week B</option>
+                  </select>
+                </label>
               </div>
 
-              <div id="portal-timetable-list" class="portal-class-list"></div>
+              <div id="portal-timetable-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+
+              <div class="utility-actions portal-timetable-actions">
+                <button class="button button-outline" type="button" data-timetable-copy-term>Copy previous period</button>
+                <button class="button button-outline" type="button" data-timetable-period-add>Add period</button>
+                <button class="button button-outline" type="button" data-timetable-print>Print / export</button>
+              </div>
+
+              <div id="portal-timetable-list" class="portal-timetable-list"></div>
+
+              <div id="portal-timetable-lesson-overlay" class="portal-overlay" hidden>
+                <button class="portal-overlay-backdrop" type="button" data-timetable-lesson-close aria-label="Close lesson form"></button>
+                <section class="portal-overlay-panel portal-overlay-panel-sm" role="dialog" aria-modal="true" aria-labelledby="timetable-form-title">
+                  <header class="portal-overlay-head">
+                    <div>
+                      <h3 id="timetable-form-title">Assign lesson</h3>
+                      <span id="timetable-form-context">Select a slot in the grid to begin.</span>
+                    </div>
+                    <button class="portal-overlay-close" type="button" data-timetable-lesson-close aria-label="Close lesson form">&times;</button>
+                  </header>
+
+                  <form id="portal-timetable-form" class="portal-class-form portal-timetable-assignment-form" novalidate hidden>
+                    <input type="hidden" name="timetableEntryId" />
+                    <input type="hidden" name="periodId" />
+
+                    <div class="portal-settings-grid">
+                      <label class="portal-field portal-field-span-2" for="timetable-subject">
+                        <span>Subject / Course</span>
+                        <select id="timetable-subject" name="subjectId"></select>
+                        <p class="portal-field-error" data-timetable-error-for="subjectId"></p>
+                      </label>
+
+                      <label class="portal-field portal-field-span-2" for="timetable-custom-subject">
+                        <span>Custom subject</span>
+                        <input id="timetable-custom-subject" name="subject" type="text" placeholder="Use only if not in library" />
+                        <p class="portal-field-error" data-timetable-error-for="subject"></p>
+                      </label>
+
+                      <label class="portal-field portal-field-span-2" for="timetable-teacher">
+                        <span>Teacher</span>
+                        <select id="timetable-teacher" name="teacherId"></select>
+                        <p class="portal-field-error" data-timetable-error-for="teacherId"></p>
+                      </label>
+                    </div>
+
+                    <div class="utility-actions">
+                      <button class="button button-primary" type="submit" data-timetable-submit>Save lesson</button>
+                      <button class="button button-outline" type="button" data-timetable-cancel>Cancel</button>
+                      <button class="portal-class-button is-archive" type="button" data-timetable-delete hidden>Archive lesson</button>
+                    </div>
+                  </form>
+                </section>
+              </div>
+
+              <div id="portal-timetable-period-overlay" class="portal-overlay" hidden>
+                <button class="portal-overlay-backdrop" type="button" data-timetable-period-close aria-label="Close period form"></button>
+                <section class="portal-overlay-panel portal-overlay-panel-sm" role="dialog" aria-modal="true" aria-labelledby="timetable-period-title">
+                  <header class="portal-overlay-head">
+                    <h3 id="timetable-period-title">Edit Period</h3>
+                    <button class="portal-overlay-close" type="button" data-timetable-period-close aria-label="Close period form">&times;</button>
+                  </header>
+
+                  <form id="portal-timetable-period-form" class="portal-class-form portal-timetable-period-form" novalidate>
+                    <input type="hidden" name="periodIds" />
+                    <input type="hidden" name="sortOrder" />
+                    <div class="portal-settings-grid">
+                      <label class="portal-field portal-field-span-2" for="timetable-period-name">
+                        <span>Period name</span>
+                        <input id="timetable-period-name" name="name" type="text" placeholder="Period 1" />
+                        <p class="portal-field-error" data-period-error-for="name"></p>
+                      </label>
+                      <label class="portal-field" for="timetable-period-start">
+                        <span>Start time</span>
+                        <input id="timetable-period-start" name="startTime" type="time" />
+                        <p class="portal-field-error" data-period-error-for="startTime"></p>
+                      </label>
+                      <label class="portal-field" for="timetable-period-end">
+                        <span>End time</span>
+                        <input id="timetable-period-end" name="endTime" type="time" />
+                        <p class="portal-field-error" data-period-error-for="endTime"></p>
+                      </label>
+                    </div>
+                    <div class="utility-actions">
+                      <button class="button button-primary" type="submit" data-timetable-period-submit>Save period</button>
+                      <button class="button button-outline" type="button" data-timetable-period-close>Cancel</button>
+                    </div>
+                  </form>
+                </section>
+              </div>
             </div>
           </article>
         </section>

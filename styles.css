@@ -5500,6 +5500,245 @@ body.admin-dashboard-page .portal-fee-layout-wide .portal-class-form {
   width: 100%;
 }
 
+body.admin-dashboard-page .portal-fee-setup-notice {
+  margin-top: 14px;
+}
+
+body.admin-dashboard-page .portal-timetable-workbench {
+  display: grid;
+  gap: 16px;
+  margin-top: 18px;
+}
+
+body.admin-dashboard-page .portal-timetable-toolbar {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(140px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+body.admin-dashboard-page .portal-timetable-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 0;
+}
+
+body.admin-dashboard-page .portal-timetable-assignment-form {
+  width: 100%;
+}
+
+body.admin-dashboard-page .portal-timetable-period-form {
+  width: 100%;
+}
+
+body.admin-dashboard-page .portal-timetable-list {
+  display: grid;
+  gap: 14px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+body.admin-dashboard-page .portal-timetable-setup {
+  margin-bottom: 2px;
+}
+
+body.admin-dashboard-page .portal-timetable-context {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid #dfe6f2;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+
+body.admin-dashboard-page .portal-timetable-context div {
+  display: grid;
+  gap: 4px;
+}
+
+body.admin-dashboard-page .portal-timetable-context strong {
+  color: #17233a;
+  font-size: 0.98rem;
+}
+
+body.admin-dashboard-page .portal-timetable-context span {
+  color: #667188;
+  font-size: 0.85rem;
+}
+
+body.admin-dashboard-page .portal-timetable-grid {
+  min-width: 980px;
+  display: grid;
+  grid-template-columns: minmax(142px, 0.78fr) repeat(var(--timetable-day-count), minmax(155px, 1fr));
+  border: 1px solid #dce3ee;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+body.admin-dashboard-page .portal-timetable-grid-corner,
+body.admin-dashboard-page .portal-timetable-day-head,
+body.admin-dashboard-page .portal-timetable-period-label,
+body.admin-dashboard-page .portal-timetable-slot {
+  min-height: 82px;
+  border-right: 1px solid #e5ebf4;
+  border-bottom: 1px solid #e5ebf4;
+}
+
+body.admin-dashboard-page .portal-timetable-grid-corner,
+body.admin-dashboard-page .portal-timetable-day-head {
+  min-height: 44px;
+  display: grid;
+  place-items: center;
+  background: #17233a;
+  color: #ffffff;
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+body.admin-dashboard-page .portal-timetable-period-label {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px;
+  background: #f5f7fb;
+}
+
+body.admin-dashboard-page .portal-timetable-period-label div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+body.admin-dashboard-page .portal-timetable-period-label strong {
+  color: #17233a;
+  font-size: 0.9rem;
+}
+
+body.admin-dashboard-page .portal-timetable-period-label span {
+  color: #69758a;
+  font-size: 0.78rem;
+}
+
+body.admin-dashboard-page .portal-timetable-period-edit {
+  max-width: 100%;
+  min-height: 28px;
+  border: 1px solid #d2deed;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1e4673;
+  padding: 4px 8px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+body.admin-dashboard-page .portal-timetable-period-edit:hover {
+  background: #eef7ff;
+}
+
+body.admin-dashboard-page .portal-timetable-period-edit:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+body.admin-dashboard-page .portal-timetable-slot {
+  display: grid;
+  align-content: stretch;
+  gap: 6px;
+  width: 100%;
+  padding: 10px;
+  border-top: 0;
+  border-left: 0;
+  background: #ffffff;
+  color: #4a5568;
+  text-align: left;
+  cursor: pointer;
+}
+
+body.admin-dashboard-page .portal-timetable-slot:hover {
+  background: #eef7ff;
+}
+
+body.admin-dashboard-page .portal-timetable-slot:disabled {
+  cursor: not-allowed;
+  opacity: 0.68;
+}
+
+body.admin-dashboard-page .portal-timetable-slot.has-entry {
+  background: #fff8e8;
+}
+
+body.admin-dashboard-page .portal-timetable-slot span {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
+
+body.admin-dashboard-page .portal-timetable-entry-subject {
+  color: #17233a;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+body.admin-dashboard-page .portal-timetable-empty-slot {
+  align-self: center;
+  color: #8a95a7;
+  font-weight: 700;
+  text-align: center;
+}
+
+body.admin-dashboard-page .portal-timetable-grid-empty {
+  grid-column: 1 / -1;
+  padding: 22px;
+  color: #667188;
+}
+
+body.admin-dashboard-page .portal-timetable-footer-panels {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(260px, 0.75fr);
+  gap: 14px;
+}
+
+body.admin-dashboard-page .portal-timetable-panel {
+  border-radius: 12px;
+}
+
+body.admin-dashboard-page .portal-timetable-entry-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+body.admin-dashboard-page .portal-timetable-entry-row {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.75fr) minmax(160px, 1fr) minmax(150px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid #e3e9f2;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #4a5568;
+  font-size: 0.84rem;
+}
+
+body.admin-dashboard-page .portal-timetable-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
 body.admin-dashboard-page .portal-class-form-shell {
   display: grid;
   gap: 12px;
@@ -6038,6 +6277,13 @@ body.admin-dashboard-page .portal-overlay-head h3 {
   margin: 0;
   color: #17233a;
   font-size: 1.1rem;
+}
+
+body.admin-dashboard-page .portal-overlay-head span {
+  display: block;
+  margin-top: 4px;
+  color: #657188;
+  font-size: 0.84rem;
 }
 
 body.admin-dashboard-page .portal-overlay-close {
@@ -7024,6 +7270,15 @@ body.admin-dashboard-page .portal-class-empty p {
     grid-template-columns: 1fr;
   }
 
+  body.admin-dashboard-page .portal-timetable-toolbar,
+  body.admin-dashboard-page .portal-timetable-footer-panels {
+    grid-template-columns: 1fr;
+  }
+
+  body.admin-dashboard-page .portal-timetable-entry-row {
+    grid-template-columns: 1fr;
+  }
+
   body.admin-dashboard-page .portal-guardian-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -7155,6 +7410,32 @@ body.admin-dashboard-page .portal-class-empty p {
   body.admin-dashboard-page .admin-dashboard-tools {
     flex-direction: column;
     align-items: stretch;
+  }
+}
+
+@media print {
+  body.admin-dashboard-page[data-page="admin-schedule"] .admin-sidebar,
+  body.admin-dashboard-page[data-page="admin-schedule"] .admin-dashboard-topbar,
+  body.admin-dashboard-page[data-page="admin-schedule"] .admin-surface-card:first-child,
+  body.admin-dashboard-page[data-page="admin-schedule"] .portal-timetable-toolbar,
+  body.admin-dashboard-page[data-page="admin-schedule"] .portal-timetable-actions,
+  body.admin-dashboard-page[data-page="admin-schedule"] .portal-timetable-assignment-form,
+  body.admin-dashboard-page[data-page="admin-schedule"] .portal-timetable-footer-panels,
+  body.admin-dashboard-page[data-page="admin-schedule"] .portal-class-summary {
+    display: none !important;
+  }
+
+  body.admin-dashboard-page[data-page="admin-schedule"] .admin-dashboard-shell,
+  body.admin-dashboard-page[data-page="admin-schedule"] .admin-dashboard-main {
+    display: block;
+    height: auto;
+    overflow: visible;
+    padding: 0;
+  }
+
+  body.admin-dashboard-page[data-page="admin-schedule"] .portal-timetable-grid {
+    min-width: 0;
+    break-inside: avoid;
   }
 }
 
