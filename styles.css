@@ -3401,7 +3401,14 @@ body[data-page="home"] .product-hero::after {
 
 .portal-structure-options {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.portal-structure-toggle-all {
+  grid-column: 1 / -1;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #eef0f5;
 }
 
 .portal-settings-form {
@@ -3467,6 +3474,11 @@ body[data-page="home"] .product-hero::after {
 .portal-field.is-invalid input,
 .portal-field.is-invalid select,
 .portal-field.is-invalid textarea {
+  border-color: #d92d20;
+  background: rgba(217, 45, 32, 0.04);
+}
+
+.portal-structure-block.is-invalid {
   border-color: #d92d20;
   background: rgba(217, 45, 32, 0.04);
 }
@@ -5271,6 +5283,64 @@ body.admin-dashboard-page .portal-settings-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+body.admin-dashboard-page .portal-staff-list {
+  display: grid;
+  gap: 10px;
+}
+
+body.admin-dashboard-page .portal-staff-row {
+  display: grid;
+  grid-template-columns: 44px minmax(180px, 1.2fr) minmax(160px, 0.9fr) minmax(150px, 0.85fr) auto;
+  gap: 14px;
+  align-items: center;
+  width: 100%;
+  padding: 14px;
+  border: 1px solid #e2e7f0;
+  border-radius: 18px;
+  background: #ffffff;
+  color: #17233a;
+  text-align: left;
+}
+
+body.admin-dashboard-page .portal-staff-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: #edf5ff;
+  color: #3462ff;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+body.admin-dashboard-page .portal-staff-main,
+body.admin-dashboard-page .portal-staff-detail {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+body.admin-dashboard-page .portal-staff-main strong,
+body.admin-dashboard-page .portal-staff-detail strong {
+  overflow: hidden;
+  color: #17233a;
+  font-size: 0.9rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.admin-dashboard-page .portal-staff-main small,
+body.admin-dashboard-page .portal-staff-detail small {
+  overflow: hidden;
+  color: #667188;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 body.admin-dashboard-page .portal-field input,
 body.admin-dashboard-page .portal-field select,
 body.admin-dashboard-page .portal-field textarea {
@@ -5419,8 +5489,14 @@ body.admin-dashboard-page .portal-course-layout-wide {
   grid-template-columns: minmax(0, 1fr);
 }
 
+body.admin-dashboard-page .portal-fee-layout-wide {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 body.admin-dashboard-page .portal-course-layout-wide .portal-class-form-shell,
-body.admin-dashboard-page .portal-course-layout-wide .portal-class-form {
+body.admin-dashboard-page .portal-course-layout-wide .portal-class-form,
+body.admin-dashboard-page .portal-fee-layout-wide .portal-class-form-shell,
+body.admin-dashboard-page .portal-fee-layout-wide .portal-class-form {
   width: 100%;
 }
 
@@ -5554,6 +5630,58 @@ body.admin-dashboard-page .portal-course-wizard [hidden] {
 
 body.admin-dashboard-page .portal-course-level-stack-inner {
   padding: 0 14px 14px;
+}
+
+body.admin-dashboard-page .portal-fee-class-stack {
+  display: grid;
+  gap: 12px;
+  padding: 0 14px 14px;
+}
+
+body.admin-dashboard-page .portal-fee-class-group {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #e3e9f4;
+  border-radius: 14px;
+  background: #fbfdff;
+}
+
+body.admin-dashboard-page .portal-fee-class-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+body.admin-dashboard-page .portal-fee-class-head div {
+  display: grid;
+  gap: 4px;
+}
+
+body.admin-dashboard-page .portal-fee-class-head span,
+body.admin-dashboard-page .portal-fee-class-head small {
+  color: #667188;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+body.admin-dashboard-page .portal-fee-class-head strong {
+  color: #17233a;
+  font-size: 1rem;
+}
+
+body.admin-dashboard-page .portal-fee-item-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 10px;
+}
+
+body.admin-dashboard-page .portal-fee-item-card {
+  padding: 16px;
+  border-radius: 14px;
+  box-shadow: none;
 }
 
 body.admin-dashboard-page .portal-class-advanced {
@@ -6459,6 +6587,277 @@ body.admin-dashboard-page .portal-class-status.is-pending {
   color: #9a6508;
 }
 
+body.admin-dashboard-page .teacher-attendance-workspace {
+  margin-top: 26px;
+}
+
+body.admin-dashboard-page .teacher-attendance-card {
+  display: grid;
+  gap: 18px;
+}
+
+body.admin-dashboard-page .teacher-attendance-summary {
+  margin-top: 0;
+}
+
+body.admin-dashboard-page .attendance-toolbar {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.65fr) minmax(220px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+  padding: 14px;
+  border: 1px solid #dbe5f1;
+  border-radius: 18px;
+  background: #f8fbff;
+}
+
+body.admin-dashboard-page .attendance-review-toolbar {
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  margin-bottom: 14px;
+}
+
+body.admin-dashboard-page .attendance-toolbar .portal-field {
+  margin: 0;
+}
+
+body.admin-dashboard-page .attendance-toolbar-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+body.admin-dashboard-page .teacher-attendance-form,
+body.admin-dashboard-page .teacher-attendance-list,
+body.admin-dashboard-page .attendance-review-list,
+body.admin-dashboard-page .attendance-submission-list {
+  display: grid;
+  gap: 12px;
+}
+
+body.admin-dashboard-page .attendance-student-row {
+  display: grid;
+  grid-template-columns: minmax(170px, 0.8fr) minmax(320px, 1.25fr) minmax(180px, 0.7fr);
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid #e2e9f3;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+body.admin-dashboard-page .attendance-student-main,
+body.admin-dashboard-page .attendance-review-student,
+body.admin-dashboard-page .attendance-review-meta,
+body.admin-dashboard-page .attendance-submission-row > div:first-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+body.admin-dashboard-page .attendance-student-main strong,
+body.admin-dashboard-page .attendance-review-student strong,
+body.admin-dashboard-page .attendance-submission-row strong {
+  overflow: hidden;
+  color: #17233a;
+  font-size: 0.94rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.admin-dashboard-page .attendance-student-main span,
+body.admin-dashboard-page .attendance-review-student span,
+body.admin-dashboard-page .attendance-review-meta span,
+body.admin-dashboard-page .attendance-submission-row span,
+body.admin-dashboard-page .attendance-submission-row small {
+  overflow: hidden;
+  color: #667188;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.admin-dashboard-page .attendance-status-picker {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+body.admin-dashboard-page .attendance-status-option {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 8px;
+  border: 1px solid #dbe2ee;
+  border-radius: 12px;
+  background: #fbfcff;
+  color: #4d576d;
+  font-size: 0.78rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+body.admin-dashboard-page .attendance-status-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+body.admin-dashboard-page .attendance-status-option.is-selected.is-present,
+body.admin-dashboard-page .attendance-chip.is-present {
+  border-color: #b9f4cb;
+  background: #edfdf4;
+  color: #138246;
+}
+
+body.admin-dashboard-page .attendance-status-option.is-selected.is-absent,
+body.admin-dashboard-page .attendance-chip.is-absent {
+  border-color: #ffc9c9;
+  background: #fff1f1;
+  color: #b42318;
+}
+
+body.admin-dashboard-page .attendance-status-option.is-selected.is-late,
+body.admin-dashboard-page .attendance-chip.is-late {
+  border-color: #ffe3a8;
+  background: #fff9eb;
+  color: #9a6508;
+}
+
+body.admin-dashboard-page .attendance-status-option.is-selected.is-excused,
+body.admin-dashboard-page .attendance-chip.is-excused {
+  border-color: #cfe0ff;
+  background: #eef5ff;
+  color: #3159d4;
+}
+
+body.admin-dashboard-page .attendance-chip.is-unmarked {
+  border-color: #d9e0ec;
+  background: #f4f6fa;
+  color: #687386;
+}
+
+body.admin-dashboard-page .attendance-note-input {
+  min-height: 42px;
+  width: 100%;
+  border: 1px solid #dbe2ee;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #17233a;
+  padding: 0 12px;
+  font-size: 0.86rem;
+}
+
+body.admin-dashboard-page .attendance-submit-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+body.admin-dashboard-page .attendance-submit-row .auth-status,
+body.admin-dashboard-page #portal-attendance-status {
+  margin: 0;
+  flex: 1 1 auto;
+}
+
+body.admin-dashboard-page .attendance-review-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+body.admin-dashboard-page .attendance-review-group {
+  overflow: hidden;
+  border: 1px solid #dfe6f2;
+  border-radius: 18px;
+  background: #ffffff;
+}
+
+body.admin-dashboard-page .attendance-review-group-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #f8fbff;
+}
+
+body.admin-dashboard-page .attendance-review-group-head strong {
+  color: #17233a;
+}
+
+body.admin-dashboard-page .attendance-review-group-head span {
+  color: #667188;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+body.admin-dashboard-page .attendance-review-table {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+body.admin-dashboard-page .attendance-review-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.15fr) auto minmax(170px, 0.8fr) minmax(170px, 0.8fr) minmax(180px, 0.85fr);
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #e8edf5;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+body.admin-dashboard-page .attendance-review-meta strong {
+  overflow: hidden;
+  color: #17233a;
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.admin-dashboard-page .attendance-review-note {
+  overflow: hidden;
+  color: #667188;
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.admin-dashboard-page .attendance-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  min-width: 34px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+body.admin-dashboard-page .attendance-submission-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #e2e9f3;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+body.admin-dashboard-page .attendance-submission-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+body.admin-dashboard-page .attendance-submission-list {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
 body.admin-dashboard-page .portal-class-meta {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -6613,7 +7012,8 @@ body.admin-dashboard-page .portal-class-empty p {
   body.admin-dashboard-page .admin-primary-grid,
   body.admin-dashboard-page .admin-secondary-grid,
   body.admin-dashboard-page .admin-controls-grid,
-  body.admin-dashboard-page .portal-class-layout {
+  body.admin-dashboard-page .portal-class-layout,
+  body.admin-dashboard-page .attendance-review-grid {
     grid-template-columns: 1fr;
   }
 
@@ -6696,10 +7096,24 @@ body.admin-dashboard-page .portal-class-empty p {
   body.admin-dashboard-page .portal-admission-modal-grid,
   body.admin-dashboard-page .portal-class-template-grid,
   body.admin-dashboard-page .portal-course-wizard-grid,
+  body.admin-dashboard-page .attendance-toolbar,
+  body.admin-dashboard-page .attendance-review-toolbar,
+  body.admin-dashboard-page .attendance-student-row,
+  body.admin-dashboard-page .attendance-review-row,
+  body.admin-dashboard-page .portal-staff-row,
   body.admin-dashboard-page .portal-class-summary,
   body.admin-dashboard-page .portal-class-meta,
   body.admin-dashboard-page .portal-class-extended {
     grid-template-columns: 1fr;
+  }
+
+  body.admin-dashboard-page .attendance-status-picker {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  body.admin-dashboard-page .attendance-submit-row {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   body.admin-dashboard-page .portal-guardian-row {

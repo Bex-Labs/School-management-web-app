@@ -252,6 +252,9 @@ const SCHOOL_COURSES_EVENT = "schoolsphere:courses-updated";
 const DEFAULT_STUDENT_RECORDS = [];
 const SCHOOL_STUDENTS_STORAGE_KEY = "schoolsphere.students.v1";
 const SCHOOL_STUDENTS_EVENT = "schoolsphere:students-updated";
+const DEFAULT_ATTENDANCE_RECORDS = [];
+const SCHOOL_ATTENDANCE_STORAGE_KEY = "schoolsphere.attendance.v1";
+const SCHOOL_ATTENDANCE_EVENT = "schoolsphere:attendance-updated";
 const LEGACY_MOCK_CLASS_IDS = new Set([
   "class-nursery-2-tulip",
   "class-primary-3-coral",
@@ -359,6 +362,7 @@ function clearLegacySharedState() {
     SCHOOL_CLASSES_STORAGE_KEY,
     SCHOOL_COURSES_STORAGE_KEY,
     SCHOOL_STUDENTS_STORAGE_KEY,
+    SCHOOL_ATTENDANCE_STORAGE_KEY,
     AUDIT_TRAIL_STORAGE_KEY,
     FEATURE_TOGGLE_STORAGE_KEY,
     ROLE_PERMISSIONS_STORAGE_KEY,
@@ -646,7 +650,7 @@ function hasSchoolSettingsContext(settings = getSchoolSettings()) {
       settings.campusDetails ||
       settings.phone ||
       settings.website ||
-      settings.schoolTypes?.length ||
+      JSON.stringify(settings.schoolTypes || []) !== JSON.stringify(DEFAULT_SCHOOL_SETTINGS.schoolTypes) ||
       settings.academicYearStart ||
       settings.academicYearEnd ||
       settings.schoolName !== DEFAULT_PLATFORM_NAME,
@@ -2156,6 +2160,13 @@ function normalizeStudentRecord(record = {}) {
   };
 }
 
+function getLocalDateValue(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function compareSchoolStudents(left, right) {
   if (left.status !== right.status) {
     return left.status === "active" ? -1 : 1;
@@ -2300,6 +2311,172 @@ function summarizeSchoolStudents() {
     transferredCount: transferred.length,
     guardianContacts,
     studentsWithMultipleGuardians,
+  };
+}
+
+function normalizeAttendanceEntry(entry = {}) {
+  const status = String(entry.status || "present").trim().toLowerCase();
+  const normalizedStatus = ["present", "absent", "late", "excused"].includes(status) ? status : "present";
+
+  return {
+    studentId: String(entry.studentId || "").trim(),
+    studentName: String(entry.studentName || "").trim(),
+    admissionNo: String(entry.admissionNo || "").trim(),
+    status: normalizedStatus,
+    note: String(entry.note || "").trim(),
+  };
+}
+
+function normalizeAttendanceRecord(record = {}) {
+  const timestamp = new Date().toISOString();
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(String(record.date || "").trim())
+    ? String(record.date).trim()
+    : getLocalDateValue();
+  const classId = String(record.classId || "").trim();
+  const entries = Array.isArray(record.entries)
+    ? record.entries
+        .map((entry) => normalizeAttendanceEntry(entry))
+        .filter((entry) => entry.studentId && entry.studentName)
+    : [];
+
+  return {
+    id: String(record.id || createStorageId("attendance")),
+    date,
+    classId,
+    className: String(record.className || "").trim(),
+    level: String(record.level || "").trim(),
+    submittedById: String(record.submittedById || "").trim(),
+    submittedByEmail: String(record.submittedByEmail || "").trim(),
+    submittedByName: String(record.submittedByName || "").trim(),
+    status: "submitted",
+    entries,
+    takenAt: String(record.takenAt || record.createdAt || timestamp),
+    createdAt: record.createdAt || timestamp,
+    updatedAt: record.updatedAt || timestamp,
+  };
+}
+
+function compareAttendanceRecords(left, right) {
+  const dateComparison = right.date.localeCompare(left.date);
+
+  if (dateComparison) {
+    return dateComparison;
+  }
+
+  return String(left.className || left.level || "").localeCompare(
+    String(right.className || right.level || ""),
+    undefined,
+    { numeric: true },
+  );
+}
+
+function getAttendanceRecords() {
+  const stored = readWorkspaceState(SCHOOL_ATTENDANCE_STORAGE_KEY, DEFAULT_ATTENDANCE_RECORDS);
+  const source = Array.isArray(stored) ? stored : DEFAULT_ATTENDANCE_RECORDS;
+
+  return source.map((record) => normalizeAttendanceRecord(record)).sort(compareAttendanceRecords);
+}
+
+function emitAttendanceUpdate(records = getAttendanceRecords()) {
+  window.dispatchEvent(
+    new CustomEvent(SCHOOL_ATTENDANCE_EVENT, {
+      detail: { records },
+    }),
+  );
+}
+
+function saveAttendanceRecords(records) {
+  const normalized = records.map((record) => normalizeAttendanceRecord(record)).sort(compareAttendanceRecords);
+  writeWorkspaceState(SCHOOL_ATTENDANCE_STORAGE_KEY, normalized);
+  emitAttendanceUpdate(normalized);
+  return normalized;
+}
+
+function upsertAttendanceRecord(record) {
+  const records = getAttendanceRecords();
+  const timestamp = new Date().toISOString();
+  const incoming = normalizeAttendanceRecord({
+    ...record,
+    updatedAt: timestamp,
+    takenAt: record.takenAt || timestamp,
+  });
+  const existingIndex = records.findIndex(
+    (entry) => entry.id === incoming.id || (entry.classId === incoming.classId && entry.date === incoming.date),
+  );
+
+  if (existingIndex === -1) {
+    records.push({
+      ...incoming,
+      createdAt: incoming.createdAt || timestamp,
+    });
+  } else {
+    records[existingIndex] = {
+      ...records[existingIndex],
+      ...incoming,
+      id: records[existingIndex].id,
+      createdAt: records[existingIndex].createdAt,
+      updatedAt: timestamp,
+      takenAt: timestamp,
+    };
+  }
+
+  return saveAttendanceRecords(records);
+}
+
+function getAttendanceRecordForClassDate(classId, date) {
+  const normalizedClassId = String(classId || "").trim();
+  const normalizedDate = String(date || "").trim();
+
+  return (
+    getAttendanceRecords().find(
+      (record) => record.classId === normalizedClassId && record.date === normalizedDate,
+    ) || null
+  );
+}
+
+function summarizeAttendanceRecords(options = {}) {
+  const records = getAttendanceRecords();
+  const date = String(options.date || getLocalDateValue()).trim();
+  const scopedRecords = records.filter((record) => record.date === date);
+  const activeStudents = getSchoolStudents().filter((student) => student.status === "active");
+  const latestEntryByStudent = new Map();
+
+  scopedRecords.forEach((record) => {
+    record.entries.forEach((entry) => {
+      latestEntryByStudent.set(entry.studentId, {
+        ...entry,
+        classId: record.classId,
+        className: record.className,
+        level: record.level,
+        submittedByName: record.submittedByName,
+        submittedByEmail: record.submittedByEmail,
+        takenAt: record.takenAt,
+      });
+    });
+  });
+
+  const counts = activeStudents.reduce(
+    (summary, student) => {
+      const entry = latestEntryByStudent.get(student.id);
+      const status = entry?.status || "unmarked";
+      summary[status] = (summary[status] || 0) + 1;
+      return summary;
+    },
+    { present: 0, absent: 0, late: 0, excused: 0, unmarked: 0 },
+  );
+  const markedCount = activeStudents.length - counts.unmarked;
+  const attendanceRate = activeStudents.length
+    ? Math.round(((counts.present + counts.late) / activeStudents.length) * 100)
+    : null;
+
+  return {
+    records,
+    date,
+    recordsForDate: scopedRecords,
+    activeStudentCount: activeStudents.length,
+    markedCount,
+    attendanceRate,
+    counts,
   };
 }
 
@@ -2626,6 +2803,16 @@ window.SchoolSphereStudents = {
   eventName: SCHOOL_STUDENTS_EVENT,
 };
 
+window.SchoolSphereAttendance = {
+  defaults: DEFAULT_ATTENDANCE_RECORDS,
+  getRecords: getAttendanceRecords,
+  summarize: summarizeAttendanceRecords,
+  saveRecords: saveAttendanceRecords,
+  upsertRecord: upsertAttendanceRecord,
+  getRecordForClassDate: getAttendanceRecordForClassDate,
+  eventName: SCHOOL_ATTENDANCE_EVENT,
+};
+
 window.SchoolSphereAuditTrail = {
   getEntries: getAuditTrailEntries,
   saveEntries: saveAuditTrailEntries,
@@ -2673,6 +2860,10 @@ window.addEventListener("storage", (event) => {
 
   if (isWorkspaceScopedStorageEventKey(event.key, SCHOOL_STUDENTS_STORAGE_KEY)) {
     emitSchoolStudentsUpdate(getSchoolStudents());
+  }
+
+  if (isWorkspaceScopedStorageEventKey(event.key, SCHOOL_ATTENDANCE_STORAGE_KEY)) {
+    emitAttendanceUpdate(getAttendanceRecords());
   }
 
   if (isWorkspaceScopedStorageEventKey(event.key, AUDIT_TRAIL_STORAGE_KEY)) {

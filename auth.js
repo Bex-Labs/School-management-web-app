@@ -25,6 +25,7 @@
   const PARENT_FEES_EVENT_NAME = "schoolsphere:parent-fees:updated";
   const ADMISSIONS_STORAGE_KEY_BASE = "schoolsphere.admissions.v1";
   const ADMISSIONS_EVENT_NAME = "schoolsphere:admissions:updated";
+  const ATTENDANCE_STATUSES = ["present", "absent", "late", "excused"];
   const ROLE_HOME_ROUTES = {
     Admin: "./portal.html",
     Teacher: "./portal.html",
@@ -220,15 +221,18 @@
     "schoolsphere.classes.v1",
     "schoolsphere.courses.v1",
     "schoolsphere.students.v1",
+    "schoolsphere.attendance.v1",
     "schoolsphere.featureModules.v1",
     "schoolsphere.rolePermissions.v1",
     "schoolsphere.auditTrail.v1",
   ]);
   const SUPABASE_STATE_KEY_FEATURE_MODULES = "schoolsphere.featureModules.v1";
   const SUPABASE_STATE_KEY_ROLE_PERMISSIONS = "schoolsphere.rolePermissions.v1";
+  const SUPABASE_STATE_KEY_SCHOOL_SETTINGS = "schoolsphere.schoolSettings.v1";
   const SUPABASE_STATE_KEY_CLASSES = "schoolsphere.classes.v1";
   const SUPABASE_STATE_KEY_COURSES = "schoolsphere.courses.v1";
   const SUPABASE_STATE_KEY_STUDENTS = "schoolsphere.students.v1";
+  const SUPABASE_STATE_KEY_ATTENDANCE = "schoolsphere.attendance.v1";
   const SUPABASE_STATE_KEY_FEE_ITEMS = "schoolsphere.feeItems.v1";
   const SUPABASE_STATE_KEY_ACADEMIC_CYCLES = "schoolsphere.academicCycles.v1";
   const SUPABASE_STATE_KEY_ADMISSION_CONFIG = "schoolsphere.admissionConfig.v1";
@@ -239,9 +243,11 @@
   const SUPABASE_STATE_KEY_PARENT_FEES = "schoolsphere.parentFees.v1";
   const SUPABASE_STATE_KEY_ACCESS_GRANTS = "schoolsphere.accessGrants.v1";
   const SUPABASE_WORKSPACE_HYDRATE_KEYS = Object.freeze([
+    SUPABASE_STATE_KEY_SCHOOL_SETTINGS,
     SUPABASE_STATE_KEY_CLASSES,
     SUPABASE_STATE_KEY_COURSES,
     SUPABASE_STATE_KEY_STUDENTS,
+    SUPABASE_STATE_KEY_ATTENDANCE,
     SUPABASE_STATE_KEY_FEE_ITEMS,
     SUPABASE_STATE_KEY_ACADEMIC_CYCLES,
     SUPABASE_STATE_KEY_ADMISSION_CONFIG,
@@ -257,9 +263,12 @@
   let isHydratingWorkspaceStateFromSupabase = false;
 
   document.addEventListener("DOMContentLoaded", async () => {
-    await initSupabaseAuthBridge();
-    await hydrateSchoolSettingsFromSupabase();
-    await hydrateWorkspaceStateCollectionsFromSupabase();
+    try {
+      await initSupabaseAuthBridge();
+    } catch {
+      // Keep the local workspace usable when Supabase auth is slow or temporarily unreachable.
+    }
+
     initConnectionResilienceBanner();
     initAdminSidebarUi();
     initPasswordToggles();
@@ -278,12 +287,20 @@
     initAdminCoursesPage();
     initAdminSchedulePage();
     initAdminFeesPage();
+    initAdminAttendancePage();
     initAdminFeatureModulesPage();
     initAdminSettingsPage();
     initUserSettingsPage();
     initAdmissionsApplyPage();
     initFormDraftPersistence();
     initSupabaseWorkspaceStateLiveSync();
+
+    hydrateSchoolSettingsFromSupabase().catch(() => {
+      // Local settings render first; remote settings refresh when available.
+    });
+    hydrateWorkspaceStateCollectionsFromSupabase().catch(() => {
+      // Workspace data keeps using local storage if the background refresh fails.
+    });
   });
 
   function getPage() {
@@ -509,6 +526,36 @@
     }
   }
 
+  function serializeSchoolSettingsFormDraft(form) {
+    const draft = serializeBasicFormDraft(form);
+    draft.__schoolTypes = Array.from(form.querySelectorAll("[data-school-type-option]"))
+      .filter((input) => input instanceof HTMLInputElement && input.checked)
+      .map((input) => input.value);
+    delete draft.schoolTypes;
+    return draft;
+  }
+
+  function restoreSchoolSettingsFormDraft(form, draft = {}) {
+    const { schoolTypes, __schoolTypes, ...basicDraft } = draft;
+    restoreBasicFormDraft(form, basicDraft);
+
+    if (Array.isArray(draft.__schoolTypes)) {
+      form.querySelectorAll("[data-school-type-option]").forEach((input) => {
+        if (input instanceof HTMLInputElement) {
+          input.checked = draft.__schoolTypes.includes(input.value);
+        }
+      });
+
+      const allInput = form.querySelector("[data-school-type-all]");
+      const typeInputs = Array.from(form.querySelectorAll("[data-school-type-option]"));
+      if (allInput instanceof HTMLInputElement) {
+        const checkedCount = typeInputs.filter((input) => input instanceof HTMLInputElement && input.checked).length;
+        allInput.checked = checkedCount === typeInputs.length && typeInputs.length > 0;
+        allInput.indeterminate = checkedCount > 0 && checkedCount < typeInputs.length;
+      }
+    }
+  }
+
   function serializeStudentFormDraft(form) {
     const draft = serializeBasicFormDraft(form);
     const guardianList = document.getElementById("portal-guardian-list");
@@ -597,7 +644,11 @@
     [
       { formId: "signup-form", serializer: serializeAuthFormDraft, restorer: restoreAuthFormDraft },
       { formId: "login-form", serializer: serializeAuthFormDraft, restorer: restoreAuthFormDraft },
-      { formId: "portal-school-settings-form" },
+      {
+        formId: "portal-school-settings-form",
+        serializer: serializeSchoolSettingsFormDraft,
+        restorer: restoreSchoolSettingsFormDraft,
+      },
       { formId: "portal-access-form" },
       { formId: "portal-session-form" },
       { formId: "portal-term-form" },
@@ -1936,8 +1987,9 @@
         : getDefaultAdminSchoolSettings();
 
     const schoolTypes = normalizeConfiguredSchoolTypes({
-      ...defaults,
       hasNursery: Boolean(institution.has_nursery),
+      hasPrimary: true,
+      hasSecondary: true,
       hasHigherInstitution: Boolean(institution.has_higher_institution),
     });
 
@@ -2012,7 +2064,36 @@
       return;
     }
 
-    manager.saveSettings(mapInstitutionToSchoolSettings(institution));
+    const institutionSettings = mapInstitutionToSchoolSettings(institution);
+    const context = {
+      client,
+      workspaceId: normalizeWorkspaceId(session?.workspaceId || getCurrentWorkspaceId()),
+      institutionId: profile.institution_id,
+      userId: supabaseSession.user.id,
+    };
+
+    try {
+      const workspaceSettings = await loadWorkspaceStatePayloadFromSupabase(
+        SUPABASE_STATE_KEY_SCHOOL_SETTINGS,
+        DEFAULT_AUTH_ROLE,
+        context,
+      );
+      const payload = workspaceSettings?.payload;
+
+      if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+        const payloadSchoolTypes = normalizeConfiguredSchoolTypes(payload);
+        manager.saveSettings({
+          ...institutionSettings,
+          ...payload,
+          schoolTypes: payloadSchoolTypes.length ? payloadSchoolTypes : institutionSettings.schoolTypes,
+        });
+        return;
+      }
+    } catch {
+      // Institution fields still provide a usable settings snapshot if the workspace row is unavailable.
+    }
+
+    manager.saveSettings(institutionSettings);
   }
 
   async function persistSchoolSettingsToSupabase(payload, roleLabel = DEFAULT_AUTH_ROLE) {
@@ -2046,6 +2127,17 @@
     });
 
     await syncInstitutionSnapshot(client, institutionId, payload);
+    await saveWorkspaceStatePayloadToSupabase(
+      SUPABASE_STATE_KEY_SCHOOL_SETTINGS,
+      payload,
+      roleLabel,
+      {
+        client,
+        workspaceId,
+        institutionId,
+        userId: supabaseSession.user.id,
+      },
+    );
     return { synced: true, institutionId };
   }
 
@@ -2858,11 +2950,49 @@
         ACCESS_GRANTS_STORAGE_KEY,
         JSON.stringify([...preserved, ...currentWorkspaceGrants]),
       );
+      emitHydratedWorkspaceStateEvent(stateKey, targetWorkspaceId);
       return;
     }
 
     const storageKey = getWorkspaceStateStorageKeyForState(stateKey, workspaceId);
     localStorage.setItem(storageKey, JSON.stringify(payload));
+    emitHydratedWorkspaceStateEvent(stateKey, workspaceId);
+  }
+
+  function emitHydratedWorkspaceStateEvent(stateKey, workspaceId = getCurrentWorkspaceId()) {
+    const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId || getCurrentWorkspaceId());
+    const managerEventMap = new Map([
+      [SUPABASE_STATE_KEY_SCHOOL_SETTINGS, getSchoolSettingsManager()?.eventName],
+      [SUPABASE_STATE_KEY_CLASSES, getClassManager()?.eventName],
+      [SUPABASE_STATE_KEY_COURSES, getCourseManager()?.eventName],
+      [SUPABASE_STATE_KEY_STUDENTS, getStudentManager()?.eventName],
+      [SUPABASE_STATE_KEY_ATTENDANCE, getAttendanceManager()?.eventName],
+      [SUPABASE_STATE_KEY_FEE_ITEMS, getFeeItemManager()?.eventName],
+      [SUPABASE_STATE_KEY_ACADEMIC_CYCLES, getAcademicCycleManager()?.eventName],
+      [SUPABASE_STATE_KEY_ADMISSION_CONFIG, getAdmissionConfigManager()?.eventName],
+      [SUPABASE_STATE_KEY_ACADEMIC_CALENDAR, getAcademicCalendarManager()?.eventName],
+      [SUPABASE_STATE_KEY_TIMETABLE, getTimetableManager()?.eventName],
+      [SUPABASE_STATE_KEY_FEATURE_MODULES, getFeatureModuleManager()?.eventName],
+      [SUPABASE_STATE_KEY_ROLE_PERMISSIONS, getRolePermissionManager()?.eventName],
+      [SUPABASE_STATE_KEY_ADMISSIONS, ADMISSIONS_EVENT_NAME],
+      [SUPABASE_STATE_KEY_NOTIFICATIONS, NOTIFICATION_EVENT_NAME],
+      [SUPABASE_STATE_KEY_PARENT_FEES, PARENT_FEES_EVENT_NAME],
+      [SUPABASE_STATE_KEY_ACCESS_GRANTS, ACCESS_GRANTS_EVENT_NAME],
+    ]);
+    const eventName = managerEventMap.get(stateKey);
+
+    if (!eventName) {
+      return;
+    }
+
+    window.dispatchEvent(
+      new CustomEvent(eventName, {
+        detail: {
+          workspaceId: normalizedWorkspaceId,
+          source: "supabase-hydration",
+        },
+      }),
+    );
   }
 
   async function hydrateWorkspaceStateCollectionsFromSupabase(roleLabel = DEFAULT_AUTH_ROLE) {
@@ -2946,6 +3076,11 @@
 
     const managerBindings = [
       {
+        manager: getSchoolSettingsManager(),
+        stateKey: SUPABASE_STATE_KEY_SCHOOL_SETTINGS,
+        getPayload: (manager) => manager.getSettings(),
+      },
+      {
         manager: getClassManager(),
         stateKey: SUPABASE_STATE_KEY_CLASSES,
         getPayload: (manager) => manager.getClasses(),
@@ -2959,6 +3094,11 @@
         manager: getStudentManager(),
         stateKey: SUPABASE_STATE_KEY_STUDENTS,
         getPayload: (manager) => manager.getStudents(),
+      },
+      {
+        manager: getAttendanceManager(),
+        stateKey: SUPABASE_STATE_KEY_ATTENDANCE,
+        getPayload: (manager) => manager.getRecords(),
       },
       {
         manager: getFeeItemManager(),
@@ -3925,6 +4065,11 @@
       studentManager && typeof studentManager.summarize === "function"
         ? studentManager.summarize()
         : null;
+    const attendanceManager = getAttendanceManager();
+    const attendanceSummary =
+      attendanceManager && typeof attendanceManager.summarize === "function"
+        ? attendanceManager.summarize({ date: getTodayDateValue() })
+        : null;
     const activeStaffCount = users.filter(
       (user) =>
         normalizeRoleLabel(user.role) === "Teacher" &&
@@ -3935,8 +4080,10 @@
     return {
       activeStudents: studentSummary ? studentSummary.activeCount : null,
       staffCount: activeStaffCount,
-      attendanceRate: null,
-      activeIncidents: null,
+      attendanceRate: attendanceSummary ? attendanceSummary.attendanceRate : null,
+      activeIncidents: attendanceSummary
+        ? (attendanceSummary.counts.absent || 0) + (attendanceSummary.counts.late || 0)
+        : null,
       updatedAt: nowIso(),
     };
   }
@@ -4195,6 +4342,10 @@
     return window.SchoolSphereStudents || null;
   }
 
+  function getAttendanceManager() {
+    return window.SchoolSphereAttendance || null;
+  }
+
   function getDefaultAdminSchoolSettings() {
     return {
       schoolName: "SchoolSphere",
@@ -4222,18 +4373,25 @@
   };
   const SCHOOL_TYPE_ORDER = ["nursery", "primary", "secondary", "higher"];
 
-  function normalizeConfiguredSchoolTypes(settings = {}) {
-    const rawTypes = Array.isArray(settings.schoolTypes)
-      ? settings.schoolTypes
-      : String(settings.schoolTypes || "")
+  function normalizeExplicitSchoolTypeList(value = []) {
+    const rawTypes = Array.isArray(value)
+      ? value
+      : String(value || "")
           .split(",")
           .map((item) => item.trim());
-    const normalized = Array.from(
+
+    return Array.from(
       new Set(rawTypes.map((type) => String(type || "").trim()).filter((type) => SCHOOL_TYPE_ORDER.includes(type))),
     );
+  }
 
-    if (normalized.length) {
-      return normalized;
+  function normalizeConfiguredSchoolTypes(settings = {}) {
+    if (Array.isArray(settings.schoolTypes)) {
+      return normalizeExplicitSchoolTypeList(settings.schoolTypes);
+    }
+
+    if (String(settings.schoolTypes || "").trim()) {
+      return normalizeExplicitSchoolTypeList(settings.schoolTypes);
     }
 
     return [
@@ -5578,6 +5736,19 @@
       },
     };
 
+    const renderCourseTemplateTypeOptions = () => {
+      const selected = renderConfiguredSchoolTypeSelect(templateType);
+      if (!selected) {
+        if (categoryField) {
+          categoryField.value = "";
+        }
+        if (form.elements.name) {
+          form.elements.name.value = "";
+        }
+      }
+      return selected;
+    };
+
     const getTeacherDirectory = () => {
       const workspaceId = normalizeWorkspaceId(getCurrentWorkspaceId());
       return getUsers()
@@ -5975,6 +6146,7 @@
       resetPortalCourseForm(form, isAdmin);
       renderTeacherOptions("");
       renderClassLevelOptions([]);
+      renderCourseTemplateTypeOptions();
       renderTemplateCategories();
       renderFacultyOptions("");
       renderDepartmentOptions("");
@@ -6373,6 +6545,16 @@
 
     window.addEventListener(manager.eventName, refreshCourseManagementSection);
     window.addEventListener(STORAGE_KEYS.users, () => renderTeacherOptions(teacherSelect?.value || ""));
+    const settingsManager = getSchoolSettingsManager();
+    if (settingsManager?.eventName) {
+      window.addEventListener(settingsManager.eventName, () => {
+        renderCourseTemplateTypeOptions();
+        renderClassLevelOptions([]);
+        renderSubjectPickerOptions("");
+        updateCourseTerminology();
+        renderSubjectLibrary();
+      });
+    }
   }
 
   function initAcademicCalendarControls({
@@ -7586,6 +7768,9 @@
       schoolTypeAllInput.checked = schoolTypeInputs.every(
         (input) => input instanceof HTMLInputElement && input.checked,
       );
+      schoolTypeAllInput.indeterminate =
+        schoolTypeInputs.some((input) => input instanceof HTMLInputElement && input.checked) &&
+        !schoolTypeAllInput.checked;
     };
 
     form.addEventListener("input", () => {
@@ -7599,6 +7784,7 @@
 
     if (schoolTypeAllInput instanceof HTMLInputElement) {
       schoolTypeAllInput.addEventListener("change", () => {
+        schoolTypeAllInput.indeterminate = false;
         schoolTypeInputs.forEach((input) => {
           if (input instanceof HTMLInputElement) {
             input.checked = schoolTypeAllInput.checked;
@@ -8583,6 +8769,7 @@
 
   function clearPortalSettingsErrors(form) {
     form.querySelectorAll(".portal-field").forEach((field) => field.classList.remove("is-invalid"));
+    form.querySelectorAll(".portal-structure-block").forEach((field) => field.classList.remove("is-invalid"));
     form.querySelectorAll("[data-settings-error-for]").forEach((error) => {
       error.textContent = "";
     });
@@ -8591,7 +8778,9 @@
   function setPortalSettingsError(form, fieldName, message) {
     const error = form.querySelector(`[data-settings-error-for="${fieldName}"]`);
     const control = form.elements[fieldName];
-    const field = control ? control.closest(".portal-field") : null;
+    const field = control && typeof control.closest === "function"
+      ? control.closest(".portal-field")
+      : error?.closest(".portal-field, .portal-structure-block") || null;
 
     if (error) {
       error.textContent = message;
@@ -9239,10 +9428,11 @@
       return [];
     }
 
-    return Array.from(form.querySelectorAll("[data-school-type-option]"))
+    const selectedTypes = Array.from(form.querySelectorAll("[data-school-type-option]"))
       .filter((input) => input instanceof HTMLInputElement && input.checked)
-      .map((input) => String(input.value || "").trim())
-      .filter((value) => SCHOOL_TYPE_ORDER.includes(value));
+      .map((input) => String(input.value || "").trim());
+
+    return normalizeExplicitSchoolTypeList(selectedTypes);
   }
 
   function syncSchoolTypeControls(form, selectedTypes = []) {
@@ -9250,7 +9440,7 @@
       return;
     }
 
-    const selectedSet = new Set(normalizeConfiguredSchoolTypes({ schoolTypes: selectedTypes }));
+    const selectedSet = new Set(normalizeExplicitSchoolTypeList(selectedTypes));
     const typeInputs = Array.from(form.querySelectorAll("[data-school-type-option]"));
 
     typeInputs.forEach((input) => {
@@ -9261,7 +9451,9 @@
 
     const allInput = form.querySelector("[data-school-type-all]");
     if (allInput instanceof HTMLInputElement) {
-      allInput.checked = typeInputs.every((input) => input instanceof HTMLInputElement && input.checked);
+      const checkedCount = typeInputs.filter((input) => input instanceof HTMLInputElement && input.checked).length;
+      allInput.checked = checkedCount === typeInputs.length && typeInputs.length > 0;
+      allInput.indeterminate = checkedCount > 0 && checkedCount < typeInputs.length;
     }
   }
 
@@ -9981,19 +10173,19 @@
     });
 
     summaryTarget.innerHTML = `
-      <strong>${activeCount} active teacher account${activeCount === 1 ? "" : "s"}</strong>
+      <strong>${activeCount} active staff account${activeCount === 1 ? "" : "s"}</strong>
       <span>${
         isAdmin
-          ? `${inactiveCount} deactivated teacher account${inactiveCount === 1 ? "" : "s"}.`
-          : "Only administrators can create or update teacher profiles."
+          ? `${inactiveCount} deactivated staff account${inactiveCount === 1 ? "" : "s"}.`
+          : "Only administrators can create or update staff profiles."
       }</span>
     `;
 
     if (!managedUsers.length) {
       listTarget.innerHTML = `
         <article class="portal-class-empty">
-          <strong>No teacher profiles yet</strong>
-          <p>Create the first teacher profile.</p>
+          <strong>No staff accounts yet</strong>
+          <p>Create the first staff account above.</p>
         </article>
       `;
       return;
@@ -10002,7 +10194,7 @@
     if (!filteredUsers.length) {
       listTarget.innerHTML = `
         <article class="portal-class-empty">
-          <strong>No teachers match this filter</strong>
+          <strong>No staff match this filter</strong>
           <p>Try another name, email, or status option.</p>
         </article>
       `;
@@ -10010,12 +10202,28 @@
     }
 
     listTarget.innerHTML = `
-      <div class="portal-staff-name-list">
+      <div class="portal-staff-list">
         ${filteredUsers
       .map((user) => {
+        const isActive = normalizeUserStatus(user.status) === "active";
         return `
-          <button class="portal-staff-name-item" type="button" data-staff-open="${escapeHtml(user.id)}">
-            <strong>${escapeHtml(user.displayName || user.email || "Teacher")}</strong>
+          <button class="portal-staff-row" type="button" data-staff-open="${escapeHtml(user.id)}">
+            <span class="portal-staff-avatar">${escapeHtml(getInitials(user.displayName || user.email || "T").slice(0, 2))}</span>
+            <span class="portal-staff-main">
+              <strong>${escapeHtml(user.displayName || user.email || "Teacher")}</strong>
+              <small>${escapeHtml(user.email || "No email")}</small>
+            </span>
+            <span class="portal-staff-detail">
+              <strong>${escapeHtml(user.title || "Staff")}</strong>
+              <small>${escapeHtml(user.department || "No department")}</small>
+            </span>
+            <span class="portal-staff-detail">
+              <strong>${escapeHtml(getStaffSignInLabel(user))}</strong>
+              <small>Sign-in</small>
+            </span>
+            <span class="portal-class-status ${isActive ? "is-active" : "is-archived"}">
+              ${isActive ? "Active" : "Deactivated"}
+            </span>
           </button>
         `;
       })
@@ -10048,11 +10256,11 @@
           "beforeend",
           `
           <div id="portal-staff-view-overlay" class="portal-overlay" hidden>
-            <button class="portal-overlay-backdrop" type="button" data-staff-view-close aria-label="Close teacher details"></button>
+            <button class="portal-overlay-backdrop" type="button" data-staff-view-close aria-label="Close staff details"></button>
             <section class="portal-overlay-panel portal-overlay-panel-sm" role="dialog" aria-modal="true" aria-labelledby="portal-staff-view-title">
               <header class="portal-overlay-head">
-                <h3 id="portal-staff-view-title">Teacher details</h3>
-                <button class="portal-overlay-close" type="button" data-staff-view-close aria-label="Close teacher details">&times;</button>
+                <h3 id="portal-staff-view-title">Staff details</h3>
+                <button class="portal-overlay-close" type="button" data-staff-view-close aria-label="Close staff details">&times;</button>
               </header>
               <div class="portal-staff-view-content">
                 <div id="portal-staff-view-grid" class="portal-student-view-grid"></div>
@@ -11558,37 +11766,140 @@
       </article>
     `;
 
-    listTarget.innerHTML = items.length
-      ? items
-          .map((item) => `
-            <article class="portal-class-card ${item.status === "archived" ? "is-archived" : ""}">
-              <div class="portal-class-meta">
-                <div class="portal-class-meta-item"><span>Item</span><strong>${escapeHtml(item.name)}</strong></div>
-                <div class="portal-class-meta-item"><span>Amount</span><strong>${escapeHtml(formatCurrencyAmount(item.amount))}</strong></div>
-                <div class="portal-class-meta-item"><span>Class</span><strong>${escapeHtml(item.classLevel)}</strong></div>
-                <div class="portal-class-meta-item"><span>Session</span><strong>${escapeHtml(getSessionLabelFromCycle(cycleState, item.sessionId))}</strong></div>
-                <div class="portal-class-meta-item"><span>Term</span><strong>${escapeHtml(getTermLabelFromCycle(cycleState, item.termId))}</strong></div>
-                <div class="portal-class-meta-item"><span>Due Date</span><strong>${escapeHtml(item.dueDate || "Not set")}</strong></div>
+    if (!items.length) {
+      listTarget.innerHTML = `
+        <article class="portal-class-empty">
+          <strong>No fee items yet</strong>
+          <p>Create fee items and map each to class, session, and term.</p>
+        </article>
+      `;
+      return;
+    }
+
+    const groupedFees = items.reduce((sessions, item) => {
+      const sessionLabel = getSessionLabelFromCycle(cycleState, item.sessionId);
+      const termLabel = getTermLabelFromCycle(cycleState, item.termId);
+      const sessionKey = item.sessionId || sessionLabel;
+      const termKey = item.termId || termLabel;
+      const classKey = item.classLevel || "Unassigned";
+
+      if (!sessions.has(sessionKey)) {
+        sessions.set(sessionKey, {
+          label: sessionLabel,
+          terms: new Map(),
+          items: [],
+        });
+      }
+
+      const sessionGroup = sessions.get(sessionKey);
+      sessionGroup.items.push(item);
+
+      if (!sessionGroup.terms.has(termKey)) {
+        sessionGroup.terms.set(termKey, {
+          label: termLabel,
+          classes: new Map(),
+          items: [],
+        });
+      }
+
+      const termGroup = sessionGroup.terms.get(termKey);
+      termGroup.items.push(item);
+
+      if (!termGroup.classes.has(classKey)) {
+        termGroup.classes.set(classKey, []);
+      }
+
+      termGroup.classes.get(classKey).push(item);
+      return sessions;
+    }, new Map());
+
+    listTarget.innerHTML = Array.from(groupedFees.values())
+      .map((sessionGroup) => {
+        const sessionActiveTotal = sessionGroup.items
+          .filter((item) => item.status !== "archived")
+          .reduce((sum, item) => sum + item.amount, 0);
+
+        return `
+          <section class="portal-class-group portal-fee-session-group">
+            <div class="portal-class-group-head">
+              <div>
+                <span>Session</span>
+                <strong>${escapeHtml(sessionGroup.label)}</strong>
               </div>
-              <div class="portal-class-extended">
-                <div class="portal-class-extended-item portal-class-extended-item-span">
-                  <span>Description</span>
-                  <strong>${escapeHtml(item.description || "No description")}</strong>
-                </div>
-              </div>
-              <div class="portal-class-actions">
-                <button class="portal-class-button" type="button" data-fee-action="edit" data-fee-id="${item.id}" ${isAdmin ? "" : "disabled"}>Edit</button>
-                <button class="portal-class-button ${item.status === "archived" ? "is-restore" : "is-archive"}" type="button" data-fee-action="${item.status === "archived" ? "activate" : "archive"}" data-fee-id="${item.id}" ${isAdmin ? "" : "disabled"}>${item.status === "archived" ? "Reactivate" : "Archive"}</button>
-              </div>
-            </article>
-          `)
-          .join("")
-      : `
-          <article class="portal-class-empty">
-            <strong>No fee items yet</strong>
-            <p>Create fee items and map each to class, session, and term.</p>
-          </article>
+              <small>${sessionGroup.items.length} fee item${sessionGroup.items.length === 1 ? "" : "s"} • ${escapeHtml(
+                formatCurrencyAmount(sessionActiveTotal),
+              )}</small>
+            </div>
+            <div class="portal-class-level-stack">
+              ${Array.from(sessionGroup.terms.values())
+                .map((termGroup) => `
+                  <details class="portal-class-level-group portal-fee-term-group" open>
+                    <summary>
+                      <div>
+                        <strong>${escapeHtml(termGroup.label)}</strong>
+                        <span>${termGroup.items.length} fee item${termGroup.items.length === 1 ? "" : "s"} across ${termGroup.classes.size} class${
+                          termGroup.classes.size === 1 ? "" : "es"
+                        }</span>
+                      </div>
+                    </summary>
+                    <div class="portal-fee-class-stack">
+                      ${Array.from(termGroup.classes.entries())
+                        .sort(([left], [right]) => left.localeCompare(right, undefined, { numeric: true }))
+                        .map(([classLevel, classItems]) => {
+                          const classTotal = classItems
+                            .filter((item) => item.status !== "archived")
+                            .reduce((sum, item) => sum + item.amount, 0);
+                          return `
+                            <section class="portal-fee-class-group">
+                              <header class="portal-fee-class-head">
+                                <div>
+                                  <span>Class</span>
+                                  <strong>${escapeHtml(classLevel)}</strong>
+                                </div>
+                                <small>${classItems.length} item${classItems.length === 1 ? "" : "s"} • ${escapeHtml(
+                                  formatCurrencyAmount(classTotal),
+                                )}</small>
+                              </header>
+                              <div class="portal-fee-item-grid">
+                                ${classItems
+                                  .map((item) => `
+                                    <article class="portal-class-card portal-fee-item-card ${item.status === "archived" ? "is-archived" : ""}">
+                                      <div class="portal-class-card-head">
+                                        <div class="portal-class-title">
+                                          <strong>${escapeHtml(item.name)}</strong>
+                                          <span>${escapeHtml(item.description || "No description")}</span>
+                                        </div>
+                                        <span class="portal-class-status ${item.status === "archived" ? "is-archived" : "is-active"}">
+                                          ${item.status === "archived" ? "Archived" : "Active"}
+                                        </span>
+                                      </div>
+                                      <div class="portal-class-meta">
+                                        <div class="portal-class-meta-item"><span>Amount</span><strong>${escapeHtml(formatCurrencyAmount(item.amount))}</strong></div>
+                                        <div class="portal-class-meta-item"><span>Due Date</span><strong>${escapeHtml(item.dueDate || "Not set")}</strong></div>
+                                      </div>
+                                      <div class="portal-class-actions">
+                                        <button class="portal-class-button" type="button" data-fee-action="edit" data-fee-id="${item.id}" ${isAdmin ? "" : "disabled"}>Edit</button>
+                                        <button class="portal-class-button ${item.status === "archived" ? "is-restore" : "is-archive"}" type="button" data-fee-action="${
+                                    item.status === "archived" ? "activate" : "archive"
+                                  }" data-fee-id="${item.id}" ${isAdmin ? "" : "disabled"}>${item.status === "archived" ? "Reactivate" : "Archive"}</button>
+                                      </div>
+                                    </article>
+                                  `)
+                                  .join("")}
+                              </div>
+                            </section>
+                          `;
+                        })
+                        .join("")}
+                    </div>
+                  </details>
+                `)
+                .join("")}
+            </div>
+          </section>
         `;
+      })
+      .join("");
   }
 
   function renderPortalStudentManagementSection({
@@ -11973,6 +12284,156 @@
       .trim()
       .toLowerCase()
       .replace(/[^a-z0-9]/g, "");
+  }
+
+  function getTodayDateValue() {
+    const date = new Date();
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  function normalizeAttendanceStatus(value) {
+    const normalized = String(value || "present").trim().toLowerCase();
+    return ATTENDANCE_STATUSES.includes(normalized) ? normalized : "present";
+  }
+
+  function getAttendanceStatusLabel(value) {
+    const status = normalizeAttendanceStatus(value);
+    if (status === "late") return "Late";
+    if (status === "absent") return "Absent";
+    if (status === "excused") return "Excused";
+    return "Present";
+  }
+
+  function getAttendanceStatusClass(value) {
+    return `is-${normalizeAttendanceStatus(value)}`;
+  }
+
+  function getActiveStudentsForClass(classRecord = {}) {
+    const studentManager = getStudentManager();
+    const students =
+      studentManager && typeof studentManager.getStudents === "function"
+        ? studentManager.getStudents()
+        : [];
+    const classTokens = [
+      normalizeLevelToken(classRecord.level),
+      normalizeLevelToken(classRecord.name),
+      normalizeLevelToken(`${classRecord.level || ""} ${classRecord.name || ""}`),
+    ].filter(Boolean);
+
+    return students.filter((student) => {
+      if (student.status !== "active") {
+        return false;
+      }
+
+      const studentToken = normalizeLevelToken(student.level);
+      return classTokens.includes(studentToken);
+    });
+  }
+
+  function getClassDisplayName(classRecord = {}) {
+    const level = String(classRecord.level || "").trim();
+    const name = String(classRecord.name || "").trim();
+
+    if (level && name && normalizeLevelToken(level) !== normalizeLevelToken(name)) {
+      return `${level} ${name.replace(/^Arm\s+/i, "")}`.trim();
+    }
+
+    return level || name || "Class";
+  }
+
+  function getTeacherAssignedClasses(user = {}) {
+    const classManager = getClassManager();
+    const courseManager = getCourseManager();
+    const teacherEmail = normalizeEmail(user.email || "");
+    const teacherName = String(user.displayName || user.email || "").trim().toLowerCase();
+    const classes =
+      classManager && typeof classManager.getClasses === "function"
+        ? classManager.getClasses().filter((record) => record.status !== "archived")
+        : [];
+    const courses =
+      courseManager && typeof courseManager.getCourses === "function"
+        ? courseManager.getCourses().filter((record) => record.status !== "archived")
+        : [];
+    const courseLevelTokens = new Set(
+      courses
+        .filter((course) =>
+          (course.teacherAssignments || []).some((teacher) => {
+            const value = String(teacher || "").trim();
+            return normalizeEmail(value) === teacherEmail || value.toLowerCase() === teacherName;
+          }),
+        )
+        .map((course) => normalizeLevelToken(course.level))
+        .filter(Boolean),
+    );
+    const assigned = classes.filter((classRecord) => {
+      const classTeacher = String(classRecord.classTeacher || "").trim();
+      const isClassTeacher =
+        normalizeEmail(classTeacher) === teacherEmail || classTeacher.toLowerCase() === teacherName;
+      const hasSubjectAssignment = (classRecord.teacherAssignments || []).some((assignment) => {
+        const assignmentTeacher = String(assignment?.teacher || "").trim();
+        return normalizeEmail(assignmentTeacher) === teacherEmail || assignmentTeacher.toLowerCase() === teacherName;
+      });
+      const hasCourseAssignment = courseLevelTokens.has(normalizeLevelToken(classRecord.level));
+
+      return isClassTeacher || hasSubjectAssignment || hasCourseAssignment;
+    });
+    const seen = new Set();
+
+    return assigned.filter((classRecord) => {
+      const key = classRecord.id || `${classRecord.level}:${classRecord.name}`;
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+  }
+
+  function getAttendanceRecordEntryMap(record = null) {
+    return new Map(
+      (record?.entries || []).map((entry) => [
+        String(entry.studentId || "").trim(),
+        {
+          status: normalizeAttendanceStatus(entry.status),
+          note: String(entry.note || "").trim(),
+        },
+      ]),
+    );
+  }
+
+  function summarizeAttendanceForStudents(students = [], records = []) {
+    const latestEntryByStudent = new Map();
+
+    records.forEach((record) => {
+      (record.entries || []).forEach((entry) => {
+        latestEntryByStudent.set(entry.studentId, {
+          ...entry,
+          classId: record.classId,
+          className: record.className,
+          level: record.level,
+          submittedByName: record.submittedByName,
+          submittedByEmail: record.submittedByEmail,
+          takenAt: record.takenAt,
+        });
+      });
+    });
+
+    return students.reduce(
+      (summary, student) => {
+        const entry = latestEntryByStudent.get(student.id);
+        const status = entry?.status || "unmarked";
+        summary.counts[status] = (summary.counts[status] || 0) + 1;
+        summary.rows.push({ student, entry, status });
+        return summary;
+      },
+      {
+        counts: { present: 0, absent: 0, late: 0, excused: 0, unmarked: 0 },
+        rows: [],
+      },
+    );
   }
 
   function getActiveClassLevelTokenSet() {
@@ -15453,6 +15914,562 @@
     }
   }
 
+  function renderTeacherAttendanceWorkspace(target, user) {
+    if (!target) {
+      return;
+    }
+
+    const manager = getAttendanceManager();
+    const assignedClasses = getTeacherAssignedClasses(user);
+    const selectedDate = target.dataset.attendanceDate || getTodayDateValue();
+    const flashMessage = target.dataset.attendanceFlash || "";
+    delete target.dataset.attendanceFlash;
+    const selectedClassId = assignedClasses.some((classRecord) => classRecord.id === target.dataset.attendanceClassId)
+      ? target.dataset.attendanceClassId
+      : assignedClasses[0]?.id || "";
+    const selectedClass = assignedClasses.find((classRecord) => classRecord.id === selectedClassId) || null;
+    const roster = selectedClass ? getActiveStudentsForClass(selectedClass) : [];
+    const existingRecord =
+      manager && selectedClass && typeof manager.getRecordForClassDate === "function"
+        ? manager.getRecordForClassDate(selectedClass.id, selectedDate)
+        : null;
+    const existingEntries = getAttendanceRecordEntryMap(existingRecord);
+    const submittedCount = existingRecord?.entries?.length || 0;
+    const markedLabel = selectedClass
+      ? `${submittedCount || 0}/${roster.length || 0}`
+      : "0/0";
+
+    target.hidden = false;
+    target.dataset.attendanceDate = selectedDate;
+    target.dataset.attendanceClassId = selectedClassId;
+
+    if (!manager) {
+      target.innerHTML = `
+        <article class="admin-surface-card">
+          <div class="admin-surface-head">
+            <h2>Class Attendance</h2>
+            <span>Unavailable</span>
+          </div>
+          <article class="portal-class-empty">
+            <strong>Attendance tools unavailable</strong>
+            <p>The attendance manager could not be loaded on this page.</p>
+          </article>
+        </article>
+      `;
+      return;
+    }
+
+    target.innerHTML = `
+      <article class="admin-surface-card teacher-attendance-card">
+        <div class="admin-surface-head">
+          <div>
+            <h2>Class Attendance</h2>
+            <span>Take attendance for classes assigned to you.</span>
+          </div>
+          <span class="portal-class-status ${existingRecord ? "is-active" : "is-pending"}">
+            ${existingRecord ? "Submitted" : "Not submitted"}
+          </span>
+        </div>
+
+        <div class="portal-class-summary teacher-attendance-summary">
+          <article class="portal-class-stat portal-class-stat-blue">
+            <span>Assigned classes</span>
+            <strong>${assignedClasses.length}</strong>
+            <p>Classes where you are class teacher, subject teacher, or course teacher.</p>
+          </article>
+          <article class="portal-class-stat portal-class-stat-green">
+            <span>Marked today</span>
+            <strong>${escapeHtml(markedLabel)}</strong>
+            <p>${selectedClass ? escapeHtml(getClassDisplayName(selectedClass)) : "Select a class to start."}</p>
+          </article>
+          <article class="portal-class-stat portal-class-stat-amber">
+            <span>Register date</span>
+            <strong>${escapeHtml(selectedDate)}</strong>
+            <p>${existingRecord ? `Last submitted ${escapeHtml(formatTimestamp(existingRecord.takenAt))}` : "No register saved for this date yet."}</p>
+          </article>
+        </div>
+
+        <div class="attendance-toolbar">
+          <label class="portal-field" for="teacher-attendance-date">
+            <span>Date</span>
+            <input id="teacher-attendance-date" type="date" value="${escapeHtml(selectedDate)}" data-teacher-attendance-date />
+          </label>
+          <label class="portal-field" for="teacher-attendance-class">
+            <span>Class</span>
+            <select id="teacher-attendance-class" data-teacher-attendance-class>
+              ${
+                assignedClasses.length
+                  ? assignedClasses
+                      .map(
+                        (classRecord) => `
+                          <option value="${escapeHtml(classRecord.id)}" ${classRecord.id === selectedClassId ? "selected" : ""}>
+                            ${escapeHtml(getClassDisplayName(classRecord))}
+                          </option>
+                        `,
+                      )
+                      .join("")
+                  : `<option value="">No assigned classes</option>`
+              }
+            </select>
+          </label>
+          <div class="attendance-toolbar-actions">
+            <button class="portal-class-button" type="button" data-attendance-mark-all ${roster.length ? "" : "disabled"}>
+              Mark all present
+            </button>
+          </div>
+        </div>
+
+        <form class="teacher-attendance-form" data-teacher-attendance-form>
+          ${
+            selectedClass && roster.length
+              ? `
+                <div class="teacher-attendance-list">
+                  ${roster
+                    .map((student) => {
+                      const existing = existingEntries.get(student.id) || {};
+                      const selectedStatus = normalizeAttendanceStatus(existing.status || "present");
+                      return `
+                        <article class="attendance-student-row" data-attendance-student-row data-student-id="${escapeHtml(student.id)}">
+                          <div class="attendance-student-main">
+                            <strong>${escapeHtml(student.fullName)}</strong>
+                            <span>${escapeHtml(student.admissionNo || "No admission no.")} • ${escapeHtml(student.level || selectedClass.level)}</span>
+                          </div>
+                          <div class="attendance-status-picker" role="radiogroup" aria-label="Attendance status for ${escapeHtml(student.fullName)}">
+                            ${ATTENDANCE_STATUSES.map(
+                              (status) => `
+                                <label class="attendance-status-option ${status === selectedStatus ? "is-selected" : ""} ${getAttendanceStatusClass(status)}">
+                                  <input type="radio" name="attendance-${escapeHtml(student.id)}" value="${escapeHtml(status)}" ${
+                                    status === selectedStatus ? "checked" : ""
+                                  } />
+                                  <span>${escapeHtml(getAttendanceStatusLabel(status))}</span>
+                                </label>
+                              `,
+                            ).join("")}
+                          </div>
+                          <input class="attendance-note-input" type="text" placeholder="Optional note" value="${escapeHtml(existing.note || "")}" data-attendance-note />
+                        </article>
+                      `;
+                    })
+                    .join("")}
+                </div>
+                <div class="attendance-submit-row">
+                  <p id="teacher-attendance-status" class="auth-status" aria-live="polite" hidden></p>
+                  <button class="portal-class-button is-restore" type="submit">
+                    ${existingRecord ? "Update attendance" : "Submit attendance"}
+                  </button>
+                </div>
+              `
+              : `
+                <article class="portal-class-empty">
+                  <strong>${selectedClass ? "No enrolled students found" : "No class assigned yet"}</strong>
+                  <p>${
+                    selectedClass
+                      ? "Add students to this class level from Student Management before taking attendance."
+                      : "Ask an admin to assign you as class teacher, subject teacher, or course teacher."
+                  }</p>
+                </article>
+              `
+          }
+        </form>
+      </article>
+    `;
+
+    const dateInput = target.querySelector("[data-teacher-attendance-date]");
+    const classSelect = target.querySelector("[data-teacher-attendance-class]");
+    const form = target.querySelector("[data-teacher-attendance-form]");
+    const statusTarget = target.querySelector("#teacher-attendance-status");
+
+    if (flashMessage && statusTarget) {
+      setStatus(statusTarget, "success", flashMessage);
+    }
+
+    if (dateInput instanceof HTMLInputElement) {
+      dateInput.addEventListener("change", () => {
+        target.dataset.attendanceDate = dateInput.value || getTodayDateValue();
+        renderTeacherAttendanceWorkspace(target, user);
+      });
+    }
+
+    if (classSelect instanceof HTMLSelectElement) {
+      classSelect.addEventListener("change", () => {
+        target.dataset.attendanceClassId = classSelect.value;
+        renderTeacherAttendanceWorkspace(target, user);
+      });
+    }
+
+    target.querySelectorAll(".attendance-status-option input").forEach((input) => {
+      input.addEventListener("change", () => {
+        const picker = input.closest(".attendance-status-picker");
+        picker?.querySelectorAll(".attendance-status-option").forEach((label) => {
+          label.classList.toggle("is-selected", label.contains(input) && input.checked);
+        });
+      });
+    });
+
+    const markAllButton = target.querySelector("[data-attendance-mark-all]");
+    if (markAllButton) {
+      markAllButton.addEventListener("click", () => {
+        target.querySelectorAll('.attendance-status-option input[value="present"]').forEach((input) => {
+          if (input instanceof HTMLInputElement) {
+            input.checked = true;
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+        });
+      });
+    }
+
+    if (form && selectedClass) {
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+
+        const studentLookup = new Map(roster.map((student) => [student.id, student]));
+        const entries = Array.from(form.querySelectorAll("[data-attendance-student-row]"))
+          .map((row) => {
+            const studentId = String(row.dataset.studentId || "").trim();
+            const student = studentLookup.get(studentId);
+            const checked = row.querySelector('input[type="radio"]:checked');
+            const note = row.querySelector("[data-attendance-note]")?.value || "";
+
+            if (!student || !(checked instanceof HTMLInputElement)) {
+              return null;
+            }
+
+            return {
+              studentId: student.id,
+              studentName: student.fullName,
+              admissionNo: student.admissionNo,
+              status: normalizeAttendanceStatus(checked.value),
+              note,
+            };
+          })
+          .filter(Boolean);
+
+        if (!entries.length) {
+          setStatus(statusTarget, "error", "No student rows are available for this class.");
+          return;
+        }
+
+        const savedRecords = manager.upsertRecord({
+          id: existingRecord?.id,
+          date: selectedDate,
+          classId: selectedClass.id,
+          className: getClassDisplayName(selectedClass),
+          level: selectedClass.level,
+          submittedById: user.id,
+          submittedByEmail: user.email,
+          submittedByName: user.displayName || user.email,
+          entries,
+        });
+        const savedRecord =
+          savedRecords.find((record) => record.classId === selectedClass.id && record.date === selectedDate) || null;
+
+        recordAuditEvent({
+          action: existingRecord ? "updated" : "submitted",
+          entityType: "attendance",
+          entityId: savedRecord?.id || selectedClass.id,
+          summary: `${existingRecord ? "Updated" : "Submitted"} attendance for ${getClassDisplayName(selectedClass)}`,
+          details: `${entries.length} student${entries.length === 1 ? "" : "s"} marked by ${
+            user.displayName || user.email
+          }`,
+        });
+
+        target.dataset.attendanceFlash = `Attendance saved for <strong>${escapeHtml(getClassDisplayName(selectedClass))}</strong>.`;
+        renderTeacherAttendanceWorkspace(target, user);
+      });
+    }
+  }
+
+  function initAttendanceReviewControls({
+    isAdmin,
+    manager,
+    summaryTarget,
+    statusTarget,
+    listTarget,
+    submissionTarget,
+    dateInput,
+    classSelect,
+    statusSelect,
+    searchInput,
+  }) {
+    if (!summaryTarget || !listTarget || !submissionTarget) {
+      return;
+    }
+
+    const classManager = getClassManager();
+    const studentManager = getStudentManager();
+    const getClasses = () =>
+      classManager && typeof classManager.getClasses === "function"
+        ? classManager.getClasses().filter((record) => record.status !== "archived")
+        : [];
+    const getStudents = () =>
+      studentManager && typeof studentManager.getStudents === "function"
+        ? studentManager.getStudents().filter((student) => student.status === "active")
+        : [];
+
+    if (dateInput instanceof HTMLInputElement && !dateInput.value) {
+      dateInput.value = getTodayDateValue();
+    }
+
+    const getState = () => ({
+      date: dateInput instanceof HTMLInputElement ? dateInput.value || getTodayDateValue() : getTodayDateValue(),
+      classId: classSelect instanceof HTMLSelectElement ? classSelect.value || "all" : "all",
+      status: statusSelect instanceof HTMLSelectElement ? statusSelect.value || "all" : "all",
+      search: searchInput instanceof HTMLInputElement ? searchInput.value.trim().toLowerCase() : "",
+    });
+
+    const render = () => {
+      if (!manager || typeof manager.getRecords !== "function") {
+        summaryTarget.innerHTML = "";
+        listTarget.innerHTML = `
+          <article class="portal-class-empty">
+            <strong>Attendance tools unavailable</strong>
+            <p>The attendance manager could not be loaded on this page.</p>
+          </article>
+        `;
+        submissionTarget.innerHTML = "";
+        return;
+      }
+
+      if (!isAdmin) {
+        summaryTarget.innerHTML = "";
+        listTarget.innerHTML = `
+          <article class="portal-class-empty">
+            <strong>Admin access required</strong>
+            <p>Only administrators can review attendance for all enrolled students.</p>
+          </article>
+        `;
+        submissionTarget.innerHTML = "";
+        setStatus(statusTarget, "info", "Teachers can take attendance from their dashboard. Admin review is restricted to administrators.");
+        return;
+      }
+
+      const state = getState();
+      const classes = getClasses();
+      const allStudents = getStudents();
+      const selectedClass = classes.find((classRecord) => classRecord.id === state.classId) || null;
+      const recordsForDate = manager.getRecords().filter((record) => record.date === state.date);
+      const scopedRecords = selectedClass
+        ? recordsForDate.filter((record) => record.classId === selectedClass.id)
+        : recordsForDate;
+      const scopedStudents = selectedClass ? getActiveStudentsForClass(selectedClass) : allStudents;
+      const summary = summarizeAttendanceForStudents(scopedStudents, scopedRecords);
+      const rate = scopedStudents.length
+        ? Math.round(((summary.counts.present + summary.counts.late) / scopedStudents.length) * 100)
+        : null;
+      const submittedClassIds = new Set(recordsForDate.map((record) => record.classId));
+      const classesWithStudents = classes.filter((classRecord) => getActiveStudentsForClass(classRecord).length > 0);
+      const missingClasses = selectedClass
+        ? selectedClass && getActiveStudentsForClass(selectedClass).length && !submittedClassIds.has(selectedClass.id)
+          ? 1
+          : 0
+        : classesWithStudents.filter((classRecord) => !submittedClassIds.has(classRecord.id)).length;
+
+      if (classSelect instanceof HTMLSelectElement) {
+        const previousValue = state.classId;
+        classSelect.innerHTML = `
+          <option value="all">All classes</option>
+          ${classes
+            .map(
+              (classRecord) => `
+                <option value="${escapeHtml(classRecord.id)}" ${classRecord.id === previousValue ? "selected" : ""}>
+                  ${escapeHtml(getClassDisplayName(classRecord))}
+                </option>
+              `,
+            )
+            .join("")}
+        `;
+        if (!classes.some((classRecord) => classRecord.id === previousValue)) {
+          classSelect.value = "all";
+        }
+      }
+
+      summaryTarget.innerHTML = `
+        <article class="portal-class-stat portal-class-stat-blue">
+          <span>Enrolled students</span>
+          <strong>${scopedStudents.length}</strong>
+          <p>${selectedClass ? escapeHtml(getClassDisplayName(selectedClass)) : "Active students across all classes."}</p>
+        </article>
+        <article class="portal-class-stat portal-class-stat-green">
+          <span>Attendance rate</span>
+          <strong>${rate === null ? "—" : `${rate}%`}</strong>
+          <p>Present and late marks against active enrolment.</p>
+        </article>
+        <article class="portal-class-stat portal-class-stat-rose">
+          <span>Absent</span>
+          <strong>${summary.counts.absent || 0}</strong>
+          <p>Students marked absent on ${escapeHtml(state.date)}.</p>
+        </article>
+        <article class="portal-class-stat portal-class-stat-amber">
+          <span>Late</span>
+          <strong>${summary.counts.late || 0}</strong>
+          <p>Students marked late by teachers.</p>
+        </article>
+        <article class="portal-class-stat portal-class-stat-slate">
+          <span>Unmarked</span>
+          <strong>${summary.counts.unmarked || 0}</strong>
+          <p>Enrolled students without a saved mark.</p>
+        </article>
+        <article class="portal-class-stat portal-class-stat-violet">
+          <span>Missing registers</span>
+          <strong>${missingClasses}</strong>
+          <p>Classes with enrolled students and no teacher submission.</p>
+        </article>
+      `;
+
+      const filteredRows = summary.rows.filter(({ student, entry, status }) => {
+        if (state.status !== "all" && status !== state.status) {
+          return false;
+        }
+
+        if (!state.search) {
+          return true;
+        }
+
+        return [
+          student.fullName,
+          student.admissionNo,
+          student.level,
+          status,
+          entry?.submittedByName,
+          entry?.submittedByEmail,
+          entry?.note,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(state.search);
+      });
+
+      if (!filteredRows.length) {
+        listTarget.innerHTML = `
+          <article class="portal-class-empty">
+            <strong>No attendance rows match this view</strong>
+            <p>Try another date, class, status, or search keyword.</p>
+          </article>
+        `;
+      } else {
+        const groupedRows = filteredRows.reduce((groups, row) => {
+          const level = row.student.level || "Unassigned";
+          if (!groups.has(level)) {
+            groups.set(level, []);
+          }
+          groups.get(level).push(row);
+          return groups;
+        }, new Map());
+
+        listTarget.innerHTML = Array.from(groupedRows.entries())
+          .sort(([left], [right]) => left.localeCompare(right, undefined, { numeric: true }))
+          .map(
+            ([level, rows]) => `
+              <section class="attendance-review-group">
+                <header class="attendance-review-group-head">
+                  <strong>${escapeHtml(level)}</strong>
+                  <span>${rows.length} student${rows.length === 1 ? "" : "s"}</span>
+                </header>
+                <div class="attendance-review-table">
+                  ${rows
+                    .map(({ student, entry, status }) => {
+                      const chipClass = status === "unmarked" ? "is-unmarked" : getAttendanceStatusClass(status);
+                      const label = status === "unmarked" ? "Unmarked" : getAttendanceStatusLabel(status);
+                      return `
+                        <article class="attendance-review-row">
+                          <div class="attendance-review-student">
+                            <strong>${escapeHtml(student.fullName)}</strong>
+                            <span>${escapeHtml(student.admissionNo || "No admission no.")}</span>
+                          </div>
+                          <span class="attendance-chip ${chipClass}">${escapeHtml(label)}</span>
+                          <div class="attendance-review-meta">
+                            <span>Teacher</span>
+                            <strong>${escapeHtml(entry?.submittedByName || entry?.submittedByEmail || "No submission")}</strong>
+                          </div>
+                          <div class="attendance-review-meta">
+                            <span>Submitted</span>
+                            <strong>${entry?.takenAt ? escapeHtml(formatTimestamp(entry.takenAt)) : "Not yet"}</strong>
+                          </div>
+                          <div class="attendance-review-note">
+                            ${escapeHtml(entry?.note || "No note")}
+                          </div>
+                        </article>
+                      `;
+                    })
+                    .join("")}
+                </div>
+              </section>
+            `,
+          )
+          .join("");
+      }
+
+      const submissionRecords = scopedRecords.slice().sort((left, right) => {
+        return new Date(right.takenAt || right.updatedAt).getTime() - new Date(left.takenAt || left.updatedAt).getTime();
+      });
+
+      submissionTarget.innerHTML = submissionRecords.length
+        ? submissionRecords
+            .map((record) => {
+              const counts = (record.entries || []).reduce(
+                (sum, entry) => {
+                  const status = normalizeAttendanceStatus(entry.status);
+                  sum[status] += 1;
+                  return sum;
+                },
+                { present: 0, absent: 0, late: 0, excused: 0 },
+              );
+
+              return `
+                <article class="attendance-submission-row">
+                  <div>
+                    <strong>${escapeHtml(record.className || record.level || "Class")}</strong>
+                    <span>${escapeHtml(record.submittedByName || record.submittedByEmail || "Unknown teacher")}</span>
+                  </div>
+                  <div class="attendance-submission-counts">
+                    <span class="attendance-chip is-present">${counts.present}</span>
+                    <span class="attendance-chip is-absent">${counts.absent}</span>
+                    <span class="attendance-chip is-late">${counts.late}</span>
+                    <span class="attendance-chip is-excused">${counts.excused}</span>
+                  </div>
+                  <small>${escapeHtml(formatTimestamp(record.takenAt || record.updatedAt))}</small>
+                </article>
+              `;
+            })
+            .join("")
+        : `
+          <article class="portal-class-empty">
+            <strong>No teacher submissions yet</strong>
+            <p>Submitted class registers will appear here immediately.</p>
+          </article>
+        `;
+
+      setStatus(
+        statusTarget,
+        recordsForDate.length ? "success" : "info",
+        recordsForDate.length
+          ? `${recordsForDate.length} register${recordsForDate.length === 1 ? "" : "s"} submitted for ${escapeHtml(state.date)}.`
+          : `No attendance registers submitted for ${escapeHtml(state.date)} yet.`,
+      );
+    };
+
+    [dateInput, classSelect, statusSelect, searchInput].forEach((control) => {
+      if (!control) {
+        return;
+      }
+      const eventName = control instanceof HTMLInputElement && control.type === "search" ? "input" : "change";
+      control.addEventListener(eventName, render);
+    });
+
+    if (manager?.eventName) {
+      window.addEventListener(manager.eventName, render);
+    }
+    if (classManager?.eventName) {
+      window.addEventListener(classManager.eventName, render);
+    }
+    if (studentManager?.eventName) {
+      window.addEventListener(studentManager.eventName, render);
+    }
+
+    render();
+  }
+
   function renderAdminMetricCards(target, snapshot) {
     if (!target) {
       return;
@@ -15463,7 +16480,7 @@
         tone: "blue",
         label: "Active Students",
         value: formatMetricValue(snapshot.activeStudents),
-        note: "Awaiting live data",
+        note: snapshot.activeStudents === null ? "Awaiting live data" : "Current active enrolment",
         icon: `
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
             <path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"></path>
@@ -15477,7 +16494,7 @@
         tone: "violet",
         label: "Staff Count",
         value: formatMetricValue(snapshot.staffCount),
-        note: "Awaiting live data",
+        note: snapshot.staffCount === null ? "Awaiting live data" : "Active teacher accounts",
         icon: `
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
             <rect x="5" y="3" width="14" height="18" rx="2"></rect>
@@ -15490,7 +16507,7 @@
         tone: "green",
         label: "Attendance Today",
         value: formatMetricValue(snapshot.attendanceRate, { suffix: "%" }),
-        note: "Awaiting live data",
+        note: snapshot.attendanceRate === null ? "No register submitted yet" : "Present and late marks today",
         icon: `
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
             <rect x="3" y="4" width="18" height="18" rx="2"></rect>
@@ -15505,7 +16522,7 @@
         tone: "rose",
         label: "Active Incidents",
         value: formatMetricValue(snapshot.activeIncidents),
-        note: "Awaiting live data",
+        note: snapshot.activeIncidents === null ? "Awaiting live data" : "Absent and late marks today",
         icon: `
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
             <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path>
@@ -15961,24 +16978,64 @@
       openTerm
         ? (cycleState.sessions || []).find((session) => session.id === openTerm.sessionId)?.name || "Active Session"
         : "Active Session";
+    const attendanceManager = getAttendanceManager();
+    const attendanceRecords =
+      attendanceManager && typeof attendanceManager.getRecords === "function"
+        ? attendanceManager.getRecords()
+        : [];
+    const countStudentAttendance = (term = null) => {
+      const startDate = String(term?.startDate || "").trim();
+      const endDate = String(term?.endDate || "").trim();
+
+      return attendanceRecords.reduce(
+        (summary, record) => {
+          if (startDate && record.date < startDate) {
+            return summary;
+          }
+          if (endDate && record.date > endDate) {
+            return summary;
+          }
+
+          const entry = (record.entries || []).find((item) => item.studentId === student?.id);
+
+          if (!entry) {
+            return summary;
+          }
+
+          const status = normalizeAttendanceStatus(entry.status);
+          if (status === "present" || status === "late") {
+            summary.present += 1;
+          } else if (status === "absent") {
+            summary.absent += 1;
+          }
+
+          return summary;
+        },
+        { present: 0, absent: 0 },
+      );
+    };
+    const currentCounts = countStudentAttendance(openTerm);
 
     const history = (cycleState.terms || [])
       .slice()
       .sort((left, right) => String(right.createdAt || "").localeCompare(String(left.createdAt || "")))
-      .map((term) => ({
-        id: term.id,
-        term: term.name,
-        session: (cycleState.sessions || []).find((item) => item.id === term.sessionId)?.name || "Session",
-        present: 0,
-        absent: 0,
-      }));
+      .map((term) => {
+        const counts = countStudentAttendance(term);
+        return {
+          id: term.id,
+          term: term.name,
+          session: (cycleState.sessions || []).find((item) => item.id === term.sessionId)?.name || "Session",
+          present: counts.present,
+          absent: counts.absent,
+        };
+      });
 
     return {
       studentId: student?.id || "",
       currentTermLabel,
       currentSession,
-      present: 0,
-      absent: 0,
+      present: currentCounts.present,
+      absent: currentCounts.absent,
       history,
     };
   }
@@ -17398,6 +18455,29 @@
     });
   }
 
+  function initAdminAttendancePage() {
+    if (getPage() !== "admin-attendance") {
+      return;
+    }
+
+    const { isAdmin, roleLabel } = getAdminAccessContext();
+    const canReviewAttendance = isAdmin && canAccessPermission(roleLabel, PAGE_PERMISSION_KEYS["admin-attendance"]);
+    const attendanceManager = getAttendanceManager();
+
+    initAttendanceReviewControls({
+      isAdmin: canReviewAttendance,
+      manager: attendanceManager,
+      summaryTarget: document.getElementById("portal-attendance-summary"),
+      statusTarget: document.getElementById("portal-attendance-status"),
+      listTarget: document.getElementById("portal-attendance-review-list"),
+      submissionTarget: document.getElementById("portal-attendance-submission-list"),
+      dateInput: document.querySelector("[data-attendance-review-date]"),
+      classSelect: document.querySelector("[data-attendance-review-class]"),
+      statusSelect: document.querySelector("[data-attendance-review-status]"),
+      searchInput: document.querySelector("[data-attendance-review-search]"),
+    });
+  }
+
   function initAdminFeatureModulesPage() {
     if (getPage() !== "admin-feature-modules") {
       return;
@@ -17666,6 +18746,7 @@
     const activity = document.getElementById("admin-activity");
     const links = document.getElementById("portal-links");
     const details = document.getElementById("portal-details");
+    const teacherAttendance = document.getElementById("teacher-attendance-workspace");
     const gate = document.getElementById("portal-gate");
     const schoolSettingsManager = getSchoolSettingsManager();
     const academicCalendarManager = getAcademicCalendarManager();
@@ -17700,7 +18781,10 @@
             website: "",
             academicYearStart: "",
             academicYearEnd: "",
+            schoolTypes: ["primary", "secondary"],
             hasNursery: false,
+            hasPrimary: true,
+            hasSecondary: true,
             hasHigherInstitution: false,
           };
 
@@ -17844,11 +18928,39 @@
       }
     }
 
+    const refreshTeacherAttendanceWorkspace = () => {
+      if (!teacherAttendance) {
+        return;
+      }
+
+      if (roleLabel === "Teacher" && canAccessPermission(roleLabel, PAGE_PERMISSION_KEYS["admin-attendance"])) {
+        renderTeacherAttendanceWorkspace(teacherAttendance, user);
+      } else {
+        teacherAttendance.hidden = true;
+        teacherAttendance.innerHTML = "";
+      }
+    };
+
+    refreshTeacherAttendanceWorkspace();
+
     if (academicCalendarManager?.eventName) {
       window.addEventListener(academicCalendarManager.eventName, () => {
         renderAdminEvents(events);
       });
     }
+
+    const attendanceManager = getAttendanceManager();
+    if (hasDashboardAccess && attendanceManager?.eventName) {
+      window.addEventListener(attendanceManager.eventName, () => {
+        renderAdminMetricCards(metrics, getDashboardSnapshot());
+      });
+    }
+
+    [getClassManager(), getCourseManager(), getStudentManager()].forEach((manager) => {
+      if (manager?.eventName && teacherAttendance) {
+        window.addEventListener(manager.eventName, refreshTeacherAttendanceWorkspace);
+      }
+    });
 
     if (links) {
       const availableLinks = DASHBOARD_SECTION_LINKS.filter((item) => canAccessPermission(roleLabel, item.permissionKey));

@@ -130,59 +130,57 @@
           </div>
         </header>
 
-        <section class="admin-secondary-grid">
-          <article class="admin-surface-card">
+        <section id="portal-attendance-summary" class="portal-class-summary"></section>
+
+        <section class="admin-secondary-grid attendance-review-grid">
+          <article class="admin-surface-card attendance-review-card">
             <div class="admin-surface-head">
-              <h2>Daily Snapshot</h2>
-              <span>What to watch first each morning</span>
-            </div>
-            <div class="admin-session-grid">
-              <div class="admin-session-card">
-                <span>Today's rate</span>
-                <strong>Attendance is being tracked against live class rosters.</strong>
-              </div>
-              <div class="admin-session-card">
-                <span>Late marks</span>
-                <strong>Check classes with repeated late arrivals before assembly closes.</strong>
-              </div>
-              <div class="admin-session-card">
-                <span>Absent students</span>
-                <strong>Review flagged learners who need a guardian follow-up.</strong>
-              </div>
-              <div class="admin-session-card">
-                <span>Teacher logs</span>
-                <strong>Make sure classroom attendance was actually submitted.</strong>
+              <div>
+                <h2>Attendance Review</h2>
+                <span>All enrolled students for the selected date</span>
               </div>
             </div>
+
+            <div class="attendance-toolbar attendance-review-toolbar">
+              <label class="portal-field" for="attendance-review-date">
+                <span>Date</span>
+                <input id="attendance-review-date" type="date" data-attendance-review-date />
+              </label>
+              <label class="portal-field" for="attendance-review-class">
+                <span>Class</span>
+                <select id="attendance-review-class" data-attendance-review-class>
+                  <option value="all">All classes</option>
+                </select>
+              </label>
+              <label class="portal-field" for="attendance-review-status">
+                <span>Status</span>
+                <select id="attendance-review-status" data-attendance-review-status>
+                  <option value="all">All statuses</option>
+                  <option value="present">Present</option>
+                  <option value="absent">Absent</option>
+                  <option value="late">Late</option>
+                  <option value="excused">Excused</option>
+                  <option value="unmarked">Unmarked</option>
+                </select>
+              </label>
+              <label class="portal-field" for="attendance-review-search">
+                <span>Search</span>
+                <input id="attendance-review-search" type="search" placeholder="Student, admission no, teacher..." data-attendance-review-search />
+              </label>
+            </div>
+
+            <p id="portal-attendance-status" class="auth-status" aria-live="polite" hidden></p>
+            <div id="portal-attendance-review-list" class="attendance-review-list"></div>
           </article>
 
-          <article class="admin-surface-card">
+          <article class="admin-surface-card attendance-submission-card">
             <div class="admin-surface-head">
-              <h2>Connected Pages</h2>
-              <span>Attendance rarely stands alone</span>
+              <div>
+                <h2>Teacher Submissions</h2>
+                <span>Registers submitted for the selected date</span>
+              </div>
             </div>
-            <div class="admin-link-grid">
-              <a class="admin-link-card" href="./admin-students.html">
-                <strong>Student follow-up</strong>
-                <p>Open the student page to review contact and movement history.</p>
-                <span>Open students</span>
-              </a>
-              <a class="admin-link-card" href="./admin-schedule.html">
-                <strong>Period timing</strong>
-                <p>Check whether timetable changes affected submission windows.</p>
-                <span>Open schedule</span>
-              </a>
-              <a class="admin-link-card" href="./admin-teachers.html">
-                <strong>Class submission</strong>
-                <p>Follow up with teachers responsible for missing registers.</p>
-                <span>Open teachers</span>
-              </a>
-              <a class="admin-link-card" href="./admin-reports.html">
-                <strong>Attendance reports</strong>
-                <p>Produce printable summaries for leadership and family communication.</p>
-                <span>Open reports</span>
-              </a>
-            </div>
+            <div id="portal-attendance-submission-list" class="attendance-submission-list"></div>
           </article>
         </section>
       </section>

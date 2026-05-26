@@ -247,25 +247,33 @@
 
               <div class="portal-settings-section-head">
                 <strong>School structure</strong>
-                <span>Primary 1-6, JSS 1-3, SS 1-3, plus optional Nursery and Higher Institution</span>
+                <span>Choose the school types this workspace should use</span>
               </div>
 
               <div class="portal-structure-block portal-field-span-2">
-                <div class="portal-structure-fixed">
-                  <span class="portal-structure-chip">Primary 1-6</span>
-                  <span class="portal-structure-chip">JSS 1-3</span>
-                  <span class="portal-structure-chip">SS 1-3</span>
-                </div>
                 <div class="portal-structure-options">
-                  <label class="portal-structure-toggle" for="has-nursery">
-                    <input id="has-nursery" name="hasNursery" type="checkbox" />
-                    <span>Enable Nursery section</span>
+                  <label class="portal-structure-toggle portal-structure-toggle-all" for="school-type-all">
+                    <input id="school-type-all" type="checkbox" data-school-type-all />
+                    <span>All school types</span>
                   </label>
-                  <label class="portal-structure-toggle" for="has-higher-institution">
-                    <input id="has-higher-institution" name="hasHigherInstitution" type="checkbox" />
-                    <span>Enable Higher Institution (Polytechnic / University)</span>
+                  <label class="portal-structure-toggle" for="school-type-nursery">
+                    <input id="school-type-nursery" name="schoolTypes" type="checkbox" value="nursery" data-school-type-option />
+                    <span>Nursery</span>
+                  </label>
+                  <label class="portal-structure-toggle" for="school-type-primary">
+                    <input id="school-type-primary" name="schoolTypes" type="checkbox" value="primary" data-school-type-option />
+                    <span>Primary</span>
+                  </label>
+                  <label class="portal-structure-toggle" for="school-type-secondary">
+                    <input id="school-type-secondary" name="schoolTypes" type="checkbox" value="secondary" data-school-type-option />
+                    <span>Secondary</span>
+                  </label>
+                  <label class="portal-structure-toggle" for="school-type-higher">
+                    <input id="school-type-higher" name="schoolTypes" type="checkbox" value="higher" data-school-type-option />
+                    <span>Higher Institution</span>
                   </label>
                 </div>
+                <p class="portal-field-error" data-settings-error-for="schoolTypes"></p>
               </div>
 
               <div class="portal-settings-section-head">
