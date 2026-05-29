@@ -203,6 +203,62 @@
 
               <div id="portal-fee-list" class="portal-class-list"></div>
             </div>
+
+            <section class="portal-fee-invoice-panel" aria-labelledby="portal-fee-invoice-title">
+              <div class="portal-class-group-head">
+                <div>
+                  <span>Invoice generation</span>
+                  <strong id="portal-fee-invoice-title">Generate invoices</strong>
+                </div>
+                <small>Individual or bulk</small>
+              </div>
+              <div id="portal-fee-invoice-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+              <div class="portal-settings-grid">
+                <label class="portal-field" for="fee-invoice-session">
+                  <span>Session</span>
+                  <select id="fee-invoice-session"></select>
+                </label>
+
+                <label class="portal-field" for="fee-invoice-term">
+                  <span>Term / Semester</span>
+                  <select id="fee-invoice-term"></select>
+                </label>
+
+                <label class="portal-field" for="fee-invoice-class">
+                  <span>Class group</span>
+                  <select id="fee-invoice-class"></select>
+                </label>
+
+                <label class="portal-field" for="fee-invoice-student">
+                  <span>Student</span>
+                  <select id="fee-invoice-student"></select>
+                </label>
+
+                <label class="portal-field portal-field-span-2" for="fee-invoice-due-date">
+                  <span>Invoice due date (optional)</span>
+                  <input id="fee-invoice-due-date" type="date" />
+                </label>
+              </div>
+              <div class="utility-actions">
+                <button class="button button-primary" type="button" data-fee-invoice-generate-single>Generate selected student</button>
+                <button class="button button-outline" type="button" data-fee-invoice-generate-bulk>Generate for class</button>
+              </div>
+              <div id="portal-fee-invoice-list" class="portal-fee-invoice-list"></div>
+            </section>
+
+            <div id="portal-fee-invoice-overlay" class="portal-overlay" hidden>
+              <button class="portal-overlay-backdrop" type="button" data-fee-invoice-close aria-label="Close invoice preview"></button>
+              <section class="portal-overlay-panel portal-fee-invoice-modal" role="dialog" aria-modal="true" aria-labelledby="portal-fee-invoice-modal-title">
+                <header class="portal-overlay-head">
+                  <div>
+                    <span>Invoice preview</span>
+                    <h3 id="portal-fee-invoice-modal-title">Fee invoice</h3>
+                  </div>
+                  <button class="portal-overlay-close" type="button" data-fee-invoice-close aria-label="Close invoice preview">&times;</button>
+                </header>
+                <div id="portal-fee-invoice-modal-body" class="portal-fee-invoice-modal-body"></div>
+              </section>
+            </div>
           </article>
         </section>
       </section>
