@@ -133,15 +133,18 @@
           </div>
 
           <div class="admin-dashboard-tools">
-            <label class="admin-searchbar">
+            <div class="admin-searchbox">
+              <label class="admin-searchbar" for="admin-global-search">
               <span class="admin-search-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
                   <circle cx="11" cy="11" r="7"></circle>
                   <path d="m20 20-3.5-3.5"></path>
                 </svg>
               </span>
-              <input type="search" placeholder="Search students, staff..." />
-            </label>
+                <input id="admin-global-search" type="search" placeholder="Search students, teachers, guardians..." autocomplete="off" aria-controls="admin-search-suggestions" aria-expanded="false" />
+              </label>
+              <div id="admin-search-suggestions" class="admin-search-suggestions" role="listbox" hidden></div>
+            </div>
             <button
               id="admin-notification-button"
               class="admin-notification-button"

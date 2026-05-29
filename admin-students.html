@@ -198,7 +198,9 @@
 
                     <label class="portal-field" for="student-level">
                       <span>Level / class</span>
-                      <input id="student-level" name="level" type="text" placeholder="Primary 4, JSS 2, SS 1..." />
+                      <select id="student-level" name="level">
+                        <option value="">Select level/class</option>
+                      </select>
                       <p class="portal-field-error" data-student-error-for="level"></p>
                     </label>
 
@@ -280,9 +282,12 @@
 
             <div id="portal-student-view-overlay" class="portal-overlay" hidden>
               <button class="portal-overlay-backdrop" type="button" data-student-view-close aria-label="Close student details"></button>
-              <section class="portal-overlay-panel portal-overlay-panel-sm" role="dialog" aria-modal="true" aria-labelledby="portal-student-view-title">
-                <header class="portal-overlay-head">
-                  <h3 id="portal-student-view-title">Student Details</h3>
+              <section class="portal-overlay-panel portal-overlay-panel-sm portal-student-view-panel" role="dialog" aria-modal="true" aria-labelledby="portal-student-view-title">
+                <header class="portal-overlay-head portal-student-view-head">
+                  <div>
+                    <span class="portal-overlay-kicker">Student profile</span>
+                    <h3 id="portal-student-view-title">Student details</h3>
+                  </div>
                   <button class="portal-overlay-close" type="button" data-student-view-close aria-label="Close student details">&times;</button>
                 </header>
                 <div id="portal-student-view-content" class="portal-student-view-content"></div>
@@ -291,43 +296,48 @@
 
             <div id="portal-student-docs-overlay" class="portal-overlay" hidden>
               <button class="portal-overlay-backdrop" type="button" data-student-docs-close aria-label="Close student documents"></button>
-              <section class="portal-overlay-panel portal-overlay-panel-sm" role="dialog" aria-modal="true" aria-labelledby="portal-student-docs-title">
-                <header class="portal-overlay-head">
-                  <h3 id="portal-student-docs-title">Student Documents</h3>
+              <section class="portal-overlay-panel portal-overlay-panel-sm portal-student-docs-panel" role="dialog" aria-modal="true" aria-labelledby="portal-student-docs-title">
+                <header class="portal-overlay-head portal-student-view-head">
+                  <div>
+                    <span class="portal-overlay-kicker">Student files</span>
+                    <h3 id="portal-student-docs-title">Student documents</h3>
+                  </div>
                   <button class="portal-overlay-close" type="button" data-student-docs-close aria-label="Close student documents">&times;</button>
                 </header>
 
-                <div id="portal-student-docs-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
-                <input id="portal-student-docs-student-id" type="hidden" />
+                <div class="portal-student-docs-content">
+                  <div id="portal-student-docs-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+                  <input id="portal-student-docs-student-id" type="hidden" />
 
-                <div class="portal-student-docs-head">
-                  <strong id="portal-student-docs-student-name">Select a student</strong>
-                  <span>Upload, download, and remove files linked to this student.</span>
-                </div>
+                  <div class="portal-student-docs-head">
+                    <strong id="portal-student-docs-student-name">Select a student</strong>
+                    <span>Upload, download, and remove files linked to this student.</span>
+                  </div>
 
-                <div class="portal-settings-grid">
-                  <label class="portal-field" for="portal-student-doc-type">
-                    <span>Document type</span>
-                    <select id="portal-student-doc-type">
-                      <option value="Passport Photograph">Passport Photograph</option>
-                      <option value="Birth Certificate">Birth Certificate</option>
-                      <option value="Previous Result">Previous Result</option>
-                      <option value="Transfer Certificate">Transfer Certificate</option>
-                      <option value="Medical Record">Medical Record</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </label>
-                  <label class="portal-field" for="portal-student-doc-file">
-                    <span>Choose file</span>
-                    <input id="portal-student-doc-file" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" />
-                  </label>
-                </div>
-                <div class="utility-actions">
-                  <button class="button button-primary" type="button" data-student-doc-upload>Upload document</button>
-                  <button class="button button-outline" type="button" data-student-docs-close>Cancel</button>
-                </div>
+                  <div class="portal-settings-grid">
+                    <label class="portal-field" for="portal-student-doc-type">
+                      <span>Document type</span>
+                      <select id="portal-student-doc-type">
+                        <option value="Passport Photograph">Passport Photograph</option>
+                        <option value="Birth Certificate">Birth Certificate</option>
+                        <option value="Previous Result">Previous Result</option>
+                        <option value="Transfer Certificate">Transfer Certificate</option>
+                        <option value="Medical Record">Medical Record</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </label>
+                    <label class="portal-field" for="portal-student-doc-file">
+                      <span>Choose file</span>
+                      <input id="portal-student-doc-file" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" />
+                    </label>
+                  </div>
+                  <div class="utility-actions">
+                    <button class="button button-primary" type="button" data-student-doc-upload>Upload document</button>
+                    <button class="button button-outline" type="button" data-student-docs-close>Cancel</button>
+                  </div>
 
-                <div id="portal-student-doc-list" class="portal-student-doc-list"></div>
+                  <div id="portal-student-doc-list" class="portal-student-doc-list"></div>
+                </div>
               </section>
             </div>
           </article>

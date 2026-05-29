@@ -2064,6 +2064,7 @@
       academicYearStart: String(institution.academic_year_start || "").trim(),
       academicYearEnd: String(institution.academic_year_end || "").trim(),
       schoolTypes,
+      higherInstitutionType: defaults.higherInstitutionType || "university",
       hasNursery: schoolTypes.includes("nursery"),
       hasPrimary: schoolTypes.includes("primary"),
       hasSecondary: schoolTypes.includes("secondary"),
@@ -4524,6 +4525,7 @@
       academicYearStart: "",
       academicYearEnd: "",
       schoolTypes: ["primary", "secondary"],
+      higherInstitutionType: "university",
       hasNursery: false,
       hasPrimary: true,
       hasSecondary: true,
@@ -4538,6 +4540,160 @@
     higher: "Higher Institution",
   };
   const SCHOOL_TYPE_ORDER = ["nursery", "primary", "secondary", "higher"];
+  const SECONDARY_LEVEL_TEMPLATES = [
+    "Junior Secondary School 1 (JSS1)",
+    "Junior Secondary School 2 (JSS2)",
+    "Junior Secondary School 3 (JSS3)",
+    "Senior Secondary School 1 (SSS1)",
+    "Senior Secondary School 2 (SSS2)",
+    "Senior Secondary School 3 (SSS3)",
+  ];
+  const HIGHER_INSTITUTION_TYPE_LABELS = {
+    university: "University",
+    polytechnic: "Polytechnic",
+    "college-of-education": "Federal College of Education",
+  };
+  const HIGHER_INSTITUTION_LEVEL_TEMPLATES = {
+    university: [
+      "100 Level",
+      "200 Level",
+      "300 Level",
+      "400 Level",
+      "500 Level",
+      "600 Level",
+      "700 Level",
+    ],
+    polytechnic: ["ND I", "ND II", "HND I", "HND II"],
+    "college-of-education": ["NCE I", "NCE II", "NCE III"],
+  };
+  const HIGHER_INSTITUTION_DEPARTMENT_TEMPLATES = {
+    university: {
+      "Faculty of Science": [
+        "Computer Science",
+        "Microbiology",
+        "Biochemistry",
+        "Mathematics",
+        "Physics",
+        "Chemistry",
+      ],
+      "Faculty of Arts": [
+        "English and Literary Studies",
+        "History and International Studies",
+        "Linguistics",
+        "Philosophy",
+        "Theatre Arts",
+      ],
+      "Faculty of Social Sciences": [
+        "Economics",
+        "Political Science",
+        "Sociology",
+        "Psychology",
+        "Mass Communication",
+      ],
+      "Faculty of Management Sciences": [
+        "Accounting",
+        "Business Administration",
+        "Banking and Finance",
+        "Marketing",
+        "Public Administration",
+      ],
+      "Faculty of Education": [
+        "Educational Management",
+        "Guidance and Counselling",
+        "Science Education",
+        "Primary Education Studies",
+      ],
+      "Faculty of Engineering": [
+        "Civil Engineering",
+        "Electrical/Electronics Engineering",
+        "Mechanical Engineering",
+        "Computer Engineering",
+        "Chemical Engineering",
+      ],
+      "Faculty of Health Sciences": [
+        "Nursing Science",
+        "Public Health",
+        "Medical Laboratory Science",
+        "Anatomy",
+        "Physiology",
+      ],
+      "Faculty of Law": ["Law"],
+    },
+    polytechnic: {
+      "School of Engineering Technology": [
+        "Civil Engineering Technology",
+        "Electrical/Electronics Engineering Technology",
+        "Mechanical Engineering Technology",
+        "Computer Engineering Technology",
+      ],
+      "School of Environmental Technology": [
+        "Architecture",
+        "Building Technology",
+        "Estate Management",
+        "Quantity Surveying",
+        "Urban and Regional Planning",
+      ],
+      "School of Applied Sciences": [
+        "Computer Science",
+        "Science Laboratory Technology",
+        "Statistics",
+        "Food Technology",
+      ],
+      "School of Business and Management Studies": [
+        "Accountancy",
+        "Business Administration and Management",
+        "Banking and Finance",
+        "Marketing",
+        "Public Administration",
+      ],
+      "School of Communication and Information Technology": [
+        "Mass Communication",
+        "Office Technology and Management",
+        "Library and Information Science",
+      ],
+    },
+    "college-of-education": {
+      "School of Education": [
+        "Educational Foundation",
+        "Curriculum and Instruction",
+        "Guidance and Counselling",
+        "Primary Education Studies",
+      ],
+      "School of Arts and Social Sciences": [
+        "Christian Religious Studies Education",
+        "Islamic Studies Education",
+        "Social Studies Education",
+        "Economics Education",
+        "Political Science Education",
+      ],
+      "School of Languages": [
+        "English Education",
+        "Yoruba Education",
+        "Hausa Education",
+        "Igbo Education",
+        "French Education",
+      ],
+      "School of Sciences": [
+        "Computer Science Education",
+        "Mathematics Education",
+        "Biology Education",
+        "Chemistry Education",
+        "Physics Education",
+      ],
+      "School of Vocational and Technical Education": [
+        "Business Education",
+        "Agricultural Education",
+        "Home Economics Education",
+        "Fine and Applied Arts Education",
+      ],
+    },
+  };
+  const SCHOOL_TYPE_LEVEL_TEMPLATES = {
+    nursery: ["Nursery 1", "Nursery 2", "Nursery 3"],
+    primary: ["Primary 1", "Primary 2", "Primary 3", "Primary 4", "Primary 5", "Primary 6"],
+    secondary: SECONDARY_LEVEL_TEMPLATES,
+    higher: HIGHER_INSTITUTION_LEVEL_TEMPLATES.university,
+  };
 
   function normalizeExplicitSchoolTypeList(value = []) {
     const rawTypes = Array.isArray(value)
@@ -4549,6 +4705,43 @@
     return Array.from(
       new Set(rawTypes.map((type) => String(type || "").trim()).filter((type) => SCHOOL_TYPE_ORDER.includes(type))),
     );
+  }
+
+  function normalizeHigherInstitutionType(value) {
+    const normalized = String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[_\s]+/g, "-");
+
+    if (normalized === "poly" || normalized === "polytechnic") {
+      return "polytechnic";
+    }
+
+    if (
+      normalized === "college" ||
+      normalized === "college-of-education" ||
+      normalized === "federal-college" ||
+      normalized === "federal-college-of-education" ||
+      normalized === "fce"
+    ) {
+      return "college-of-education";
+    }
+
+    if (normalized === "university" || normalized === "uni") {
+      return "university";
+    }
+
+    return getDefaultAdminSchoolSettings().higherInstitutionType;
+  }
+
+  function getHigherInstitutionTypeLabel(value) {
+    const type = normalizeHigherInstitutionType(value);
+    return HIGHER_INSTITUTION_TYPE_LABELS[type] || "Higher Institution";
+  }
+
+  function getHigherInstitutionUnitLabel(value) {
+    const type = normalizeHigherInstitutionType(value);
+    return type === "university" ? "Faculty" : "School";
   }
 
   function normalizeConfiguredSchoolTypes(settings = {}) {
@@ -4568,14 +4761,170 @@
     ].filter(Boolean);
   }
 
+  function getConfiguredSchoolSettings() {
+    const manager = getSchoolSettingsManager();
+    return manager?.getSettings ? manager.getSettings() : getDefaultAdminSchoolSettings();
+  }
+
   function getConfiguredSchoolTypes() {
     const manager = getSchoolSettingsManager();
-    const settings = manager?.getSettings ? manager.getSettings() : getDefaultAdminSchoolSettings();
+    const settings = getConfiguredSchoolSettings();
     const enabledTypes = manager?.getEnabledSchoolTypes
       ? manager.getEnabledSchoolTypes()
       : normalizeConfiguredSchoolTypes(settings);
     const normalized = normalizeConfiguredSchoolTypes({ ...settings, schoolTypes: enabledTypes });
     return normalized.length ? normalized : getDefaultAdminSchoolSettings().schoolTypes;
+  }
+
+  function getConfiguredHigherInstitutionType(settings = getConfiguredSchoolSettings()) {
+    return normalizeHigherInstitutionType(settings.higherInstitutionType);
+  }
+
+  function getConfiguredHigherInstitutionLevelTemplates(settings = getConfiguredSchoolSettings()) {
+    const higherType = getConfiguredHigherInstitutionType(settings);
+    return HIGHER_INSTITUTION_LEVEL_TEMPLATES[higherType] || HIGHER_INSTITUTION_LEVEL_TEMPLATES.university;
+  }
+
+  function isConfiguredHigherInstitutionLevel(levelValue, settings = getConfiguredSchoolSettings()) {
+    const levelToken = normalizeLevelToken(levelValue);
+    if (!levelToken) {
+      return false;
+    }
+
+    return getConfiguredHigherInstitutionLevelTemplates(settings).some(
+      (level) => normalizeLevelToken(level) === levelToken,
+    );
+  }
+
+  function getConfiguredSchoolTypeLevelTemplates(settings = getConfiguredSchoolSettings()) {
+    return {
+      ...SCHOOL_TYPE_LEVEL_TEMPLATES,
+      higher: getConfiguredHigherInstitutionLevelTemplates(settings),
+    };
+  }
+
+  function getConfiguredHigherInstitutionDepartmentMap(settings = getConfiguredSchoolSettings()) {
+    const higherType = getConfiguredHigherInstitutionType(settings);
+    return HIGHER_INSTITUTION_DEPARTMENT_TEMPLATES[higherType] || HIGHER_INSTITUTION_DEPARTMENT_TEMPLATES.university;
+  }
+
+  function inferSchoolTypeFromLevel(levelValue) {
+    const token = normalizeLevelToken(levelValue);
+    if (!token) return "";
+    if (token.startsWith("nursery") || token.startsWith("creche") || token.startsWith("playgroup") || token.startsWith("kindergarten")) {
+      return "nursery";
+    }
+    if (token.startsWith("primary")) return "primary";
+    if (/^(jss|sss)\d/.test(token)) return "secondary";
+    if (/^\d{3}level$/.test(token) || /^level\d{3}$/.test(token) || /^(nd|hnd|nce)[123]$/.test(token)) {
+      return "higher";
+    }
+    return "";
+  }
+
+  function getConfiguredStudentLevelGroups() {
+    const settings = getConfiguredSchoolSettings();
+    const configuredTypes = getConfiguredSchoolTypes().filter((type) => SCHOOL_TYPE_ORDER.includes(type));
+    const levelTemplates = getConfiguredSchoolTypeLevelTemplates(settings);
+    const groups = new Map();
+    const customLevels = [];
+    const addLevel = (group, level) => {
+      const normalizedLevel = String(level || "").trim();
+      if (!normalizedLevel) {
+        return;
+      }
+      if (!group.levels.some((item) => normalizeLevelToken(item) === normalizeLevelToken(normalizedLevel))) {
+        group.levels.push(normalizedLevel);
+      }
+    };
+
+    configuredTypes.forEach((type) => {
+      const label =
+        type === "higher"
+          ? `${SCHOOL_TYPE_LABELS.higher} - ${getHigherInstitutionTypeLabel(settings.higherInstitutionType)}`
+          : SCHOOL_TYPE_LABELS[type] || type;
+      const group = { type, label, levels: [] };
+      (levelTemplates[type] || []).forEach((level) => addLevel(group, level));
+      groups.set(type, group);
+    });
+
+    const classManager = getClassManager();
+    const classes = classManager && typeof classManager.getClasses === "function"
+      ? classManager.getClasses().filter((record) => record.status !== "archived")
+      : [];
+
+    classes.forEach((record) => {
+      const level = String(record.level || "").trim();
+      if (!level) {
+        return;
+      }
+
+      const type = inferSchoolTypeFromLevel(level);
+      if (type === "higher" && !isConfiguredHigherInstitutionLevel(level, settings)) {
+        return;
+      }
+      if (type && groups.has(type)) {
+        addLevel(groups.get(type), level);
+        return;
+      }
+
+      if (!type && !customLevels.some((item) => normalizeLevelToken(item) === normalizeLevelToken(level))) {
+        customLevels.push(level);
+      }
+    });
+
+    const orderedGroups = configuredTypes
+      .map((type) => groups.get(type))
+      .filter((group) => group && group.levels.length);
+
+    if (customLevels.length) {
+      orderedGroups.push({
+        type: "custom",
+        label: "Custom class levels",
+        levels: customLevels.sort((left, right) => left.localeCompare(right, undefined, { numeric: true })),
+      });
+    }
+
+    return orderedGroups;
+  }
+
+  function getConfiguredStudentLevelOptions() {
+    return getConfiguredStudentLevelGroups().flatMap((group) => group.levels);
+  }
+
+  function renderStudentLevelSelectOptions(select, selectedValue = "") {
+    if (!(select instanceof HTMLSelectElement)) {
+      return [];
+    }
+
+    const groups = getConfiguredStudentLevelGroups();
+    const levels = groups.flatMap((group) => group.levels);
+    const selected = String(selectedValue || select.value || "").trim();
+    const matchingSelectedLevel = levels.find((level) => normalizeLevelToken(level) === normalizeLevelToken(selected)) || "";
+    const hasSelected = Boolean(matchingSelectedLevel);
+    const customSelectedOption =
+      selected && !hasSelected
+        ? `<option value="${escapeHtml(selected)}" selected>${escapeHtml(selected)} (current)</option>`
+        : "";
+
+    select.innerHTML = `
+      <option value="">${levels.length ? "Select level/class" : "Select school type in Settings first"}</option>
+      ${groups
+        .map(
+          (group) => `
+            <optgroup label="${escapeHtml(group.label)}">
+              ${group.levels.map((level) => `<option value="${escapeHtml(level)}">${escapeHtml(level)}</option>`).join("")}
+            </optgroup>
+          `,
+        )
+        .join("")}
+      ${customSelectedOption}
+    `;
+
+    if (selected) {
+      select.value = matchingSelectedLevel || selected;
+    }
+    return levels;
   }
 
   function renderConfiguredSchoolTypeSelect(select, { includeCombined = false } = {}) {
@@ -4584,10 +4933,17 @@
     }
 
     const previousValue = String(select.value || "").trim();
+    const settings = getConfiguredSchoolSettings();
     const enabledTypes = getConfiguredSchoolTypes();
     const options = enabledTypes
       .filter((type) => SCHOOL_TYPE_ORDER.includes(type))
-      .map((type) => ({ value: type, label: SCHOOL_TYPE_LABELS[type] || type }));
+      .map((type) => ({
+        value: type,
+        label:
+          type === "higher"
+            ? `${SCHOOL_TYPE_LABELS.higher} (${getHigherInstitutionTypeLabel(settings.higherInstitutionType)})`
+            : SCHOOL_TYPE_LABELS[type] || type,
+      }));
     const combinedTypes = enabledTypes.filter((type) => ["nursery", "primary", "secondary"].includes(type));
 
     if (includeCombined && combinedTypes.length > 1) {
@@ -4791,33 +5147,21 @@
       }
     };
 
-    const classTemplates = {
-      nursery: { levels: ["Nursery 1", "Nursery 2", "Nursery 3"] },
-      primary: { levels: ["Primary 1", "Primary 2", "Primary 3", "Primary 4", "Primary 5", "Primary 6"] },
-      secondary: { levels: ["JSS1", "JSS2", "JSS3", "SS1", "SS2", "SS3"] },
-      higher: { levels: ["100 Level", "200 Level", "300 Level", "400 Level", "500 Level"] },
-      combined: {
-        levels: [
-          "Nursery 1",
-          "Nursery 2",
-          "Nursery 3",
-          "Primary 1",
-          "Primary 2",
-          "Primary 3",
-          "Primary 4",
-          "Primary 5",
-          "Primary 6",
-          "JSS1",
-          "JSS2",
-          "JSS3",
-          "SS1",
-          "SS2",
-          "SS3",
-        ],
-      },
+    const getClassTemplates = () => {
+      const templates = getConfiguredSchoolTypeLevelTemplates();
+      return {
+        nursery: { levels: templates.nursery || [] },
+        primary: { levels: templates.primary || [] },
+        secondary: { levels: templates.secondary || [] },
+        higher: { levels: templates.higher || [] },
+        combined: {
+          levels: ["nursery", "primary", "secondary"].flatMap((schoolType) => templates[schoolType] || []),
+        },
+      };
     };
 
     const getTemplateLevels = (type) => {
+      const classTemplates = getClassTemplates();
       if (type !== "combined") {
         return classTemplates[type]?.levels || [];
       }
@@ -4836,58 +5180,7 @@
       return selected;
     };
 
-    const facultyDepartments = {
-      "Faculty of Science": [
-        "Computer Science",
-        "Microbiology",
-        "Biochemistry",
-        "Mathematics",
-        "Physics",
-        "Chemistry",
-      ],
-      "Faculty of Arts": [
-        "English and Literary Studies",
-        "History and International Studies",
-        "Linguistics",
-        "Philosophy",
-        "Theatre Arts",
-      ],
-      "Faculty of Social Sciences": [
-        "Economics",
-        "Political Science",
-        "Sociology",
-        "Psychology",
-        "Mass Communication",
-      ],
-      "Faculty of Management Sciences": [
-        "Accounting",
-        "Business Administration",
-        "Banking and Finance",
-        "Marketing",
-        "Public Administration",
-      ],
-      "Faculty of Education": [
-        "Educational Management",
-        "Guidance and Counselling",
-        "Science Education",
-        "Primary Education Studies",
-      ],
-      "Faculty of Engineering": [
-        "Civil Engineering",
-        "Electrical/Electronics Engineering",
-        "Mechanical Engineering",
-        "Computer Engineering",
-        "Chemical Engineering",
-      ],
-      "Faculty of Health Sciences": [
-        "Nursing Science",
-        "Public Health",
-        "Medical Laboratory Science",
-        "Anatomy",
-        "Physiology",
-      ],
-      "Faculty of Law": ["Law"],
-    };
+    const facultyDepartments = getConfiguredHigherInstitutionDepartmentMap();
 
     const setTemplateFieldVisible = (wrapper, isVisible) => {
       if (wrapper) {
@@ -4950,6 +5243,7 @@
       const usesCustomStream = usesStream && String(templateStream?.value || "") === "custom";
       const usesCustomFaculty = usesHigherFields && String(templateFaculty?.value || "") === "custom";
       const usesCustomDepartment = usesDepartment && String(templateDepartment?.value || "") === "custom";
+      const higherUnitLabel = getHigherInstitutionUnitLabel(getConfiguredHigherInstitutionType());
 
       setTemplateFieldVisible(templateArmWrap, usesArm);
       setTemplateFieldVisible(templateCustomArmWrap, usesCustomArm);
@@ -4959,6 +5253,15 @@
       setTemplateFieldVisible(templateCustomFacultyWrap, usesCustomFaculty);
       setTemplateFieldVisible(templateDepartmentWrap, usesDepartment);
       setTemplateFieldVisible(templateCustomDepartmentWrap, usesCustomDepartment);
+
+      const facultyLabel = templateFacultyWrap?.querySelector("span");
+      const customFacultyLabel = templateCustomFacultyWrap?.querySelector("span");
+      if (facultyLabel) {
+        facultyLabel.textContent = higherUnitLabel;
+      }
+      if (customFacultyLabel) {
+        customFacultyLabel.textContent = `Custom ${higherUnitLabel.toLowerCase()}`;
+      }
     };
 
     const resetTemplateSelectionsForType = () => {
@@ -5193,7 +5496,11 @@
     renderTeacherAssignmentRows([{}]);
     setClassFormVisibility(false);
     renderClassTemplateTypeOptions();
-    replaceSelectOptions(templateFaculty, Object.keys(facultyDepartments), "Select faculty");
+    replaceSelectOptions(
+      templateFaculty,
+      Object.keys(facultyDepartments),
+      `Select ${getHigherInstitutionUnitLabel(getConfiguredHigherInstitutionType()).toLowerCase()}`,
+    );
     updateTemplateDepartmentOptions();
     updateTemplateVisibility();
 
@@ -5254,7 +5561,11 @@
 
         if (type === "higher") {
           if (!faculty || !department) {
-            setStatus(status, "error", "Select or enter a faculty and department first.");
+            setStatus(
+              status,
+              "error",
+              `Select or enter a ${getHigherInstitutionUnitLabel(getConfiguredHigherInstitutionType()).toLowerCase()} and department first.`,
+            );
             return;
           }
           generatedRecords = templateLevels.map((level) => ({
@@ -5281,7 +5592,7 @@
         generatedRecords.forEach((templateRecord) => {
           const duplicate = existing.some(
             (record) =>
-              normalizeLookupToken(record.level) === normalizeLookupToken(templateRecord.level) &&
+              normalizeLevelToken(record.level) === normalizeLevelToken(templateRecord.level) &&
               normalizeClassNameLookup(record.name) === normalizeClassNameLookup(templateRecord.name),
           );
 
@@ -5858,16 +6169,7 @@
     const templateList = document.querySelector("[data-course-library-list]");
     const classManager = getClassManager();
     const normalizeLookupToken = (value) => String(value || "").trim().toLowerCase();
-    const facultyDepartments = {
-      "Faculty of Science": ["Computer Science", "Microbiology", "Biochemistry", "Mathematics", "Physics", "Chemistry"],
-      "Faculty of Arts": ["English and Literary Studies", "History and International Studies", "Linguistics", "Philosophy", "Theatre Arts"],
-      "Faculty of Social Sciences": ["Economics", "Political Science", "Sociology", "Psychology", "Mass Communication"],
-      "Faculty of Management Sciences": ["Accounting", "Business Administration", "Banking and Finance", "Marketing", "Public Administration"],
-      "Faculty of Education": ["Educational Management", "Guidance and Counselling", "Science Education", "Primary Education Studies"],
-      "Faculty of Engineering": ["Civil Engineering", "Electrical/Electronics Engineering", "Mechanical Engineering", "Computer Engineering", "Chemical Engineering"],
-      "Faculty of Health Sciences": ["Nursing Science", "Public Health", "Medical Laboratory Science", "Anatomy", "Physiology"],
-      "Faculty of Law": ["Law"],
-    };
+    const facultyDepartments = getConfiguredHigherInstitutionDepartmentMap();
     const subjectTemplates = {
       nursery: {
         label: "Subjects",
@@ -5898,6 +6200,12 @@
           "Faculty of Management Sciences / Accounting": ["ACC101", "ACC102"],
           "Faculty of Management Sciences / Business Administration": ["BUS101", "ECO101"],
           "Faculty of Arts / English and Literary Studies": ["ENG101", "ENG102"],
+          "School of Engineering Technology / Electrical/Electronics Engineering Technology": ["EET101", "MTH101"],
+          "School of Business and Management Studies / Accountancy": ["ACC111", "BAM101"],
+          "School of Applied Sciences / Computer Science": ["COM101", "STA101"],
+          "School of Sciences / Computer Science Education": ["CSE101", "EDU101"],
+          "School of Languages / English Education": ["ENG101", "EDU101"],
+          "School of Vocational and Technical Education / Business Education": ["BED101", "EDU101"],
         },
       },
     };
@@ -5968,6 +6276,11 @@
           classManager
             .getClasses()
             .filter((record) => record.status !== "archived")
+            .filter(
+              (record) =>
+                inferSchoolTypeFromLevel(record.level) !== "higher" ||
+                isConfiguredHigherInstitutionLevel(record.level),
+            )
             .map((record) => String(record.level || "").trim())
             .filter(Boolean),
         ),
@@ -5975,19 +6288,8 @@
     };
 
     const getLevelSchoolType = (level) => {
-      const normalized = String(level || "").trim();
-      if (/^nursery/i.test(normalized)) {
-        return "nursery";
-      }
-      if (/^primary/i.test(normalized)) {
-        return "primary";
-      }
-      if (/^(JSS|SS)\d/i.test(normalized)) {
-        return "secondary";
-      }
-      if (/^\d{3}\s*Level/i.test(normalized)) {
-        return "higher";
-      }
+      const inferredType = inferSchoolTypeFromLevel(level);
+      if (inferredType) return inferredType;
       return "other";
     };
 
@@ -6141,7 +6443,11 @@
     };
 
     const renderFacultyOptions = (selected = "") => {
-      setSelectOptions(facultySelect, Object.keys(facultyDepartments), "Select faculty");
+      setSelectOptions(
+        facultySelect,
+        Object.keys(facultyDepartments),
+        `Select ${getHigherInstitutionUnitLabel(getConfiguredHigherInstitutionType()).toLowerCase()}`,
+      );
       if (facultySelect && selected) {
         facultySelect.value = selected;
       }
@@ -6208,6 +6514,10 @@
       }
       if (facultyFieldWrap) {
         facultyFieldWrap.hidden = type !== "higher";
+        const facultyLabel = facultyFieldWrap.querySelector("span");
+        if (facultyLabel) {
+          facultyLabel.textContent = getHigherInstitutionUnitLabel(getConfiguredHigherInstitutionType());
+        }
       }
       if (departmentFieldWrap) {
         departmentFieldWrap.hidden = type !== "higher" || !String(facultySelect?.value || "").trim();
@@ -6263,7 +6573,7 @@
         : "";
       const summaryItems = [
         { label: "Type", value: template.label === "Courses" ? "Higher Institution" : selectedTypeLabel },
-        { label: type === "higher" ? "Faculty / department" : "Stream", value: selectedCategory },
+        { label: type === "higher" ? `${getHigherInstitutionUnitLabel(getConfiguredHigherInstitutionType())} / department` : "Stream", value: selectedCategory },
         { label: "Class / level", value: selectedLevel },
         { label: type === "higher" ? "Course" : "Subject", value: selectedSubject },
         { label: "Teacher", value: selectedTeacher },
@@ -6513,7 +6823,11 @@
       }
 
       if (isHigherCourse && (!faculty || !department)) {
-        setPortalCourseError(form, "department", "Select faculty and department.");
+        setPortalCourseError(
+          form,
+          "department",
+          `Select ${getHigherInstitutionUnitLabel(getConfiguredHigherInstitutionType()).toLowerCase()} and department.`,
+        );
         hasError = true;
       }
 
@@ -6526,7 +6840,7 @@
         selectedLevels.some(
           (level) =>
             record.id !== courseId &&
-            String(record.level || "").toLowerCase() === level.toLowerCase() &&
+            normalizeLevelToken(record.level) === normalizeLevelToken(level) &&
             ((payload.code && String(record.code || "").toLowerCase() === payload.code.toLowerCase()) ||
               String(record.name || "").toLowerCase() === payload.name.toLowerCase()),
         ),
@@ -9163,6 +9477,7 @@
     const clearLogoButton = form.querySelector("[data-clear-logo]");
     const schoolTypeAllInput = form.querySelector("[data-school-type-all]");
     const schoolTypeInputs = Array.from(form.querySelectorAll("[data-school-type-option]"));
+    const higherInstitutionTypeSelect = form.elements.higherInstitutionType;
 
     const updateSchoolTypeAllState = () => {
       if (!(schoolTypeAllInput instanceof HTMLInputElement)) {
@@ -9184,6 +9499,7 @@
       if (previewTarget) previewTarget.innerHTML = buildLivePreviewFromForm(form, isAdmin);
       // Live logo swatch
       updateLogoSwatch(form, form.elements.logoUrl?.value.trim() || "", form.elements.schoolName?.value.trim() || "");
+      syncHigherInstitutionTypeField(form, getSelectedSchoolTypesFromForm(form), isAdmin);
     });
 
     if (schoolTypeAllInput instanceof HTMLInputElement) {
@@ -9194,6 +9510,7 @@
             input.checked = schoolTypeAllInput.checked;
           }
         });
+        syncHigherInstitutionTypeField(form, getSelectedSchoolTypesFromForm(form), isAdmin);
         if (previewTarget) previewTarget.innerHTML = buildLivePreviewFromForm(form, isAdmin);
       });
     }
@@ -9202,10 +9519,17 @@
       if (input instanceof HTMLInputElement) {
         input.addEventListener("change", () => {
           updateSchoolTypeAllState();
+          syncHigherInstitutionTypeField(form, getSelectedSchoolTypesFromForm(form), isAdmin);
           if (previewTarget) previewTarget.innerHTML = buildLivePreviewFromForm(form, isAdmin);
         });
       }
     });
+
+    if (higherInstitutionTypeSelect instanceof HTMLSelectElement) {
+      higherInstitutionTypeSelect.addEventListener("change", () => {
+        if (previewTarget) previewTarget.innerHTML = buildLivePreviewFromForm(form, isAdmin);
+      });
+    }
 
     if (logoFileInput) {
       logoFileInput.addEventListener("change", async () => {
@@ -9314,6 +9638,9 @@
         academicYearStart: form.elements.academicYearStart?.value || "",
         academicYearEnd: form.elements.academicYearEnd?.value || "",
         schoolTypes,
+        higherInstitutionType: schoolTypes.includes("higher")
+          ? normalizeHigherInstitutionType(form.elements.higherInstitutionType?.value)
+          : getDefaultAdminSchoolSettings().higherInstitutionType,
         hasNursery: schoolTypes.includes("nursery"),
         hasPrimary: schoolTypes.includes("primary"),
         hasSecondary: schoolTypes.includes("secondary"),
@@ -10978,6 +11305,25 @@
     }
   }
 
+  function syncHigherInstitutionTypeField(form, selectedTypes = getSelectedSchoolTypesFromForm(form), isAdmin = true) {
+    if (!form) {
+      return;
+    }
+
+    const field = form.querySelector("[data-higher-institution-type-field]");
+    const select = form.elements.higherInstitutionType;
+    const hasHigher = normalizeExplicitSchoolTypeList(selectedTypes).includes("higher");
+
+    if (field instanceof HTMLElement) {
+      field.hidden = !hasHigher;
+    }
+
+    if (select instanceof HTMLSelectElement) {
+      select.disabled = !isAdmin || !hasHigher;
+      select.value = normalizeHigherInstitutionType(select.value);
+    }
+  }
+
   function buildSchoolPreviewHtml(settings, isAdmin) {
     const initial = (settings.schoolName || "S").charAt(0).toUpperCase();
     const yearLabel = settings.academicYearStart
@@ -10987,7 +11333,11 @@
       : null;
     const schoolTypes = normalizeConfiguredSchoolTypes(settings);
     const structureLabel = schoolTypes
-      .map((type) => SCHOOL_TYPE_LABELS[type] || type)
+      .map((type) =>
+        type === "higher"
+          ? `${SCHOOL_TYPE_LABELS.higher} (${getHigherInstitutionTypeLabel(settings.higherInstitutionType)})`
+          : SCHOOL_TYPE_LABELS[type] || type,
+      )
       .join(" + ");
 
     const logoHtml = settings.logoUrl
@@ -11088,7 +11438,11 @@
     form.elements.campusDetails.value    = settings.campusDetails || "";
     form.elements.academicYearStart.value = settings.academicYearStart;
     form.elements.academicYearEnd.value   = settings.academicYearEnd;
+    if (form.elements.higherInstitutionType instanceof HTMLSelectElement) {
+      form.elements.higherInstitutionType.value = normalizeHigherInstitutionType(settings.higherInstitutionType);
+    }
     syncSchoolTypeControls(form, normalizeConfiguredSchoolTypes(settings));
+    syncHigherInstitutionTypeField(form, normalizeConfiguredSchoolTypes(settings), isAdmin);
 
     // Update the logo swatch preview
     updateLogoSwatch(form, settings.logoUrl, settings.schoolName);
@@ -11096,6 +11450,7 @@
     Array.from(form.elements).forEach((field) => {
       if (field instanceof HTMLElement) field.disabled = !isAdmin;
     });
+    syncHigherInstitutionTypeField(form, normalizeConfiguredSchoolTypes(settings), isAdmin);
 
     if (!isAdmin) setStatus(status, "info", "Only admin accounts with settings permission can edit school settings.");
   }
@@ -11126,6 +11481,7 @@
       academicYearStart: form.elements.academicYearStart?.value       || "",
       academicYearEnd:   form.elements.academicYearEnd?.value         || "",
       schoolTypes,
+      higherInstitutionType: form.elements.higherInstitutionType?.value || getDefaultAdminSchoolSettings().higherInstitutionType,
       hasNursery: schoolTypes.includes("nursery"),
       hasPrimary: schoolTypes.includes("primary"),
       hasSecondary: schoolTypes.includes("secondary"),
@@ -12443,18 +12799,18 @@
       ).length;
     const normalizeClassArmName = (value) => String(value || "").trim().replace(/^Arm\s+/i, "");
     const getClassSegment = (level) => {
-      const normalized = String(level || "").trim();
-      if (/^nursery/i.test(normalized)) {
+      const inferredType = inferSchoolTypeFromLevel(level);
+      if (inferredType === "nursery") {
         return "Nursery";
       }
-      if (/^primary/i.test(normalized)) {
+      if (inferredType === "primary") {
         return "Primary";
       }
-      if (/^(JSS|SS)\d/i.test(normalized)) {
+      if (inferredType === "secondary") {
         return "Secondary";
       }
-      if (/^\d{3}\s*Level/i.test(normalized)) {
-        return "Higher Institution";
+      if (inferredType === "higher") {
+        return `Higher Institution - ${getHigherInstitutionTypeLabel(getConfiguredHigherInstitutionType())}`;
       }
       return "Other Classes";
     };
@@ -12462,16 +12818,18 @@
       Nursery: 1,
       Primary: 2,
       Secondary: 3,
-      "Higher Institution": 4,
+      [`Higher Institution - ${getHigherInstitutionTypeLabel(getConfiguredHigherInstitutionType())}`]: 4,
       "Other Classes": 5,
     };
     const getLevelSortValue = (level) => {
-      const normalized = String(level || "").trim();
-      const nurseryMatch = normalized.match(/^Nursery\s*(\d+)/i);
-      const primaryMatch = normalized.match(/^Primary\s*(\d+)/i);
-      const jssMatch = normalized.match(/^JSS\s*(\d+)/i);
-      const ssMatch = normalized.match(/^SS\s*(\d+)/i);
-      const levelMatch = normalized.match(/^(\d{3})\s*Level/i);
+      const token = normalizeLevelToken(level);
+      const nurseryMatch = token.match(/^nursery(\d+)/);
+      const primaryMatch = token.match(/^primary(\d+)/);
+      const jssMatch = token.match(/^jss(\d+)/);
+      const sssMatch = token.match(/^sss(\d+)/);
+      const levelMatch = token.match(/^(\d{3})level$/);
+      const higherLevels = Object.values(HIGHER_INSTITUTION_LEVEL_TEMPLATES).flat();
+      const higherLevelIndex = higherLevels.findIndex((item) => normalizeLevelToken(item) === token);
 
       if (nurseryMatch) {
         return 100 + Number(nurseryMatch[1]);
@@ -12482,11 +12840,14 @@
       if (jssMatch) {
         return 300 + Number(jssMatch[1]);
       }
-      if (ssMatch) {
-        return 400 + Number(ssMatch[1]);
+      if (sssMatch) {
+        return 400 + Number(sssMatch[1]);
       }
       if (levelMatch) {
         return 500 + Number(levelMatch[1]);
+      }
+      if (higherLevelIndex >= 0) {
+        return 600 + higherLevelIndex;
       }
       return 999;
     };
@@ -12738,18 +13099,20 @@
       });
     };
     const getLevelSchoolType = (level) => {
-      const normalized = String(level || "").trim();
-      if (/^nursery/i.test(normalized)) return "Nursery";
-      if (/^primary/i.test(normalized)) return "Primary";
-      if (/^(JSS|SS)\d/i.test(normalized)) return "Secondary";
-      if (/^\d{3}\s*Level/i.test(normalized)) return "Higher Institution";
+      const inferredType = inferSchoolTypeFromLevel(level);
+      if (inferredType === "nursery") return "Nursery";
+      if (inferredType === "primary") return "Primary";
+      if (inferredType === "secondary") return "Secondary";
+      if (inferredType === "higher") {
+        return `Higher Institution - ${getHigherInstitutionTypeLabel(getConfiguredHigherInstitutionType())}`;
+      }
       return "Other";
     };
     const groupOrder = {
       Nursery: 1,
       Primary: 2,
       Secondary: 3,
-      "Higher Institution": 4,
+      [`Higher Institution - ${getHigherInstitutionTypeLabel(getConfiguredHigherInstitutionType())}`]: 4,
       Other: 5,
     };
 
@@ -12821,7 +13184,7 @@
               <div class="portal-class-group-head">
                 <div>
                   <span>${escapeHtml(segment)}</span>
-                  <strong>${segmentRecords.length} ${segment === "Higher Institution" ? "course" : "subject"}${
+                  <strong>${segmentRecords.length} ${segment.startsWith("Higher Institution") ? "course" : "subject"}${
                     segmentRecords.length === 1 ? "" : "s"
                   }</strong>
                 </div>
@@ -12835,7 +13198,7 @@
                         <summary>
                           <div>
                             <strong>${escapeHtml(level)}</strong>
-                            <span>${records.length} ${segment === "Higher Institution" ? "course" : "subject"}${
+                            <span>${records.length} ${segment.startsWith("Higher Institution") ? "course" : "subject"}${
                               records.length === 1 ? "" : "s"
                             }</span>
                           </div>
@@ -14058,10 +14421,28 @@
   }
 
   function normalizeLevelToken(value) {
-    return String(value || "")
+    const token = String(value || "")
       .trim()
       .toLowerCase()
       .replace(/[^a-z0-9]/g, "");
+
+    const juniorSecondaryMatch = token.match(/(?:juniorsecondaryschool|jss)([1-3])/);
+    if (juniorSecondaryMatch) {
+      return `jss${juniorSecondaryMatch[1]}`;
+    }
+
+    const seniorSecondaryMatch = token.match(/(?:seniorsecondaryschool|sss|ss)([1-3])/);
+    if (seniorSecondaryMatch) {
+      return `sss${seniorSecondaryMatch[1]}`;
+    }
+
+    const romanLevelMap = { i: "1", ii: "2", iii: "3" };
+    const higherDiplomaMatch = token.match(/^(nd|hnd|nce)(i{1,3}|[1-3])$/);
+    if (higherDiplomaMatch) {
+      return `${higherDiplomaMatch[1]}${romanLevelMap[higherDiplomaMatch[2]] || higherDiplomaMatch[2]}`;
+    }
+
+    return token;
   }
 
   function getTodayDateValue() {
@@ -14216,24 +14597,39 @@
 
   function getActiveClassLevelTokenSet() {
     const classManager = window.SchoolSphereClasses;
+    const set = new Set();
+
+    getConfiguredStudentLevelOptions().forEach((level) => {
+      const token = normalizeLevelToken(level);
+      if (token) {
+        set.add(token);
+      }
+    });
 
     if (!classManager || typeof classManager.getClasses !== "function") {
-      return new Set();
+      return set;
     }
 
-    return classManager.getClasses().reduce((set, record) => {
+    return classManager.getClasses().reduce((tokens, record) => {
       if (record.status === "archived") {
-        return set;
+        return tokens;
       }
 
-      const tokens = [
+      if (
+        inferSchoolTypeFromLevel(record.level) === "higher" &&
+        !isConfiguredHigherInstitutionLevel(record.level)
+      ) {
+        return tokens;
+      }
+
+      const recordTokens = [
         normalizeLevelToken(record.level),
         normalizeLevelToken(record.name),
         normalizeLevelToken(`${record.level || ""} ${record.name || ""}`),
       ].filter(Boolean);
-      tokens.forEach((token) => set.add(token));
-      return set;
-    }, new Set());
+      recordTokens.forEach((token) => tokens.add(token));
+      return tokens;
+    }, set);
   }
 
   function isKnownClassLevel(levelValue, tokenSet) {
@@ -14469,6 +14865,9 @@
     if (form.elements.promotionDecision) {
       form.elements.promotionDecision.value = "promote";
     }
+    if (form.elements.level instanceof HTMLSelectElement) {
+      renderStudentLevelSelectOptions(form.elements.level);
+    }
 
     if (guardianList) {
       guardianList.innerHTML = "";
@@ -14503,6 +14902,9 @@
     form.elements.lastName.value = record.lastName || "";
     form.elements.admissionNo.value = record.admissionNo || "";
     form.elements.admissionNo.dataset.autoGenerated = "false";
+    if (form.elements.level instanceof HTMLSelectElement) {
+      renderStudentLevelSelectOptions(form.elements.level, record.level || "");
+    }
     form.elements.level.value = record.level || "";
     if (form.elements.dateOfBirth) {
       form.elements.dateOfBirth.value = record.dateOfBirth || "";
@@ -14676,7 +15078,7 @@
         "Amina",
         "Yusuf",
         "csa26/jss1/001",
-        "JSS 1",
+        "Junior Secondary School 1 (JSS1)",
         "2013-10-08",
         "Female",
         "Mary Yusuf",
@@ -14929,6 +15331,11 @@
         classManager
           .getClasses()
           .filter((item) => item.status !== "archived")
+          .filter(
+            (item) =>
+              inferSchoolTypeFromLevel(item.level) !== "higher" ||
+              isConfiguredHigherInstitutionLevel(item.level),
+          )
           .map((item) => String(item.level || "").trim())
           .filter(Boolean),
       ),
@@ -15132,12 +15539,21 @@
     const importPreviewButton = document.querySelector("[data-student-import-preview]");
     const importConfirmButton = document.querySelector("[data-student-import-confirm]");
     const importPreviewTarget = document.getElementById("portal-student-import-preview");
-    const classLevelSet = getActiveClassLevelTokenSet();
+    const classManager = getClassManager();
+    const settingsManager = getSchoolSettingsManager();
+    const levelSelect = form.elements.level;
     const createTitle = document.getElementById("portal-student-create-title");
     let importPreviewRows = [];
     let selectedClass = "all";
     let searchQuery = "";
     const expandedClassTokens = new Set();
+
+    const refreshStudentLevelOptions = () => {
+      if (levelSelect instanceof HTMLSelectElement) {
+        renderStudentLevelSelectOptions(levelSelect, levelSelect.value);
+        levelSelect.disabled = !isAdmin;
+      }
+    };
 
     const setOverlayState = (overlay, isVisible) => {
       if (!overlay) {
@@ -15184,7 +15600,7 @@
 
       if (!documents.length) {
         docsList.innerHTML = `
-          <article class="portal-class-empty">
+          <article class="portal-student-doc-empty">
             <strong>No documents uploaded yet</strong>
             <p>Use the upload controls above to attach student files.</p>
           </article>
@@ -15194,15 +15610,21 @@
 
       docsList.innerHTML = documents
         .map(
-          (entry) => `
+          (entry) => {
+            const documentType = entry.documentType || "Other";
+            const documentIcon = getInitials(documentType).slice(0, 2) || "DC";
+            return `
             <article class="portal-student-doc-item">
-              <div class="portal-student-doc-meta">
+              <span class="portal-student-doc-icon">${escapeHtml(documentIcon)}</span>
+              <div class="portal-student-doc-copy">
                 <strong>${escapeHtml(entry.name || "Document")}</strong>
-                <span>${escapeHtml(entry.documentType || "Other")} • ${escapeHtml(
-                  formatFileSize(entry.sizeBytes),
-                )} • ${escapeHtml(formatTimestamp(entry.uploadedAt || nowIso()))}</span>
+                <div class="portal-student-doc-tags">
+                  <span>${escapeHtml(documentType)}</span>
+                  <span>${escapeHtml(formatFileSize(entry.sizeBytes))}</span>
+                  <span>${escapeHtml(formatTimestamp(entry.uploadedAt || nowIso()))}</span>
+                </div>
               </div>
-              <div class="portal-class-actions">
+              <div class="portal-student-doc-actions">
                 <button
                   class="portal-class-button"
                   type="button"
@@ -15222,7 +15644,8 @@
                 </button>
               </div>
             </article>
-          `,
+          `;
+          },
         )
         .join("");
     };
@@ -15288,6 +15711,7 @@
     };
 
     const refreshStudentSection = () => {
+      refreshStudentLevelOptions();
       renderPortalStudentManagementSection({
         isAdmin,
         manager,
@@ -15694,8 +16118,8 @@
       if (!payload.level) {
         setPortalStudentError(form, "level", "Enter the student level or class.");
         hasError = true;
-      } else if (!isKnownClassLevel(payload.level, classLevelSet)) {
-        setPortalStudentError(form, "level", "Invalid class. Use a class already created in Class Management.");
+      } else if (!isKnownClassLevel(payload.level, getActiveClassLevelTokenSet())) {
+        setPortalStudentError(form, "level", "Select a level or class from the school structure.");
         hasError = true;
       }
 
@@ -15853,62 +16277,138 @@
             : record.status === "transferred"
               ? "Transferred Out"
               : "Active";
+        const statusClass =
+          record.status === "archived"
+            ? "is-archived"
+            : record.status === "transferred"
+              ? "is-transferred"
+              : "is-active";
+        const guardians = Array.isArray(record.guardians) ? record.guardians : [];
+        const documents = Array.isArray(record.documents) ? record.documents : [];
+        const profileName = record.fullName || "Unnamed student";
+        const initials = getInitials(profileName).slice(0, 2) || "ST";
+        const admissionLabel = record.admissionNo ? `Admission No. ${record.admissionNo}` : "No admission number";
+        const levelLabel = record.level || "No class assigned";
+        const progressionLabel =
+          record.promotionDecision === "repeat"
+            ? "Repeat class"
+            : record.promotionDecision === "resit"
+              ? "Resit required"
+              : "Auto promote";
+        const guardianCards = guardians.length
+          ? guardians
+              .map((guardian) => {
+                const guardianName = guardian.name || "Guardian";
+                return `
+                  <article class="portal-student-mini-card">
+                    <span class="portal-student-mini-icon">${escapeHtml(
+                      getInitials(guardianName).slice(0, 2) || "GC",
+                    )}</span>
+                    <div class="portal-student-mini-copy">
+                      <strong>${escapeHtml(guardianName)}</strong>
+                      <span>${escapeHtml(guardian.relationship || "Guardian")}</span>
+                      <small>${escapeHtml(guardian.phone || "No phone")} &middot; ${escapeHtml(
+                        guardian.email || "No email",
+                      )}</small>
+                    </div>
+                  </article>
+                `;
+              })
+              .join("")
+          : `
+              <article class="portal-student-view-empty">
+                <strong>No guardian contacts saved</strong>
+                <p>Add guardian contacts from the student profile form.</p>
+              </article>
+            `;
+        const documentCards = documents.length
+          ? documents
+              .map((doc) => {
+                const documentType = doc.documentType || "Other";
+                return `
+                  <article class="portal-student-mini-card">
+                    <span class="portal-student-mini-icon">${escapeHtml(
+                      getInitials(documentType).slice(0, 2) || "DC",
+                    )}</span>
+                    <div class="portal-student-mini-copy">
+                      <strong>${escapeHtml(doc.name || "Document")}</strong>
+                      <span>${escapeHtml(documentType)}</span>
+                      <small>${escapeHtml(formatFileSize(doc.sizeBytes))} &middot; ${escapeHtml(
+                        formatTimestamp(doc.uploadedAt || nowIso()),
+                      )}</small>
+                    </div>
+                  </article>
+                `;
+              })
+              .join("")
+          : `
+              <article class="portal-student-view-empty">
+                <strong>No documents uploaded</strong>
+                <p>Use the student documents action to keep files on this record.</p>
+              </article>
+            `;
         if (viewContent) {
           viewContent.innerHTML = `
-            <div class="portal-student-view-grid">
-              <div><span>Full name</span><strong>${escapeHtml(record.fullName || "—")}</strong></div>
-              <div><span>Admission No</span><strong>${escapeHtml(record.admissionNo || "—")}</strong></div>
-              <div><span>Level / Class</span><strong>${escapeHtml(record.level || "—")}</strong></div>
-              <div><span>Gender</span><strong>${escapeHtml(record.gender || "—")}</strong></div>
-              <div><span>Date of birth</span><strong>${escapeHtml(record.dateOfBirth || "—")}</strong></div>
-              <div><span>Status</span><strong>${escapeHtml(statusLabel)}</strong></div>
-              <div><span>Session close</span><strong>${escapeHtml(
-                record.promotionDecision === "repeat"
-                  ? "Repeat class"
-                  : record.promotionDecision === "resit"
-                    ? "Resit required"
-                    : "Auto promote",
-              )}</strong></div>
-            </div>
-            <div class="portal-student-view-guardians">
-              <h4>Guardian contacts</h4>
-              ${
-                (record.guardians || []).length
-                  ? (record.guardians || [])
-                      .map(
-                        (guardian) => `
-                          <article class="portal-student-guardian-chip">
-                            <strong>${escapeHtml(guardian.name || "—")}</strong>
-                            <span>${escapeHtml(guardian.relationship || "Guardian")}</span>
-                            <small>${escapeHtml(guardian.phone || "No phone")} • ${escapeHtml(
-                              guardian.email || "No email",
-                            )}</small>
-                          </article>
-                        `,
-                      )
-                      .join("")
-                  : `<p>No guardian contacts saved for this student.</p>`
-              }
-            </div>
-            <div class="portal-student-view-guardians">
-              <h4>Documents</h4>
-              ${
-                (record.documents || []).length
-                  ? (record.documents || [])
-                      .map(
-                        (doc) => `
-                          <article class="portal-student-guardian-chip">
-                            <strong>${escapeHtml(doc.name || "Document")}</strong>
-                            <span>${escapeHtml(doc.documentType || "Other")}</span>
-                            <small>${escapeHtml(
-                              `${formatFileSize(doc.sizeBytes)} • ${formatTimestamp(doc.uploadedAt || nowIso())}`,
-                            )}</small>
-                          </article>
-                        `,
-                      )
-                      .join("")
-                  : `<p>No student documents uploaded yet.</p>`
-              }
+            <section class="portal-student-profile-hero">
+              <span class="portal-student-profile-avatar">${escapeHtml(initials)}</span>
+              <div class="portal-student-profile-copy">
+                <span>${escapeHtml(levelLabel)}</span>
+                <h4>${escapeHtml(profileName)}</h4>
+                <p>${escapeHtml(admissionLabel)}</p>
+              </div>
+              <span class="portal-student-profile-status ${statusClass}">${escapeHtml(statusLabel)}</span>
+            </section>
+            <div class="portal-student-view-sections">
+              <section class="portal-student-view-card">
+                <div class="portal-student-view-card-head">
+                  <strong>Academic record</strong>
+                  <span>Class, identity, and progression.</span>
+                </div>
+                <div class="portal-student-detail-grid">
+                  <article>
+                    <span>Admission No</span>
+                    <strong>${escapeHtml(record.admissionNo || "Not recorded")}</strong>
+                  </article>
+                  <article>
+                    <span>Level / Class</span>
+                    <strong>${escapeHtml(record.level || "Not assigned")}</strong>
+                  </article>
+                  <article>
+                    <span>Gender</span>
+                    <strong>${escapeHtml(record.gender || "Not recorded")}</strong>
+                  </article>
+                  <article>
+                    <span>Date of birth</span>
+                    <strong>${escapeHtml(record.dateOfBirth || "Not recorded")}</strong>
+                  </article>
+                  <article>
+                    <span>Session close</span>
+                    <strong>${escapeHtml(progressionLabel)}</strong>
+                  </article>
+                  <article>
+                    <span>Status</span>
+                    <strong>${escapeHtml(statusLabel)}</strong>
+                  </article>
+                </div>
+              </section>
+              <section class="portal-student-view-card">
+                <div class="portal-student-view-card-head">
+                  <strong>Guardian contacts</strong>
+                  <span>${guardians.length} saved contact${guardians.length === 1 ? "" : "s"}.</span>
+                </div>
+                <div class="portal-student-mini-list">
+                  ${guardianCards}
+                </div>
+              </section>
+              <section class="portal-student-view-card">
+                <div class="portal-student-view-card-head">
+                  <strong>Documents</strong>
+                  <span>${documents.length} uploaded file${documents.length === 1 ? "" : "s"}.</span>
+                </div>
+                <div class="portal-student-mini-list">
+                  ${documentCards}
+                </div>
+              </section>
             </div>
           `;
         }
@@ -16125,6 +16625,12 @@
     });
 
     window.addEventListener(manager.eventName, refreshStudentSection);
+    if (classManager?.eventName) {
+      window.addEventListener(classManager.eventName, refreshStudentSection);
+    }
+    if (settingsManager?.eventName) {
+      window.addEventListener(settingsManager.eventName, refreshStudentSection);
+    }
 
     if (quickAddForm && quickAddStatus) {
       Array.from(quickAddForm.elements).forEach((field) => {
@@ -16156,8 +16662,8 @@
           return;
         }
 
-        if (!isKnownClassLevel(level, classLevelSet)) {
-          setStatus(quickAddStatus, "error", "Invalid class. Create/select a valid class first.");
+        if (!isKnownClassLevel(level, getActiveClassLevelTokenSet())) {
+          setStatus(quickAddStatus, "error", "Invalid class. Select a valid class from the school structure.");
           return;
         }
 
@@ -18491,6 +18997,355 @@
     return overlay;
   }
 
+  function normalizeDashboardSearchText(value) {
+    return String(value || "").toLowerCase().replace(/\s+/g, " ").trim();
+  }
+
+  function addDashboardSearchEntry(entries, entry = {}) {
+    const title = String(entry.title || "").trim();
+
+    if (!title) {
+      return;
+    }
+
+    const subtitle = String(entry.subtitle || "").trim();
+    const type = String(entry.type || "Result").trim();
+    const href = String(entry.href || "./portal.html").trim();
+    const keywords = [
+      title,
+      subtitle,
+      type,
+      entry.keywords || "",
+      entry.icon || "",
+    ]
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    entries.push({
+      title,
+      subtitle,
+      type,
+      href,
+      keywords,
+      icon: String(entry.icon || getInitials(title).slice(0, 2) || "SR").trim(),
+    });
+  }
+
+  function canSearchDashboardArea(session, roleLabel, permissionKey) {
+    return !session || canAccessPermission(roleLabel, permissionKey);
+  }
+
+  function buildDashboardSearchEntries(session, roleLabel) {
+    const entries = [];
+    const workspaceId = normalizeWorkspaceId(session?.workspaceId || getCurrentWorkspaceId());
+    const normalizedRole = normalizeRoleLabel(roleLabel || session?.role || DEFAULT_AUTH_ROLE);
+
+    DASHBOARD_SECTION_LINKS.forEach((item) => {
+      if (!canSearchDashboardArea(session, normalizedRole, item.permissionKey)) {
+        return;
+      }
+
+      addDashboardSearchEntry(entries, {
+        type: "Section",
+        title: item.label,
+        subtitle: item.copy,
+        href: item.href,
+        keywords: `${item.label} ${item.copy}`,
+      });
+    });
+
+    if (canSearchDashboardArea(session, normalizedRole, "students_manage")) {
+      const studentManager = getStudentManager();
+      const students =
+        studentManager && typeof studentManager.getStudents === "function"
+          ? studentManager.getStudents()
+          : [];
+
+      students
+        .filter((record) => record.status !== "archived")
+        .forEach((record) => {
+          addDashboardSearchEntry(entries, {
+            type: "Student",
+            title: record.fullName || [record.firstName, record.lastName].filter(Boolean).join(" "),
+            subtitle: `${record.admissionNo || "No admission number"} · ${record.level || "No class assigned"}`,
+            href: "./admin-students.html",
+            keywords: `${record.firstName || ""} ${record.lastName || ""} ${record.fullName || ""} ${record.admissionNo || ""} ${record.level || ""} student learner`,
+          });
+
+          (record.guardians || []).forEach((guardian) => {
+            addDashboardSearchEntry(entries, {
+              type: "Guardian",
+              title: guardian.name || "Guardian",
+              subtitle: `${guardian.relationship || "Guardian"} for ${record.fullName || "student"}`,
+              href: "./admin-students.html",
+              keywords: `${guardian.name || ""} ${guardian.relationship || ""} ${guardian.phone || ""} ${guardian.email || ""} ${record.fullName || ""} guardian parent contact`,
+            });
+          });
+        });
+    }
+
+    if (canSearchDashboardArea(session, normalizedRole, "teachers_manage")) {
+      getUsers()
+        .filter(
+          (user) =>
+            normalizeWorkspaceId(user.workspaceId) === workspaceId &&
+            normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE) === "Teacher",
+        )
+        .forEach((user) => {
+          addDashboardSearchEntry(entries, {
+            type: "Teacher",
+            title: user.displayName || user.email,
+            subtitle: `${user.email || "No email"} · ${user.department || user.title || "Staff account"}`,
+            href: "./admin-teachers.html",
+            keywords: `${user.displayName || ""} ${user.email || ""} ${user.phone || ""} ${user.department || ""} ${user.title || ""} teacher staff`,
+          });
+        });
+    }
+
+    if (canSearchDashboardArea(session, normalizedRole, "classes_manage")) {
+      const classManager = getClassManager();
+      const classes =
+        classManager && typeof classManager.getClasses === "function"
+          ? classManager.getClasses()
+          : [];
+
+      classes
+        .filter((record) => record.status !== "archived")
+        .forEach((record) => {
+          addDashboardSearchEntry(entries, {
+            type: "Class",
+            title: getClassDisplayName(record),
+            subtitle: `${record.classTeacher || "No class teacher"} · ${record.capacity || 0} capacity`,
+            href: "./admin-classes.html",
+            keywords: `${record.name || ""} ${record.level || ""} ${record.arms?.join(" ") || ""} class arm stream`,
+          });
+        });
+
+      const timetableManager = getTimetableManager();
+      const periods =
+        timetableManager && typeof timetableManager.getPeriods === "function"
+          ? timetableManager.getPeriods()
+          : [];
+
+      periods
+        .filter((period) => period.status !== "archived")
+        .forEach((period) => {
+          addDashboardSearchEntry(entries, {
+            type: "Period",
+            title: period.name || "Timetable period",
+            subtitle: `${period.dayOfWeek || "School day"} · ${period.startTime || "--:--"}-${period.endTime || "--:--"}`,
+            href: "./admin-schedule.html",
+            keywords: `${period.name || ""} ${period.dayOfWeek || ""} ${period.startTime || ""} ${period.endTime || ""} schedule timetable lesson`,
+          });
+        });
+    }
+
+    if (canSearchDashboardArea(session, normalizedRole, "courses_manage")) {
+      const courseManager = getCourseManager();
+      const courses =
+        courseManager && typeof courseManager.getCourses === "function"
+          ? courseManager.getCourses()
+          : [];
+
+      courses
+        .filter((record) => record.status !== "archived")
+        .forEach((record) => {
+          const typeLabel = record.creditUnit ? "Course" : "Subject";
+          addDashboardSearchEntry(entries, {
+            type: typeLabel,
+            title: record.name || record.code,
+            subtitle: `${record.code || "No code"} · ${record.level || record.category || "Unassigned"}`,
+            href: "./admin-courses.html",
+            keywords: `${record.name || ""} ${record.code || ""} ${record.category || ""} ${record.level || ""} ${record.teacherAssignments?.join(" ") || ""} subject course`,
+          });
+        });
+    }
+
+    if (canSearchDashboardArea(session, normalizedRole, "fees_manage")) {
+      const feeManager = getFeeItemManager();
+      const feeItems =
+        feeManager && typeof feeManager.getItems === "function"
+          ? feeManager.getItems()
+          : [];
+
+      feeItems
+        .filter((record) => record.status !== "archived")
+        .forEach((record) => {
+          addDashboardSearchEntry(entries, {
+            type: "Fee",
+            title: record.name || "Fee item",
+            subtitle: `${record.classLevel || "No class"} · ${formatCurrencyAmount(record.amount || 0)}`,
+            href: "./admin-fees.html",
+            keywords: `${record.name || ""} ${record.description || ""} ${record.classLevel || ""} fee invoice billing payment`,
+          });
+        });
+    }
+
+    if (canSearchDashboardArea(session, normalizedRole, "classes_manage")) {
+      const calendarManager = getAcademicCalendarManager();
+      const calendarEvents =
+        calendarManager && typeof calendarManager.getEvents === "function"
+          ? calendarManager.getEvents()
+          : [];
+
+      calendarEvents
+        .filter((record) => record.status !== "archived")
+        .forEach((record) => {
+          addDashboardSearchEntry(entries, {
+            type: "Event",
+            title: record.title || "Calendar event",
+            subtitle: `${getCalendarTypeLabel(record.type)} · ${formatCalendarRange(record.startDate, record.endDate)}`,
+            href: "./admin-schedule.html",
+            keywords: `${record.title || ""} ${record.type || ""} ${record.startDate || ""} ${record.endDate || ""} event calendar term holiday exam`,
+          });
+        });
+    }
+
+    return entries;
+  }
+
+  function scoreDashboardSearchEntry(entry, query) {
+    const normalizedQuery = normalizeDashboardSearchText(query);
+    const searchable = normalizeDashboardSearchText(entry.keywords);
+    const title = normalizeDashboardSearchText(entry.title);
+    const subtitle = normalizeDashboardSearchText(entry.subtitle);
+    const tokens = normalizedQuery.split(" ").filter(Boolean);
+
+    if (!tokens.length || !tokens.every((token) => searchable.includes(token))) {
+      return 0;
+    }
+
+    if (title === normalizedQuery) {
+      return 120;
+    }
+
+    if (title.startsWith(normalizedQuery)) {
+      return 100;
+    }
+
+    if (title.includes(normalizedQuery)) {
+      return 80;
+    }
+
+    if (subtitle.includes(normalizedQuery)) {
+      return 55;
+    }
+
+    return 35;
+  }
+
+  function renderDashboardSearchSuggestions(target, input, entries, query) {
+    if (!target || !input) {
+      return;
+    }
+
+    const normalizedQuery = normalizeDashboardSearchText(query);
+
+    if (!normalizedQuery) {
+      target.hidden = true;
+      target.innerHTML = "";
+      target.removeAttribute("data-first-href");
+      input.setAttribute("aria-expanded", "false");
+      return;
+    }
+
+    const results = entries
+      .map((entry) => ({
+        entry,
+        score: scoreDashboardSearchEntry(entry, normalizedQuery),
+      }))
+      .filter((item) => item.score > 0)
+      .sort((left, right) => right.score - left.score || left.entry.title.localeCompare(right.entry.title))
+      .slice(0, 8)
+      .map((item) => item.entry);
+
+    input.setAttribute("aria-expanded", "true");
+    target.hidden = false;
+
+    if (!results.length) {
+      target.removeAttribute("data-first-href");
+      target.innerHTML = `
+        <article class="admin-search-empty">
+          <span class="admin-search-empty-icon">?</span>
+          <div class="admin-search-empty-copy">
+            <strong>No matches found</strong>
+            <span>Try a student name, teacher, class, guardian, fee, or page.</span>
+          </div>
+        </article>
+      `;
+      return;
+    }
+
+    target.dataset.firstHref = results[0].href;
+    target.innerHTML = results
+      .map(
+        (entry) => `
+          <a class="admin-search-suggestion" href="${escapeHtml(entry.href)}" role="option">
+            <span class="admin-search-suggestion-icon">${escapeHtml(entry.icon)}</span>
+            <span class="admin-search-suggestion-copy">
+              <strong>${escapeHtml(entry.title)}</strong>
+              <span>${escapeHtml(entry.subtitle || entry.type)}</span>
+            </span>
+            <span class="admin-search-suggestion-type">${escapeHtml(entry.type)}</span>
+          </a>
+        `,
+      )
+      .join("");
+  }
+
+  function initDashboardGlobalSearch(input, session, roleLabel) {
+    if (!input || input.dataset.globalSearchBound === "true") {
+      return;
+    }
+
+    const suggestions = document.getElementById(input.getAttribute("aria-controls") || "admin-search-suggestions");
+
+    if (!suggestions) {
+      return;
+    }
+
+    const refresh = () => {
+      renderDashboardSearchSuggestions(
+        suggestions,
+        input,
+        buildDashboardSearchEntries(session, roleLabel),
+        input.value,
+      );
+    };
+    const hide = () => {
+      suggestions.hidden = true;
+      suggestions.innerHTML = "";
+      suggestions.removeAttribute("data-first-href");
+      input.setAttribute("aria-expanded", "false");
+    };
+
+    input.addEventListener("input", refresh);
+    input.addEventListener("focus", refresh);
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        hide();
+        input.blur();
+        return;
+      }
+
+      if (event.key === "Enter" && suggestions.dataset.firstHref) {
+        event.preventDefault();
+        window.location.assign(suggestions.dataset.firstHref);
+      }
+    });
+
+    document.addEventListener("click", (event) => {
+      const target = event.target;
+      if (target instanceof Node && (input.contains(target) || suggestions.contains(target))) {
+        return;
+      }
+      hide();
+    });
+
+    input.dataset.globalSearchBound = "true";
+  }
+
   function initPortalNotifications(button, session) {
     if (!button) {
       return;
@@ -20596,6 +21451,7 @@
     const copy = document.getElementById("portal-copy");
     const lastUpdated = document.getElementById("portal-last-updated");
     const notificationButton = document.getElementById("admin-notification-button");
+    const dashboardSearchInput = document.getElementById("admin-global-search");
     const metrics = document.getElementById("portal-metrics");
     const events = document.getElementById("admin-events");
     const activity = document.getElementById("admin-activity");
@@ -20637,6 +21493,7 @@
             academicYearStart: "",
             academicYearEnd: "",
             schoolTypes: ["primary", "secondary"],
+            higherInstitutionType: "university",
             hasNursery: false,
             hasPrimary: true,
             hasSecondary: true,
@@ -20734,6 +21591,7 @@
         "Go to Login",
       );
       initAdminSectionQuickNav();
+      initDashboardGlobalSearch(dashboardSearchInput, null, "Guest access");
       initPortalNotifications(notificationButton, null);
       return;
     }
@@ -20748,6 +21606,7 @@
         "Sign in Again",
       );
       initAdminSectionQuickNav();
+      initDashboardGlobalSearch(dashboardSearchInput, null, "Guest access");
       initPortalNotifications(notificationButton, null);
       return;
     }
@@ -20873,6 +21732,7 @@
     }
 
     initAdminSectionQuickNav();
+    initDashboardGlobalSearch(dashboardSearchInput, session, roleLabel);
     initPortalNotifications(notificationButton, session);
   }
 })();

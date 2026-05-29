@@ -209,6 +209,7 @@ const DEFAULT_SCHOOL_SETTINGS = {
   phone: "",
   website: "",
   schoolTypes: ["primary", "secondary"],
+  higherInstitutionType: "university",
   hasNursery: false,
   hasPrimary: true,
   hasSecondary: true,
@@ -547,6 +548,7 @@ const SCHOOL_TYPE_OPTIONS = [
   { value: "secondary", label: "Secondary" },
   { value: "higher", label: "Higher Institution" },
 ];
+const HIGHER_INSTITUTION_TYPE_OPTIONS = ["university", "polytechnic", "college-of-education"];
 
 function normalizeSchoolTypeList(value) {
   const rawItems = Array.isArray(value)
@@ -556,6 +558,30 @@ function normalizeSchoolTypeList(value) {
         .map((item) => item.trim());
   const allowed = new Set(SCHOOL_TYPE_OPTIONS.map((option) => option.value));
   return Array.from(new Set(rawItems.map((item) => String(item || "").trim()).filter((item) => allowed.has(item))));
+}
+
+function normalizeHigherInstitutionType(value) {
+  const normalized = String(value || "").trim().toLowerCase().replace(/[_\s]+/g, "-");
+
+  if (normalized === "poly" || normalized === "polytechnic") {
+    return "polytechnic";
+  }
+
+  if (
+    normalized === "college" ||
+    normalized === "college-of-education" ||
+    normalized === "federal-college" ||
+    normalized === "federal-college-of-education" ||
+    normalized === "fce"
+  ) {
+    return "college-of-education";
+  }
+
+  if (normalized === "university" || normalized === "uni") {
+    return "university";
+  }
+
+  return DEFAULT_SCHOOL_SETTINGS.higherInstitutionType;
 }
 
 function deriveSchoolTypesFromLegacyFlags(settings = {}) {
@@ -601,6 +627,9 @@ function normalizeSchoolSettings(settings = {}) {
     academicYearStart: String(settings.academicYearStart || "").trim(),
     academicYearEnd: String(settings.academicYearEnd || "").trim(),
     schoolTypes: normalizedSchoolTypes,
+    higherInstitutionType: HIGHER_INSTITUTION_TYPE_OPTIONS.includes(normalizeHigherInstitutionType(settings.higherInstitutionType))
+      ? normalizeHigherInstitutionType(settings.higherInstitutionType)
+      : DEFAULT_SCHOOL_SETTINGS.higherInstitutionType,
     hasNursery: normalizedSchoolTypes.includes("nursery"),
     hasPrimary: normalizedSchoolTypes.includes("primary"),
     hasSecondary: normalizedSchoolTypes.includes("secondary"),
@@ -654,6 +683,7 @@ function hasSchoolSettingsContext(settings = getSchoolSettings()) {
       settings.phone ||
       settings.website ||
       JSON.stringify(settings.schoolTypes || []) !== JSON.stringify(DEFAULT_SCHOOL_SETTINGS.schoolTypes) ||
+      settings.higherInstitutionType !== DEFAULT_SCHOOL_SETTINGS.higherInstitutionType ||
       settings.academicYearStart ||
       settings.academicYearEnd ||
       settings.schoolName !== DEFAULT_PLATFORM_NAME,

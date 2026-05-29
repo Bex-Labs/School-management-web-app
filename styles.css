@@ -4881,11 +4881,16 @@ body.admin-dashboard-page .admin-dashboard-tools {
   gap: 16px;
 }
 
+body.admin-dashboard-page .admin-searchbox {
+  position: relative;
+  width: min(100%, 430px);
+}
+
 body.admin-dashboard-page .admin-searchbar {
   display: flex;
   align-items: center;
   gap: 12px;
-  width: min(100%, 380px);
+  width: 100%;
   min-width: 280px;
   min-height: 56px;
   padding: 0 20px;
@@ -4910,6 +4915,101 @@ body.admin-dashboard-page .admin-searchbar input:focus {
 body.admin-dashboard-page .admin-search-icon {
   width: 24px;
   height: 24px;
+}
+
+body.admin-dashboard-page .admin-search-suggestions[hidden] {
+  display: none;
+}
+
+body.admin-dashboard-page .admin-search-suggestions {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 35;
+  display: grid;
+  gap: 6px;
+  width: min(430px, calc(100vw - 32px));
+  max-height: min(420px, 70vh);
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid #dce5f2;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 20px 48px rgba(15, 43, 74, 0.16);
+}
+
+body.admin-dashboard-page .admin-search-suggestion,
+body.admin-dashboard-page .admin-search-empty {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  color: inherit;
+  text-decoration: none;
+}
+
+body.admin-dashboard-page .admin-search-suggestion:hover,
+body.admin-dashboard-page .admin-search-suggestion:focus {
+  border-color: #d9e5f4;
+  background: #f6faff;
+  outline: none;
+}
+
+body.admin-dashboard-page .admin-search-suggestion-icon,
+body.admin-dashboard-page .admin-search-empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: #edf5ff;
+  color: #24558d;
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+
+body.admin-dashboard-page .admin-search-suggestion-copy,
+body.admin-dashboard-page .admin-search-empty-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+body.admin-dashboard-page .admin-search-suggestion-copy strong,
+body.admin-dashboard-page .admin-search-empty-copy strong {
+  overflow: hidden;
+  color: #17233a;
+  font-size: 0.92rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.admin-dashboard-page .admin-search-suggestion-copy span,
+body.admin-dashboard-page .admin-search-empty-copy span {
+  overflow: hidden;
+  color: #63718a;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.admin-dashboard-page .admin-search-suggestion-type {
+  justify-self: end;
+  min-width: 72px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: #f0f4fa;
+  color: #52627a;
+  font-size: 0.7rem;
+  font-weight: 900;
+  text-align: center;
+  text-transform: uppercase;
 }
 
 body.admin-dashboard-page .admin-notification-button {
@@ -7072,6 +7172,363 @@ body.admin-dashboard-page .portal-staff-view-actions {
   backdrop-filter: blur(10px);
 }
 
+body.admin-dashboard-page .portal-student-view-panel,
+body.admin-dashboard-page .portal-student-docs-panel {
+  width: min(820px, 100%);
+  overflow: hidden;
+  border-color: #d6e2f0;
+  border-radius: 22px;
+  background: #f7fbff;
+}
+
+body.admin-dashboard-page .portal-student-docs-panel {
+  width: min(780px, 100%);
+}
+
+body.admin-dashboard-page .portal-student-view-head {
+  padding: 20px 22px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 251, 255, 0.98));
+}
+
+body.admin-dashboard-page .portal-student-view-content,
+body.admin-dashboard-page .portal-student-docs-content {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+  background: #f7fbff;
+}
+
+body.admin-dashboard-page .portal-student-profile-hero {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid #dbe6f4;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 14px 34px rgba(15, 43, 74, 0.08);
+}
+
+body.admin-dashboard-page .portal-student-profile-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  background: #e9f3ff;
+  color: #244f87;
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  box-shadow: inset 0 0 0 1px #d7e7fb;
+}
+
+body.admin-dashboard-page .portal-student-profile-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+body.admin-dashboard-page .portal-student-profile-copy span {
+  color: #667188;
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+body.admin-dashboard-page .portal-student-profile-copy h4 {
+  overflow: hidden;
+  margin: 0;
+  color: #17233a;
+  font-size: clamp(1.25rem, 2vw, 1.55rem);
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.admin-dashboard-page .portal-student-profile-copy p {
+  overflow-wrap: anywhere;
+  margin: 0;
+  color: #4c5a73;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+body.admin-dashboard-page .portal-student-profile-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+body.admin-dashboard-page .portal-student-profile-status.is-active {
+  border: 1px solid #c3ead6;
+  background: #ecfbf3;
+  color: #0f7a4d;
+}
+
+body.admin-dashboard-page .portal-student-profile-status.is-transferred {
+  border: 1px solid #d7dff1;
+  background: #f1f5fb;
+  color: #465774;
+}
+
+body.admin-dashboard-page .portal-student-profile-status.is-archived {
+  border: 1px solid #ffd7ca;
+  background: #fff5f2;
+  color: #bc4b26;
+}
+
+body.admin-dashboard-page .portal-student-view-sections {
+  display: grid;
+  gap: 12px;
+}
+
+body.admin-dashboard-page .portal-student-view-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #dfe8f4;
+  border-radius: 18px;
+  background: #ffffff;
+}
+
+body.admin-dashboard-page .portal-student-view-card-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #edf2f8;
+}
+
+body.admin-dashboard-page .portal-student-view-card-head strong {
+  color: #17233a;
+  font-size: 0.95rem;
+}
+
+body.admin-dashboard-page .portal-student-view-card-head span {
+  color: #667188;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+body.admin-dashboard-page .portal-student-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+body.admin-dashboard-page .portal-student-detail-grid article {
+  min-width: 0;
+  min-height: 74px;
+  padding: 13px 14px;
+  border: 1px solid #edf2f8;
+  border-radius: 14px;
+  background: #fbfdff;
+}
+
+body.admin-dashboard-page .portal-student-detail-grid article.is-wide {
+  grid-column: span 2;
+}
+
+body.admin-dashboard-page .portal-student-detail-grid span {
+  display: block;
+  color: #738098;
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+body.admin-dashboard-page .portal-student-detail-grid strong {
+  display: block;
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+  color: #17233a;
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+
+body.admin-dashboard-page .portal-student-mini-list {
+  display: grid;
+  gap: 10px;
+}
+
+body.admin-dashboard-page .portal-student-mini-card {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #edf2f8;
+  border-radius: 14px;
+  background: #fbfdff;
+}
+
+body.admin-dashboard-page .portal-student-mini-icon,
+body.admin-dashboard-page .portal-student-doc-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  background: #eef5ff;
+  color: #2d5f9d;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+body.admin-dashboard-page .portal-student-mini-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+body.admin-dashboard-page .portal-student-mini-copy strong {
+  overflow: hidden;
+  color: #17233a;
+  font-size: 0.9rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.admin-dashboard-page .portal-student-mini-copy span,
+body.admin-dashboard-page .portal-student-mini-copy small {
+  overflow: hidden;
+  color: #60708a;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.admin-dashboard-page .portal-student-view-empty,
+body.admin-dashboard-page .portal-student-doc-empty {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border: 1px dashed #ccd8e8;
+  border-radius: 14px;
+  background: #fbfdff;
+  color: #667188;
+}
+
+body.admin-dashboard-page .portal-student-view-empty strong,
+body.admin-dashboard-page .portal-student-doc-empty strong {
+  color: #17233a;
+  font-size: 0.92rem;
+}
+
+body.admin-dashboard-page .portal-student-view-empty p,
+body.admin-dashboard-page .portal-student-doc-empty p {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+body.admin-dashboard-page .portal-student-docs-head {
+  display: grid;
+  gap: 5px;
+  padding: 16px;
+  border: 1px solid #dbe6f4;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(15, 43, 74, 0.07);
+}
+
+body.admin-dashboard-page .portal-student-docs-head strong {
+  color: #17233a;
+  font-size: 1rem;
+}
+
+body.admin-dashboard-page .portal-student-docs-head span {
+  color: #64728a;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+body.admin-dashboard-page .portal-student-docs-content .portal-settings-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+
+body.admin-dashboard-page .portal-student-docs-content .utility-actions {
+  justify-content: flex-end;
+  margin: 0;
+}
+
+body.admin-dashboard-page .portal-student-doc-list {
+  display: grid;
+  gap: 10px;
+}
+
+body.admin-dashboard-page .portal-student-doc-item {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #dfe8f4;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+body.admin-dashboard-page .portal-student-doc-copy {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+body.admin-dashboard-page .portal-student-doc-copy strong {
+  overflow: hidden;
+  color: #17233a;
+  font-size: 0.92rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.admin-dashboard-page .portal-student-doc-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+body.admin-dashboard-page .portal-student-doc-tags span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #f0f4fa;
+  color: #596981;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+body.admin-dashboard-page .portal-student-doc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+body.admin-dashboard-page .portal-student-doc-actions .portal-class-button {
+  min-height: 34px;
+  padding: 0 11px;
+  font-size: 0.78rem;
+}
+
 body.admin-dashboard-page .portal-overlay-panel .portal-class-form {
   border: 0;
   border-radius: 0;
@@ -8138,9 +8595,19 @@ body.admin-dashboard-page .portal-class-empty p {
     justify-content: space-between;
   }
 
+  body.admin-dashboard-page .admin-searchbox {
+    width: 100%;
+  }
+
   body.admin-dashboard-page .admin-searchbar {
     min-width: 0;
     width: 100%;
+  }
+
+  body.admin-dashboard-page .admin-search-suggestions {
+    left: 0;
+    right: auto;
+    width: min(100%, calc(100vw - 32px));
   }
 }
 
@@ -8260,6 +8727,47 @@ body.admin-dashboard-page .portal-class-empty p {
   body.admin-dashboard-page .portal-staff-view-actions .button,
   body.admin-dashboard-page .portal-staff-view-actions .portal-class-button {
     width: 100%;
+  }
+
+  body.admin-dashboard-page .portal-student-view-content,
+  body.admin-dashboard-page .portal-student-docs-content {
+    padding: 14px;
+  }
+
+  body.admin-dashboard-page .portal-student-profile-hero,
+  body.admin-dashboard-page .portal-student-doc-item {
+    grid-template-columns: 56px minmax(0, 1fr);
+    padding: 14px;
+  }
+
+  body.admin-dashboard-page .portal-student-profile-avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+  }
+
+  body.admin-dashboard-page .portal-student-profile-status {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+
+  body.admin-dashboard-page .portal-student-view-card-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  body.admin-dashboard-page .portal-student-detail-grid,
+  body.admin-dashboard-page .portal-student-docs-content .portal-settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  body.admin-dashboard-page .portal-student-detail-grid article.is-wide {
+    grid-column: auto;
+  }
+
+  body.admin-dashboard-page .portal-student-doc-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
   }
 
   body.admin-dashboard-page .admin-event-row {
