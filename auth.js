@@ -325,6 +325,16 @@
     return ROLE_HOME_ROUTES[normalizedRole] || ROLE_HOME_ROUTES.Admin;
   }
 
+  function getPostLoginRoute(roleLabel, user = null) {
+    const normalizedRole = normalizeRoleLabel(roleLabel || DEFAULT_AUTH_ROLE);
+
+    if (normalizedRole === "Teacher" && user?.mustChangePassword) {
+      return "./user-settings.html";
+    }
+
+    return getRoleHomeRoute(normalizedRole);
+  }
+
   function getCurrentRoleHomeRoute() {
     const session = getSession();
     return getRoleHomeRoute(session?.role || DEFAULT_AUTH_ROLE);
@@ -1168,6 +1178,7 @@
       action: String(entry.action || "updated").trim(),
       actorName: String(entry.actorName || "System").trim(),
       createdAt: entry.createdAt || entry.timestamp || nowIso(),
+      readAt: String(entry.readAt || "").trim(),
       workspaceId: normalizeWorkspaceId(workspaceId || entry.workspaceId || getCurrentWorkspaceId()),
       visibleToRoles,
     };
@@ -1210,6 +1221,46 @@
       }),
     );
     return nextEntry;
+  }
+
+  function isNotificationUnread(entry = {}) {
+    return !String(entry.readAt || "").trim();
+  }
+
+  function markNotificationsRead(notificationIds = [], workspaceId = null) {
+    const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId || getCurrentWorkspaceId());
+    const idSet = new Set(notificationIds.map((id) => String(id || "").trim()).filter(Boolean));
+
+    if (!idSet.size) {
+      return false;
+    }
+
+    const timestamp = nowIso();
+    let changed = false;
+    const nextNotifications = getNotifications(normalizedWorkspaceId).map((entry) => {
+      if (!idSet.has(entry.id) || entry.readAt) {
+        return entry;
+      }
+      changed = true;
+      return {
+        ...entry,
+        readAt: timestamp,
+      };
+    });
+
+    if (!changed) {
+      return false;
+    }
+
+    saveNotifications(nextNotifications, normalizedWorkspaceId);
+    window.dispatchEvent(
+      new CustomEvent(NOTIFICATION_EVENT_NAME, {
+        detail: {
+          workspaceId: normalizedWorkspaceId,
+        },
+      }),
+    );
+    return true;
   }
 
   function getAccessGuardNotice() {
@@ -7374,6 +7425,37 @@
       selectedPeriodId: "",
       editingEntryId: "",
     };
+    let timetableToastTimer = null;
+
+    const showTimetableToast = (message) => {
+      if (!message) {
+        return;
+      }
+
+      let toast = document.getElementById("portal-timetable-toast");
+      if (!toast) {
+        toast = document.createElement("div");
+        toast.id = "portal-timetable-toast";
+        toast.className = "portal-toast portal-toast--success";
+        toast.setAttribute("role", "status");
+        toast.setAttribute("aria-live", "polite");
+        document.body.appendChild(toast);
+      }
+
+      toast.innerHTML = message;
+      toast.hidden = false;
+      window.clearTimeout(timetableToastTimer);
+      timetableToastTimer = window.setTimeout(() => {
+        toast.hidden = true;
+      }, 3600);
+    };
+
+    const setTimetableStatus = (type, message) => {
+      setStatus(status, type, message);
+      if (type === "success" && message) {
+        showTimetableToast(message);
+      }
+    };
 
     const setFormVisibility = (visible) => {
       form.hidden = !visible;
@@ -7825,7 +7907,7 @@
         summary: `${existing ? "Updated" : "Created"} timetable lesson for ${payload.classLevel}`,
         details: `${payload.periodId} • ${payload.subject}`,
       });
-      setStatus(status, "success", `Lesson for <strong>${escapeHtml(payload.classLevel)}</strong> saved.${escapeHtml(workloadCopy)}`);
+      setTimetableStatus("success", `Lesson for <strong>${escapeHtml(payload.classLevel)}</strong> saved.${escapeHtml(workloadCopy)}`);
       clearFormDraftFor(form);
       resetPortalTimetableForm(form, isAdmin);
       state.selectedPeriodId = "";
@@ -7917,7 +7999,7 @@
               sortOrder: nextOrder,
             });
           });
-          setStatus(status, "success", `<strong>${escapeHtml(name)}</strong> updated across the timetable grid.`);
+          setTimetableStatus("success", `<strong>${escapeHtml(name)}</strong> updated across the timetable grid.`);
         } else {
           (manager.schoolDays || ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]).forEach((day) => {
             manager.upsertPeriod({
@@ -7929,7 +8011,7 @@
               sortOrder: nextOrder,
             });
           });
-          setStatus(status, "success", `<strong>${escapeHtml(name)}</strong> added across school days.`);
+          setTimetableStatus("success", `<strong>${escapeHtml(name)}</strong> added across school days.`);
         }
 
         resetTimetablePeriodForm();
@@ -7947,7 +8029,7 @@
         state.selectedPeriodId = "";
         state.editingEntryId = "";
         setFormVisibility(false);
-        setStatus(status, "success", "Lesson archived.");
+        setTimetableStatus("success", "Lesson archived.");
         refresh();
       });
     }
@@ -8061,7 +8143,7 @@
             reason,
             substitutionDate: new Date().toISOString().slice(0, 10),
           });
-          setStatus(status, "success", `Substitution logged for <strong>${escapeHtml(row.subject)}</strong>.`);
+          setTimetableStatus("success", `Substitution logged for <strong>${escapeHtml(row.subject)}</strong>.`);
           refresh();
           return;
         }
@@ -8079,7 +8161,7 @@
             summary: `${action === "archive" ? "Archived" : "Reactivated"} timetable lesson`,
             details: `${row.classLevel} • ${row.day} ${row.startTime}-${row.endTime}`,
           });
-          setStatus(status, "success", `Timetable lesson ${action === "archive" ? "archived" : "reactivated"}.`);
+          setTimetableStatus("success", `Timetable lesson ${action === "archive" ? "archived" : "reactivated"}.`);
           refresh();
           return;
         }
@@ -8105,7 +8187,7 @@
             summary: `Published timetable for ${criteria.classLevel}`,
             details: `${criteria.sessionId} • ${criteria.termId}`,
           });
-          setStatus(status, "success", `Timetable for <strong>${escapeHtml(criteria.classLevel)}</strong> published.`);
+          setTimetableStatus("success", `Timetable for <strong>${escapeHtml(criteria.classLevel)}</strong> published.`);
         } else if (action === "unpublish") {
           manager.unpublishGroup(criteria);
           recordAuditEvent({
@@ -8115,7 +8197,7 @@
             summary: `Unpublished timetable for ${criteria.classLevel}`,
             details: `${criteria.sessionId} • ${criteria.termId}`,
           });
-          setStatus(status, "success", `Timetable for <strong>${escapeHtml(criteria.classLevel)}</strong> moved back to draft.`);
+          setTimetableStatus("success", `Timetable for <strong>${escapeHtml(criteria.classLevel)}</strong> moved back to draft.`);
         }
         refresh();
       }
@@ -8145,7 +8227,7 @@
           classLevel: selectedClass?.level || "",
           weekType: getSelectedWeekType(),
         });
-        setStatus(status, result.copied ? "success" : "info", `Copied ${result.copied} lesson${result.copied === 1 ? "" : "s"} from ${escapeHtml(sourceTerm.name)}. Skipped ${result.skipped}.`);
+        setTimetableStatus(result.copied ? "success" : "info", `Copied ${result.copied} lesson${result.copied === 1 ? "" : "s"} from ${escapeHtml(sourceTerm.name)}. Skipped ${result.skipped}.`);
         refresh();
       });
     }
@@ -8199,6 +8281,21 @@
       document.querySelector("[data-fee-form-toggle]");
     const cycleManager = getAcademicCycleManager();
     const classManager = getClassManager();
+    const studentManager = getStudentManager();
+    const invoiceStatus = document.getElementById("portal-fee-invoice-status");
+    const invoiceListTarget = document.getElementById("portal-fee-invoice-list");
+    const invoiceControls = {
+      session: document.getElementById("fee-invoice-session"),
+      term: document.getElementById("fee-invoice-term"),
+      classLevel: document.getElementById("fee-invoice-class"),
+      student: document.getElementById("fee-invoice-student"),
+      dueDate: document.getElementById("fee-invoice-due-date"),
+      singleButton: document.querySelector("[data-fee-invoice-generate-single]"),
+      bulkButton: document.querySelector("[data-fee-invoice-generate-bulk]"),
+    };
+    const invoiceOverlay = document.getElementById("portal-fee-invoice-overlay");
+    const invoiceModalBody = document.getElementById("portal-fee-invoice-modal-body");
+    const invoiceModalTitle = document.getElementById("portal-fee-invoice-modal-title");
 
     const setFormVisibility = (visible) => {
       form.hidden = !visible;
@@ -8208,16 +8305,17 @@
       }
     };
 
-    const applyContextOptions = () => {
-      const cycles = cycleManager && typeof cycleManager.getState === "function"
+    const getCycleState = () =>
+      cycleManager && typeof cycleManager.getState === "function"
         ? cycleManager.getState()
         : { sessions: [], terms: [] };
-      const sessions = Array.isArray(cycles.sessions) ? cycles.sessions : [];
-      const terms = Array.isArray(cycles.terms) ? cycles.terms : [];
+
+    const getActiveClassGroups = () => {
       const classes = classManager && typeof classManager.getClasses === "function"
         ? classManager.getClasses().filter((item) => item.status !== "archived")
         : [];
-      const classGroups = Array.from(
+
+      return Array.from(
         classes
           .reduce((groups, record) => {
             const level = String(record.level || "").trim();
@@ -8239,6 +8337,489 @@
           }, new Map())
           .values(),
       ).sort((left, right) => left.level.localeCompare(right.level, undefined, { numeric: true }));
+    };
+
+    const getActiveStudentsForFeeClass = (classLevel) => {
+      if (!studentManager || typeof studentManager.getStudents !== "function" || !classLevel) {
+        return [];
+      }
+
+      const classToken = normalizeLevelToken(classLevel);
+      return studentManager
+        .getStudents()
+        .filter((student) => student.status === "active" && normalizeLevelToken(student.level) === classToken)
+        .sort((left, right) => left.fullName.localeCompare(right.fullName, undefined, { numeric: true }));
+    };
+
+    const getActiveFeeItemsForInvoice = ({ sessionId, termId, classLevel }) => {
+      if (!manager || typeof manager.getItems !== "function") {
+        return [];
+      }
+
+      return manager
+        .getItems()
+        .filter(
+          (item) =>
+            item.status !== "archived" &&
+            item.sessionId === sessionId &&
+            item.termId === termId &&
+            normalizeLevelToken(item.classLevel) === normalizeLevelToken(classLevel),
+        );
+    };
+
+    const getSelectedInvoiceContext = () => {
+      const cycleState = getCycleState();
+      const sessionId = String(invoiceControls.session?.value || "").trim();
+      const termId = String(invoiceControls.term?.value || "").trim();
+      const classLevel = String(invoiceControls.classLevel?.value || "").trim();
+      const studentId = String(invoiceControls.student?.value || "").trim();
+      const session = (cycleState.sessions || []).find((item) => item.id === sessionId) || null;
+      const term = (cycleState.terms || []).find((item) => item.id === termId) || null;
+      const students = getActiveStudentsForFeeClass(classLevel);
+      const student = students.find((item) => item.id === studentId) || null;
+      const feeItems = getActiveFeeItemsForInvoice({ sessionId, termId, classLevel });
+
+      return {
+        cycleState,
+        sessionId,
+        termId,
+        classLevel,
+        studentId,
+        session,
+        term,
+        students,
+        student,
+        feeItems,
+        dueDate: String(invoiceControls.dueDate?.value || "").trim(),
+      };
+    };
+
+    const buildFeeInvoiceRecord = ({ student, feeItems, context, existing = {} }) => {
+      const timestamp = nowIso();
+      const invoiceKey = `${context.sessionId}:${context.termId}:${context.classLevel}`;
+      const totalDue = feeItems.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      const previousPaid =
+        existing.invoiceKey === invoiceKey
+          ? Math.max(0, Number(existing.totalDue || 0) - Number(existing.balance || 0))
+          : 0;
+      const invoiceSeed = String(student.admissionNo || student.id || "student")
+        .replace(/[^a-z0-9]/gi, "")
+        .slice(-6)
+        .toUpperCase() || "STUDENT";
+      const invoiceNo =
+        existing.invoiceKey === invoiceKey && existing.invoiceNo
+          ? existing.invoiceNo
+          : `INV-${timestamp.slice(2, 10).replace(/-/g, "")}${timestamp.slice(11, 16).replace(":", "")}-${invoiceSeed}`;
+      const itemDueDates = feeItems
+        .map((item) => String(item.dueDate || "").trim())
+        .filter(Boolean)
+        .sort();
+      const dueDate = context.dueDate || itemDueDates[itemDueDates.length - 1] || "Not set";
+
+      return {
+        ...existing,
+        studentId: student.id,
+        studentName: student.fullName,
+        admissionNo: student.admissionNo,
+        classLevel: context.classLevel,
+        sessionId: context.sessionId,
+        sessionName: context.session?.name || getSessionLabelFromCycle(context.cycleState, context.sessionId),
+        termId: context.termId,
+        termName: context.term?.name || getTermLabelFromCycle(context.cycleState, context.termId),
+        invoiceNo,
+        invoiceKey,
+        invoiceStatus: "issued",
+        invoiceGeneratedAt: existing.invoiceKey === invoiceKey ? existing.invoiceGeneratedAt || timestamp : timestamp,
+        invoiceItems: feeItems.map((item) => ({
+          feeItemId: item.id,
+          name: item.name,
+          amount: Number(item.amount || 0),
+          description: item.description || "",
+          dueDate: item.dueDate || "",
+        })),
+        totalDue,
+        balance: Math.max(0, totalDue - previousPaid),
+        dueDate,
+        updatedAt: timestamp,
+      };
+    };
+
+    const getInvoiceSchoolSettings = () => {
+      const settingsManager = getSchoolSettingsManager();
+      return settingsManager && typeof settingsManager.getSettings === "function"
+        ? settingsManager.getSettings()
+        : getDefaultAdminSchoolSettings();
+    };
+
+    const getFeeInvoiceByStudentId = (studentId) => {
+      const workspaceId = normalizeWorkspaceId(getCurrentWorkspaceId());
+      const invoice = readParentFeesState(workspaceId)[studentId];
+      return invoice && invoice.invoiceNo ? invoice : null;
+    };
+
+    const renderFeeInvoiceDocument = (invoice) => {
+      const settings = getInvoiceSchoolSettings();
+      const items = Array.isArray(invoice.invoiceItems) ? invoice.invoiceItems : [];
+      const totalDue = Number(invoice.totalDue || 0);
+      const balance = Number(invoice.balance || 0);
+      const paid = Math.max(0, totalDue - balance);
+      const lineRows = items.length
+        ? items
+            .map(
+              (item, index) => `
+                <tr>
+                  <td>${index + 1}</td>
+                  <td>
+                    <strong>${escapeHtml(item.name || "Fee item")}</strong>
+                    <span>${escapeHtml(item.description || "No note")}</span>
+                  </td>
+                  <td>${escapeHtml(item.dueDate || invoice.dueDate || "Not set")}</td>
+                  <td>${escapeHtml(formatCurrencyAmount(item.amount || 0))}</td>
+                </tr>
+              `,
+            )
+            .join("")
+        : `<tr><td colspan="4">No invoice line items found.</td></tr>`;
+
+      return `
+        <section class="portal-fee-invoice-document">
+          <header class="portal-fee-invoice-doc-head">
+            <div>
+              <span>Fee invoice</span>
+              <h4>${escapeHtml(settings.schoolName || "SchoolSphere")}</h4>
+              <p>${escapeHtml(settings.address || settings.campusDetails || "School account office")}</p>
+            </div>
+            <aside>
+              <strong>${escapeHtml(invoice.invoiceNo || "Not generated")}</strong>
+              <span>${escapeHtml(invoice.invoiceGeneratedAt ? formatTimestamp(invoice.invoiceGeneratedAt) : "Not generated")}</span>
+            </aside>
+          </header>
+
+          <div class="portal-fee-invoice-doc-meta">
+            <article><span>Student</span><strong>${escapeHtml(invoice.studentName || "Student")}</strong></article>
+            <article><span>Admission No.</span><strong>${escapeHtml(invoice.admissionNo || "Not set")}</strong></article>
+            <article><span>Class</span><strong>${escapeHtml(invoice.classLevel || "Class")}</strong></article>
+            <article><span>Academic period</span><strong>${escapeHtml(
+              [invoice.sessionName, invoice.termName].filter(Boolean).join(" • ") || "Not selected",
+            )}</strong></article>
+            <article><span>Due date</span><strong>${escapeHtml(invoice.dueDate || "Not set")}</strong></article>
+            <article><span>Status</span><strong>${escapeHtml(invoice.invoiceStatus || "issued")}</strong></article>
+          </div>
+
+          <div class="portal-fee-invoice-lines-wrap">
+            <table class="portal-fee-invoice-lines-table">
+              <thead>
+                <tr><th>#</th><th>Fee item</th><th>Due date</th><th>Amount</th></tr>
+              </thead>
+              <tbody>${lineRows}</tbody>
+            </table>
+          </div>
+
+          <div class="portal-fee-invoice-total-box">
+            <div><span>Total due</span><strong>${escapeHtml(formatCurrencyAmount(totalDue))}</strong></div>
+            <div><span>Paid</span><strong>${escapeHtml(formatCurrencyAmount(paid))}</strong></div>
+            <div><span>Balance</span><strong>${escapeHtml(formatCurrencyAmount(balance))}</strong></div>
+          </div>
+        </section>
+      `;
+    };
+
+    const renderFeeInvoicePrintDocument = (invoice) => `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>${escapeHtml(invoice.invoiceNo || "Fee invoice")}</title>
+          <style>
+            * { box-sizing: border-box; }
+            body { margin: 0; padding: 28px; color: #17233a; font-family: Inter, Arial, sans-serif; background: #ffffff; }
+            .portal-fee-invoice-document { display: grid; gap: 22px; max-width: 860px; margin: 0 auto; }
+            .portal-fee-invoice-doc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 22px; padding-bottom: 18px; border-bottom: 2px solid #17233a; }
+            .portal-fee-invoice-doc-head span, .portal-fee-invoice-doc-meta span, .portal-fee-invoice-total-box span { color: #667188; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+            .portal-fee-invoice-doc-head h4 { margin: 5px 0 6px; font-size: 26px; }
+            .portal-fee-invoice-doc-head p { margin: 0; color: #4c5a73; }
+            .portal-fee-invoice-doc-head aside { display: grid; gap: 5px; min-width: 190px; text-align: right; }
+            .portal-fee-invoice-doc-head aside strong { font-size: 20px; }
+            .portal-fee-invoice-doc-meta { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+            .portal-fee-invoice-doc-meta article { min-height: 78px; padding: 13px; border: 1px solid #dfe7f2; border-radius: 10px; }
+            .portal-fee-invoice-doc-meta strong { display: block; margin-top: 8px; font-size: 14px; overflow-wrap: anywhere; }
+            table { width: 100%; border-collapse: collapse; }
+            th, td { padding: 12px 10px; border-bottom: 1px solid #dfe7f2; text-align: left; vertical-align: top; }
+            th { color: #667188; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+            td strong, td span { display: block; }
+            td span { margin-top: 4px; color: #667188; font-size: 12px; }
+            th:last-child, td:last-child { text-align: right; }
+            .portal-fee-invoice-total-box { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-left: auto; width: min(520px, 100%); }
+            .portal-fee-invoice-total-box div { padding: 14px; border: 1px solid #dfe7f2; border-radius: 10px; background: #f8fbff; }
+            .portal-fee-invoice-total-box strong { display: block; margin-top: 8px; font-size: 18px; }
+            @media print { body { padding: 0; } }
+          </style>
+        </head>
+        <body>
+          ${renderFeeInvoiceDocument(invoice)}
+          <script>
+            window.addEventListener("load", function () {
+              window.focus();
+              window.print();
+            });
+          </script>
+        </body>
+      </html>
+    `;
+
+    const syncInvoiceOverlayState = () => {
+      document.body.classList.toggle("portal-overlay-open", Boolean(document.querySelector(".portal-overlay:not([hidden])")));
+    };
+
+    const closeInvoiceModal = () => {
+      if (!invoiceOverlay) {
+        return;
+      }
+      invoiceOverlay.hidden = true;
+      if (invoiceModalBody) invoiceModalBody.innerHTML = "";
+      syncInvoiceOverlayState();
+    };
+
+    const openInvoiceModal = (invoice) => {
+      if (!invoiceOverlay || !invoiceModalBody) {
+        return;
+      }
+      if (invoiceModalTitle) {
+        invoiceModalTitle.textContent = invoice.invoiceNo || "Fee invoice";
+      }
+      invoiceModalBody.innerHTML = `
+        ${renderFeeInvoiceDocument(invoice)}
+        <div class="portal-fee-invoice-modal-actions">
+          <button class="button button-primary" type="button" data-fee-invoice-print-current data-invoice-student-id="${escapeHtml(
+            invoice.studentId || "",
+          )}">Print invoice</button>
+        </div>
+      `;
+      invoiceOverlay.hidden = false;
+      syncInvoiceOverlayState();
+      invoiceOverlay.querySelector("[data-fee-invoice-close]")?.focus();
+    };
+
+    const printFeeInvoice = (invoice) => {
+      const printWindow = window.open("", "_blank", "width=920,height=760");
+      if (!printWindow) {
+        setStatus(invoiceStatus || status, "error", "Allow pop-ups for this page so the invoice can open for printing.");
+        return;
+      }
+
+      printWindow.document.open();
+      printWindow.document.write(renderFeeInvoicePrintDocument(invoice));
+      printWindow.document.close();
+    };
+
+    const renderInvoiceList = () => {
+      if (!invoiceListTarget) {
+        return;
+      }
+
+      const workspaceId = normalizeWorkspaceId(getCurrentWorkspaceId());
+      const invoices = Object.values(readParentFeesState(workspaceId) || {})
+        .filter((entry) => entry && entry.invoiceNo)
+        .sort((left, right) => String(right.updatedAt || "").localeCompare(String(left.updatedAt || "")))
+        .slice(0, 12);
+
+      if (!invoices.length) {
+        invoiceListTarget.innerHTML = `
+          <article class="portal-class-empty portal-fee-invoice-empty">
+            <strong>No invoices generated yet</strong>
+            <p>Select a session, term, class, and student to generate the first invoice.</p>
+          </article>
+        `;
+        return;
+      }
+
+      invoiceListTarget.innerHTML = `
+        <div class="portal-fee-invoice-table">
+          ${invoices
+            .map(
+              (invoice) => `
+                <article class="portal-fee-invoice-row">
+                  <div>
+                    <strong>${escapeHtml(invoice.invoiceNo)}</strong>
+                    <span>${escapeHtml(invoice.studentName || "Student")} • ${escapeHtml(invoice.admissionNo || "No admission no.")}</span>
+                  </div>
+                  <div>
+                    <span>${escapeHtml(invoice.classLevel || "Class")}</span>
+                    <small>${escapeHtml(invoice.termName || "Period")} • ${escapeHtml(invoice.sessionName || "Session")}</small>
+                  </div>
+                  <div>
+                    <strong>${escapeHtml(formatCurrencyAmount(invoice.totalDue || 0))}</strong>
+                    <span>Balance ${escapeHtml(formatCurrencyAmount(invoice.balance || 0))}</span>
+                  </div>
+                  <div>
+                    <span>Due ${escapeHtml(invoice.dueDate || "Not set")}</span>
+                    <small>${(invoice.invoiceItems || []).length} item${(invoice.invoiceItems || []).length === 1 ? "" : "s"}</small>
+                  </div>
+                  <div class="portal-fee-invoice-row-actions">
+                    <button class="portal-class-button" type="button" data-fee-invoice-action="view" data-invoice-student-id="${escapeHtml(
+                      invoice.studentId || "",
+                    )}">View</button>
+                    <button class="portal-class-button" type="button" data-fee-invoice-action="print" data-invoice-student-id="${escapeHtml(
+                      invoice.studentId || "",
+                    )}">Print</button>
+                  </div>
+                </article>
+              `,
+            )
+            .join("")}
+        </div>
+      `;
+    };
+
+    const applyInvoiceContextOptions = () => {
+      const hasInvoiceControls = invoiceControls.session && invoiceControls.term && invoiceControls.classLevel && invoiceControls.student;
+      if (!hasInvoiceControls) {
+        return;
+      }
+
+      const cycles = getCycleState();
+      const sessions = Array.isArray(cycles.sessions) ? cycles.sessions : [];
+      const terms = Array.isArray(cycles.terms) ? cycles.terms : [];
+      const classGroups = getActiveClassGroups();
+      const selectedSessionId = String(invoiceControls.session.value || "").trim();
+      const selectedTermId = String(invoiceControls.term.value || "").trim();
+      const selectedClassLevel = String(invoiceControls.classLevel.value || "").trim();
+      const selectedStudentId = String(invoiceControls.student.value || "").trim();
+      const activeSessionId = sessions.find((session) => session.status === "open")?.id || "";
+      const sessionId = selectedSessionId || activeSessionId || sessions[0]?.id || "";
+      const termsForSession = terms.filter((term) => !sessionId || term.sessionId === sessionId);
+      const activeTermId = termsForSession.find((term) => term.status === "open")?.id || "";
+      const termId = termsForSession.some((term) => term.id === selectedTermId)
+        ? selectedTermId
+        : activeTermId || termsForSession[0]?.id || "";
+      const classLevel = classGroups.some((group) => group.level === selectedClassLevel)
+        ? selectedClassLevel
+        : classGroups[0]?.level || "";
+      const students = getActiveStudentsForFeeClass(classLevel);
+      const studentId = students.some((student) => student.id === selectedStudentId)
+        ? selectedStudentId
+        : students[0]?.id || "";
+      const feeItems = getActiveFeeItemsForInvoice({ sessionId, termId, classLevel });
+
+      invoiceControls.session.innerHTML = `<option value="">${sessions.length ? "Select session" : "Create session first"}</option>${sessions
+        .map(
+          (session) =>
+            `<option value="${escapeHtml(session.id)}">${escapeHtml(session.name)} ${session.status === "open" ? "(Open)" : ""}</option>`,
+        )
+        .join("")}`;
+      if (sessionId) invoiceControls.session.value = sessionId;
+      invoiceControls.session.disabled = !isAdmin || !sessions.length;
+
+      invoiceControls.term.innerHTML = `<option value="">${
+        termsForSession.length ? "Select term or semester" : "No terms or semesters for this session"
+      }</option>${termsForSession
+        .map((term) => {
+          const periodLabel = term.periodType === "semester" ? "Semester" : "Term";
+          return `<option value="${escapeHtml(term.id)}">${periodLabel}: ${escapeHtml(term.name)} ${
+            term.status === "open" ? "(Open)" : ""
+          }</option>`;
+        })
+        .join("")}`;
+      if (termId) invoiceControls.term.value = termId;
+      invoiceControls.term.disabled = !isAdmin || !termsForSession.length;
+
+      invoiceControls.classLevel.innerHTML = `<option value="">${classGroups.length ? "Select class group" : "Create classes first"}</option>${classGroups
+        .map((group) => `<option value="${escapeHtml(group.level)}">${escapeHtml(group.level)}</option>`)
+        .join("")}`;
+      if (classLevel) invoiceControls.classLevel.value = classLevel;
+      invoiceControls.classLevel.disabled = !isAdmin || !classGroups.length;
+
+      invoiceControls.student.innerHTML = `<option value="">${students.length ? "Select student" : "No active students in this class"}</option>${students
+        .map((student) => `<option value="${escapeHtml(student.id)}">${escapeHtml(student.fullName)} (${escapeHtml(student.admissionNo || "No admission no.")})</option>`)
+        .join("")}`;
+      if (studentId) invoiceControls.student.value = studentId;
+      invoiceControls.student.disabled = !isAdmin || !students.length;
+
+      if (invoiceControls.dueDate) {
+        invoiceControls.dueDate.disabled = !isAdmin;
+      }
+
+      const canGenerate = isAdmin && Boolean(sessionId && termId && classLevel && students.length && feeItems.length);
+      if (invoiceControls.singleButton) {
+        invoiceControls.singleButton.disabled = !canGenerate || !studentId;
+      }
+      if (invoiceControls.bulkButton) {
+        invoiceControls.bulkButton.disabled = !canGenerate;
+      }
+    };
+
+    const generateInvoices = (studentsToInvoice) => {
+      if (!isAdmin) {
+        setStatus(invoiceStatus || status, "info", "Only administrators can generate invoices.");
+        return;
+      }
+
+      const context = getSelectedInvoiceContext();
+      if (!context.sessionId || !context.termId || !context.classLevel) {
+        setStatus(invoiceStatus || status, "error", "Select session, term or semester, and class group.");
+        return;
+      }
+
+      if (!context.feeItems.length) {
+        setStatus(invoiceStatus || status, "error", "No active fee items match this class, session, and period.");
+        return;
+      }
+
+      const studentsForInvoice = studentsToInvoice.filter(Boolean);
+      if (!studentsForInvoice.length) {
+        setStatus(invoiceStatus || status, "error", "No active students found for this invoice.");
+        return;
+      }
+
+      const workspaceId = normalizeWorkspaceId(getCurrentWorkspaceId());
+      const currentState = readParentFeesState(workspaceId);
+      const nextState = { ...currentState };
+      studentsForInvoice.forEach((student) => {
+        nextState[student.id] = buildFeeInvoiceRecord({
+          student,
+          feeItems: context.feeItems,
+          context,
+          existing: currentState[student.id] || {},
+        });
+      });
+      saveParentFeesState(nextState, workspaceId);
+
+      recordAuditEvent({
+        action: studentsForInvoice.length === 1 ? "generated" : "bulk-generated",
+        entityType: "fee-invoice",
+        entityId: `${context.classLevel}-${context.termId}`,
+        summary: `Generated ${studentsForInvoice.length} fee invoice${studentsForInvoice.length === 1 ? "" : "s"}`,
+        details: `${context.classLevel} • ${getTermLabelFromCycle(context.cycleState, context.termId)} • ${formatCurrencyAmount(
+          context.feeItems.reduce((sum, item) => sum + Number(item.amount || 0), 0),
+        )}`,
+      });
+      pushNotification(
+        {
+          title: `Fee invoices generated`,
+          message: `${studentsForInvoice.length} invoice${studentsForInvoice.length === 1 ? "" : "s"} generated for ${context.classLevel}.`,
+          entityType: "fee-invoice",
+          entityId: `${context.classLevel}-${context.termId}`,
+          action: "generated",
+          visibleToRoles: ["Admin"],
+        },
+        workspaceId,
+      );
+
+      renderInvoiceList();
+      setStatus(
+        invoiceStatus || status,
+        "success",
+        `Generated <strong>${studentsForInvoice.length}</strong> invoice${studentsForInvoice.length === 1 ? "" : "s"} for <strong>${escapeHtml(
+          context.classLevel,
+        )}</strong>.`,
+      );
+    };
+
+    const applyContextOptions = () => {
+      const cycles = getCycleState();
+      const sessions = Array.isArray(cycles.sessions) ? cycles.sessions : [];
+      const terms = Array.isArray(cycles.terms) ? cycles.terms : [];
+      const classGroups = getActiveClassGroups();
 
       const sessionSelect = form.elements.sessionId;
       const termSelect = form.elements.termId;
@@ -8328,6 +8909,8 @@
     const refresh = () => {
       renderFeeManagementSection({ isAdmin, manager, summaryTarget, listTarget });
       applyContextOptions();
+      applyInvoiceContextOptions();
+      renderInvoiceList();
     };
 
     const toggleVisibility = () => {
@@ -8347,6 +8930,73 @@
     resetPortalFeeForm(form, isAdmin);
     refresh();
     setFormVisibility(false);
+
+    [invoiceControls.session, invoiceControls.term, invoiceControls.classLevel].forEach((control) => {
+      control?.addEventListener("change", () => {
+        applyInvoiceContextOptions();
+        renderInvoiceList();
+        setStatus(invoiceStatus || status, "", "");
+      });
+    });
+
+    [invoiceControls.student, invoiceControls.dueDate].forEach((control) => {
+      control?.addEventListener("change", () => {
+        setStatus(invoiceStatus || status, "", "");
+      });
+    });
+
+    invoiceControls.singleButton?.addEventListener("click", () => {
+      const context = getSelectedInvoiceContext();
+      generateInvoices(context.student ? [context.student] : []);
+    });
+
+    invoiceControls.bulkButton?.addEventListener("click", () => {
+      const context = getSelectedInvoiceContext();
+      generateInvoices(context.students);
+    });
+
+    invoiceListTarget?.addEventListener("click", (event) => {
+      const actionButton = event.target.closest("[data-fee-invoice-action]");
+      if (!actionButton) {
+        return;
+      }
+
+      const invoice = getFeeInvoiceByStudentId(String(actionButton.dataset.invoiceStudentId || "").trim());
+      if (!invoice) {
+        setStatus(invoiceStatus || status, "error", "Invoice record was not found.");
+        return;
+      }
+
+      if (actionButton.dataset.feeInvoiceAction === "print") {
+        printFeeInvoice(invoice);
+        return;
+      }
+
+      openInvoiceModal(invoice);
+    });
+
+    invoiceOverlay?.addEventListener("click", (event) => {
+      if (event.target.closest("[data-fee-invoice-close]")) {
+        closeInvoiceModal();
+        return;
+      }
+
+      const printButton = event.target.closest("[data-fee-invoice-print-current]");
+      if (!printButton) {
+        return;
+      }
+
+      const invoice = getFeeInvoiceByStudentId(String(printButton.dataset.invoiceStudentId || "").trim());
+      if (invoice) {
+        printFeeInvoice(invoice);
+      }
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && invoiceOverlay && !invoiceOverlay.hidden) {
+        closeInvoiceModal();
+      }
+    });
 
     if (formToggleButton) {
       formToggleButton.disabled = !isAdmin || !manager;
@@ -8487,6 +9137,14 @@
     if (classManager?.eventName) {
       window.addEventListener(classManager.eventName, refresh);
     }
+    if (studentManager?.eventName) {
+      window.addEventListener(studentManager.eventName, refresh);
+    }
+    window.addEventListener(PARENT_FEES_EVENT_NAME, (event) => {
+      if (normalizeWorkspaceId(event.detail?.workspaceId || getCurrentWorkspaceId()) === normalizeWorkspaceId(getCurrentWorkspaceId())) {
+        renderInvoiceList();
+      }
+    });
   }
 
   function initSchoolSettingsControls({
@@ -10965,8 +11623,6 @@
     if (form.elements.title) {
       form.elements.title.value = user.title || "";
     }
-    form.elements.tempPassword.value = "";
-
     const submitButton = form.querySelector("[data-staff-submit]");
     const cancelButton = form.querySelector("[data-staff-cancel]");
 
@@ -10995,7 +11651,7 @@
     if (user.mustChangePassword) {
       return "Default password (change required)";
     }
-    return "Custom password";
+    return "Owner-managed password";
   }
 
   function renderPortalStaffManagementSection({
@@ -11120,17 +11776,20 @@
           `
           <div id="portal-staff-view-overlay" class="portal-overlay" hidden>
             <button class="portal-overlay-backdrop" type="button" data-staff-view-close aria-label="Close staff details"></button>
-            <section class="portal-overlay-panel portal-overlay-panel-sm" role="dialog" aria-modal="true" aria-labelledby="portal-staff-view-title">
-              <header class="portal-overlay-head">
-                <h3 id="portal-staff-view-title">Staff details</h3>
+            <section class="portal-overlay-panel portal-overlay-panel-sm portal-staff-view-panel" role="dialog" aria-modal="true" aria-labelledby="portal-staff-view-title">
+              <header class="portal-overlay-head portal-staff-view-head">
+                <div>
+                  <span class="portal-overlay-kicker">Teacher account</span>
+                  <h3 id="portal-staff-view-title">Staff details</h3>
+                </div>
                 <button class="portal-overlay-close" type="button" data-staff-view-close aria-label="Close staff details">&times;</button>
               </header>
               <div class="portal-staff-view-content">
-                <div id="portal-staff-view-grid" class="portal-student-view-grid"></div>
-                <div class="portal-class-actions">
-                  <button class="button button-outline" type="button" data-staff-view-edit>Edit profile</button>
+                <div id="portal-staff-view-grid" class="portal-staff-view-grid"></div>
+                <div class="portal-staff-view-actions">
+                  <button class="button button-primary" type="button" data-staff-view-edit>Edit profile</button>
                   <button class="portal-class-button is-archive" type="button" data-staff-view-status>Deactivate</button>
-                  <button class="button button-outline" type="button" data-staff-view-close>Cancel</button>
+                  <button class="button button-outline" type="button" data-staff-view-close>Close</button>
                 </div>
               </div>
             </section>
@@ -11172,16 +11831,86 @@
       if (!staffViewGrid || !user) {
         return;
       }
-      const statusValue = normalizeUserStatus(user.status) === "active" ? "Active" : "Deactivated";
+      const isActive = normalizeUserStatus(user.status) === "active";
+      const statusValue = isActive ? "Active" : "Deactivated";
+      const profileName = user.displayName || user.email || "Teacher";
+      const emailLabel = user.email || "No email";
+      const initials = getInitials(profileName).slice(0, 2) || "T";
+      const roleLabel = normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE) || "Teacher";
+      const titleLabel = user.title || "Staff";
+      const departmentLabel = user.department || "Not assigned";
+      const phoneLabel = user.phone || "Not provided";
+      const createdLabel = user.createdAt ? formatTimestamp(user.createdAt) : "Not recorded";
+      const updatedLabel = user.updatedAt ? formatTimestamp(user.updatedAt) : "Not recorded";
+      const lastLoginLabel = user.lastLoginAt ? formatTimestamp(user.lastLoginAt) : "Not signed in";
       staffViewGrid.innerHTML = `
-        <div><span>Name</span><strong>${escapeHtml(user.displayName || "Teacher")}</strong></div>
-        <div><span>Email</span><strong>${escapeHtml(user.email || "—")}</strong></div>
-        <div><span>Status</span><strong>${escapeHtml(statusValue)}</strong></div>
-        <div><span>Sign-in</span><strong>${escapeHtml(getStaffSignInLabel(user))}</strong></div>
-        <div><span>Phone</span><strong>${escapeHtml(user.phone || "—")}</strong></div>
-        <div><span>Department</span><strong>${escapeHtml(user.department || "—")}</strong></div>
-        <div><span>Title</span><strong>${escapeHtml(user.title || "—")}</strong></div>
-        <div><span>Created</span><strong>${escapeHtml(formatTimestamp(user.createdAt))}</strong></div>
+        <section class="portal-staff-profile-hero">
+          <span class="portal-staff-profile-avatar">${escapeHtml(initials)}</span>
+          <div class="portal-staff-profile-copy">
+            <span>${escapeHtml(titleLabel)}</span>
+            <h4>${escapeHtml(profileName)}</h4>
+            <p>${escapeHtml(emailLabel)}</p>
+          </div>
+          <span class="portal-staff-profile-status ${isActive ? "is-active" : "is-archived"}">${escapeHtml(statusValue)}</span>
+        </section>
+        <div class="portal-staff-view-sections">
+          <section class="portal-staff-view-card">
+            <div class="portal-staff-view-card-head">
+              <strong>Account access</strong>
+              <span>Login, role, and status details.</span>
+            </div>
+            <div class="portal-staff-detail-grid">
+              <article>
+                <span>Status</span>
+                <strong>${escapeHtml(statusValue)}</strong>
+              </article>
+              <article>
+                <span>Sign-in</span>
+                <strong>${escapeHtml(getStaffSignInLabel(user))}</strong>
+              </article>
+              <article>
+                <span>Role</span>
+                <strong>${escapeHtml(roleLabel)}</strong>
+              </article>
+              <article>
+                <span>Last login</span>
+                <strong>${escapeHtml(lastLoginLabel)}</strong>
+              </article>
+            </div>
+          </section>
+          <section class="portal-staff-view-card">
+            <div class="portal-staff-view-card-head">
+              <strong>Staff profile</strong>
+              <span>Contact and teaching information.</span>
+            </div>
+            <div class="portal-staff-detail-grid">
+              <article class="is-wide">
+                <span>Email</span>
+                <strong>${escapeHtml(emailLabel)}</strong>
+              </article>
+              <article>
+                <span>Phone</span>
+                <strong>${escapeHtml(phoneLabel)}</strong>
+              </article>
+              <article>
+                <span>Department</span>
+                <strong>${escapeHtml(departmentLabel)}</strong>
+              </article>
+              <article>
+                <span>Title</span>
+                <strong>${escapeHtml(titleLabel)}</strong>
+              </article>
+              <article>
+                <span>Created</span>
+                <strong>${escapeHtml(createdLabel)}</strong>
+              </article>
+              <article>
+                <span>Updated</span>
+                <strong>${escapeHtml(updatedLabel)}</strong>
+              </article>
+            </div>
+          </section>
+        </div>
       `;
 
       const overlay = ensureStaffViewOverlay();
@@ -11191,12 +11920,11 @@
         editButton.disabled = !isAdmin;
       }
       if (statusButton) {
-        const isActive = normalizeUserStatus(user.status) === "active";
         statusButton.disabled = !isAdmin;
         statusButton.dataset.staffNextStatus = isActive ? "deactivated" : "active";
         statusButton.classList.toggle("is-archive", isActive);
         statusButton.classList.toggle("is-restore", !isActive);
-        statusButton.textContent = isActive ? "Deactivate" : "Activate";
+        statusButton.textContent = isActive ? "Deactivate account" : "Activate account";
       }
     };
 
@@ -11300,7 +12028,7 @@
       const phone = String(form.elements.phone?.value || "").trim();
       const department = String(form.elements.department?.value || "").trim();
       const title = String(form.elements.title?.value || "").trim();
-      const tempPassword = form.elements.tempPassword.value;
+      const existingUserForEmail = findUserByEmail(email);
 
       let hasError = false;
 
@@ -11315,15 +12043,13 @@
       } else if (!EMAIL_REGEX.test(email)) {
         setPortalStaffError(form, "email", "Enter a valid email format.");
         hasError = true;
+      } else if (staffId && existingUserForEmail && existingUserForEmail.id !== staffId) {
+        setPortalStaffError(form, "email", "This email already belongs to another account.");
+        hasError = true;
       }
 
       if (phone && !isValidPhoneNumber(phone)) {
         setPortalStaffError(form, "phone", "Wrong phone number format.");
-        hasError = true;
-      }
-
-      if (tempPassword && !isStrongPassword(tempPassword)) {
-        setPortalStaffError(form, "tempPassword", "Use at least 8 characters with letters and numbers.");
         hasError = true;
       }
 
@@ -11333,35 +12059,66 @@
       }
 
       const workspaceId = getCurrentWorkspaceId();
-      const activePassword = tempPassword || DEFAULT_STAFF_PASSWORD;
-      let result = isSupabaseConfigured()
-        ? await provisionSupabaseManagedUser({
-            email,
-            displayName,
-            role,
-            password: activePassword,
-            workspaceId,
-            mustChangePassword: !tempPassword,
-          })
-        : await upsertManagedPasswordUser({
-            email,
-            displayName,
-            role,
-            password: activePassword,
-            workspaceId,
-            preserveExistingPassword: !tempPassword,
-            forcePasswordReset: !tempPassword,
-          });
+      const shouldIssueDefaultPassword =
+        !staffId &&
+        (!existingUserForEmail ||
+          (existingUserForEmail.provider !== "google" && !existingUserForEmail.passwordHash));
+      const activePassword = shouldIssueDefaultPassword ? DEFAULT_STAFF_PASSWORD : "";
+      let result;
 
-      if (!result.user && isSupabaseConfigured()) {
+      if (staffId) {
+        const existingStaff = getStaffById(staffId);
+        if (!existingStaff) {
+          setStatus(status, "error", "Could not find this staff account.");
+          return;
+        }
+
+        result = {
+          status: "updated",
+          user: updateUser(staffId, (currentUser) => ({
+            ...currentUser,
+            email,
+            normalizedEmail: normalizeEmail(email),
+            displayName,
+            role,
+            phone,
+            department,
+            title,
+            staffProfileManaged: true,
+            updatedAt: nowIso(),
+          })),
+          passwordSet: false,
+        };
+      } else {
+        result = isSupabaseConfigured() && shouldIssueDefaultPassword
+          ? await provisionSupabaseManagedUser({
+              email,
+              displayName,
+              role,
+              password: activePassword,
+              workspaceId,
+              mustChangePassword: true,
+            })
+          : await upsertManagedPasswordUser({
+              email,
+              displayName,
+              role,
+              password: activePassword,
+              workspaceId,
+              preserveExistingPassword: true,
+              forcePasswordReset: shouldIssueDefaultPassword,
+            });
+      }
+
+      if (!result.user && isSupabaseConfigured() && !staffId) {
         const localFallback = await upsertManagedPasswordUser({
           email,
           displayName,
           role,
           password: activePassword,
           workspaceId,
-          preserveExistingPassword: !tempPassword,
-          forcePasswordReset: !tempPassword,
+          preserveExistingPassword: true,
+          forcePasswordReset: shouldIssueDefaultPassword,
         });
 
         if (localFallback.user) {
@@ -11378,7 +12135,7 @@
           "email",
           "This account already uses Google sign-in. Use access provisioning if you want Google-only staff access.",
         );
-        setStatus(status, "error", "Could not set a password for an existing Google-only account.");
+        setStatus(status, "error", "This account uses Google sign-in, so password changes stay with the account owner.");
         return;
       }
 
@@ -11411,7 +12168,11 @@
         summary: staffId
           ? `Updated staff account for ${result.user.displayName || result.user.email}`
           : `Created staff account for ${result.user.displayName || result.user.email}`,
-        details: `${role} • ${tempPassword ? "Custom password set by admin." : "Default password issued."}`,
+        details: `${role} • ${
+          shouldIssueDefaultPassword
+            ? "Default password issued; owner must change it."
+            : "Password unchanged; only the account owner can change it."
+        }`,
       });
 
       resetPortalStaffForm(form, isAdmin);
@@ -11425,10 +12186,10 @@
         staffId
           ? `Updated staff profile for <strong>${escapeHtml(result.user.email)}</strong> as <strong>${escapeHtml(
               role,
-            )}</strong>.`
+            )}</strong>. Password unchanged; only the staff account owner can change it.`
           : `Staff account created for <strong>${escapeHtml(result.user.email)}</strong>. Default password: <strong>${escapeHtml(
               DEFAULT_STAFF_PASSWORD,
-            )}</strong> • Role: <strong>${escapeHtml(role)}</strong>.`,
+            )}</strong> • The staff member must change it from their portal.`,
       );
     });
 
@@ -12646,7 +13407,7 @@
                         <strong>${escapeHtml(slot.name)}</strong>
                         <span>${escapeHtml(slot.startTime)}-${escapeHtml(slot.endTime)}</span>
                       </div>
-                      <button class="portal-timetable-period-edit" type="button" data-timetable-period-edit data-timetable-period-ids="${escapeHtml(Array.from(slot.byDay.values()).map((period) => period.id).join(","))}" data-timetable-period-name="${escapeHtml(slot.name)}" data-timetable-period-start="${escapeHtml(slot.startTime)}" data-timetable-period-end="${escapeHtml(slot.endTime)}" data-timetable-period-sort="${escapeHtml(String(slot.sortOrder || ""))}" ${isAdmin ? "" : "disabled"}>Edit time</button>
+                      <button class="portal-timetable-period-edit" type="button" data-timetable-period-edit data-timetable-period-ids="${escapeHtml(Array.from(slot.byDay.values()).map((period) => period.id).join(","))}" data-timetable-period-name="${escapeHtml(slot.name)}" data-timetable-period-start="${escapeHtml(slot.startTime)}" data-timetable-period-end="${escapeHtml(slot.endTime)}" data-timetable-period-sort="${escapeHtml(String(slot.sortOrder || ""))}" ${isAdmin ? "" : "disabled"}>Edit</button>
                     </div>
                     ${days
                       .map((day) => {
@@ -16093,7 +16854,7 @@
                 );
 
                 clearFormDraftFor(form);
-                window.location.assign(getRoleHomeRoute(fallbackRole));
+                window.location.assign(getPostLoginRoute(fallbackRole, updatedFallbackUser));
                 return;
               }
             }
@@ -16158,7 +16919,7 @@
         }
 
         clearFormDraftFor(form);
-        window.location.assign(getRoleHomeRoute(signedInRole));
+        window.location.assign(getPostLoginRoute(signedInRole, authResult.user));
         return;
       }
 
@@ -16236,7 +16997,7 @@
       );
 
       clearFormDraftFor(form);
-      window.location.assign(getRoleHomeRoute(userRole));
+      window.location.assign(getPostLoginRoute(userRole, updatedUser));
     });
   }
 
@@ -17711,7 +18472,10 @@
         <button class="admin-notification-backdrop" type="button" data-notification-close aria-label="Close notifications"></button>
         <section class="admin-notification-panel" role="dialog" aria-modal="true" aria-labelledby="admin-notification-title">
           <header class="admin-notification-head">
-            <h2 id="admin-notification-title">Notifications</h2>
+            <div>
+              <span>Notifications</span>
+              <h2 id="admin-notification-title">Recent notifications</h2>
+            </div>
             <button class="admin-notification-close" type="button" data-notification-close aria-label="Close notifications">&times;</button>
           </header>
           <div id="admin-notification-list" class="admin-notification-list"></div>
@@ -17748,12 +18512,17 @@
       const notifications = getNotifications(workspaceId);
       const scopedNotifications = filterNotificationsByRole(notifications, currentRole);
       const fallbackEntries = filterNotificationsByRole(buildDashboardFallbackNotifications(), currentRole);
-      const entries = scopedNotifications.length ? scopedNotifications : fallbackEntries;
+      const entries = (scopedNotifications.length ? scopedNotifications : fallbackEntries).slice(0, 12);
       renderNotificationList(listTarget, entries);
 
       const dot = document.getElementById("admin-notification-dot");
       if (dot) {
-        dot.hidden = scopedNotifications.length === 0;
+        const unreadCount = scopedNotifications.filter((entry) => isNotificationUnread(entry)).length;
+        dot.hidden = unreadCount === 0;
+        button.setAttribute(
+          "aria-label",
+          unreadCount ? `Open notifications, ${unreadCount} unread` : "Open notifications",
+        );
       }
     };
 
@@ -17761,6 +18530,10 @@
       button.addEventListener("click", () => {
         refresh();
         setOverlayState(true);
+        const unreadIds = filterNotificationsByRole(getNotifications(workspaceId), currentRole)
+          .filter((entry) => isNotificationUnread(entry))
+          .map((entry) => entry.id);
+        markNotificationsRead(unreadIds, workspaceId);
       });
 
       overlay.querySelectorAll("[data-notification-close]").forEach((node) => {
@@ -18430,6 +19203,21 @@
       dueDate: "Not set by admin yet",
       updatedAt: nowIso(),
     };
+    const invoiceItems = Array.isArray(current.invoiceItems) ? current.invoiceItems : [];
+    const invoiceItemRows = invoiceItems.length
+      ? invoiceItems
+          .map(
+            (item) => `
+              <tr>
+                <td>${escapeHtml(item.name || "Fee item")}</td>
+                <td>${escapeHtml(item.description || "No note")}</td>
+                <td>${escapeHtml(item.dueDate || current.dueDate || "Not set")}</td>
+                <td>${escapeHtml(formatCurrencyAmount(item.amount || 0))}</td>
+              </tr>
+            `,
+          )
+          .join("")
+      : `<tr><td colspan="4">No invoice line items have been generated yet.</td></tr>`;
 
     target.innerHTML = `
       <article class="admin-surface-card">
@@ -18438,9 +19226,24 @@
           <span>Fees are configured by school admin. Parents can pay and track balances here.</span>
         </div>
         <div class="admin-session-grid">
-          <div class="admin-session-card"><span>Total due</span><strong>${escapeHtml(String(current.totalDue || 0))}</strong></div>
-          <div class="admin-session-card"><span>Outstanding balance</span><strong>${escapeHtml(String(current.balance || 0))}</strong></div>
+          <div class="admin-session-card"><span>Invoice</span><strong>${escapeHtml(current.invoiceNo || "Not generated")}</strong></div>
+          <div class="admin-session-card"><span>Total due</span><strong>${escapeHtml(formatCurrencyAmount(current.totalDue || 0))}</strong></div>
+          <div class="admin-session-card"><span>Outstanding balance</span><strong>${escapeHtml(formatCurrencyAmount(current.balance || 0))}</strong></div>
           <div class="admin-session-card"><span>Due date</span><strong>${escapeHtml(String(current.dueDate || "Not set"))}</strong></div>
+          <div class="admin-session-card"><span>Academic period</span><strong>${escapeHtml(
+            [current.sessionName, current.termName].filter(Boolean).join(" • ") || "Not selected",
+          )}</strong></div>
+          <div class="admin-session-card"><span>Generated</span><strong>${escapeHtml(
+            current.invoiceGeneratedAt ? formatTimestamp(current.invoiceGeneratedAt) : "Not generated",
+          )}</strong></div>
+        </div>
+        <div class="portal-import-table-wrap parent-fee-invoice-lines">
+          <table class="portal-import-table">
+            <thead>
+              <tr><th>Fee item</th><th>Note</th><th>Due date</th><th>Amount</th></tr>
+            </thead>
+            <tbody>${invoiceItemRows}</tbody>
+          </table>
         </div>
         <form id="parent-fee-payment-form" class="portal-settings-form" novalidate>
           <div id="parent-fee-payment-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
@@ -18489,8 +19292,8 @@
       setStatus(
         paymentStatus,
         "success",
-        `Payment of <strong>${escapeHtml(String(amount))}</strong> recorded. New balance: <strong>${escapeHtml(
-          String(nextBalance),
+        `Payment of <strong>${escapeHtml(formatCurrencyAmount(amount))}</strong> recorded. New balance: <strong>${escapeHtml(
+          formatCurrencyAmount(nextBalance),
         )}</strong>.`,
       );
       window.setTimeout(() => {
@@ -19307,6 +20110,17 @@
     const summaryTarget = document.getElementById("portal-admission-summary");
     const listTarget = document.getElementById("portal-admission-list");
     const applyLinkTarget = document.getElementById("portal-admission-apply-link");
+    const configManager = getAdmissionConfigManager();
+    const configSummary = document.getElementById("portal-admission-config-summary");
+    const sessionForm = document.getElementById("portal-admission-session-form");
+    const sessionStatus = document.getElementById("portal-admission-session-status");
+    const sessionListTarget = document.getElementById("portal-admission-session-list");
+    const classForm = document.getElementById("portal-admission-class-form");
+    const classStatus = document.getElementById("portal-admission-class-status");
+    const classListTarget = document.getElementById("portal-admission-class-list");
+    const stageForm = document.getElementById("portal-admission-stage-form");
+    const stageStatus = document.getElementById("portal-admission-stage-status");
+    const stageListTarget = document.getElementById("portal-admission-stage-list");
 
     initAdmissionsControls({
       isAdmin: canManageAdmissions,
@@ -19315,6 +20129,22 @@
       summaryTarget,
       listTarget,
       applyLinkTarget,
+    });
+
+    initAdmissionConfigurationControls({
+      isAdmin: canManageAdmissions,
+      manager: configManager,
+      summaryTarget: configSummary,
+      sessionForm,
+      sessionStatus,
+      sessionListTarget,
+      classForm,
+      classStatus,
+      classListTarget,
+      stageForm,
+      stageStatus,
+      stageListTarget,
+      applyFormClassField: form?.elements?.level || null,
     });
   }
 
@@ -19642,7 +20472,7 @@
     }
 
     if (user.mustChangePassword) {
-      hint.textContent = "You are using a default password. Update it now from this page.";
+      hint.textContent = "You are using a default password. Only you can change it from this page.";
     }
 
     form.addEventListener("input", () => {
@@ -19689,9 +20519,15 @@
 
       const currentPasswordHash = await hashSecret(currentPassword);
 
-      if (currentPasswordHash !== user.passwordHash) {
+      if (user.passwordHash && currentPasswordHash !== user.passwordHash) {
         setFieldError(form, "currentPassword", "Current password is incorrect.");
         setStatus(status, "error", "Current password is incorrect.");
+        return;
+      }
+
+      if (!user.passwordHash && session.source !== "supabase") {
+        setFieldError(form, "currentPassword", "Sign in again before changing this password.");
+        setStatus(status, "error", "We could not verify the current password for this account.");
         return;
       }
 

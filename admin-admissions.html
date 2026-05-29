@@ -221,6 +221,127 @@
             </div>
           </article>
 
+          <article class="admin-surface-card admin-admission-config-card">
+            <div class="admin-surface-head">
+              <div>
+                <h2>Admission Setup</h2>
+                <span>Configure admission sessions, class options, and review stages used by the application form.</span>
+              </div>
+            </div>
+
+            <div id="portal-admission-config-summary" class="portal-class-summary"></div>
+
+            <div class="portal-admission-config-grid">
+              <section class="portal-admission-config-panel">
+                <div class="portal-class-group-head">
+                  <div>
+                    <span>Admission sessions</span>
+                    <strong>Application cycles</strong>
+                  </div>
+                </div>
+                <form id="portal-admission-session-form" class="portal-class-form portal-admission-config-form" novalidate>
+                  <div id="portal-admission-session-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+                  <input type="hidden" name="sessionId" />
+                  <div class="portal-settings-grid">
+                    <label class="portal-field" for="admission-session-name">
+                      <span>Session name</span>
+                      <input id="admission-session-name" name="name" type="text" placeholder="2026/2027 Admissions" />
+                      <p class="portal-field-error" data-admission-config-error-for="name"></p>
+                    </label>
+                    <label class="portal-field" for="admission-session-status-select">
+                      <span>Status</span>
+                      <select id="admission-session-status-select" name="status">
+                        <option value="closed">Closed</option>
+                        <option value="open">Open</option>
+                      </select>
+                    </label>
+                    <label class="portal-field" for="admission-session-start">
+                      <span>Start date</span>
+                      <input id="admission-session-start" name="startDate" type="date" />
+                    </label>
+                    <label class="portal-field" for="admission-session-end">
+                      <span>End date</span>
+                      <input id="admission-session-end" name="endDate" type="date" />
+                      <p class="portal-field-error" data-admission-config-error-for="endDate"></p>
+                    </label>
+                  </div>
+                  <div class="utility-actions">
+                    <button class="button button-primary" type="submit" data-admission-session-submit>Save session</button>
+                    <button class="button button-outline" type="button" data-admission-session-cancel hidden>Cancel</button>
+                  </div>
+                </form>
+                <div id="portal-admission-session-list" class="portal-class-list"></div>
+              </section>
+
+              <section class="portal-admission-config-panel">
+                <div class="portal-class-group-head">
+                  <div>
+                    <span>Admission classes</span>
+                    <strong>Applicant class options</strong>
+                  </div>
+                </div>
+                <form id="portal-admission-class-form" class="portal-class-form portal-admission-config-form" novalidate>
+                  <div id="portal-admission-class-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+                  <input type="hidden" name="classOptionId" />
+                  <div class="portal-settings-grid">
+                    <label class="portal-field" for="admission-class-name">
+                      <span>Class option</span>
+                      <input id="admission-class-name" name="name" type="text" placeholder="JSS 1, Primary 4, 100 Level..." />
+                      <p class="portal-field-error" data-admission-config-error-for="name"></p>
+                    </label>
+                    <label class="portal-field" for="admission-class-status-select">
+                      <span>Status</span>
+                      <select id="admission-class-status-select" name="status">
+                        <option value="active">Active</option>
+                        <option value="archived">Archived</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div class="utility-actions">
+                    <button class="button button-primary" type="submit" data-admission-class-submit>Save class option</button>
+                    <button class="button button-outline" type="button" data-admission-class-cancel hidden>Cancel</button>
+                  </div>
+                </form>
+                <div id="portal-admission-class-list" class="portal-class-list"></div>
+              </section>
+
+              <section class="portal-admission-config-panel">
+                <div class="portal-class-group-head">
+                  <div>
+                    <span>Application stages</span>
+                    <strong>Review pipeline</strong>
+                  </div>
+                </div>
+                <form id="portal-admission-stage-form" class="portal-class-form portal-admission-config-form" novalidate>
+                  <div id="portal-admission-stage-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+                  <input type="hidden" name="stageId" />
+                  <div class="portal-settings-grid">
+                    <label class="portal-field" for="admission-stage-name">
+                      <span>Stage name</span>
+                      <input id="admission-stage-name" name="name" type="text" placeholder="Submitted, Screening, Interview..." />
+                      <p class="portal-field-error" data-admission-config-error-for="name"></p>
+                    </label>
+                    <label class="portal-field" for="admission-stage-order">
+                      <span>Order</span>
+                      <input id="admission-stage-order" name="order" type="number" min="1" step="1" value="1" />
+                    </label>
+                    <label class="portal-field" for="admission-stage-status-select">
+                      <span>Status</span>
+                      <select id="admission-stage-status-select" name="status">
+                        <option value="active">Active</option>
+                        <option value="archived">Archived</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div class="utility-actions">
+                    <button class="button button-primary" type="submit" data-admission-stage-submit>Save stage</button>
+                    <button class="button button-outline" type="button" data-admission-stage-cancel hidden>Cancel</button>
+                  </div>
+                </form>
+                <div id="portal-admission-stage-list" class="portal-class-list"></div>
+              </section>
+            </div>
+          </article>
         </section>
       </section>
     </main>
