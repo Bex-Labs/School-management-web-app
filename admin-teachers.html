@@ -141,19 +141,23 @@
               <div id="portal-staff-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
               <input type="hidden" name="staffId" />
               <div class="portal-settings-grid">
+                <div class="portal-settings-section-head portal-field-span-2">
+                  <strong>Staff profile</strong>
+                  <span>Create teacher access and staff details from one place.</span>
+                </div>
                 <label class="portal-field" for="staff-name">
                   <span>Staff name <span class="form-required">*</span></span>
-                  <input id="staff-name" name="displayName" type="text" placeholder="Amaka Okon" />
+                  <input id="staff-name" name="displayName" type="text" placeholder="Amaka Okon" autocomplete="name" />
                   <p class="portal-field-error" data-staff-error-for="displayName"></p>
                 </label>
                 <label class="portal-field" for="staff-email">
                   <span>Staff email <span class="form-required">*</span></span>
-                  <input id="staff-email" name="email" type="email" placeholder="teacher@school.com" />
+                  <input id="staff-email" name="email" type="email" placeholder="teacher@school.com" autocomplete="off" />
                   <p class="portal-field-error" data-staff-error-for="email"></p>
                 </label>
                 <label class="portal-field" for="staff-phone">
                   <span>Phone</span>
-                  <input id="staff-phone" name="phone" type="text" placeholder="+234 800 000 0000" />
+                  <input id="staff-phone" name="phone" type="text" placeholder="+234 800 000 0000" autocomplete="tel" />
                   <p class="portal-field-error" data-staff-error-for="phone"></p>
                 </label>
                 <label class="portal-field" for="staff-department">
@@ -166,11 +170,10 @@
                   <input id="staff-title" name="title" type="text" placeholder="Mathematics Teacher" />
                   <p class="portal-field-error" data-staff-error-for="title"></p>
                 </label>
-                <label class="portal-field portal-field-span-2" for="staff-temp-password">
-                  <span>Temporary password</span>
-                  <input id="staff-temp-password" name="tempPassword" type="password" placeholder="Leave blank to use default Staff@123" />
-                  <p class="portal-field-error" data-staff-error-for="tempPassword"></p>
-                </label>
+                <div class="portal-staff-password-note portal-field-span-2">
+                  <strong>Default staff password</strong>
+                  <span>New staff accounts use Staff@123. Only the staff member can change it after signing in to their portal.</span>
+                </div>
               </div>
               <div class="utility-actions">
                 <button class="button button-primary" type="submit" data-staff-submit>Create staff account</button>
