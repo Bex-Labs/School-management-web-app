@@ -7704,6 +7704,481 @@
     window.addEventListener(manager.eventName, refresh);
   }
 
+  function getRecommendedAdmissionSessionName() {
+    const year = new Date().getFullYear();
+    return `${year}/${year + 1} Admissions`;
+  }
+
+  function parseAdmissionSetupStageNames(value) {
+    const seen = new Set();
+    return String(value || "")
+      .split(/[\n,]+/)
+      .map((item) => item.trim())
+      .filter((item) => {
+        const key = item.toLowerCase();
+        if (!key || seen.has(key)) {
+          return false;
+        }
+        seen.add(key);
+        return true;
+      });
+  }
+
+  function clearPortalAdmissionSetupErrors(form) {
+    if (!form) {
+      return;
+    }
+    form.querySelectorAll(".portal-field").forEach((field) => field.classList.remove("is-invalid"));
+    form.querySelectorAll("[data-admission-setup-error-for]").forEach((error) => {
+      error.textContent = "";
+    });
+  }
+
+  function setPortalAdmissionSetupError(form, fieldName, message) {
+    if (!form) {
+      return;
+    }
+    const error = form.querySelector(`[data-admission-setup-error-for="${fieldName}"]`);
+    const control =
+      fieldName === "classes"
+        ? form.querySelector("#portal-admission-class-picker")
+        : form.elements[fieldName];
+    const field = control ? control.closest(".portal-field") : null;
+
+    if (error) {
+      error.textContent = message;
+    }
+    if (field) {
+      field.classList.add("is-invalid");
+    }
+  }
+
+  function getAdmissionSetupClassGroups(manager) {
+    const seen = new Set();
+    const groups = getConfiguredStudentLevelGroups()
+      .map((group) => {
+        const levels = [];
+        (group.levels || []).forEach((level) => {
+          const name = String(level || "").trim();
+          const key = normalizeLevelToken(name);
+          if (!name || seen.has(key)) {
+            return;
+          }
+          seen.add(key);
+          levels.push(name);
+        });
+        return {
+          label: group.label || "Classes",
+          levels,
+        };
+      })
+      .filter((group) => group.levels.length);
+
+    const savedLevels = [];
+    if (manager && typeof manager.summarize === "function") {
+      const summary = manager.summarize();
+      (summary.classes || []).forEach((entry) => {
+        const name = String(entry.name || "").trim();
+        const key = normalizeLevelToken(name);
+        if (!name || seen.has(key)) {
+          return;
+        }
+        seen.add(key);
+        savedLevels.push(name);
+      });
+    }
+
+    if (savedLevels.length) {
+      groups.push({
+        label: "Saved admission classes",
+        levels: savedLevels.sort((left, right) => left.localeCompare(right, undefined, { numeric: true })),
+      });
+    }
+
+    return groups;
+  }
+
+  function syncAdmissionClassFieldOptions(
+    classNames,
+    applyFormClassField,
+    { placeholder = "Select level/class", emptyLabel = "No admission classes configured" } = {},
+  ) {
+    if (!applyFormClassField) {
+      return;
+    }
+
+    const uniqueClassNames = Array.from(
+      new Set(
+        (classNames || [])
+          .map((name) => String(name || "").trim())
+          .filter(Boolean),
+      ),
+    );
+
+    if (applyFormClassField instanceof HTMLSelectElement) {
+      const previousValue = String(applyFormClassField.value || "").trim();
+      const selectedOption =
+        uniqueClassNames.find((name) => normalizeLevelToken(name) === normalizeLevelToken(previousValue)) || "";
+
+      applyFormClassField.innerHTML = `
+        <option value="">${escapeHtml(uniqueClassNames.length ? placeholder : emptyLabel)}</option>
+        ${uniqueClassNames
+          .map((option) => `<option value="${escapeHtml(option)}">${escapeHtml(option)}</option>`)
+          .join("")}
+      `;
+      applyFormClassField.value = selectedOption;
+      applyFormClassField.disabled = !uniqueClassNames.length;
+      return;
+    }
+
+    if (!uniqueClassNames.length) {
+      applyFormClassField.removeAttribute("list");
+      const existingDatalist = document.getElementById("portal-admission-class-options");
+      if (existingDatalist) {
+        existingDatalist.innerHTML = "";
+      }
+      return;
+    }
+
+    applyFormClassField.setAttribute("list", "portal-admission-class-options");
+    let datalist = document.getElementById("portal-admission-class-options");
+    if (!datalist) {
+      datalist = document.createElement("datalist");
+      datalist.id = "portal-admission-class-options";
+      applyFormClassField.insertAdjacentElement("afterend", datalist);
+    }
+    datalist.innerHTML = uniqueClassNames
+      .map((option) => `<option value="${escapeHtml(option)}"></option>`)
+      .join("");
+  }
+
+  function renderAdmissionSetupSummary({ manager, summaryTarget, previewTarget }) {
+    if (!summaryTarget) {
+      return;
+    }
+
+    if (!manager || typeof manager.summarize !== "function") {
+      summaryTarget.innerHTML = `
+        <article class="portal-class-stat">
+          <span>Admission settings unavailable</span>
+          <strong>0</strong>
+          <p>The admissions settings manager could not be loaded on this page.</p>
+        </article>
+      `;
+      if (previewTarget) {
+        previewTarget.innerHTML = "";
+      }
+      return;
+    }
+
+    const summary = manager.summarize();
+    const activeClassNames = (summary.activeClasses || []).map((entry) => entry.name).filter(Boolean);
+    const activeStageNames = (summary.activeStages || []).map((entry) => entry.name).filter(Boolean);
+    const openSessionName = summary.openSession?.name || "";
+
+    summaryTarget.innerHTML = `
+      <article class="portal-class-stat portal-class-stat-blue">
+        <span>Application form</span>
+        <strong>${openSessionName ? "Open" : "Closed"}</strong>
+        <p>${openSessionName ? escapeHtml(openSessionName) : "No open admission session yet."}</p>
+      </article>
+      <article class="portal-class-stat portal-class-stat-green">
+        <span>Classes open</span>
+        <strong>${activeClassNames.length}</strong>
+        <p>${activeClassNames.length ? "Applicants can choose these classes." : "Choose at least one class below."}</p>
+      </article>
+      <article class="portal-class-stat portal-class-stat-violet">
+        <span>Review stages</span>
+        <strong>${activeStageNames.length}</strong>
+        <p>${activeStageNames.length ? escapeHtml(activeStageNames.join(", ")) : "Use the recommended stages to start."}</p>
+      </article>
+    `;
+
+    if (!previewTarget) {
+      return;
+    }
+
+    previewTarget.innerHTML = `
+      <article class="portal-admission-setup-card">
+        <div>
+          <span>Public application setup</span>
+          <strong>${openSessionName ? escapeHtml(openSessionName) : "Applications closed"}</strong>
+        </div>
+        <p>${activeClassNames.length ? escapeHtml(activeClassNames.join(", ")) : "No classes have been opened for admission."}</p>
+      </article>
+      <article class="portal-admission-setup-card">
+        <div>
+          <span>Review flow</span>
+          <strong>${activeStageNames.length ? `${activeStageNames.length} stage${activeStageNames.length === 1 ? "" : "s"}` : "Not set"}</strong>
+        </div>
+        <p>${activeStageNames.length ? escapeHtml(activeStageNames.join(" -> ")) : "Submitted, Screening, Interview, Approved is the recommended flow."}</p>
+      </article>
+    `;
+  }
+
+  function initAdmissionSetupControls({
+    isAdmin,
+    manager,
+    summaryTarget,
+    form,
+    status,
+    classPicker,
+    previewTarget,
+    applyFormClassField = null,
+  }) {
+    if (!summaryTarget || !form || !status || !classPicker) {
+      return;
+    }
+
+    const recommendedStages = ["Submitted", "Screening", "Interview", "Approved"];
+
+    const setControlsDisabled = () => {
+      Array.from(form.elements).forEach((field) => {
+        if (field instanceof HTMLElement) {
+          field.disabled = !isAdmin;
+        }
+      });
+    };
+
+    const getSelectedClassNames = () =>
+      Array.from(form.querySelectorAll('input[name="admissionClassOption"]:checked'))
+        .map((input) => input.value.trim())
+        .filter(Boolean);
+
+    const renderClassPicker = (groups, activeClassNames) => {
+      const activeTokens = new Set(activeClassNames.map((name) => normalizeLevelToken(name)));
+      const shouldPreselectAll = !activeTokens.size;
+
+      if (!groups.length) {
+        classPicker.innerHTML = `
+          <article class="portal-class-empty portal-admission-choice-empty">
+            <strong>No classes found</strong>
+            <p>Select your school structure in Settings or generate classes first.</p>
+          </article>
+        `;
+        return;
+      }
+
+      classPicker.innerHTML = groups
+        .map(
+          (group) => `
+            <section class="portal-admission-choice-group">
+              <span>${escapeHtml(group.label)}</span>
+              <div class="portal-admission-choice-options">
+                ${group.levels
+                  .map((level) => {
+                    const checked = shouldPreselectAll || activeTokens.has(normalizeLevelToken(level));
+                    return `
+                      <label class="portal-admission-choice">
+                        <input
+                          type="checkbox"
+                          name="admissionClassOption"
+                          value="${escapeHtml(level)}"
+                          ${checked ? "checked" : ""}
+                        />
+                        <span>${escapeHtml(level)}</span>
+                      </label>
+                    `;
+                  })
+                  .join("")}
+              </div>
+            </section>
+          `,
+        )
+        .join("");
+    };
+
+    const refresh = () => {
+      if (!manager || typeof manager.summarize !== "function") {
+        renderAdmissionSetupSummary({ manager, summaryTarget, previewTarget });
+        setStatus(status, "error", "Admission settings are unavailable on this page.");
+        setControlsDisabled();
+        return;
+      }
+
+      const summary = manager.summarize();
+      const sessionName = summary.openSession?.name || summary.sessions?.[0]?.name || getRecommendedAdmissionSessionName();
+      const activeStageNames = (summary.activeStages || []).map((entry) => entry.name).filter(Boolean);
+      const activeClassNames = (summary.activeClasses || []).map((entry) => entry.name).filter(Boolean);
+      const groups = getAdmissionSetupClassGroups(manager);
+
+      form.elements.sessionName.value = sessionName;
+      form.elements.sessionStatus.value = summary.openSession ? "open" : summary.sessions?.[0]?.status || "open";
+      form.elements.stages.value = (activeStageNames.length ? activeStageNames : recommendedStages).join(", ");
+      renderClassPicker(groups, activeClassNames);
+      setControlsDisabled();
+      renderAdmissionSetupSummary({ manager, summaryTarget, previewTarget });
+      syncAdmissionClassFieldOptions(
+        activeClassNames.length ? activeClassNames : groups.flatMap((group) => group.levels),
+        applyFormClassField,
+      );
+
+      if (!isAdmin) {
+        setStatus(status, "info", "Only administrators can update admission settings.");
+      }
+    };
+
+    const resetToRecommendedSetup = () => {
+      clearPortalAdmissionSetupErrors(form);
+      form.elements.sessionName.value = form.elements.sessionName.value.trim() || getRecommendedAdmissionSessionName();
+      form.elements.sessionStatus.value = "open";
+      form.elements.stages.value = recommendedStages.join(", ");
+      form.querySelectorAll('input[name="admissionClassOption"]').forEach((input) => {
+        input.checked = true;
+      });
+      setStatus(status, "info", "Recommended setup filled in. Save when it looks right.");
+    };
+
+    clearPortalAdmissionSetupErrors(form);
+    refresh();
+
+    if (!manager || typeof manager.saveState !== "function") {
+      return;
+    }
+
+    form.addEventListener("input", () => {
+      clearPortalAdmissionSetupErrors(form);
+      if (isAdmin) {
+        setStatus(status, "", "");
+      }
+    });
+
+    const recommendedButton = form.querySelector("[data-admission-setup-recommended]");
+    if (recommendedButton) {
+      recommendedButton.addEventListener("click", resetToRecommendedSetup);
+    }
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      if (!isAdmin) {
+        setStatus(status, "info", "Only administrators can update admission settings.");
+        return;
+      }
+
+      clearPortalAdmissionSetupErrors(form);
+      setStatus(status, "", "");
+
+      const sessionName = String(form.elements.sessionName.value || "").trim();
+      const sessionStatus = form.elements.sessionStatus.value === "closed" ? "closed" : "open";
+      const selectedClassNames = getSelectedClassNames();
+      const stageNames = parseAdmissionSetupStageNames(form.elements.stages.value);
+      const allClassGroups = getAdmissionSetupClassGroups(manager);
+      const allClassNames = allClassGroups.flatMap((group) => group.levels);
+      let hasError = false;
+
+      if (!sessionName) {
+        setPortalAdmissionSetupError(form, "sessionName", "Enter the admission session name.");
+        hasError = true;
+      }
+
+      if (!allClassNames.length) {
+        setPortalAdmissionSetupError(form, "classes", "Set your school structure in Settings or create classes first.");
+        hasError = true;
+      } else if (!selectedClassNames.length) {
+        setPortalAdmissionSetupError(form, "classes", "Select at least one class for admission.");
+        hasError = true;
+      }
+
+      if (!stageNames.length) {
+        setPortalAdmissionSetupError(form, "stages", "Add at least one review stage.");
+        hasError = true;
+      }
+
+      if (hasError) {
+        setStatus(status, "error", "Fix the highlighted admission settings.");
+        return;
+      }
+
+      const currentState =
+        typeof manager.getState === "function"
+          ? manager.getState()
+          : {
+              sessions: [],
+              classes: [],
+              stages: [],
+            };
+      const timestamp = nowIso();
+      const existingOpenSession = (currentState.sessions || []).find((entry) => entry.status === "open");
+      const existingSession = existingOpenSession || currentState.sessions?.[0] || null;
+      const sessionId = existingSession?.id || "";
+      const nextSession = {
+        ...(existingSession || {}),
+        name: sessionName,
+        status: sessionStatus,
+        startDate: existingSession?.startDate || "",
+        endDate: existingSession?.endDate || "",
+        createdAt: existingSession?.createdAt || timestamp,
+        updatedAt: timestamp,
+      };
+      if (sessionId) {
+        nextSession.id = sessionId;
+      }
+
+      const nextSessions = [
+        nextSession,
+        ...(currentState.sessions || []).filter((entry) => (sessionId ? entry.id !== sessionId : true)),
+      ].map((entry) =>
+        sessionStatus === "open" && entry !== nextSession
+          ? {
+              ...entry,
+              status: "closed",
+              updatedAt: timestamp,
+            }
+          : entry,
+      );
+
+      const selectedClassTokens = new Set(selectedClassNames.map((name) => normalizeLevelToken(name)));
+      const existingClassByToken = new Map(
+        (currentState.classes || []).map((entry) => [normalizeLevelToken(entry.name), entry]),
+      );
+      const nextClasses = allClassNames.map((name) => {
+        const existing = existingClassByToken.get(normalizeLevelToken(name));
+        return {
+          ...(existing || {}),
+          name,
+          status: selectedClassTokens.has(normalizeLevelToken(name)) ? "active" : "archived",
+          createdAt: existing?.createdAt || timestamp,
+          updatedAt: timestamp,
+        };
+      });
+
+      const existingStageByName = new Map(
+        (currentState.stages || []).map((entry) => [String(entry.name || "").trim().toLowerCase(), entry]),
+      );
+      const nextStages = stageNames.map((name, index) => {
+        const existing = existingStageByName.get(name.toLowerCase());
+        return {
+          ...(existing || {}),
+          name,
+          order: index + 1,
+          status: "active",
+          createdAt: existing?.createdAt || timestamp,
+          updatedAt: timestamp,
+        };
+      });
+
+      const savedState = manager.saveState({
+        sessions: nextSessions,
+        classes: nextClasses,
+        stages: nextStages,
+      });
+      const savedSummary = typeof manager.summarize === "function" ? manager.summarize() : savedState;
+      const savedClassNames = (savedSummary.activeClasses || []).map((entry) => entry.name).filter(Boolean);
+      syncAdmissionClassFieldOptions(savedClassNames, applyFormClassField);
+      recordAuditEvent({
+        action: "updated",
+        entityType: "admission-settings",
+        entityId: sessionName,
+        summary: `Updated admission settings for ${sessionName}`,
+        details: `${selectedClassNames.length} classes • ${stageNames.length} review stages • ${sessionStatus}`,
+      });
+      setStatus(status, "success", "Admission settings saved.");
+      refresh();
+    });
+
+    window.addEventListener(manager.eventName, refresh);
+  }
+
   function initTimetableControls({
     isAdmin,
     manager,
@@ -7731,6 +8206,7 @@
     const weekTypeSelect = document.getElementById("timetable-week-type");
     const copyTermButton = document.querySelector("[data-timetable-copy-term]");
     const addPeriodButton = document.querySelector("[data-timetable-period-add]");
+    const saveClassButton = document.querySelector("[data-timetable-save-class]");
     const printButton = document.querySelector("[data-timetable-print]");
     const deleteButton = form.querySelector("[data-timetable-delete]");
     const formTitle = document.getElementById("timetable-form-title");
@@ -7740,6 +8216,9 @@
       editingEntryId: "",
     };
     let timetableToastTimer = null;
+    let timetableModalElement = null;
+    let timetableModalBody = null;
+    let activeTimetablePrintCriteria = null;
 
     const showTimetableToast = (message) => {
       if (!message) {
@@ -7784,6 +8263,54 @@
         periodOverlay.hidden = !visible;
       }
       document.body.classList.toggle("portal-overlay-open", visible || Boolean(lessonOverlay && !lessonOverlay.hidden));
+    };
+
+    const setTimetableModalOpen = (visible) => {
+      if (!timetableModalElement) {
+        return;
+      }
+      timetableModalElement.hidden = !visible;
+      document.body.classList.toggle("portal-overlay-open", visible || Boolean(lessonOverlay && !lessonOverlay.hidden) || Boolean(periodOverlay && !periodOverlay.hidden));
+    };
+
+    const ensureTimetableModal = () => {
+      if (timetableModalElement) {
+        return timetableModalElement;
+      }
+
+      const wrapper = document.createElement("div");
+      wrapper.innerHTML = `
+        <div id="portal-timetable-class-modal" class="portal-overlay portal-timetable-class-modal" hidden>
+          <button class="portal-overlay-backdrop" type="button" data-timetable-class-close aria-label="Close timetable preview"></button>
+          <section class="portal-overlay-panel portal-timetable-class-modal-panel" role="dialog" aria-modal="true" aria-labelledby="portal-timetable-class-modal-title">
+            <header class="portal-overlay-head">
+              <div>
+                <h3 id="portal-timetable-class-modal-title">Class timetable</h3>
+                <span>Preview the saved timetable before printing.</span>
+              </div>
+              <button class="portal-overlay-close" type="button" data-timetable-class-close aria-label="Close timetable preview">&times;</button>
+            </header>
+            <div id="portal-timetable-class-modal-body" class="portal-timetable-class-modal-body"></div>
+            <div class="utility-actions portal-timetable-modal-actions">
+              <button class="button button-primary" type="button" data-timetable-class-print-current>Print timetable</button>
+              <button class="button button-outline" type="button" data-timetable-class-close>Close</button>
+            </div>
+          </section>
+        </div>
+      `;
+      document.body.appendChild(wrapper.firstElementChild);
+      timetableModalElement = document.getElementById("portal-timetable-class-modal");
+      timetableModalBody = document.getElementById("portal-timetable-class-modal-body");
+      timetableModalElement.addEventListener("click", (event) => {
+        if (event.target.closest("[data-timetable-class-close]")) {
+          setTimetableModalOpen(false);
+          return;
+        }
+        if (event.target.closest("[data-timetable-class-print-current]") && activeTimetablePrintCriteria) {
+          printClassTimetable(activeTimetablePrintCriteria);
+        }
+      });
+      return timetableModalElement;
     };
 
     const clearTimetablePeriodErrors = () => {
@@ -7890,6 +8417,114 @@
       const teachers = getTeacherDirectory();
       const selected = String(teacherViewSelect?.value || "").trim();
       return teachers.find((teacher) => teacher.id === selected) || teachers[0] || null;
+    };
+
+    const getClassTimetablePrintData = (criteria = {}) => {
+      const cycleState = getCycleState();
+      const days = manager.schoolDays || ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+      const summary = manager.summarize();
+      const sessionId = String(criteria.sessionId || getSelectedSessionId()).trim();
+      const termId = String(criteria.termId || getSelectedTermId()).trim();
+      const classLevel = String(criteria.classLevel || getSelectedClass()?.level || "").trim();
+      const weekType = String(criteria.weekType || getSelectedWeekType()).trim() || "all";
+      const entries = (summary.entries || []).filter(
+        (entry) =>
+          entry.status !== "archived" &&
+          entry.sessionId === sessionId &&
+          entry.termId === termId &&
+          String(entry.classLevel || "").trim().toLowerCase() === classLevel.toLowerCase() &&
+          portalTimetableWeekTypesOverlap(entry.weekType, weekType),
+      );
+      const settings = getConfiguredSchoolSettings();
+
+      return {
+        schoolName: settings.schoolName || "School",
+        classLevel,
+        sessionName: getSessionLabelFromCycle(cycleState, sessionId),
+        termName: getTermLabelFromCycle(cycleState, termId),
+        weekType,
+        days,
+        slotRows: getPortalTimetableSlotRows(summary.activePeriods || [], days),
+        entries,
+        sessionId,
+        termId,
+      };
+    };
+
+    const renderClassTimetableModal = (criteria = {}) => {
+      const data = getClassTimetablePrintData(criteria);
+      if (!data.sessionId || !data.termId || !data.classLevel) {
+        setStatus(status, "info", "Select a session, term, and class before viewing a timetable.");
+        return;
+      }
+      if (!data.entries.length) {
+        setStatus(status, "info", "No timetable lessons have been saved for this class yet.");
+        return;
+      }
+
+      ensureTimetableModal();
+      activeTimetablePrintCriteria = {
+        sessionId: data.sessionId,
+        termId: data.termId,
+        classLevel: data.classLevel,
+        weekType: data.weekType,
+      };
+      timetableModalBody.innerHTML = renderPortalTimetablePrintSheet(data);
+      setTimetableModalOpen(true);
+    };
+
+    const printClassTimetable = (criteria = {}) => {
+      const data = getClassTimetablePrintData(criteria);
+      if (!data.sessionId || !data.termId || !data.classLevel) {
+        setStatus(status, "info", "Select a session, term, and class before printing.");
+        return;
+      }
+      if (!data.entries.length) {
+        setStatus(status, "info", "No timetable lessons have been saved for this class yet.");
+        return;
+      }
+
+      const printWindow = window.open("", "_blank");
+      if (!printWindow) {
+        setStatus(status, "info", "Allow popups for this page, then try printing again.");
+        return;
+      }
+
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>${escapeHtml(data.classLevel)} Timetable</title>
+            <style>
+              * { box-sizing: border-box; }
+              body { margin: 0; padding: 24px; font-family: Arial, sans-serif; color: #17233a; background: #ffffff; }
+              .portal-timetable-print-head { text-align: center; margin-bottom: 18px; }
+              .portal-timetable-print-head h1 { margin: 0 0 4px; font-size: 22px; }
+              .portal-timetable-print-head h2 { margin: 0 0 6px; font-size: 18px; }
+              .portal-timetable-print-head p { margin: 0; color: #526070; font-size: 12px; }
+              .portal-timetable-print-grid { width: 100%; border-collapse: collapse; table-layout: fixed; }
+              .portal-timetable-print-grid th,
+              .portal-timetable-print-grid td { border: 1px solid #aeb9c8; padding: 8px; min-height: 58px; vertical-align: top; font-size: 11px; }
+              .portal-timetable-print-grid thead th { background: #17233a; color: #ffffff; text-align: center; }
+              .portal-timetable-print-grid tbody th { width: 120px; background: #f1f5f9; text-align: left; }
+              .portal-timetable-print-grid strong,
+              .portal-timetable-print-grid span { display: block; overflow-wrap: anywhere; }
+              .portal-timetable-print-empty { color: #8a95a7; }
+              @page { size: landscape; margin: 12mm; }
+            </style>
+          </head>
+          <body>
+            ${renderPortalTimetablePrintSheet(data)}
+            <script>
+              window.addEventListener("load", function () {
+                window.focus();
+                window.print();
+              });
+            </script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
     };
 
     const getSubjectOptions = () => {
@@ -8352,9 +8987,26 @@
       const periodEditButton = event.target.closest("[data-timetable-period-edit]");
       const slotButton = event.target.closest("[data-timetable-slot]");
       const rowActionButton = event.target.closest("[data-timetable-action]");
+      const classActionButton = event.target.closest("[data-timetable-class-action]");
       const groupActionButton = event.target.closest("[data-timetable-group-action]");
 
       if (!isAdmin) {
+        return;
+      }
+
+      if (classActionButton) {
+        const action = String(classActionButton.dataset.timetableClassAction || "").trim();
+        const criteria = {
+          sessionId: String(classActionButton.dataset.timetableSessionId || "").trim(),
+          termId: String(classActionButton.dataset.timetableTermId || "").trim(),
+          classLevel: String(classActionButton.dataset.timetableClass || "").trim(),
+          weekType: getSelectedWeekType(),
+        };
+        if (action === "view") {
+          renderClassTimetableModal(criteria);
+        } else if (action === "print") {
+          printClassTimetable(criteria);
+        }
         return;
       }
 
@@ -8559,9 +9211,69 @@
       });
     }
 
+    if (saveClassButton) {
+      saveClassButton.disabled = !isAdmin || !manager;
+      saveClassButton.addEventListener("click", () => {
+        const selectedClass = getSelectedClass();
+        const sessionId = getSelectedSessionId();
+        const termId = getSelectedTermId();
+        if (!selectedClass || !sessionId || !termId) {
+          setStatus(status, "info", "Select a session, term, and class before saving the timetable.");
+          return;
+        }
+
+        const printData = getClassTimetablePrintData({
+          sessionId,
+          termId,
+          classLevel: selectedClass.level,
+          weekType: getSelectedWeekType(),
+        });
+        if (!printData.entries.length) {
+          setStatus(status, "info", "Add at least one lesson to this class grid before saving it.");
+          return;
+        }
+
+        manager.publishGroup({
+          sessionId,
+          termId,
+          classLevel: selectedClass.level,
+        });
+        recordAuditEvent({
+          action: "saved",
+          entityType: "timetable",
+          entityId: selectedClass.level,
+          summary: `Saved timetable for ${selectedClass.level}`,
+          details: `${sessionId} - ${termId}`,
+        });
+        clearPortalTimetableErrors(form);
+        resetPortalTimetableForm(form, isAdmin);
+        state.selectedPeriodId = "";
+        state.editingEntryId = "";
+        setFormVisibility(false);
+        if (classSelect) {
+          classSelect.value = "";
+        }
+        setTimetableStatus(
+          "success",
+          `Timetable for <strong>${escapeHtml(selectedClass.level)}</strong> saved. Select another class to create the next timetable.`,
+        );
+        refresh();
+      });
+    }
+
     if (printButton) {
       printButton.addEventListener("click", () => {
-        window.print();
+        const selectedClass = getSelectedClass();
+        if (!selectedClass) {
+          setStatus(status, "info", "Select a class or use Print beside a saved class timetable.");
+          return;
+        }
+        printClassTimetable({
+          sessionId: getSelectedSessionId(),
+          termId: getSelectedTermId(),
+          classLevel: selectedClass.level,
+          weekType: getSelectedWeekType(),
+        });
       });
     }
 
@@ -13617,6 +14329,153 @@
     ].join("|");
   }
 
+  function portalTimetableWeekTypesOverlap(left, right) {
+    const normalizedLeft = String(left || "all").trim() || "all";
+    const normalizedRight = String(right || "all").trim() || "all";
+    return normalizedLeft === "all" || normalizedRight === "all" || normalizedLeft === normalizedRight;
+  }
+
+  function getPortalTimetableSlotRows(activePeriods = [], days = []) {
+    return Array.from(
+      activePeriods
+        .filter((period) => days.includes(period.day))
+        .reduce((rows, period) => {
+          const key = getPortalTimetableSlotKey(period);
+          if (!rows.has(key)) {
+            rows.set(key, {
+              key,
+              name: period.name,
+              startTime: period.startTime,
+              endTime: period.endTime,
+              sortOrder: period.sortOrder,
+              byDay: new Map(),
+            });
+          }
+          rows.get(key).byDay.set(period.day, period);
+          return rows;
+        }, new Map())
+        .values(),
+    ).sort((left, right) => {
+      if (left.sortOrder !== right.sortOrder) return left.sortOrder - right.sortOrder;
+      return left.startTime.localeCompare(right.startTime);
+    });
+  }
+
+  function getPortalTimetableClassGroups(entries = [], criteria = {}) {
+    const selectedSessionId = String(criteria.sessionId || "").trim();
+    const selectedTermId = String(criteria.termId || "").trim();
+    const selectedWeekType = String(criteria.weekType || "all").trim() || "all";
+    const groups = new Map();
+
+    entries
+      .filter((entry) => {
+        const sessionMatches = !selectedSessionId || entry.sessionId === selectedSessionId;
+        const termMatches = !selectedTermId || entry.termId === selectedTermId;
+        const weekMatches = portalTimetableWeekTypesOverlap(entry.weekType, selectedWeekType);
+        return entry.status !== "archived" && sessionMatches && termMatches && weekMatches;
+      })
+      .forEach((entry) => {
+        const key = [
+          entry.sessionId || "",
+          entry.termId || "",
+          String(entry.classLevel || "").trim().toLowerCase(),
+        ].join("|");
+        if (!groups.has(key)) {
+          groups.set(key, {
+            key,
+            classId: entry.classId || "",
+            classLevel: entry.classLevel,
+            sessionId: entry.sessionId,
+            termId: entry.termId,
+            rows: [],
+          });
+        }
+        groups.get(key).rows.push(entry);
+      });
+
+    return Array.from(groups.values())
+      .map((group) => ({
+        ...group,
+        rows: group.rows.sort((left, right) => {
+          const dayComparison = String(left.day || "").localeCompare(String(right.day || ""));
+          if (dayComparison !== 0) return dayComparison;
+          return String(left.startTime || "").localeCompare(String(right.startTime || ""));
+        }),
+        isPublished: group.rows.length > 0 && group.rows.every((row) => row.status === "published"),
+      }))
+      .sort((left, right) => left.classLevel.localeCompare(right.classLevel, undefined, { numeric: true }));
+  }
+
+  function renderPortalTimetablePrintSheet({
+    schoolName = "School",
+    classLevel = "Class",
+    sessionName = "",
+    termName = "",
+    weekType = "all",
+    days = [],
+    slotRows = [],
+    entries = [],
+  } = {}) {
+    const entryByPeriod = new Map(entries.map((entry) => [entry.periodId, entry]));
+    const periodLabel = [sessionName, termName, weekType === "all" ? "Every week" : `Week ${weekType}`]
+      .filter(Boolean)
+      .join(" - ");
+
+    return `
+      <section class="portal-timetable-print-sheet">
+        <header class="portal-timetable-print-head">
+          <h1>${escapeHtml(schoolName)}</h1>
+          <h2>${escapeHtml(classLevel)} Timetable</h2>
+          <p>${escapeHtml(periodLabel || "Academic timetable")}</p>
+        </header>
+        <div class="portal-timetable-print-wrap">
+          <table class="portal-timetable-print-grid">
+            <thead>
+              <tr>
+                <th>Period</th>
+                ${days.map((day) => `<th>${escapeHtml(day)}</th>`).join("")}
+              </tr>
+            </thead>
+            <tbody>
+              ${
+                slotRows.length
+                  ? slotRows
+                      .map(
+                        (slot) => `
+                          <tr>
+                            <th>
+                              <strong>${escapeHtml(slot.name)}</strong>
+                              <span>${escapeHtml(slot.startTime)}-${escapeHtml(slot.endTime)}</span>
+                            </th>
+                            ${days
+                              .map((day) => {
+                                const period = slot.byDay.get(day);
+                                const entry = period ? entryByPeriod.get(period.id) : null;
+                                return `
+                                  <td>
+                                    ${
+                                      entry
+                                        ? `<strong>${escapeHtml(entry.subject)}</strong>
+                                           <span>${escapeHtml(entry.teacher || "Teacher not assigned")}</span>`
+                                        : `<span class="portal-timetable-print-empty">Free</span>`
+                                    }
+                                  </td>
+                                `;
+                              })
+                              .join("")}
+                          </tr>
+                        `,
+                      )
+                      .join("")
+                  : `<tr><td colspan="${days.length + 1}">No periods configured yet.</td></tr>`
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    `;
+  }
+
   function renderTimetableSection({ isAdmin, manager, summaryTarget, listTarget, context = {} }) {
     if (!summaryTarget || !listTarget) {
       return;
@@ -13679,32 +14538,13 @@
       return entry.status !== "archived" && termMatches && weekMatches && scopeMatches;
     });
     const entryByPeriod = new Map(visibleEntries.map((entry) => [entry.periodId, entry]));
-    const slotRows = Array.from(
-      activePeriods
-        .filter((period) => days.includes(period.day))
-        .reduce((rows, period) => {
-          const key = getPortalTimetableSlotKey(period);
-          if (!rows.has(key)) {
-            rows.set(key, {
-              key,
-              name: period.name,
-              startTime: period.startTime,
-              endTime: period.endTime,
-              sortOrder: period.sortOrder,
-              byDay: new Map(),
-            });
-          }
-          rows.get(key).byDay.set(period.day, period);
-          return rows;
-        }, new Map())
-        .values(),
-    ).sort((left, right) => {
-      if (left.sortOrder !== right.sortOrder) return left.sortOrder - right.sortOrder;
-      return left.startTime.localeCompare(right.startTime);
+    const slotRows = getPortalTimetableSlotRows(activePeriods, days);
+    const classTimetableGroups = getPortalTimetableClassGroups(entries.filter((entry) => entry.status === "published"), {
+      sessionId: selectedSessionId,
+      termId: selectedTermId,
+      weekType: selectedWeekType,
     });
     const setupMessages = [];
-    const selectedClassPublished =
-      visibleEntries.length > 0 && visibleEntries.every((entry) => entry.status === "published");
     const canAssignSlots = Boolean(isAdmin && selectedSessionId && selectedTermId && selectedClass);
 
     if (!selectedSessionId) setupMessages.push(`Create or select a session from <a href="./admin-settings-academic.html">Sessions and Terms</a>.`);
@@ -13800,35 +14640,32 @@
         <article class="portal-class-card portal-timetable-panel">
           <div class="portal-class-card-head">
             <div class="portal-class-title">
-              <strong>Current lessons</strong>
-              <span>${visibleEntries.length} lesson${visibleEntries.length === 1 ? "" : "s"} in this view</span>
+              <strong>Class timetables</strong>
+              <span>${classTimetableGroups.length} class${classTimetableGroups.length === 1 ? "" : "es"} with saved lessons</span>
             </div>
-            ${
-              viewMode === "class" && selectedClass && selectedTermId
-                ? `<button class="portal-class-button ${selectedClassPublished ? "is-archive" : "is-restore"}" type="button" data-timetable-group-action="${selectedClassPublished ? "unpublish" : "publish"}" data-timetable-session-id="${escapeHtml(selectedSessionId)}" data-timetable-term-id="${escapeHtml(selectedTermId)}" data-timetable-class="${escapeHtml(selectedClass.level)}" ${isAdmin ? "" : "disabled"}>${selectedClassPublished ? "Unpublish class grid" : "Publish class grid"}</button>`
-                : ""
-            }
           </div>
           <div class="portal-timetable-entry-list">
             ${
-              visibleEntries.length
-                ? visibleEntries
+              classTimetableGroups.length
+                ? classTimetableGroups
                     .map(
-                      (entry) => `
-                        <div class="portal-timetable-entry-row">
-                          <span><strong>${escapeHtml(entry.day)}</strong> ${escapeHtml(entry.startTime)}-${escapeHtml(entry.endTime)}</span>
-                          <span>${escapeHtml(entry.subject)} - ${escapeHtml(entry.classLevel)}</span>
-                          <span>${escapeHtml(entry.teacher)}</span>
+                      (group) => `
+                        <div class="portal-timetable-entry-row portal-timetable-class-row">
+                          <span>
+                            <strong>${escapeHtml(group.classLevel)}</strong>
+                            Saved timetable
+                          </span>
+                          <span>${group.rows.length} lesson${group.rows.length === 1 ? "" : "s"}</span>
+                          <span>${escapeHtml(getTermLabelFromCycle(cycleState, group.termId))}</span>
                           <span class="portal-timetable-row-actions">
-                            <button class="portal-class-button" type="button" data-timetable-action="edit" data-timetable-id="${escapeHtml(entry.id)}" ${isAdmin ? "" : "disabled"}>Edit</button>
-                            <button class="portal-class-button" type="button" data-timetable-action="substitute" data-timetable-id="${escapeHtml(entry.id)}" ${isAdmin ? "" : "disabled"}>Substitute</button>
-                            <button class="portal-class-button is-archive" type="button" data-timetable-action="archive" data-timetable-id="${escapeHtml(entry.id)}" ${isAdmin ? "" : "disabled"}>Archive</button>
+                            <button class="portal-class-button" type="button" data-timetable-class-action="view" data-timetable-session-id="${escapeHtml(group.sessionId)}" data-timetable-term-id="${escapeHtml(group.termId)}" data-timetable-class="${escapeHtml(group.classLevel)}">View</button>
+                            <button class="portal-class-button" type="button" data-timetable-class-action="print" data-timetable-session-id="${escapeHtml(group.sessionId)}" data-timetable-term-id="${escapeHtml(group.termId)}" data-timetable-class="${escapeHtml(group.classLevel)}">Print</button>
                           </span>
                         </div>
                       `,
                     )
                     .join("")
-                : `<p>No lessons match this grid yet.</p>`
+                : `<p>No class timetables have been saved for this period yet.</p>`
             }
           </div>
         </article>
@@ -17831,6 +18668,8 @@
     const healthConditionSelect = document.getElementById("apply-health-condition");
     const healthConditionDetailsWrap = document.getElementById("health-condition-details-wrap");
     const healthConditionDetailsInput = document.getElementById("apply-health-condition-details");
+    const admissionConfigManager = getAdmissionConfigManager();
+    const applyingClassSelect = form?.elements?.academicClassApplyingFor || null;
 
     if (!form || !status || !workspaceInput) {
       return;
@@ -17860,6 +18699,20 @@
 
     const stepSections = Array.from(form.querySelectorAll("[data-admissions-step]"));
     let activeStepIndex = 0;
+
+    const refreshPublicAdmissionClassOptions = () => {
+      const admissionConfig =
+        admissionConfigManager && typeof admissionConfigManager.summarize === "function"
+          ? admissionConfigManager.summarize()
+          : null;
+      const activeClassNames = (admissionConfig?.activeClasses || [])
+        .map((entry) => entry.name)
+        .filter(Boolean);
+      syncAdmissionClassFieldOptions(activeClassNames, applyingClassSelect, {
+        placeholder: "Select class applying for",
+        emptyLabel: "No admission classes are open",
+      });
+    };
 
     const readFileName = (fieldName) => {
       const file = form.elements[fieldName]?.files?.[0];
@@ -18127,7 +18980,6 @@
       }
 
       payload.level = payload.classApplyingFor || payload.academicClassApplyingFor;
-      const admissionConfigManager = getAdmissionConfigManager();
       const admissionConfig =
         admissionConfigManager && typeof admissionConfigManager.summarize === "function"
           ? admissionConfigManager.summarize()
@@ -18177,6 +19029,7 @@
       form.reset();
       workspaceInput.value = workspaceId;
       toggleHealthConditionDetails();
+      refreshPublicAdmissionClassOptions();
       setStep(0);
       clearFormDraftFor(form);
       setStatus(
@@ -18187,6 +19040,10 @@
     });
 
     toggleHealthConditionDetails();
+    refreshPublicAdmissionClassOptions();
+    if (admissionConfigManager?.eventName) {
+      window.addEventListener(admissionConfigManager.eventName, refreshPublicAdmissionClassOptions);
+    }
     setStep(0);
 
     if (!lockedWorkspaceId) {
@@ -20444,6 +21301,26 @@
 
     const workspaceId = normalizeWorkspaceId(getCurrentWorkspaceId());
     const studentManager = getStudentManager();
+    const admissionConfigManager = getAdmissionConfigManager();
+    const levelSelect = form.elements.level || null;
+
+    const refreshApplicationLevelOptions = () => {
+      const admissionConfig =
+        admissionConfigManager && typeof admissionConfigManager.summarize === "function"
+          ? admissionConfigManager.summarize()
+          : null;
+      const activeClassNames = (admissionConfig?.activeClasses || [])
+        .map((entry) => entry.name)
+        .filter(Boolean);
+      syncAdmissionClassFieldOptions(
+        activeClassNames.length ? activeClassNames : getConfiguredStudentLevelOptions(),
+        levelSelect,
+        {
+          placeholder: "Select level/class",
+          emptyLabel: "Configure admission classes first",
+        },
+      );
+    };
 
     const buildStudentPayloadFromAdmission = (entry) => {
       const classLevelSet = getActiveClassLevelTokenSet();
@@ -20525,6 +21402,7 @@
       );
       renderAdmissionsSummary(summaryTarget, admissions);
       renderAdmissionsList(listTarget, admissions, isAdmin);
+      refreshApplicationLevelOptions();
     };
 
     let modalElement = null;
@@ -20718,7 +21596,6 @@
         source: "admin",
       };
 
-      const admissionConfigManager = getAdmissionConfigManager();
       const admissionConfig =
         admissionConfigManager && typeof admissionConfigManager.summarize === "function"
           ? admissionConfigManager.summarize()
@@ -20767,6 +21644,7 @@
 
       form.reset();
       clearFormDraftFor(form);
+      refreshApplicationLevelOptions();
       refresh();
       setStatus(status, "success", `Application for <strong>${escapeHtml(payload.fullName)}</strong> added.`);
     });
@@ -20950,6 +21828,10 @@
       }
     });
 
+    if (admissionConfigManager?.eventName) {
+      window.addEventListener(admissionConfigManager.eventName, refreshApplicationLevelOptions);
+    }
+
     refresh();
   }
 
@@ -20967,15 +21849,10 @@
     const applyLinkTarget = document.getElementById("portal-admission-apply-link");
     const configManager = getAdmissionConfigManager();
     const configSummary = document.getElementById("portal-admission-config-summary");
-    const sessionForm = document.getElementById("portal-admission-session-form");
-    const sessionStatus = document.getElementById("portal-admission-session-status");
-    const sessionListTarget = document.getElementById("portal-admission-session-list");
-    const classForm = document.getElementById("portal-admission-class-form");
-    const classStatus = document.getElementById("portal-admission-class-status");
-    const classListTarget = document.getElementById("portal-admission-class-list");
-    const stageForm = document.getElementById("portal-admission-stage-form");
-    const stageStatus = document.getElementById("portal-admission-stage-status");
-    const stageListTarget = document.getElementById("portal-admission-stage-list");
+    const setupForm = document.getElementById("portal-admission-setup-form");
+    const setupStatus = document.getElementById("portal-admission-setup-status");
+    const setupClassPicker = document.getElementById("portal-admission-class-picker");
+    const setupPreview = document.getElementById("portal-admission-setup-preview");
 
     initAdmissionsControls({
       isAdmin: canManageAdmissions,
@@ -20986,19 +21863,14 @@
       applyLinkTarget,
     });
 
-    initAdmissionConfigurationControls({
+    initAdmissionSetupControls({
       isAdmin: canManageAdmissions,
       manager: configManager,
       summaryTarget: configSummary,
-      sessionForm,
-      sessionStatus,
-      sessionListTarget,
-      classForm,
-      classStatus,
-      classListTarget,
-      stageForm,
-      stageStatus,
-      stageListTarget,
+      form: setupForm,
+      status: setupStatus,
+      classPicker: setupClassPicker,
+      previewTarget: setupPreview,
       applyFormClassField: form?.elements?.level || null,
     });
   }

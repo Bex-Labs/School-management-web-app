@@ -6144,6 +6144,115 @@ body.admin-dashboard-page .portal-timetable-row-actions {
   justify-content: flex-end;
 }
 
+body.admin-dashboard-page .portal-timetable-class-row {
+  grid-template-columns: minmax(170px, 1fr) minmax(110px, 0.55fr) minmax(180px, 1fr) auto;
+}
+
+body.admin-dashboard-page .portal-timetable-class-row > span:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+body.admin-dashboard-page .portal-timetable-class-modal-panel {
+  width: min(1120px, 96vw);
+  max-height: 92vh;
+}
+
+body.admin-dashboard-page .portal-timetable-class-modal-body {
+  overflow: auto;
+  padding: 18px;
+  background: #f8fbff;
+}
+
+body.admin-dashboard-page .portal-timetable-modal-actions {
+  justify-content: flex-end;
+  padding: 0 18px 18px;
+}
+
+body.admin-dashboard-page .portal-timetable-print-sheet {
+  display: grid;
+  gap: 16px;
+  min-width: 880px;
+  padding: 18px;
+  border: 1px solid #dbe5f1;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+body.admin-dashboard-page .portal-timetable-print-head {
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  text-align: center;
+}
+
+body.admin-dashboard-page .portal-timetable-print-head h1,
+body.admin-dashboard-page .portal-timetable-print-head h2,
+body.admin-dashboard-page .portal-timetable-print-head p {
+  margin: 0;
+}
+
+body.admin-dashboard-page .portal-timetable-print-head h1 {
+  color: #17233a;
+  font-size: 1.35rem;
+}
+
+body.admin-dashboard-page .portal-timetable-print-head h2 {
+  color: #25324a;
+  font-size: 1rem;
+}
+
+body.admin-dashboard-page .portal-timetable-print-head p {
+  color: #667188;
+  font-size: 0.84rem;
+}
+
+body.admin-dashboard-page .portal-timetable-print-wrap {
+  overflow-x: auto;
+}
+
+body.admin-dashboard-page .portal-timetable-print-grid {
+  width: 100%;
+  min-width: 820px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+body.admin-dashboard-page .portal-timetable-print-grid th,
+body.admin-dashboard-page .portal-timetable-print-grid td {
+  border: 1px solid #dce3ee;
+  padding: 10px;
+  vertical-align: top;
+  color: #36435a;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+body.admin-dashboard-page .portal-timetable-print-grid thead th {
+  background: #17233a;
+  color: #ffffff;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+}
+
+body.admin-dashboard-page .portal-timetable-print-grid tbody th {
+  width: 130px;
+  background: #f5f7fb;
+  color: #17233a;
+  text-align: left;
+}
+
+body.admin-dashboard-page .portal-timetable-print-grid strong,
+body.admin-dashboard-page .portal-timetable-print-grid span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+body.admin-dashboard-page .portal-timetable-print-empty {
+  color: #8a95a7;
+  font-weight: 700;
+}
+
 body.admin-dashboard-page .portal-class-form-shell {
   display: grid;
   gap: 12px;
@@ -7582,6 +7691,114 @@ body.admin-dashboard-page .portal-admission-config-panel .portal-class-list {
   gap: 10px;
 }
 
+body.admin-dashboard-page .portal-admission-setup-form {
+  display: grid;
+  gap: 16px;
+  width: 100%;
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid #dbe5f1;
+  border-radius: 18px;
+  background: #f8fbff;
+}
+
+body.admin-dashboard-page .portal-admission-setup-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+body.admin-dashboard-page .portal-admission-choice-grid {
+  display: grid;
+  gap: 12px;
+}
+
+body.admin-dashboard-page .portal-admission-choice-group {
+  display: grid;
+  gap: 10px;
+}
+
+body.admin-dashboard-page .portal-admission-choice-group > span {
+  color: #667a95;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+body.admin-dashboard-page .portal-admission-choice-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+body.admin-dashboard-page .portal-admission-choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #dbe5f1;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #17233a;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+body.admin-dashboard-page .portal-admission-choice input {
+  width: 16px;
+  height: 16px;
+  accent-color: #3462ff;
+}
+
+body.admin-dashboard-page .portal-admission-choice-empty {
+  margin: 0;
+}
+
+body.admin-dashboard-page .portal-admission-setup-preview {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+body.admin-dashboard-page .portal-admission-setup-card {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid #dbe5f1;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 10px 22px rgba(15, 43, 74, 0.05);
+}
+
+body.admin-dashboard-page .portal-admission-setup-card div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+body.admin-dashboard-page .portal-admission-setup-card span {
+  color: #667a95;
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+body.admin-dashboard-page .portal-admission-setup-card strong {
+  color: #17233a;
+  font-size: 0.98rem;
+}
+
+body.admin-dashboard-page .portal-admission-setup-card p {
+  margin: 0;
+  color: #4f6280;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
 body.admin-dashboard-page .portal-admission-share {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -8673,6 +8890,20 @@ body.admin-dashboard-page .portal-class-empty p {
 
   body.admin-dashboard-page .portal-admission-config-grid {
     grid-template-columns: 1fr;
+  }
+
+  body.admin-dashboard-page .portal-admission-setup-grid,
+  body.admin-dashboard-page .portal-admission-setup-preview {
+    grid-template-columns: 1fr;
+  }
+
+  body.admin-dashboard-page .portal-admission-choice-options {
+    grid-template-columns: 1fr;
+  }
+
+  body.admin-dashboard-page .portal-admission-setup-card div {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   body.admin-dashboard-page .portal-overlay {
