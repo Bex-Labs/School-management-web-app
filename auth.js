@@ -8413,6 +8413,9 @@
       );
     };
 
+    const getTimetableClassLabel = (classRecord = null) =>
+      classRecord ? getClassDisplayName(classRecord) : "";
+
     const getSelectedTeacher = () => {
       const teachers = getTeacherDirectory();
       const selected = String(teacherViewSelect?.value || "").trim();
@@ -8425,14 +8428,17 @@
       const summary = manager.summarize();
       const sessionId = String(criteria.sessionId || getSelectedSessionId()).trim();
       const termId = String(criteria.termId || getSelectedTermId()).trim();
-      const classLevel = String(criteria.classLevel || getSelectedClass()?.level || "").trim();
+      const classId = String(criteria.classId || getSelectedClass()?.id || "").trim();
+      const classLevel = String(criteria.classLevel || getTimetableClassLabel(getSelectedClass())).trim();
       const weekType = String(criteria.weekType || getSelectedWeekType()).trim() || "all";
       const entries = (summary.entries || []).filter(
         (entry) =>
           entry.status !== "archived" &&
           entry.sessionId === sessionId &&
           entry.termId === termId &&
-          String(entry.classLevel || "").trim().toLowerCase() === classLevel.toLowerCase() &&
+          (classId
+            ? String(entry.classId || "").trim() === classId
+            : String(entry.classLevel || "").trim().toLowerCase() === classLevel.toLowerCase()) &&
           portalTimetableWeekTypesOverlap(entry.weekType, weekType),
       );
       const settings = getConfiguredSchoolSettings();
@@ -8448,6 +8454,7 @@
         entries,
         sessionId,
         termId,
+        classId,
       };
     };
 
@@ -8612,7 +8619,7 @@
 
       if (classSelect) {
         const classOptions = classes
-          .map((record) => `<option value="${escapeHtml(record.id)}">${escapeHtml(record.level)} - ${escapeHtml(record.name)}</option>`)
+          .map((record) => `<option value="${escapeHtml(record.id)}">${escapeHtml(getTimetableClassLabel(record))}</option>`)
           .join("");
         classSelect.innerHTML = `<option value="">${classes.length ? "Select class" : "Create classes first"}</option>${classOptions}`;
         if (selectedClassValue && classes.some((record) => record.id === selectedClassValue || record.level === selectedClassValue)) {
@@ -8697,7 +8704,7 @@
         termId: getSelectedTermId(),
         periodId: selectedPeriod?.id || "",
         classId: selectedClass?.id || "",
-        classLevel: selectedClass?.level || "",
+        classLevel: getTimetableClassLabel(selectedClass),
         subjectId: selectedSubject && selectedSubjectId !== "__custom" ? selectedSubject.id : "",
         subject: selectedSubject && selectedSubjectId !== "__custom" ? selectedSubject.name : customSubject,
         teacherId: selectedTeacher?.id || "",
@@ -8999,6 +9006,7 @@
         const criteria = {
           sessionId: String(classActionButton.dataset.timetableSessionId || "").trim(),
           termId: String(classActionButton.dataset.timetableTermId || "").trim(),
+          classId: String(classActionButton.dataset.timetableClassId || "").trim(),
           classLevel: String(classActionButton.dataset.timetableClass || "").trim(),
           weekType: getSelectedWeekType(),
         };
@@ -9190,7 +9198,7 @@
           targetTermId: termId,
           targetSessionId: getSelectedSessionId(),
           classId: selectedClass?.id || "",
-          classLevel: selectedClass?.level || "",
+          classLevel: getTimetableClassLabel(selectedClass),
           weekType: getSelectedWeekType(),
         });
         setTimetableStatus(result.copied ? "success" : "info", `Copied ${result.copied} lesson${result.copied === 1 ? "" : "s"} from ${escapeHtml(sourceTerm.name)}. Skipped ${result.skipped}.`);
@@ -9225,7 +9233,8 @@
         const printData = getClassTimetablePrintData({
           sessionId,
           termId,
-          classLevel: selectedClass.level,
+          classId: selectedClass.id,
+          classLevel: getTimetableClassLabel(selectedClass),
           weekType: getSelectedWeekType(),
         });
         if (!printData.entries.length) {
@@ -9236,13 +9245,15 @@
         manager.publishGroup({
           sessionId,
           termId,
-          classLevel: selectedClass.level,
+          classId: selectedClass.id,
+          classLevel: getTimetableClassLabel(selectedClass),
         });
+        const selectedClassLabel = getTimetableClassLabel(selectedClass);
         recordAuditEvent({
           action: "saved",
           entityType: "timetable",
-          entityId: selectedClass.level,
-          summary: `Saved timetable for ${selectedClass.level}`,
+          entityId: selectedClassLabel,
+          summary: `Saved timetable for ${selectedClassLabel}`,
           details: `${sessionId} - ${termId}`,
         });
         clearPortalTimetableErrors(form);
@@ -9255,7 +9266,7 @@
         }
         setTimetableStatus(
           "success",
-          `Timetable for <strong>${escapeHtml(selectedClass.level)}</strong> saved. Select another class to create the next timetable.`,
+          `Timetable for <strong>${escapeHtml(selectedClassLabel)}</strong> saved. Select another class to create the next timetable.`,
         );
         refresh();
       });
@@ -9271,7 +9282,8 @@
         printClassTimetable({
           sessionId: getSelectedSessionId(),
           termId: getSelectedTermId(),
-          classLevel: selectedClass.level,
+          classId: selectedClass.id,
+          classLevel: getTimetableClassLabel(selectedClass),
           weekType: getSelectedWeekType(),
         });
       });
@@ -14378,7 +14390,7 @@
         const key = [
           entry.sessionId || "",
           entry.termId || "",
-          String(entry.classLevel || "").trim().toLowerCase(),
+          String(entry.classId || "").trim() || String(entry.classLevel || "").trim().toLowerCase(),
         ].join("|");
         if (!groups.has(key)) {
           groups.set(key, {
@@ -14525,6 +14537,7 @@
         })
       : { count: 0, entries: [] };
     const teacherMax = selectedTeacher?.maxPeriodsPerWeek || 24;
+    const selectedClassLabel = selectedClass ? getClassDisplayName(selectedClass) : "";
     const visibleEntries = entries.filter((entry) => {
       const termMatches = !selectedTermId || entry.termId === selectedTermId;
       const weekMatches =
@@ -14534,12 +14547,15 @@
       const scopeMatches =
         viewMode === "teacher"
           ? selectedTeacher && (entry.teacherId === selectedTeacher.id || entry.teacher === selectedTeacher.name)
-          : selectedClass && (entry.classId === selectedClass.id || entry.classLevel === selectedClass.level);
+          : selectedClass &&
+            (entry.classId
+              ? entry.classId === selectedClass.id
+              : String(entry.classLevel || "").trim().toLowerCase() === selectedClassLabel.toLowerCase());
       return entry.status !== "archived" && termMatches && weekMatches && scopeMatches;
     });
     const entryByPeriod = new Map(visibleEntries.map((entry) => [entry.periodId, entry]));
     const slotRows = getPortalTimetableSlotRows(activePeriods, days);
-    const classTimetableGroups = getPortalTimetableClassGroups(entries.filter((entry) => entry.status === "published"), {
+    const classTimetableGroups = getPortalTimetableClassGroups(entries, {
       sessionId: selectedSessionId,
       termId: selectedTermId,
       weekType: selectedWeekType,
@@ -14589,7 +14605,7 @@
       ${setupMessages.length ? `<div class="auth-status auth-status--info portal-timetable-setup">${setupMessages.join(" ")}</div>` : ""}
       <section class="portal-timetable-context">
         <div>
-          <strong>${viewMode === "teacher" ? escapeHtml(selectedTeacher?.name || "Teacher grid") : escapeHtml(selectedClass?.level || "Select a class")}</strong>
+          <strong>${viewMode === "teacher" ? escapeHtml(selectedTeacher?.name || "Teacher grid") : escapeHtml(selectedClassLabel || "Select a class")}</strong>
           <span>${escapeHtml(selectedSessionName)} - ${escapeHtml(selectedTermName)} - ${selectedWeekType === "all" ? "Every week" : `Week ${escapeHtml(selectedWeekType)}`}</span>
         </div>
         <div>
@@ -14641,7 +14657,7 @@
           <div class="portal-class-card-head">
             <div class="portal-class-title">
               <strong>Class timetables</strong>
-              <span>${classTimetableGroups.length} class${classTimetableGroups.length === 1 ? "" : "es"} with saved lessons</span>
+              <span>${classTimetableGroups.length} class${classTimetableGroups.length === 1 ? "" : "es"} with recorded lessons</span>
             </div>
           </div>
           <div class="portal-timetable-entry-list">
@@ -14653,19 +14669,19 @@
                         <div class="portal-timetable-entry-row portal-timetable-class-row">
                           <span>
                             <strong>${escapeHtml(group.classLevel)}</strong>
-                            Saved timetable
+                            ${group.isPublished ? "Saved timetable" : "Draft timetable"}
                           </span>
                           <span>${group.rows.length} lesson${group.rows.length === 1 ? "" : "s"}</span>
                           <span>${escapeHtml(getTermLabelFromCycle(cycleState, group.termId))}</span>
                           <span class="portal-timetable-row-actions">
-                            <button class="portal-class-button" type="button" data-timetable-class-action="view" data-timetable-session-id="${escapeHtml(group.sessionId)}" data-timetable-term-id="${escapeHtml(group.termId)}" data-timetable-class="${escapeHtml(group.classLevel)}">View</button>
-                            <button class="portal-class-button" type="button" data-timetable-class-action="print" data-timetable-session-id="${escapeHtml(group.sessionId)}" data-timetable-term-id="${escapeHtml(group.termId)}" data-timetable-class="${escapeHtml(group.classLevel)}">Print</button>
+                            <button class="portal-class-button" type="button" data-timetable-class-action="view" data-timetable-session-id="${escapeHtml(group.sessionId)}" data-timetable-term-id="${escapeHtml(group.termId)}" data-timetable-class-id="${escapeHtml(group.classId || "")}" data-timetable-class="${escapeHtml(group.classLevel)}">View</button>
+                            <button class="portal-class-button" type="button" data-timetable-class-action="print" data-timetable-session-id="${escapeHtml(group.sessionId)}" data-timetable-term-id="${escapeHtml(group.termId)}" data-timetable-class-id="${escapeHtml(group.classId || "")}" data-timetable-class="${escapeHtml(group.classLevel)}">Print</button>
                           </span>
                         </div>
                       `,
                     )
                     .join("")
-                : `<p>No class timetables have been saved for this period yet.</p>`
+                : `<p>No class timetables have been recorded for this period yet.</p>`
             }
           </div>
         </article>

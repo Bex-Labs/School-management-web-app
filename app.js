@@ -1698,6 +1698,11 @@ function compareSchoolTimetableEntries(left, right) {
   return left.weekType.localeCompare(right.weekType);
 }
 
+function getTimetableClassIdentity(record = {}) {
+  return String(record.classId || record.class_id || "").trim() ||
+    String(record.classLevel || "").trim().toLowerCase();
+}
+
 function getSchoolTimetableEntries() {
   const stored = readWorkspaceState(SCHOOL_TIMETABLE_STORAGE_KEY, DEFAULT_TIMETABLE_ENTRIES);
   const source = Array.isArray(stored) ? stored : DEFAULT_TIMETABLE_ENTRIES;
@@ -1836,20 +1841,21 @@ function buildTimetableGroupKey(record = {}) {
   return [
     String(record.sessionId || "").trim(),
     String(record.termId || "").trim(),
-    String(record.classLevel || "").trim().toLowerCase(),
+    getTimetableClassIdentity(record),
   ].join("|");
 }
 
 function setTimetableGroupPublished(criteria = {}, published = true) {
   const entries = getSchoolTimetableEntries();
   const timestamp = new Date().toISOString();
+  const classId = String(criteria.classId || "").trim();
   const classLevel = String(criteria.classLevel || "").trim().toLowerCase();
   const sessionId = String(criteria.sessionId || "").trim();
   const termId = String(criteria.termId || "").trim();
 
   const nextEntries = entries.map((entry) => {
     const matches =
-      String(entry.classLevel || "").trim().toLowerCase() === classLevel &&
+      (classId ? String(entry.classId || "").trim() === classId : String(entry.classLevel || "").trim().toLowerCase() === classLevel) &&
       String(entry.sessionId || "").trim() === sessionId &&
       String(entry.termId || "").trim() === termId;
 
@@ -1981,7 +1987,7 @@ function summarizeSchoolTimetableEntries() {
   const publishedCount = entries.filter((entry) => entry.status === "published").length;
   const draftCount = entries.filter((entry) => entry.status === "draft").length;
   const archivedCount = entries.filter((entry) => entry.status === "archived").length;
-  const classCount = new Set(entries.map((entry) => entry.classLevel.toLowerCase())).size;
+  const classCount = new Set(entries.map((entry) => getTimetableClassIdentity(entry)).filter(Boolean)).size;
   const teacherCount = new Set(
     entries
       .filter((entry) => entry.status !== "archived")
@@ -1996,6 +2002,7 @@ function summarizeSchoolTimetableEntries() {
       if (!groups.has(key)) {
         groups.set(key, {
           key,
+          classId: entry.classId,
           classLevel: entry.classLevel,
           sessionId: entry.sessionId,
           termId: entry.termId,
