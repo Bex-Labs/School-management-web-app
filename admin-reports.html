@@ -121,7 +121,7 @@
         </section>
       </aside>
 
-     <!-- <section class="admin-dashboard-main">
+      <section class="admin-dashboard-main">
         <header class="admin-dashboard-topbar">
           <div class="admin-dashboard-greeting">
             <span class="admin-topline-chip" id="portal-last-updated">Last updated --</span>
@@ -130,62 +130,63 @@
           </div>
         </header>
 
-        <section class="admin-secondary-grid">
-          <article class="admin-surface-card">
+        <section class="admin-report-workspace" aria-labelledby="admin-report-title">
+          <div class="admin-report-heading">
+            <div>
+              <span>Leadership view</span>
+              <h2 id="admin-report-title">School Reports Dashboard</h2>
+              <p>Simple explanations of what is happening in the school, where attention is needed, and what each number means.</p>
+            </div>
+            <a class="button button-outline" href="./admin-settings-school.html">Confirm school details</a>
+          </div>
+
+          <div id="admin-report-kpis" class="admin-report-kpis"></div>
+
+          <div class="admin-report-layout">
+            <article class="admin-surface-card admin-report-insight-card">
+              <div class="admin-surface-head">
+                <h2>Plain-Language Summary</h2>
+                <span>What leadership should know</span>
+              </div>
+              <div id="admin-report-insights" class="admin-report-insights"></div>
+            </article>
+
+            <article class="admin-surface-card admin-report-health-card">
+              <div class="admin-surface-head">
+                <h2>School Health</h2>
+                <span>Readiness score</span>
+              </div>
+              <div id="admin-report-health" class="admin-report-health"></div>
+            </article>
+          </div>
+
+          <article class="admin-surface-card admin-report-section">
             <div class="admin-surface-head">
-              <h2>Reporting Outputs</h2>
-              <span>Common admin deliverables</span>
+              <h2>Report Areas</h2>
+              <span>Grouped for non-technical review</span>
             </div>
-            <div class="admin-link-grid">
-              <a class="admin-link-card" href="./modules.html">
-                <strong>Result Publishing</strong>
-                <p>Connect assessments, comments, and release-ready report outputs.</p>
-                <span>Open results area</span>
-              </a>
-              <a class="admin-link-card" href="./products.html">
-                <strong>Finance Reports</strong>
-                <p>Review receipts, balances, and high-level bursary visibility.</p>
-                <span>Open finance view</span>
-              </a>
-              <a class="admin-link-card" href="./admin-attendance.html">
-                <strong>Attendance Summary</strong>
-                <p>Package daily and term attendance information into printable views.</p>
-                <span>Open attendance</span>
-              </a>
-              <a class="admin-link-card" href="./in-practice.html">
-                <strong>Operational Review</strong>
-                <p>Use scenario-based screens to explain patterns beyond the raw numbers.</p>
-                <span>Open operations view</span>
-              </a>
-            </div>
+            <div id="admin-report-areas" class="admin-report-areas"></div>
           </article>
 
-          <article class="admin-surface-card">
-            <div class="admin-surface-head">
-              <h2>Closeout Checklist</h2>
-              <span>Before sending reports out</span>
-            </div>
-            <div class="admin-session-grid">
-              <div class="admin-session-card">
-                <span>Class verification</span>
-                <strong><a href="./admin-classes.html">Confirm active classes and archived groups</a></strong>
+          <section class="admin-report-layout">
+            <article class="admin-surface-card admin-report-section">
+              <div class="admin-surface-head">
+                <h2>Closeout Checklist</h2>
+                <span>Before sharing reports</span>
               </div>
-              <div class="admin-session-card">
-                <span>Teacher completion</span>
-                <strong><a href="./admin-teachers.html">Check missing submissions and approvals</a></strong>
+              <div id="admin-report-checklist" class="admin-report-checklist"></div>
+            </article>
+
+            <article class="admin-surface-card admin-report-section">
+              <div class="admin-surface-head">
+                <h2>Useful Exports</h2>
+                <span>Where to continue</span>
               </div>
-              <div class="admin-session-card">
-                <span>Attendance exceptions</span>
-                <strong><a href="./admin-attendance.html">Resolve outstanding absence issues</a></strong>
-              </div>
-              <div class="admin-session-card">
-                <span>Identity and branding</span>
-                <strong><a href="./admin-settings-school.html">Make sure school details are correct</a></strong>
-              </div>
-            </div>
-          </article>
+              <div id="admin-report-actions" class="admin-report-actions"></div>
+            </article>
+          </section>
         </section>
-      </section> -->
+      </section>
     </main>
 
     <script src="./app.js"></script>
