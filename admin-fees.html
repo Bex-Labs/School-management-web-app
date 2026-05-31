@@ -142,20 +142,61 @@
             <div id="portal-fee-summary" class="portal-class-summary"></div>
 
             <div class="portal-class-layout portal-fee-layout-wide">
-              <div class="portal-class-form-shell">
-                <button class="button button-primary" type="button" data-fee-form-toggle>
-                  Create fee item
-                </button>
+              <section class="portal-fee-command-panel" aria-labelledby="portal-fee-category-heading">
+                <div class="portal-class-group-head">
+                  <div>
+                    <span>Fee categories</span>
+                    <strong id="portal-fee-category-heading">Choose what you want to bill</strong>
+                  </div>
+                  <button class="button button-primary" type="button" data-fee-form-toggle>
+                    Add fee item
+                  </button>
+                </div>
+                <div id="portal-fee-category-options" class="portal-fee-category-options" role="list"></div>
                 <div id="portal-fee-setup-notice" class="auth-status auth-status--info portal-fee-setup-notice" role="status" hidden></div>
+              </section>
 
-                <form id="portal-fee-form" class="portal-class-form" novalidate hidden>
+              <div id="portal-fee-list" class="portal-class-list"></div>
+            </div>
+
+            <div id="portal-fee-form-overlay" class="portal-overlay" hidden>
+              <button class="portal-overlay-backdrop" type="button" data-fee-form-close aria-label="Close fee item form"></button>
+              <section class="portal-overlay-panel portal-fee-form-modal" role="dialog" aria-modal="true" aria-labelledby="portal-fee-form-modal-title">
+                <header class="portal-overlay-head">
+                  <div>
+                    <span>Class fee setup</span>
+                    <h3 id="portal-fee-form-modal-title">Set fee item</h3>
+                  </div>
+                  <button class="portal-overlay-close" type="button" data-fee-form-close aria-label="Close fee item form">&times;</button>
+                </header>
+
+                <form id="portal-fee-form" class="portal-class-form portal-fee-modal-form" novalidate hidden>
                   <div id="portal-fee-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
                   <input type="hidden" name="feeItemId" />
 
                   <div class="portal-settings-grid">
+                    <label class="portal-field" for="fee-item-category">
+                      <span>Category</span>
+                      <select id="fee-item-category" name="category">
+                        <option value="fees">Fees</option>
+                        <option value="uniform">Uniform</option>
+                        <option value="books">Books</option>
+                        <option value="transport">Transport</option>
+                        <option value="exam">Exam</option>
+                        <option value="boarding">Boarding</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </label>
+
+                    <label class="portal-field" for="fee-item-class">
+                      <span>Class group</span>
+                      <select id="fee-item-class" name="classLevel"></select>
+                      <p class="portal-field-error" data-fee-error-for="classLevel"></p>
+                    </label>
+
                     <label class="portal-field" for="fee-item-name">
                       <span>Fee item name</span>
-                      <input id="fee-item-name" name="name" type="text" placeholder="Tuition, Exam Fee, PTA Levy..." />
+                      <input id="fee-item-name" name="name" type="text" placeholder="Tuition, Uniform Set, Textbooks..." />
                       <p class="portal-field-error" data-fee-error-for="name"></p>
                     </label>
 
@@ -177,12 +218,6 @@
                       <p class="portal-field-error" data-fee-error-for="termId"></p>
                     </label>
 
-                    <label class="portal-field" for="fee-item-class">
-                      <span>Class group</span>
-                      <select id="fee-item-class" name="classLevel"></select>
-                      <p class="portal-field-error" data-fee-error-for="classLevel"></p>
-                    </label>
-
                     <label class="portal-field" for="fee-item-due-date">
                       <span>Due date (optional)</span>
                       <input id="fee-item-due-date" name="dueDate" type="date" />
@@ -196,12 +231,11 @@
 
                   <div class="utility-actions">
                     <button class="button button-primary" type="submit" data-fee-submit>Save fee item</button>
-                    <button class="button button-outline" type="button" data-fee-cancel hidden>Cancel edit</button>
+                    <button class="portal-class-button is-archive" type="button" data-fee-modal-archive hidden>Archive item</button>
+                    <button class="button button-outline" type="button" data-fee-cancel>Cancel</button>
                   </div>
                 </form>
-              </div>
-
-              <div id="portal-fee-list" class="portal-class-list"></div>
+              </section>
             </div>
 
             <section class="portal-fee-invoice-panel" aria-labelledby="portal-fee-invoice-title">

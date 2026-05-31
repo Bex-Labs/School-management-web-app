@@ -2038,11 +2038,62 @@ function normalizeFeeItemStatus(value) {
   return String(value || "").trim().toLowerCase() === "archived" ? "archived" : "active";
 }
 
+function normalizeSchoolFeeCategory(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  if (["fee", "fees", "tuition", "school-fees", "school-fee", "levy", "levies"].includes(normalized)) {
+    return "fees";
+  }
+
+  if (["uniform", "uniforms", "school-uniform"].includes(normalized)) {
+    return "uniform";
+  }
+
+  if (["book", "books", "textbook", "textbooks"].includes(normalized)) {
+    return "books";
+  }
+
+  if (["transport", "transportation", "bus", "bus-fee"].includes(normalized)) {
+    return "transport";
+  }
+
+  if (["exam", "exams", "examination", "examination-fee"].includes(normalized)) {
+    return "exam";
+  }
+
+  if (["boarding", "hostel", "accommodation"].includes(normalized)) {
+    return "boarding";
+  }
+
+  return normalized || "fees";
+}
+
+function inferSchoolFeeCategory(record = {}) {
+  const explicitCategory = record.category || record.feeCategory || record.type;
+  if (explicitCategory) {
+    return normalizeSchoolFeeCategory(explicitCategory);
+  }
+
+  const text = `${record.name || ""} ${record.description || ""}`.toLowerCase();
+  if (text.includes("uniform")) return "uniform";
+  if (text.includes("book") || text.includes("textbook")) return "books";
+  if (text.includes("transport") || text.includes("bus")) return "transport";
+  if (text.includes("exam") || text.includes("examination")) return "exam";
+  if (text.includes("boarding") || text.includes("hostel") || text.includes("accommodation")) return "boarding";
+  return "fees";
+}
+
 function normalizeSchoolFeeItem(record = {}) {
   const timestamp = new Date().toISOString();
   const amount = Number.parseFloat(record.amount);
   return {
     id: String(record.id || createStorageId("fee-item")),
+    category: inferSchoolFeeCategory(record),
     name: String(record.name || "").trim(),
     description: String(record.description || "").trim(),
     amount: Number.isFinite(amount) && amount >= 0 ? amount : 0,
@@ -2061,6 +2112,10 @@ function normalizeSchoolFeeItem(record = {}) {
 function compareSchoolFeeItems(left, right) {
   if (left.status !== right.status) {
     return left.status === "active" ? -1 : 1;
+  }
+  const categoryComparison = left.category.localeCompare(right.category, undefined, { numeric: true });
+  if (categoryComparison !== 0) {
+    return categoryComparison;
   }
   const classComparison = left.classLevel.localeCompare(right.classLevel, undefined, { numeric: true });
   if (classComparison !== 0) {
@@ -2144,11 +2199,13 @@ function summarizeSchoolFeeItems() {
   const archivedItems = items.filter((item) => item.status === "archived");
   const activeAmount = activeItems.reduce((sum, item) => sum + item.amount, 0);
   const classCount = new Set(activeItems.map((item) => item.classLevel.toLowerCase())).size;
+  const categoryCount = new Set(activeItems.map((item) => item.category || "fees")).size;
   return {
     items,
     activeCount: activeItems.length,
     archivedCount: archivedItems.length,
     classCount,
+    categoryCount,
     activeAmount,
   };
 }

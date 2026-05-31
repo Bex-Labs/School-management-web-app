@@ -23,6 +23,44 @@
   const PARENT_SELECTION_STORAGE_PREFIX = "schoolsphere.parent.selected-child.v1";
   const PARENT_FEES_STORAGE_PREFIX = "schoolsphere.parent.fees.v1";
   const PARENT_FEES_EVENT_NAME = "schoolsphere:parent-fees:updated";
+  const FEE_CATEGORY_FALLBACK = "fees";
+  const FEE_CATEGORY_OPTIONS = Object.freeze([
+    {
+      value: "fees",
+      label: "Fees",
+      copy: "Tuition, development levies, PTA, and core school charges.",
+    },
+    {
+      value: "uniform",
+      label: "Uniform",
+      copy: "Uniform sets, sportswear, cardigans, and related wear.",
+    },
+    {
+      value: "books",
+      label: "Books",
+      copy: "Textbooks, workbooks, notebooks, and learning materials.",
+    },
+    {
+      value: "transport",
+      label: "Transport",
+      copy: "Bus, shuttle, and route-based transport charges.",
+    },
+    {
+      value: "exam",
+      label: "Exam",
+      copy: "Examination, assessment, practical, or external exam fees.",
+    },
+    {
+      value: "boarding",
+      label: "Boarding",
+      copy: "Hostel, accommodation, feeding, and boarding support.",
+    },
+    {
+      value: "other",
+      label: "Other",
+      copy: "Any school-approved charge outside the standard categories.",
+    },
+  ]);
   const ADMISSIONS_STORAGE_KEY_BASE = "schoolsphere.admissions.v1";
   const ADMISSIONS_EVENT_NAME = "schoolsphere:admissions:updated";
   const ATTENDANCE_STATUSES = ["present", "absent", "late", "excused"];
@@ -297,6 +335,7 @@
     initAdminSchedulePage();
     initAdminFeesPage();
     initAdminAttendancePage();
+    initAdminReportsPage();
     initAdminFeatureModulesPage();
     initAdminSettingsPage();
     initUserSettingsPage();
@@ -4495,6 +4534,76 @@
 
   function getFeeItemManager() {
     return window.SchoolSphereFeeItems || null;
+  }
+
+  function normalizeFeeCategoryKey(value) {
+    const normalized = String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/&/g, "and")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+
+    if (["fee", "fees", "tuition", "school-fees", "school-fee", "levy", "levies"].includes(normalized)) {
+      return "fees";
+    }
+
+    if (["uniform", "uniforms", "school-uniform"].includes(normalized)) {
+      return "uniform";
+    }
+
+    if (["book", "books", "textbook", "textbooks"].includes(normalized)) {
+      return "books";
+    }
+
+    if (["transport", "transportation", "bus", "bus-fee"].includes(normalized)) {
+      return "transport";
+    }
+
+    if (["exam", "exams", "examination", "examination-fee"].includes(normalized)) {
+      return "exam";
+    }
+
+    if (["boarding", "hostel", "accommodation"].includes(normalized)) {
+      return "boarding";
+    }
+
+    return normalized || FEE_CATEGORY_FALLBACK;
+  }
+
+  function getFeeCategoryOption(value) {
+    const category = normalizeFeeCategoryKey(value);
+    const option = FEE_CATEGORY_OPTIONS.find((item) => item.value === category);
+    if (option) {
+      return option;
+    }
+
+    const label = category
+      .split("-")
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
+
+    return {
+      value: category,
+      label: label || "Fees",
+      copy: "Custom school billing category.",
+    };
+  }
+
+  function getFeeCategoryLabel(value) {
+    return getFeeCategoryOption(value).label;
+  }
+
+  function getFeeCategoryOptionsForItems(items = []) {
+    const known = new Map(FEE_CATEGORY_OPTIONS.map((option) => [option.value, option]));
+    (Array.isArray(items) ? items : []).forEach((item) => {
+      const category = normalizeFeeCategoryKey(item?.category || FEE_CATEGORY_FALLBACK);
+      if (!known.has(category)) {
+        known.set(category, getFeeCategoryOption(category));
+      }
+    });
+    return Array.from(known.values());
   }
 
   function getClassManager() {
@@ -9334,13 +9443,66 @@
     const invoiceOverlay = document.getElementById("portal-fee-invoice-overlay");
     const invoiceModalBody = document.getElementById("portal-fee-invoice-modal-body");
     const invoiceModalTitle = document.getElementById("portal-fee-invoice-modal-title");
+    const categoryOptionsTarget = document.getElementById("portal-fee-category-options");
+    const formOverlay = document.getElementById("portal-fee-form-overlay");
+    const formModalTitle = document.getElementById("portal-fee-form-modal-title");
+    const feeState = {
+      category: FEE_CATEGORY_FALLBACK,
+    };
+    let feeToastTimer = null;
+
+    const syncOpenOverlayState = () => {
+      document.body.classList.toggle("portal-overlay-open", Boolean(document.querySelector(".portal-overlay:not([hidden])")));
+    };
+
+    const showFeeToast = (message) => {
+      if (!message) {
+        return;
+      }
+
+      let toast = document.getElementById("portal-fee-toast");
+      if (!toast) {
+        toast = document.createElement("div");
+        toast.id = "portal-fee-toast";
+        toast.className = "portal-toast portal-toast--success";
+        toast.setAttribute("role", "status");
+        toast.setAttribute("aria-live", "polite");
+        document.body.appendChild(toast);
+      }
+
+      toast.innerHTML = message;
+      toast.hidden = false;
+      window.clearTimeout(feeToastTimer);
+      feeToastTimer = window.setTimeout(() => {
+        toast.hidden = true;
+      }, 3600);
+    };
+
+    const updateFeeFormTitle = () => {
+      if (!formModalTitle) {
+        return;
+      }
+
+      const category = normalizeFeeCategoryKey(form.elements.category?.value || feeState.category);
+      const isEditing = Boolean(String(form.elements.feeItemId?.value || "").trim());
+      formModalTitle.textContent = isEditing
+        ? `Edit ${getFeeCategoryLabel(category)} item`
+        : `Set ${getFeeCategoryLabel(category)} for a class`;
+    };
 
     const setFormVisibility = (visible) => {
       form.hidden = !visible;
+      if (formOverlay) {
+        formOverlay.hidden = !visible;
+      }
       if (formToggleButton) {
-        formToggleButton.textContent = visible ? "Hide fee form" : "Create fee item";
+        formToggleButton.textContent = `Add ${getFeeCategoryLabel(feeState.category)} item`;
         formToggleButton.setAttribute("aria-expanded", String(visible));
       }
+      if (visible) {
+        updateFeeFormTitle();
+      }
+      syncOpenOverlayState();
     };
 
     const getCycleState = () =>
@@ -9403,6 +9565,49 @@
             item.termId === termId &&
             normalizeLevelToken(item.classLevel) === normalizeLevelToken(classLevel),
         );
+    };
+
+    const renderFeeCategoryOptions = () => {
+      if (!categoryOptionsTarget) {
+        return;
+      }
+
+      const items = manager && typeof manager.getItems === "function" ? manager.getItems() : [];
+      const activeItems = items.filter((item) => item.status !== "archived");
+      const options = getFeeCategoryOptionsForItems(items);
+      const totals = activeItems.reduce((map, item) => {
+        const category = normalizeFeeCategoryKey(item.category || FEE_CATEGORY_FALLBACK);
+        const current = map.get(category) || { count: 0, amount: 0, classes: new Set() };
+        current.count += 1;
+        current.amount += Number(item.amount || 0);
+        if (item.classLevel) {
+          current.classes.add(normalizeLevelToken(item.classLevel));
+        }
+        map.set(category, current);
+        return map;
+      }, new Map());
+
+      if (!options.some((option) => option.value === feeState.category)) {
+        feeState.category = FEE_CATEGORY_FALLBACK;
+      }
+
+      categoryOptionsTarget.innerHTML = options
+        .map((option) => {
+          const categoryTotal = totals.get(option.value) || { count: 0, amount: 0, classes: new Set() };
+          const classCount = categoryTotal.classes.size;
+          const isActive = option.value === feeState.category;
+          return `
+            <button class="portal-fee-category-option ${isActive ? "is-active" : ""}" type="button" data-fee-category="${escapeHtml(
+              option.value,
+            )}" aria-pressed="${isActive ? "true" : "false"}">
+              <span>${escapeHtml(option.label)}</span>
+              <strong>${escapeHtml(formatCurrencyAmount(categoryTotal.amount))}</strong>
+              <small>${classCount} class group${classCount === 1 ? "" : "s"} • ${categoryTotal.count} line${categoryTotal.count === 1 ? "" : "s"}</small>
+              <em>${escapeHtml(option.copy)}</em>
+            </button>
+          `;
+        })
+        .join("");
     };
 
     const getSelectedInvoiceContext = () => {
@@ -9470,6 +9675,7 @@
         invoiceGeneratedAt: existing.invoiceKey === invoiceKey ? existing.invoiceGeneratedAt || timestamp : timestamp,
         invoiceItems: feeItems.map((item) => ({
           feeItemId: item.id,
+          category: normalizeFeeCategoryKey(item.category || FEE_CATEGORY_FALLBACK),
           name: item.name,
           amount: Number(item.amount || 0),
           description: item.description || "",
@@ -9509,7 +9715,9 @@
                   <td>${index + 1}</td>
                   <td>
                     <strong>${escapeHtml(item.name || "Fee item")}</strong>
-                    <span>${escapeHtml(item.description || "No note")}</span>
+                    <span>${escapeHtml(
+                      [getFeeCategoryLabel(item.category || FEE_CATEGORY_FALLBACK), item.description || "No note"].filter(Boolean).join(" • "),
+                    )}</span>
                   </td>
                   <td>${escapeHtml(item.dueDate || invoice.dueDate || "Not set")}</td>
                   <td>${escapeHtml(formatCurrencyAmount(item.amount || 0))}</td>
@@ -9606,7 +9814,7 @@
     `;
 
     const syncInvoiceOverlayState = () => {
-      document.body.classList.toggle("portal-overlay-open", Boolean(document.querySelector(".portal-overlay:not([hidden])")));
+      syncOpenOverlayState();
     };
 
     const closeInvoiceModal = () => {
@@ -9859,6 +10067,12 @@
       const terms = Array.isArray(cycles.terms) ? cycles.terms : [];
       const classGroups = getActiveClassGroups();
 
+      if (form.elements.category) {
+        const category = normalizeFeeCategoryKey(form.elements.category.value || feeState.category);
+        form.elements.category.value = category;
+        form.elements.category.disabled = !isAdmin;
+      }
+
       const sessionSelect = form.elements.sessionId;
       const termSelect = form.elements.termId;
       const classSelect = form.elements.classLevel;
@@ -9945,7 +10159,8 @@
     };
 
     const refresh = () => {
-      renderFeeManagementSection({ isAdmin, manager, summaryTarget, listTarget });
+      renderFeeCategoryOptions();
+      renderFeeManagementSection({ isAdmin, manager, summaryTarget, listTarget, selectedCategory: feeState.category });
       applyContextOptions();
       applyInvoiceContextOptions();
       renderInvoiceList();
@@ -9955,13 +10170,61 @@
       if (!isAdmin || !manager) {
         return;
       }
-      const shouldOpen = form.hidden;
-      setFormVisibility(shouldOpen);
-      if (!shouldOpen) {
-        clearPortalFeeErrors(form);
-        resetPortalFeeForm(form, isAdmin);
-        setStatus(status, "", "");
+      clearPortalFeeErrors(form);
+      resetPortalFeeForm(form, isAdmin);
+      if (form.elements.category) {
+        form.elements.category.value = feeState.category;
       }
+      applyContextOptions();
+      setStatus(status, "", "");
+      setFormVisibility(true);
+    };
+
+    const closeFeeForm = () => {
+      clearPortalFeeErrors(form);
+      resetPortalFeeForm(form, isAdmin);
+      if (form.elements.category) {
+        form.elements.category.value = feeState.category;
+      }
+      setFormVisibility(false);
+      setStatus(status, "", "");
+    };
+
+    const openFeeItemEditor = (record) => {
+      if (!record || !isAdmin) {
+        return;
+      }
+
+      feeState.category = normalizeFeeCategoryKey(record.category || FEE_CATEGORY_FALLBACK);
+      populatePortalFeeForm(form, record, isAdmin);
+      applyContextOptions();
+      renderFeeCategoryOptions();
+      setFormVisibility(true);
+      setStatus(status, "info", `Editing fee item <strong>${escapeHtml(record.name)}</strong>.`);
+    };
+
+    const toggleFeeItemArchiveState = (record, action) => {
+      if (!record || !isAdmin) {
+        return;
+      }
+
+      if (action === "archive") {
+        manager.archiveItem(record.id);
+      } else {
+        manager.activateItem(record.id);
+      }
+      recordAuditEvent({
+        action: action === "archive" ? "archived" : "reactivated",
+        entityType: "fee-item",
+        entityId: record.id,
+        summary: `${action === "archive" ? "Archived" : "Reactivated"} fee item ${record.name}`,
+        details: `${getFeeCategoryLabel(record.category)} • ${record.classLevel} • ${formatCurrencyAmount(record.amount)}`,
+      });
+      const statusMessage = `Fee item <strong>${escapeHtml(record.name)}</strong> ${action === "archive" ? "archived" : "reactivated"}.`;
+      setStatus(status, "success", statusMessage);
+      showFeeToast(statusMessage);
+      closeFeeForm();
+      refresh();
     };
 
     clearPortalFeeErrors(form);
@@ -10031,7 +10294,14 @@
     });
 
     document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && invoiceOverlay && !invoiceOverlay.hidden) {
+      if (event.key !== "Escape") {
+        return;
+      }
+      if (formOverlay && !formOverlay.hidden) {
+        closeFeeForm();
+        return;
+      }
+      if (invoiceOverlay && !invoiceOverlay.hidden) {
         closeInvoiceModal();
       }
     });
@@ -10041,6 +10311,29 @@
       formToggleButton.addEventListener("click", toggleVisibility);
     }
 
+    categoryOptionsTarget?.addEventListener("click", (event) => {
+      const categoryButton = event.target.closest("[data-fee-category]");
+      if (!categoryButton) {
+        return;
+      }
+
+      feeState.category = normalizeFeeCategoryKey(categoryButton.dataset.feeCategory || FEE_CATEGORY_FALLBACK);
+      if (form.elements.category && form.hidden) {
+        form.elements.category.value = feeState.category;
+      }
+      renderFeeCategoryOptions();
+      renderFeeManagementSection({ isAdmin, manager, summaryTarget, listTarget, selectedCategory: feeState.category });
+      if (formToggleButton) {
+        formToggleButton.textContent = `Add ${getFeeCategoryLabel(feeState.category)} item`;
+      }
+    });
+
+    formOverlay?.addEventListener("click", (event) => {
+      if (event.target.closest("[data-fee-form-close]")) {
+        closeFeeForm();
+      }
+    });
+
     if (!manager) {
       return;
     }
@@ -10048,6 +10341,13 @@
     form.addEventListener("input", () => {
       clearPortalFeeErrors(form);
       if (isAdmin) setStatus(status, "", "");
+    });
+
+    form.elements.category?.addEventListener("change", () => {
+      feeState.category = normalizeFeeCategoryKey(form.elements.category.value || feeState.category);
+      form.elements.category.value = feeState.category;
+      updateFeeFormTitle();
+      renderFeeCategoryOptions();
     });
 
     form.elements.sessionId?.addEventListener("change", () => {
@@ -10068,6 +10368,7 @@
       const existing = manager.getItems().find((item) => item.id === itemId) || null;
       const payload = {
         id: itemId || undefined,
+        category: normalizeFeeCategoryKey(form.elements.category?.value || feeState.category),
         name: String(form.elements.name.value || "").trim(),
         amount: Number.parseFloat(form.elements.amount.value || "0"),
         classLevel: String(form.elements.classLevel.value || "").trim(),
@@ -10105,14 +10406,19 @@
       }
 
       manager.upsertItem(payload);
+      feeState.category = payload.category;
       recordAuditEvent({
         action: existing ? "updated" : "created",
         entityType: "fee-item",
         entityId: payload.name,
         summary: `${existing ? "Updated" : "Created"} fee item ${payload.name}`,
-        details: `${payload.classLevel} • ${formatCurrencyAmount(payload.amount)}`,
+        details: `${getFeeCategoryLabel(payload.category)} • ${payload.classLevel} • ${formatCurrencyAmount(payload.amount)}`,
       });
-      setStatus(status, "success", `Fee item <strong>${escapeHtml(payload.name)}</strong> saved.`);
+      const successMessage = `${getFeeCategoryLabel(payload.category)} item <strong>${escapeHtml(payload.name)}</strong> saved for <strong>${escapeHtml(
+        payload.classLevel,
+      )}</strong>.`;
+      setStatus(status, "success", successMessage);
+      showFeeToast(successMessage);
       clearFormDraftFor(form);
       resetPortalFeeForm(form, isAdmin);
       setFormVisibility(false);
@@ -10121,11 +10427,16 @@
 
     const cancelButton = form.querySelector("[data-fee-cancel]");
     if (cancelButton) {
-      cancelButton.addEventListener("click", () => {
-        clearPortalFeeErrors(form);
-        resetPortalFeeForm(form, isAdmin);
-        setFormVisibility(false);
-        setStatus(status, "", "");
+      cancelButton.addEventListener("click", closeFeeForm);
+    }
+
+    const modalArchiveButton = form.querySelector("[data-fee-modal-archive]");
+    if (modalArchiveButton) {
+      modalArchiveButton.addEventListener("click", () => {
+        const itemId = String(modalArchiveButton.dataset.feeModalArchiveId || "").trim();
+        const action = String(modalArchiveButton.dataset.feeModalArchiveAction || "archive").trim();
+        const record = manager.getItems().find((item) => item.id === itemId);
+        toggleFeeItemArchiveState(record, action === "activate" ? "activate" : "archive");
       });
     }
 
@@ -10142,30 +10453,28 @@
       }
 
       if (action === "edit") {
-        populatePortalFeeForm(form, record, isAdmin);
-        applyContextOptions();
-        setFormVisibility(true);
-        setStatus(status, "info", `Editing fee item <strong>${escapeHtml(record.name)}</strong>.`);
-        form.scrollIntoView({ behavior: "smooth", block: "start" });
+        openFeeItemEditor(record);
         return;
       }
 
       if (action === "archive" || action === "activate") {
-        if (action === "archive") {
-          manager.archiveItem(record.id);
-        } else {
-          manager.activateItem(record.id);
-        }
-        recordAuditEvent({
-          action: action === "archive" ? "archived" : "reactivated",
-          entityType: "fee-item",
-          entityId: record.id,
-          summary: `${action === "archive" ? "Archived" : "Reactivated"} fee item ${record.name}`,
-          details: `${record.classLevel} • ${formatCurrencyAmount(record.amount)}`,
-        });
-        setStatus(status, "success", `Fee item <strong>${escapeHtml(record.name)}</strong> ${action === "archive" ? "archived" : "reactivated"}.`);
-        refresh();
+        toggleFeeItemArchiveState(record, action);
       }
+    });
+
+    listTarget.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+
+      const actionButton = event.target.closest("[data-fee-action='edit']");
+      if (!actionButton || !isAdmin) {
+        return;
+      }
+
+      event.preventDefault();
+      const record = manager.getItems().find((item) => item.id === String(actionButton.dataset.feeId || "").trim());
+      openFeeItemEditor(record);
     });
 
     window.addEventListener(manager.eventName, refresh);
@@ -11936,15 +12245,30 @@
       form.elements.feeItemId.value = "";
     }
 
+    if (form.elements.category) {
+      form.elements.category.value = FEE_CATEGORY_FALLBACK;
+    }
+
     const submitButton = form.querySelector("[data-fee-submit]");
     const cancelButton = form.querySelector("[data-fee-cancel]");
+    const archiveButton = form.querySelector("[data-fee-modal-archive]");
 
     if (submitButton) {
       submitButton.textContent = "Save fee item";
     }
 
+    if (archiveButton) {
+      archiveButton.hidden = true;
+      archiveButton.textContent = "Archive item";
+      archiveButton.dataset.feeModalArchiveId = "";
+      archiveButton.dataset.feeModalArchiveAction = "archive";
+      archiveButton.classList.add("is-archive");
+      archiveButton.classList.remove("is-restore");
+    }
+
     if (cancelButton) {
-      cancelButton.hidden = true;
+      cancelButton.textContent = "Cancel";
+      cancelButton.hidden = !isAdmin;
     }
 
     Array.from(form.elements).forEach((field) => {
@@ -11960,6 +12284,9 @@
     }
 
     form.elements.feeItemId.value = record.id;
+    if (form.elements.category) {
+      form.elements.category.value = normalizeFeeCategoryKey(record.category || FEE_CATEGORY_FALLBACK);
+    }
     form.elements.name.value = record.name || "";
     form.elements.amount.value = record.amount || "";
     form.elements.classLevel.value = record.classLevel || "";
@@ -11970,9 +12297,20 @@
 
     const submitButton = form.querySelector("[data-fee-submit]");
     const cancelButton = form.querySelector("[data-fee-cancel]");
+    const archiveButton = form.querySelector("[data-fee-modal-archive]");
 
     if (submitButton) {
       submitButton.textContent = "Save changes";
+    }
+
+    if (archiveButton) {
+      const isArchived = record.status === "archived";
+      archiveButton.hidden = !isAdmin;
+      archiveButton.textContent = isArchived ? "Reactivate item" : "Archive item";
+      archiveButton.dataset.feeModalArchiveId = record.id || "";
+      archiveButton.dataset.feeModalArchiveAction = isArchived ? "activate" : "archive";
+      archiveButton.classList.toggle("is-archive", !isArchived);
+      archiveButton.classList.toggle("is-restore", isArchived);
     }
 
     if (cancelButton) {
@@ -14714,7 +15052,7 @@
     `;
   }
 
-  function renderFeeManagementSection({ isAdmin, manager, summaryTarget, listTarget }) {
+  function renderFeeManagementSection({ isAdmin, manager, summaryTarget, listTarget, selectedCategory = FEE_CATEGORY_FALLBACK }) {
     if (!summaryTarget || !listTarget) {
       return;
     }
@@ -14731,7 +15069,15 @@
       return;
     }
 
-    const { items, activeCount, archivedCount, classCount, activeAmount } = manager.summarize();
+    const { items, activeCount, archivedCount, classCount, activeAmount, categoryCount } = manager.summarize();
+    const activeItems = items.filter((item) => item.status !== "archived");
+    const category = normalizeFeeCategoryKey(selectedCategory);
+    const categoryLabel = getFeeCategoryLabel(category);
+    const selectedItems = items.filter((item) => normalizeFeeCategoryKey(item.category || FEE_CATEGORY_FALLBACK) === category);
+    const activeSelectedItems = selectedItems.filter((item) => item.status !== "archived");
+    const selectedAmount = activeSelectedItems.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const activeCategoryCount =
+      categoryCount || new Set(activeItems.map((item) => normalizeFeeCategoryKey(item.category || FEE_CATEGORY_FALLBACK))).size;
     const cycleManager = getAcademicCycleManager();
     const cycleState = cycleManager && typeof cycleManager.getState === "function"
       ? cycleManager.getState()
@@ -14744,9 +15090,9 @@
         <p>Fee lines currently available to billing operations.</p>
       </article>
       <article class="portal-class-stat portal-class-stat-violet">
-        <span>Archived fee items</span>
-        <strong>${archivedCount}</strong>
-        <p>Previous fee lines retained for traceability.</p>
+        <span>Fee categories</span>
+        <strong>${activeCategoryCount}</strong>
+        <p>Active billing categories currently in use.</p>
       </article>
       <article class="portal-class-stat portal-class-stat-green">
         <span>Classes covered</span>
@@ -14754,9 +15100,11 @@
         <p>Unique class levels with configured fees.</p>
       </article>
       <article class="portal-class-stat portal-class-stat-amber">
-        <span>Total active value</span>
-        <strong>${escapeHtml(formatCurrencyAmount(activeAmount))}</strong>
-        <p>Combined amount across active fee items.</p>
+        <span>${escapeHtml(categoryLabel)} value</span>
+        <strong>${escapeHtml(formatCurrencyAmount(selectedAmount))}</strong>
+        <p>${archivedCount} archived item${archivedCount === 1 ? "" : "s"} retained. Total active value: ${escapeHtml(
+          formatCurrencyAmount(activeAmount),
+        )}.</p>
       </article>
     `;
 
@@ -14774,13 +15122,14 @@
       const sessionLabel = getSessionLabelFromCycle(cycleState, item.sessionId);
       const termLabel = getTermLabelFromCycle(cycleState, item.termId);
       const sessionKey = item.sessionId || sessionLabel;
-      const termKey = item.termId || termLabel;
       const classKey = item.classLevel || "Unassigned";
+      const itemCategory = normalizeFeeCategoryKey(item.category || FEE_CATEGORY_FALLBACK);
+      const itemCategoryLabel = getFeeCategoryLabel(itemCategory);
 
       if (!sessions.has(sessionKey)) {
         sessions.set(sessionKey, {
           label: sessionLabel,
-          terms: new Map(),
+          classes: new Map(),
           items: [],
         });
       }
@@ -14788,22 +15137,29 @@
       const sessionGroup = sessions.get(sessionKey);
       sessionGroup.items.push(item);
 
-      if (!sessionGroup.terms.has(termKey)) {
-        sessionGroup.terms.set(termKey, {
-          label: termLabel,
-          classes: new Map(),
+      if (!sessionGroup.classes.has(classKey)) {
+        sessionGroup.classes.set(classKey, {
+          label: classKey,
+          categories: new Map(),
           items: [],
         });
       }
 
-      const termGroup = sessionGroup.terms.get(termKey);
-      termGroup.items.push(item);
+      const classGroup = sessionGroup.classes.get(classKey);
+      classGroup.items.push(item);
 
-      if (!termGroup.classes.has(classKey)) {
-        termGroup.classes.set(classKey, []);
+      if (!classGroup.categories.has(itemCategory)) {
+        classGroup.categories.set(itemCategory, {
+          key: itemCategory,
+          label: itemCategoryLabel,
+          terms: new Set(),
+          items: [],
+        });
       }
 
-      termGroup.classes.get(classKey).push(item);
+      const categoryGroup = classGroup.categories.get(itemCategory);
+      categoryGroup.terms.add(termLabel);
+      categoryGroup.items.push(item);
       return sessions;
     }, new Map());
 
@@ -14817,7 +15173,7 @@
           <section class="portal-class-group portal-fee-session-group">
             <div class="portal-class-group-head">
               <div>
-                <span>Session</span>
+                <span>Academic year</span>
                 <strong>${escapeHtml(sessionGroup.label)}</strong>
               </div>
               <small>${sessionGroup.items.length} fee item${sessionGroup.items.length === 1 ? "" : "s"} • ${escapeHtml(
@@ -14825,69 +15181,91 @@
               )}</small>
             </div>
             <div class="portal-class-level-stack">
-              ${Array.from(sessionGroup.terms.values())
-                .map((termGroup) => `
-                  <details class="portal-class-level-group portal-fee-term-group" open>
+              ${Array.from(sessionGroup.classes.values())
+                .sort((left, right) => left.label.localeCompare(right.label, undefined, { numeric: true }))
+                .map((classGroup) => {
+                  const classItems = classGroup.items;
+                  const classTotal = classItems
+                    .filter((item) => item.status !== "archived")
+                    .reduce((sum, item) => sum + item.amount, 0);
+                  return `
+                  <details class="portal-class-level-group portal-fee-class-details" open>
                     <summary>
                       <div>
-                        <strong>${escapeHtml(termGroup.label)}</strong>
-                        <span>${termGroup.items.length} fee item${termGroup.items.length === 1 ? "" : "s"} across ${termGroup.classes.size} class${
-                          termGroup.classes.size === 1 ? "" : "es"
-                        }</span>
+                        <strong>${escapeHtml(classGroup.label)}</strong>
+                        <span>${classGroup.categories.size} fee categor${classGroup.categories.size === 1 ? "y" : "ies"} • ${
+                          classGroup.items.length
+                        } item${classGroup.items.length === 1 ? "" : "s"}</span>
                       </div>
+                      <small>${escapeHtml(formatCurrencyAmount(classTotal))}</small>
                     </summary>
-                    <div class="portal-fee-class-stack">
-                      ${Array.from(termGroup.classes.entries())
-                        .sort(([left], [right]) => left.localeCompare(right, undefined, { numeric: true }))
-                        .map(([classLevel, classItems]) => {
-                          const classTotal = classItems
-                            .filter((item) => item.status !== "archived")
-                            .reduce((sum, item) => sum + item.amount, 0);
-                          return `
-                            <section class="portal-fee-class-group">
-                              <header class="portal-fee-class-head">
-                                <div>
-                                  <span>Class</span>
-                                  <strong>${escapeHtml(classLevel)}</strong>
+                    <div class="portal-fee-class-stack-inner">
+                      <div class="portal-fee-category-stack">
+                        ${Array.from(classGroup.categories.values())
+                          .sort((left, right) => left.label.localeCompare(right.label, undefined, { numeric: true }))
+                          .map((classCategory) => {
+                            const categoryItems = classCategory.items.sort((left, right) => {
+                              const termComparison = getTermLabelFromCycle(cycleState, left.termId).localeCompare(
+                                getTermLabelFromCycle(cycleState, right.termId),
+                                undefined,
+                                { numeric: true },
+                              );
+                              if (termComparison !== 0) return termComparison;
+                              return left.name.localeCompare(right.name, undefined, { numeric: true });
+                            });
+                            const categoryTotal = categoryItems
+                              .filter((item) => item.status !== "archived")
+                              .reduce((sum, item) => sum + item.amount, 0);
+                            return `
+                              <section class="portal-fee-class-category-group">
+                                <header class="portal-fee-class-category-head">
+                                  <div>
+                                    <span>Category</span>
+                                    <strong>${escapeHtml(classCategory.label)}</strong>
+                                  </div>
+                                  <small>${categoryItems.length} item${categoryItems.length === 1 ? "" : "s"} • ${escapeHtml(
+                                    formatCurrencyAmount(categoryTotal),
+                                  )}</small>
+                                </header>
+                                <div class="portal-fee-item-grid">
+                                  ${categoryItems
+                                    .map((item) => {
+                                      const itemTermLabel = getTermLabelFromCycle(cycleState, item.termId);
+                                      return `
+                                        <article class="portal-class-card portal-fee-item-card ${item.status === "archived" ? "is-archived" : ""}" data-fee-action="edit" data-fee-id="${
+                                        escapeHtml(item.id)
+                                      }" role="button" tabindex="${isAdmin ? "0" : "-1"}" aria-label="Edit ${escapeHtml(item.name)}">
+                                          <div class="portal-class-card-head">
+                                            <div class="portal-class-title">
+                                              <strong>${escapeHtml(item.name)}</strong>
+                                              <span>${escapeHtml(item.description || `${classCategory.label} item for ${classGroup.label}`)}</span>
+                                            </div>
+                                            <span class="portal-class-status ${item.status === "archived" ? "is-archived" : "is-active"}">
+                                              ${item.status === "archived" ? "Archived" : "Active"}
+                                            </span>
+                                          </div>
+                                          <div class="portal-class-meta">
+                                            <div class="portal-class-meta-item"><span>Amount</span><strong>${escapeHtml(formatCurrencyAmount(item.amount))}</strong></div>
+                                            <div class="portal-class-meta-item"><span>Period</span><strong>${escapeHtml(itemTermLabel)}</strong></div>
+                                            <div class="portal-class-meta-item"><span>Due Date</span><strong>${escapeHtml(item.dueDate || "Not set")}</strong></div>
+                                          </div>
+                                          <div class="portal-fee-card-foot">
+                                            <span>Click to edit or archive</span>
+                                          </div>
+                                        </article>
+                                      `;
+                                    })
+                                    .join("")}
                                 </div>
-                                <small>${classItems.length} item${classItems.length === 1 ? "" : "s"} • ${escapeHtml(
-                                  formatCurrencyAmount(classTotal),
-                                )}</small>
-                              </header>
-                              <div class="portal-fee-item-grid">
-                                ${classItems
-                                  .map((item) => `
-                                    <article class="portal-class-card portal-fee-item-card ${item.status === "archived" ? "is-archived" : ""}">
-                                      <div class="portal-class-card-head">
-                                        <div class="portal-class-title">
-                                          <strong>${escapeHtml(item.name)}</strong>
-                                          <span>${escapeHtml(item.description || "No description")}</span>
-                                        </div>
-                                        <span class="portal-class-status ${item.status === "archived" ? "is-archived" : "is-active"}">
-                                          ${item.status === "archived" ? "Archived" : "Active"}
-                                        </span>
-                                      </div>
-                                      <div class="portal-class-meta">
-                                        <div class="portal-class-meta-item"><span>Amount</span><strong>${escapeHtml(formatCurrencyAmount(item.amount))}</strong></div>
-                                        <div class="portal-class-meta-item"><span>Due Date</span><strong>${escapeHtml(item.dueDate || "Not set")}</strong></div>
-                                      </div>
-                                      <div class="portal-class-actions">
-                                        <button class="portal-class-button" type="button" data-fee-action="edit" data-fee-id="${item.id}" ${isAdmin ? "" : "disabled"}>Edit</button>
-                                        <button class="portal-class-button ${item.status === "archived" ? "is-restore" : "is-archive"}" type="button" data-fee-action="${
-                                    item.status === "archived" ? "activate" : "archive"
-                                  }" data-fee-id="${item.id}" ${isAdmin ? "" : "disabled"}>${item.status === "archived" ? "Reactivate" : "Archive"}</button>
-                                      </div>
-                                    </article>
-                                  `)
-                                  .join("")}
-                              </div>
-                            </section>
-                          `;
-                        })
-                        .join("")}
+                              </section>
+                            `;
+                          })
+                          .join("")}
+                      </div>
                     </div>
                   </details>
-                `)
+                `;
+                })
                 .join("")}
             </div>
           </section>
@@ -20485,6 +20863,81 @@
     );
   }
 
+  function buildConfiguredParentFeeSnapshot(student = null) {
+    if (!student) {
+      return null;
+    }
+
+    const feeManager = getFeeItemManager();
+    if (!feeManager || typeof feeManager.getItems !== "function") {
+      return null;
+    }
+
+    const cycleManager = getAcademicCycleManager();
+    const cycleState = cycleManager && typeof cycleManager.getState === "function"
+      ? cycleManager.getState()
+      : { sessions: [], terms: [] };
+    const studentClassToken = normalizeLevelToken(student.level);
+    const matchingItems = feeManager
+      .getItems()
+      .filter(
+        (item) =>
+          item.status !== "archived" &&
+          normalizeLevelToken(item.classLevel) === studentClassToken,
+      );
+
+    if (!matchingItems.length) {
+      return null;
+    }
+
+    const sessions = Array.isArray(cycleState.sessions) ? cycleState.sessions : [];
+    const terms = Array.isArray(cycleState.terms) ? cycleState.terms : [];
+    const openSession = sessions.find((session) => session.status === "open") || null;
+    const openTerm =
+      terms.find((term) => term.status === "open" && (!openSession || term.sessionId === openSession.id)) ||
+      terms.find((term) => term.status === "open") ||
+      null;
+    const periodScopedItems = openTerm
+      ? matchingItems.filter((item) => item.termId === openTerm.id && (!openTerm.sessionId || item.sessionId === openTerm.sessionId))
+      : openSession
+        ? matchingItems.filter((item) => item.sessionId === openSession.id)
+        : [];
+    const displayItems = periodScopedItems.length ? periodScopedItems : matchingItems;
+    const totalDue = displayItems.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const itemDueDates = displayItems
+      .map((item) => String(item.dueDate || "").trim())
+      .filter(Boolean)
+      .sort();
+    const sessionId = openTerm?.sessionId || openSession?.id || displayItems[0]?.sessionId || "";
+    const termId = openTerm?.id || displayItems[0]?.termId || "";
+    const invoiceKey = sessionId && termId && student.level ? `${sessionId}:${termId}:${student.level}` : "";
+
+    return {
+      studentId: student.id,
+      studentName: student.fullName,
+      admissionNo: student.admissionNo,
+      classLevel: student.level,
+      sessionId,
+      sessionName: sessionId ? getSessionLabelFromCycle(cycleState, sessionId) : "",
+      termId,
+      termName: termId ? getTermLabelFromCycle(cycleState, termId) : "",
+      invoiceKey,
+      invoiceStatus: "configured",
+      invoiceItems: displayItems.map((item) => ({
+        feeItemId: item.id,
+        category: normalizeFeeCategoryKey(item.category || FEE_CATEGORY_FALLBACK),
+        name: item.name,
+        amount: Number(item.amount || 0),
+        description: item.description || "",
+        dueDate: item.dueDate || "",
+      })),
+      totalDue,
+      balance: totalDue,
+      dueDate: itemDueDates[itemDueDates.length - 1] || "Not set by admin yet",
+      updatedAt: nowIso(),
+    };
+  }
+
   function deriveParentAttendanceSummary(student = null) {
     const cycleManager = getAcademicCycleManager();
     const cycleState = cycleManager && typeof cycleManager.getState === "function"
@@ -20925,18 +21378,24 @@
 
     const workspaceId = normalizeWorkspaceId(user?.workspaceId || getCurrentWorkspaceId());
     const allFees = readParentFeesState(workspaceId);
-    const current = allFees[student.id] || {
-      totalDue: 0,
-      balance: 0,
-      dueDate: "Not set by admin yet",
-      updatedAt: nowIso(),
-    };
+    const storedFeeRecord = allFees[student.id] || null;
+    const configuredFeeRecord = buildConfiguredParentFeeSnapshot(student);
+    const hasStoredFeeRecord = Boolean(storedFeeRecord?.invoiceNo || storedFeeRecord?.invoiceItems?.length);
+    const current = hasStoredFeeRecord
+      ? storedFeeRecord
+      : configuredFeeRecord || {
+          totalDue: 0,
+          balance: 0,
+          dueDate: "Not set by admin yet",
+          updatedAt: nowIso(),
+        };
     const invoiceItems = Array.isArray(current.invoiceItems) ? current.invoiceItems : [];
     const invoiceItemRows = invoiceItems.length
       ? invoiceItems
           .map(
             (item) => `
               <tr>
+                <td>${escapeHtml(getFeeCategoryLabel(item.category || FEE_CATEGORY_FALLBACK))}</td>
                 <td>${escapeHtml(item.name || "Fee item")}</td>
                 <td>${escapeHtml(item.description || "No note")}</td>
                 <td>${escapeHtml(item.dueDate || current.dueDate || "Not set")}</td>
@@ -20945,7 +21404,7 @@
             `,
           )
           .join("")
-      : `<tr><td colspan="4">No invoice line items have been generated yet.</td></tr>`;
+      : `<tr><td colspan="5">No class fee items have been configured or generated yet.</td></tr>`;
 
     target.innerHTML = `
       <article class="admin-surface-card">
@@ -20954,7 +21413,9 @@
           <span>Fees are configured by school admin. Parents can pay and track balances here.</span>
         </div>
         <div class="admin-session-grid">
-          <div class="admin-session-card"><span>Invoice</span><strong>${escapeHtml(current.invoiceNo || "Not generated")}</strong></div>
+          <div class="admin-session-card"><span>Invoice</span><strong>${escapeHtml(
+            current.invoiceNo || (current.invoiceStatus === "configured" ? "Configured fees" : "Not generated"),
+          )}</strong></div>
           <div class="admin-session-card"><span>Total due</span><strong>${escapeHtml(formatCurrencyAmount(current.totalDue || 0))}</strong></div>
           <div class="admin-session-card"><span>Outstanding balance</span><strong>${escapeHtml(formatCurrencyAmount(current.balance || 0))}</strong></div>
           <div class="admin-session-card"><span>Due date</span><strong>${escapeHtml(String(current.dueDate || "Not set"))}</strong></div>
@@ -20968,7 +21429,7 @@
         <div class="portal-import-table-wrap parent-fee-invoice-lines">
           <table class="portal-import-table">
             <thead>
-              <tr><th>Fee item</th><th>Note</th><th>Due date</th><th>Amount</th></tr>
+              <tr><th>Category</th><th>Fee item</th><th>Note</th><th>Due date</th><th>Amount</th></tr>
             </thead>
             <tbody>${invoiceItemRows}</tbody>
           </table>
@@ -22068,6 +22529,405 @@
       statusSelect: document.querySelector("[data-attendance-review-status]"),
       searchInput: document.querySelector("[data-attendance-review-search]"),
     });
+  }
+
+  function formatReportNumber(value) {
+    const amount = Number(value || 0);
+    return new Intl.NumberFormat("en-NG").format(Number.isFinite(amount) ? amount : 0);
+  }
+
+  function formatReportPercent(value) {
+    const amount = Number(value);
+    return Number.isFinite(amount) ? `${Math.round(amount)}%` : "Not enough data";
+  }
+
+  function clampReportScore(value) {
+    const amount = Number(value);
+    if (!Number.isFinite(amount)) {
+      return 0;
+    }
+    return Math.max(0, Math.min(100, Math.round(amount)));
+  }
+
+  function getReportHealthLabel(score) {
+    if (score >= 80) return "Healthy";
+    if (score >= 55) return "Needs attention";
+    return "At risk";
+  }
+
+  function buildAdminReportSnapshot() {
+    const workspaceId = normalizeWorkspaceId(getCurrentWorkspaceId());
+    const users = getUsers().filter((user) => normalizeWorkspaceId(user.workspaceId) === workspaceId);
+    const studentManager = getStudentManager();
+    const classManager = getClassManager();
+    const feeManager = getFeeItemManager();
+    const attendanceManager = getAttendanceManager();
+    const timetableManager = getTimetableManager();
+    const students = studentManager && typeof studentManager.getStudents === "function" ? studentManager.getStudents() : [];
+    const activeStudents = students.filter((student) => student.status === "active");
+    const classes = classManager && typeof classManager.getClasses === "function" ? classManager.getClasses() : [];
+    const activeClasses = classes.filter((item) => item.status !== "archived");
+    const teachers = users.filter(
+      (user) => normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE) === "Teacher" && normalizeUserStatus(user.status) === "active",
+    );
+    const admissions = getAdmissions(workspaceId);
+    const admissionCounts = admissions.reduce(
+      (counts, entry) => {
+        const status = normalizeAdmissionStatus(entry.status);
+        counts[status] = (counts[status] || 0) + 1;
+        return counts;
+      },
+      { pending: 0, review: 0, shortlisted: 0, rejected: 0, approved: 0 },
+    );
+    const attendanceSummary =
+      attendanceManager && typeof attendanceManager.summarize === "function"
+        ? attendanceManager.summarize({ date: getTodayDateValue() })
+        : {
+            activeStudentCount: activeStudents.length,
+            markedCount: 0,
+            attendanceRate: null,
+            counts: { present: 0, absent: 0, late: 0, excused: 0, unmarked: activeStudents.length },
+          };
+    const feeSummary =
+      feeManager && typeof feeManager.summarize === "function"
+        ? feeManager.summarize()
+        : { activeCount: 0, classCount: 0, activeAmount: 0, archivedCount: 0 };
+    const timetableSummary =
+      timetableManager && typeof timetableManager.summarize === "function"
+        ? timetableManager.summarize()
+        : { entries: [], publishedCount: 0, draftCount: 0, classCount: 0, teacherCount: 0, activePeriods: [] };
+    const invoices = Object.values(readParentFeesState(workspaceId) || {}).filter((invoice) => invoice && invoice.invoiceNo);
+    const invoiceTotalDue = invoices.reduce((sum, invoice) => sum + Number(invoice.totalDue || 0), 0);
+    const invoiceBalance = invoices.reduce((sum, invoice) => sum + Number(invoice.balance || 0), 0);
+    const classTeacherCount = activeClasses.filter((item) => String(item.classTeacher || "").trim()).length;
+    const attendanceMarkedScore = attendanceSummary.activeStudentCount
+      ? (Number(attendanceSummary.markedCount || 0) / Number(attendanceSummary.activeStudentCount || 1)) * 100
+      : 0;
+    const classTeacherScore = activeClasses.length ? (classTeacherCount / activeClasses.length) * 100 : 0;
+    const feeCoverageScore = activeClasses.length ? (Number(feeSummary.classCount || 0) / activeClasses.length) * 100 : 0;
+    const timetableCoverageScore = activeClasses.length ? (Number(timetableSummary.classCount || 0) / activeClasses.length) * 100 : 0;
+    const healthScores = [
+      { key: "attendance", label: "Attendance marked today", score: clampReportScore(attendanceMarkedScore) },
+      { key: "class-teachers", label: "Classes with class teachers", score: clampReportScore(classTeacherScore) },
+      { key: "fee-coverage", label: "Classes with fees configured", score: clampReportScore(feeCoverageScore) },
+      { key: "timetable", label: "Classes with timetable lessons", score: clampReportScore(timetableCoverageScore) },
+    ];
+    const overallScore = healthScores.length
+      ? clampReportScore(healthScores.reduce((sum, item) => sum + item.score, 0) / healthScores.length)
+      : 0;
+
+    return {
+      workspaceId,
+      activeStudents,
+      activeClasses,
+      teachers,
+      admissions,
+      admissionCounts,
+      attendanceSummary,
+      feeSummary,
+      timetableSummary,
+      invoices,
+      invoiceTotalDue,
+      invoiceBalance,
+      classTeacherCount,
+      healthScores,
+      overallScore,
+    };
+  }
+
+  function renderAdminReportsDashboard() {
+    if (getPage() !== "admin-reports") {
+      return;
+    }
+
+    const kpiTarget = document.getElementById("admin-report-kpis");
+    const insightsTarget = document.getElementById("admin-report-insights");
+    const healthTarget = document.getElementById("admin-report-health");
+    const areasTarget = document.getElementById("admin-report-areas");
+    const checklistTarget = document.getElementById("admin-report-checklist");
+    const actionsTarget = document.getElementById("admin-report-actions");
+
+    if (!kpiTarget || !insightsTarget || !healthTarget || !areasTarget || !checklistTarget || !actionsTarget) {
+      return;
+    }
+
+    const report = buildAdminReportSnapshot();
+    const attendanceCounts = report.attendanceSummary.counts || {};
+    const unmarkedCount = Number(attendanceCounts.unmarked || 0);
+    const attendanceRateLabel = formatReportPercent(report.attendanceSummary.attendanceRate);
+    const outstandingRate = report.invoiceTotalDue ? (report.invoiceBalance / report.invoiceTotalDue) * 100 : 0;
+    const approvedAdmissions = Number(report.admissionCounts.approved || 0);
+    const activePipeline =
+      Number(report.admissionCounts.pending || 0) +
+      Number(report.admissionCounts.review || 0) +
+      Number(report.admissionCounts.shortlisted || 0);
+
+    kpiTarget.innerHTML = `
+      <article class="admin-report-kpi">
+        <span>Active students</span>
+        <strong>${formatReportNumber(report.activeStudents.length)}</strong>
+        <p>${formatReportNumber(report.activeClasses.length)} active class group${report.activeClasses.length === 1 ? "" : "s"}</p>
+      </article>
+      <article class="admin-report-kpi">
+        <span>Attendance today</span>
+        <strong>${escapeHtml(attendanceRateLabel)}</strong>
+        <p>${formatReportNumber(report.attendanceSummary.markedCount || 0)} of ${formatReportNumber(report.attendanceSummary.activeStudentCount || 0)} students marked</p>
+      </article>
+      <article class="admin-report-kpi">
+        <span>Fees configured</span>
+        <strong>${formatReportNumber(report.feeSummary.activeCount || 0)}</strong>
+        <p>${formatCurrencyAmount(report.feeSummary.activeAmount || 0)} active billing value</p>
+      </article>
+      <article class="admin-report-kpi">
+        <span>Outstanding balance</span>
+        <strong>${formatCurrencyAmount(report.invoiceBalance)}</strong>
+        <p>${formatReportNumber(report.invoices.length)} generated invoice${report.invoices.length === 1 ? "" : "s"}</p>
+      </article>
+      <article class="admin-report-kpi">
+        <span>Timetable coverage</span>
+        <strong>${formatReportNumber(report.timetableSummary.classCount || 0)}</strong>
+        <p>${formatReportNumber(report.timetableSummary.publishedCount || 0)} published lesson${Number(report.timetableSummary.publishedCount || 0) === 1 ? "" : "s"}</p>
+      </article>
+      <article class="admin-report-kpi">
+        <span>Admissions pipeline</span>
+        <strong>${formatReportNumber(activePipeline)}</strong>
+        <p>${formatReportNumber(approvedAdmissions)} approved applicant${approvedAdmissions === 1 ? "" : "s"}</p>
+      </article>
+    `;
+
+    const insightRows = [
+      {
+        title: "Student population",
+        body: report.activeStudents.length
+          ? `The school currently has ${formatReportNumber(report.activeStudents.length)} active student${report.activeStudents.length === 1 ? "" : "s"} spread across ${formatReportNumber(report.activeClasses.length)} class group${report.activeClasses.length === 1 ? "" : "s"}. This explains the size of daily operations.`
+          : "No active students have been added yet, so most reports will remain empty until student profiles are created.",
+        tone: report.activeStudents.length ? "good" : "attention",
+      },
+      {
+        title: "Attendance reliability",
+        body: unmarkedCount
+          ? `${formatReportNumber(unmarkedCount)} student${unmarkedCount === 1 ? "" : "s"} still need attendance marking today. When attendance is incomplete, absence and punctuality reports can mislead parents and leadership.`
+          : "Attendance is fully marked for the students currently in the register today, so daily attendance reporting is ready for review.",
+        tone: unmarkedCount ? "attention" : "good",
+      },
+      {
+        title: "Finance position",
+        body: report.invoices.length
+          ? `Generated invoices total ${formatCurrencyAmount(report.invoiceTotalDue)}. Guardians have ${formatCurrencyAmount(report.invoiceBalance)} still outstanding, about ${formatReportPercent(outstandingRate)} of billed invoices.`
+          : `Fee items worth ${formatCurrencyAmount(report.feeSummary.activeAmount || 0)} are configured, but invoices have not been generated yet. Generate invoices when guardians should start seeing balances.`,
+        tone: report.invoiceBalance > 0 ? "attention" : "good",
+      },
+      {
+        title: "Staff and timetable",
+        body:
+          report.activeClasses.length && report.classTeacherCount < report.activeClasses.length
+            ? `${formatReportNumber(report.activeClasses.length - report.classTeacherCount)} class group${report.activeClasses.length - report.classTeacherCount === 1 ? "" : "s"} still need a class teacher. This can affect attendance follow-up, parent contact, and report ownership.`
+            : `Teacher coverage looks organised: ${formatReportNumber(report.teachers.length)} active teacher account${report.teachers.length === 1 ? "" : "s"} and ${formatReportNumber(report.timetableSummary.teacherCount || 0)} teacher${Number(report.timetableSummary.teacherCount || 0) === 1 ? "" : "s"} already appear on timetable lessons.`,
+        tone: report.activeClasses.length && report.classTeacherCount < report.activeClasses.length ? "attention" : "good",
+      },
+    ];
+
+    insightsTarget.innerHTML = insightRows
+      .map(
+        (row) => `
+          <article class="admin-report-insight is-${row.tone}">
+            <strong>${escapeHtml(row.title)}</strong>
+            <p>${escapeHtml(row.body)}</p>
+          </article>
+        `,
+      )
+      .join("");
+
+    healthTarget.innerHTML = `
+      <div class="admin-report-health-score" style="--score:${report.overallScore}">
+        <strong>${formatReportPercent(report.overallScore)}</strong>
+        <span>${escapeHtml(getReportHealthLabel(report.overallScore))}</span>
+      </div>
+      <div class="admin-report-health-bars">
+        ${report.healthScores
+          .map(
+            (item) => `
+              <div class="admin-report-health-row">
+                <div>
+                  <strong>${escapeHtml(item.label)}</strong>
+                  <span>${formatReportPercent(item.score)}</span>
+                </div>
+                <div class="admin-report-progress" aria-hidden="true"><i style="width:${item.score}%"></i></div>
+              </div>
+            `,
+          )
+          .join("")}
+      </div>
+    `;
+
+    const reportAreas = [
+      {
+        title: "Students and Guardians",
+        metric: `${formatReportNumber(report.activeStudents.length)} active students`,
+        meaning: "Shows whether the school register is complete enough for attendance, fees, communication, and reports.",
+        watch: report.activeStudents.length ? "Check students without complete guardian details before sending parent-facing reports." : "Create student profiles first.",
+        href: "./admin-students.html",
+        action: "Open students",
+      },
+      {
+        title: "Attendance",
+        metric: attendanceRateLabel,
+        meaning: "Shows how many students were present or late out of the students expected today.",
+        watch: unmarkedCount ? "Follow up classes that have not submitted attendance." : "Review absence patterns and repeated lateness.",
+        href: "./admin-attendance.html",
+        action: "Open attendance",
+      },
+      {
+        title: "Fees and Invoices",
+        metric: formatCurrencyAmount(report.invoiceBalance || report.feeSummary.activeAmount || 0),
+        meaning: "Shows how much money is configured, billed, or still unpaid depending on invoice progress.",
+        watch: report.invoices.length ? "Compare outstanding balances with payment follow-up." : "Generate invoices so guardians can see balances.",
+        href: "./admin-fees.html",
+        action: "Open fees",
+      },
+      {
+        title: "Classes and Teachers",
+        metric: `${formatReportNumber(report.classTeacherCount)}/${formatReportNumber(report.activeClasses.length)} assigned`,
+        meaning: "Shows whether each class has an accountable teacher for daily follow-up and reporting.",
+        watch: report.classTeacherCount < report.activeClasses.length ? "Assign missing class teachers." : "Keep teacher assignments updated when classes change.",
+        href: "./admin-classes.html",
+        action: "Open classes",
+      },
+      {
+        title: "Timetable",
+        metric: `${formatReportNumber(report.timetableSummary.classCount || 0)} classes covered`,
+        meaning: "Shows whether classes have recorded lessons and whether the week is structured.",
+        watch: Number(report.timetableSummary.draftCount || 0) ? "Publish draft lessons when the timetable is final." : "Review teacher workload before the term begins.",
+        href: "./admin-schedule.html",
+        action: "Open timetable",
+      },
+      {
+        title: "Admissions",
+        metric: `${formatReportNumber(activePipeline)} in progress`,
+        meaning: "Shows how many applicants still need review before they become students.",
+        watch: activePipeline ? "Move approved applicants into student records once admission is confirmed." : "Keep stages updated for the next admission window.",
+        href: "./admin-admissions.html",
+        action: "Open admissions",
+      },
+    ];
+
+    areasTarget.innerHTML = reportAreas
+      .map(
+        (area) => `
+          <article class="admin-report-area">
+            <div>
+              <span>${escapeHtml(area.title)}</span>
+              <strong>${escapeHtml(area.metric)}</strong>
+            </div>
+            <p><b>Meaning:</b> ${escapeHtml(area.meaning)}</p>
+            <p><b>Watch:</b> ${escapeHtml(area.watch)}</p>
+            <a href="${escapeHtml(area.href)}">${escapeHtml(area.action)}</a>
+          </article>
+        `,
+      )
+      .join("");
+
+    const checklist = [
+      {
+        label: "Students are entered",
+        detail: report.activeStudents.length ? "Student register has active records." : "No active students are available for reports.",
+        ready: report.activeStudents.length > 0,
+      },
+      {
+        label: "Attendance is complete",
+        detail: unmarkedCount ? `${formatReportNumber(unmarkedCount)} students are unmarked today.` : "Attendance has no unmarked students today.",
+        ready: unmarkedCount === 0 && report.attendanceSummary.activeStudentCount > 0,
+      },
+      {
+        label: "Class ownership is clear",
+        detail:
+          report.activeClasses.length && report.classTeacherCount < report.activeClasses.length
+            ? `${formatReportNumber(report.activeClasses.length - report.classTeacherCount)} classes need class teachers.`
+            : "Classes have assigned ownership.",
+        ready: report.activeClasses.length > 0 && report.classTeacherCount >= report.activeClasses.length,
+      },
+      {
+        label: "Fees are visible to guardians",
+        detail: report.feeSummary.activeCount ? "Fee items are configured by class." : "No active fee items have been configured.",
+        ready: Number(report.feeSummary.activeCount || 0) > 0,
+      },
+      {
+        label: "Timetable is usable",
+        detail: report.timetableSummary.classCount ? "Timetable lessons exist for class review." : "No class timetables have been recorded yet.",
+        ready: Number(report.timetableSummary.classCount || 0) > 0,
+      },
+    ];
+
+    checklistTarget.innerHTML = checklist
+      .map(
+        (item) => `
+          <div class="admin-report-check">
+            <span class="${item.ready ? "is-ready" : "is-pending"}">${item.ready ? "Ready" : "Needs work"}</span>
+            <div>
+              <strong>${escapeHtml(item.label)}</strong>
+              <p>${escapeHtml(item.detail)}</p>
+            </div>
+          </div>
+        `,
+      )
+      .join("");
+
+    const actions = [
+      { label: "Student register", href: "./admin-students.html", copy: "Review complete student and guardian profiles." },
+      { label: "Attendance review", href: "./admin-attendance.html", copy: "Check present, absent, late, and unmarked students." },
+      { label: "Fee configuration", href: "./admin-fees.html", copy: "Review class fees, invoices, and outstanding balances." },
+      { label: "Timetable sheets", href: "./admin-schedule.html", copy: "View and print saved class timetables." },
+      { label: "School identity", href: "./admin-settings-school.html", copy: "Confirm school name, address, logo, and structure." },
+    ];
+
+    actionsTarget.innerHTML = actions
+      .map(
+        (action) => `
+          <a class="admin-report-action" href="${escapeHtml(action.href)}">
+            <strong>${escapeHtml(action.label)}</strong>
+            <span>${escapeHtml(action.copy)}</span>
+          </a>
+        `,
+      )
+      .join("");
+  }
+
+  function initAdminReportsPage() {
+    if (getPage() !== "admin-reports") {
+      return;
+    }
+
+    const { isAdmin, roleLabel } = getAdminAccessContext();
+    const canViewReports = isAdmin && canAccessPermission(roleLabel, PAGE_PERMISSION_KEYS["admin-reports"]);
+    const reportsWorkspace = document.querySelector(".admin-report-workspace");
+
+    if (!canViewReports && reportsWorkspace) {
+      reportsWorkspace.innerHTML = `
+        <article class="admin-surface-card">
+          <div class="admin-surface-head"><h2>Reports unavailable</h2><span>Permission required</span></div>
+          <p class="auth-helper-text">Your account does not currently have permission to view reports.</p>
+        </article>
+      `;
+      return;
+    }
+
+    const refresh = () => renderAdminReportsDashboard();
+    refresh();
+
+    [
+      getStudentManager()?.eventName,
+      getClassManager()?.eventName,
+      getFeeItemManager()?.eventName,
+      getAttendanceManager()?.eventName,
+      getTimetableManager()?.eventName,
+      getAdmissionConfigManager()?.eventName,
+      ADMISSIONS_EVENT_NAME,
+      PARENT_FEES_EVENT_NAME,
+    ]
+      .filter(Boolean)
+      .forEach((eventName) => {
+        window.addEventListener(eventName, refresh);
+      });
   }
 
   function initAdminFeatureModulesPage() {
