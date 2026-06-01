@@ -5,16 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Apply | SchoolSphere Admissions</title>
     <meta name="description" content="Student admissions application form for SchoolSphere workspaces." />
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=admissions-apply-title" />
   </head>
   <body data-page="admissions-apply" class="auth-page">
     <main class="auth-screen">
       <section class="auth-shell">
         <article class="auth-pane auth-pane-left">
           <div class="auth-left-inner">
-            <a class="auth-brand" href="./index.html" aria-label="SchoolSphere home">
-              <span class="auth-brand-mark">S</span>
-              <span class="auth-brand-text">SchoolSphere</span>
+            <a class="auth-brand auth-brand-school" href="./index.html" aria-label="School admissions home">
+              <span id="admissions-apply-brand-mark" class="auth-brand-mark">S</span>
+              <span class="auth-brand-copy">
+                <strong id="admissions-apply-school-name" class="auth-brand-text">School Application</strong>
+                <small>Powered by SchoolSphere</small>
+              </span>
             </a>
 
             <div class="auth-copy-block">
@@ -290,6 +293,6 @@
 
     <script src="./app.js"></script>
     <script src="./supabase-config.js"></script>
-    <script src="./auth.js"></script>
+    <script src="./auth.js?v=admissions-apply-title"></script>
   </body>
 </html>

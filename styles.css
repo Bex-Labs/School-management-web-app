@@ -3891,6 +3891,22 @@ body.auth-page .auth-brand {
   margin-bottom: 12px;
 }
 
+body.auth-page .auth-brand-school {
+  align-items: center;
+}
+
+body.auth-page .auth-brand-copy {
+  display: grid;
+  gap: 2px;
+}
+
+body.auth-page .auth-brand-copy small {
+  color: #6b7d97;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
 body.auth-page .auth-brand-note {
   margin: 0 0 12px;
   color: #6b7d97;
@@ -3907,7 +3923,7 @@ body.auth-page .auth-brand-mark {
 
 body.auth-page .auth-brand-text {
   font-size: 1.15rem;
-  letter-spacing: -0.04em;
+  letter-spacing: 0;
 }
 
 body.auth-page .auth-copy-block {
@@ -3928,6 +3944,11 @@ body.auth-page .auth-page-title {
   color: #10284d;
   font-size: clamp(1.95rem, 3vw, 2.85rem);
   line-height: 0.95;
+}
+
+body.auth-page[data-page="admissions-apply"] .auth-page-title {
+  font-size: clamp(1.45rem, 2.1vw, 2rem);
+  line-height: 1.08;
 }
 
 body.auth-page .auth-flow-note {
@@ -4007,6 +4028,37 @@ body.auth-page .auth-line-field:focus-within {
 body.auth-page .auth-line-field input {
   height: 48px;
   font-size: 0.88rem;
+}
+
+body.auth-page[data-page="admissions-apply"] .auth-line-field {
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 56px;
+  padding: 0 14px;
+}
+
+body.auth-page[data-page="admissions-apply"] .auth-line-field input,
+body.auth-page[data-page="admissions-apply"] .auth-line-field select {
+  width: 100%;
+  min-width: 0;
+  height: 52px;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #10284d;
+  font-size: 0.9rem;
+  line-height: 1.3;
+}
+
+body.auth-page[data-page="admissions-apply"] .auth-line-field input::placeholder {
+  color: #6b7d97;
+  opacity: 1;
+}
+
+body.auth-page[data-page="admissions-apply"] .auth-line-field input[type="file"] {
+  display: flex;
+  align-items: center;
+  padding-top: 14px;
 }
 
 body.auth-page .auth-line-icon,

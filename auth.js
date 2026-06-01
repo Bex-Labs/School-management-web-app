@@ -19060,14 +19060,106 @@
     const lockedWorkspaceId =
       prefilledWorkspace && prefilledWorkspace !== "public" ? prefilledWorkspace : "";
     const lockedInstitutionId = prefilledInstitutionId;
+    const brandMark = document.getElementById("admissions-apply-brand-mark");
+    const brandName = document.getElementById("admissions-apply-school-name");
+
+    const getLocalApplySchoolSettings = (workspaceId) => {
+      const manager = getSchoolSettingsManager();
+      const defaults =
+        manager && typeof manager.defaults === "object"
+          ? manager.defaults
+          : getDefaultAdminSchoolSettings();
+      const storageKeys = [
+        workspaceId ? `${SUPABASE_STATE_KEY_SCHOOL_SETTINGS}::${normalizeWorkspaceId(workspaceId)}` : "",
+        SUPABASE_STATE_KEY_SCHOOL_SETTINGS,
+      ].filter(Boolean);
+
+      for (const storageKey of storageKeys) {
+        const storedSettings = parseJSON(localStorage.getItem(storageKey), null);
+        if (storedSettings && typeof storedSettings === "object" && !Array.isArray(storedSettings)) {
+          return {
+            ...defaults,
+            ...storedSettings,
+          };
+        }
+      }
+
+      return manager && typeof manager.getSettings === "function" ? manager.getSettings() : defaults;
+    };
+
+    const applyAdmissionsApplyBranding = (settings = {}) => {
+      const rawSchoolName = String(settings.schoolName || "").trim();
+      const displaySchoolName =
+        rawSchoolName && rawSchoolName !== "SchoolSphere" ? rawSchoolName : "School Application";
+
+      if (brandName) {
+        brandName.textContent = displaySchoolName;
+      }
+
+      if (brandMark) {
+        const logoUrl = String(settings.logoUrl || "").trim();
+        if (logoUrl) {
+          brandMark.classList.add("auth-brand-mark--image");
+          brandMark.innerHTML = `<img class="school-brand-image" src="${escapeHtml(logoUrl)}" alt="${escapeHtml(
+            displaySchoolName,
+          )} logo" />`;
+        } else {
+          brandMark.classList.remove("auth-brand-mark--image");
+          brandMark.textContent = getInitials(displaySchoolName).charAt(0) || "S";
+        }
+      }
+
+      document.title = `${displaySchoolName} Admissions | SchoolSphere`;
+
+      if (pageCopy) {
+        pageCopy.textContent = lockedWorkspaceId
+          ? `Complete the sections below and submit to ${displaySchoolName} for school admin review.`
+          : "Use the official school application link to open this form.";
+      }
+    };
+
+    const fetchInstitutionBranding = async (institutionId) => {
+      if (!institutionId || !isSupabaseConfigured()) {
+        return null;
+      }
+
+      try {
+        const client = await getSupabaseClient();
+        if (!client) {
+          return null;
+        }
+
+        const { data, error } = await withNetworkTimeout(
+          client
+            .from("institutions")
+            .select(
+              "name, logo_url, school_profile, address, campus_details, phone, website, has_nursery, has_higher_institution, academic_year_start, academic_year_end",
+            )
+            .eq("id", institutionId)
+            .maybeSingle(),
+        );
+
+        if (error || !data) {
+          return null;
+        }
+
+        return mapInstitutionToSchoolSettings(data);
+      } catch {
+        return null;
+      }
+    };
+
+    applyAdmissionsApplyBranding(getLocalApplySchoolSettings(lockedWorkspaceId));
+    if (lockedInstitutionId) {
+      fetchInstitutionBranding(lockedInstitutionId).then((settings) => {
+        if (settings) {
+          applyAdmissionsApplyBranding(settings);
+        }
+      });
+    }
 
     if (lockedWorkspaceId) {
       workspaceInput.value = lockedWorkspaceId;
-      if (pageCopy) {
-        pageCopy.textContent = "Complete the sections below and submit for school admin review.";
-      }
-    } else if (pageCopy) {
-      pageCopy.textContent = "Use the official school application link to open this form.";
     }
 
     const stepSections = Array.from(form.querySelectorAll("[data-admissions-step]"));
