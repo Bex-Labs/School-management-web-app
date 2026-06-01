@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Admissions | SchoolSphere Admin</title>
     <meta name="description" content="Admissions workflow for reviewing, shortlisting, rejecting, and approving applicants." />
-    <link rel="stylesheet" href="./styles.css?v=admission-open-classes" />
+    <link rel="stylesheet" href="./styles.css?v=admissions-documents" />
   </head>
   <body data-page="admin-admissions" class="admin-dashboard-page">
     <main class="admin-dashboard-shell">
@@ -194,6 +194,14 @@
                         <option value="">Select level/class</option>
                       </select>
                     </label>
+                    <label class="portal-field" for="admission-date-of-birth">
+                      <span>Date of birth</span>
+                      <input id="admission-date-of-birth" name="dateOfBirth" type="date" />
+                    </label>
+                    <label class="portal-field" for="admission-passport-photo">
+                      <span>Passport photograph</span>
+                      <input id="admission-passport-photo" name="passportPhoto" type="file" accept=".jpg,.jpeg,.png,.webp" />
+                    </label>
                     <label class="portal-field" for="admission-guardian-name">
                       <span>Guardian full name</span>
                       <input id="admission-guardian-name" name="guardianName" type="text" placeholder="Mary Yusuf" />
@@ -206,6 +214,31 @@
                       <span>Guardian phone</span>
                       <input id="admission-guardian-phone" name="guardianPhone" type="text" placeholder="+234..." />
                     </label>
+                    <div class="portal-field portal-field-span-2">
+                      <span>Documents upload</span>
+                      <div class="portal-admission-doc-upload-grid">
+                        <label class="portal-admission-doc-upload" for="admission-doc-previous-report">
+                          <span>Previous report/result</span>
+                          <input id="admission-doc-previous-report" name="docPreviousReport" type="file" />
+                        </label>
+                        <label class="portal-admission-doc-upload" for="admission-doc-birth-certificate">
+                          <span>Birth certificate</span>
+                          <input id="admission-doc-birth-certificate" name="docBirthCertificate" type="file" />
+                        </label>
+                        <label class="portal-admission-doc-upload" for="admission-doc-previous-school-result">
+                          <span>Previous school result</span>
+                          <input id="admission-doc-previous-school-result" name="docPreviousSchoolResult" type="file" />
+                        </label>
+                        <label class="portal-admission-doc-upload" for="admission-doc-transfer-certificate">
+                          <span>Transfer certificate</span>
+                          <input id="admission-doc-transfer-certificate" name="docTransferCertificate" type="file" />
+                        </label>
+                        <label class="portal-admission-doc-upload" for="admission-doc-other">
+                          <span>Other document</span>
+                          <input id="admission-doc-other" name="docOther" type="file" />
+                        </label>
+                      </div>
+                    </div>
                     <label class="portal-field portal-field-span-2" for="admission-notes">
                       <span>Notes</span>
                       <textarea id="admission-notes" name="notes" rows="3" placeholder="Any extra details from the applicant."></textarea>
@@ -213,7 +246,8 @@
                   </div>
 
                   <div class="utility-actions">
-                    <button class="button button-primary" type="submit">Add application</button>
+                    <button id="portal-admission-submit-button" class="button button-primary" type="submit">Add application</button>
+                    <button id="portal-admission-cancel-edit" class="button button-outline" type="button" hidden>Cancel edit</button>
                   </div>
                 </form>
               </div>
@@ -292,6 +326,6 @@
 
     <script src="./app.js"></script>
     <script src="./supabase-config.js"></script>
-    <script src="./auth.js?v=admission-open-classes"></script>
+    <script src="./auth.js?v=admissions-documents"></script>
   </body>
 </html>

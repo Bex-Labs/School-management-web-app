@@ -63,6 +63,52 @@
   ]);
   const ADMISSIONS_STORAGE_KEY_BASE = "schoolsphere.admissions.v1";
   const ADMISSIONS_EVENT_NAME = "schoolsphere:admissions:updated";
+  const ADMISSION_FILE_FIELDS = Object.freeze([
+    {
+      fieldName: "passportPhoto",
+      fileKey: "passportPhotoFile",
+      nameKey: "passportPhotoName",
+      label: "Passport photograph",
+    },
+    {
+      fieldName: "docPreviousReport",
+      fileKey: "docPreviousReportFile",
+      nameKey: "docPreviousReportName",
+      label: "Previous report/result",
+    },
+    {
+      fieldName: "docBirthCertificate",
+      fileKey: "docBirthCertificateFile",
+      nameKey: "docBirthCertificateName",
+      label: "Birth certificate",
+    },
+    {
+      fieldName: "docPreviousSchoolResult",
+      fileKey: "docPreviousSchoolResultFile",
+      nameKey: "docPreviousSchoolResultName",
+      label: "Previous school result",
+    },
+    {
+      fieldName: "docTransferCertificate",
+      fileKey: "docTransferCertificateFile",
+      nameKey: "docTransferCertificateName",
+      label: "Transfer certificate",
+    },
+    {
+      fieldName: "docOther",
+      fileKey: "docOtherFile",
+      nameKey: "docOtherName",
+      label: "Other document",
+    },
+  ]);
+  const ADMISSION_LEGACY_FILE_FIELDS = Object.freeze([
+    {
+      fieldName: "docPassportPhotograph",
+      fileKey: "docPassportPhotographFile",
+      nameKey: "docPassportPhotographName",
+      label: "Passport photograph",
+    },
+  ]);
   const ATTENDANCE_STATUSES = ["present", "absent", "late", "excused"];
   const ROLE_HOME_ROUTES = {
     Admin: "./portal.html",
@@ -1351,6 +1397,135 @@
       .trim();
   }
 
+  function normalizeAdmissionFileRecord(record = null, fallbackName = "", fallbackLabel = "Document") {
+    const source = record && typeof record === "object" && !Array.isArray(record) ? record : {};
+    const stringSource = typeof record === "string" ? record.trim() : "";
+    const dataUrl = String(
+      source.dataUrl ||
+        source.fileDataUrl ||
+        source.fileUrl ||
+        source.url ||
+        (stringSource.startsWith("data:") ? stringSource : ""),
+    ).trim();
+    const label = String(source.label || fallbackLabel || "Document").trim() || "Document";
+    const rawName = String(
+      source.name ||
+        source.fileName ||
+        source.filename ||
+        source.originalName ||
+        fallbackName ||
+        (!stringSource.startsWith("data:") ? stringSource : ""),
+    ).trim();
+    const size = Number(source.size ?? source.sizeBytes ?? 0);
+
+    if (!rawName && !dataUrl) {
+      return null;
+    }
+
+    return {
+      id: String(source.id || ""),
+      label,
+      name: rawName || label,
+      type: String(source.type || source.mimeType || "").trim(),
+      size: Number.isFinite(size) && size > 0 ? size : 0,
+      dataUrl,
+      uploadedAt: String(source.uploadedAt || source.createdAt || "").trim(),
+    };
+  }
+
+  function getAdmissionDocumentCandidate(record = {}, field = {}) {
+    const direct = record[field.fileKey] || record[field.fieldName] || null;
+
+    if (direct) {
+      return direct;
+    }
+
+    const documents = Array.isArray(record.documents) ? record.documents : [];
+    return (
+      documents.find((documentRecord) => {
+        if (!documentRecord || typeof documentRecord !== "object") {
+          return false;
+        }
+        const fileKey = String(documentRecord.fileKey || documentRecord.key || documentRecord.fieldName || "").trim();
+        const label = String(documentRecord.label || "").trim().toLowerCase();
+        return fileKey === field.fileKey || fileKey === field.fieldName || label === String(field.label || "").toLowerCase();
+      }) || null
+    );
+  }
+
+  function normalizeAdmissionFileFields(record = {}) {
+    return [...ADMISSION_FILE_FIELDS, ...ADMISSION_LEGACY_FILE_FIELDS].reduce((files, field) => {
+      files[field.fileKey] = normalizeAdmissionFileRecord(
+        getAdmissionDocumentCandidate(record, field),
+        record[field.nameKey] || "",
+        field.label,
+      );
+      return files;
+    }, {});
+  }
+
+  async function readAdmissionFormFile(form, field = {}) {
+    const file = form?.elements?.[field.fieldName]?.files?.[0] || null;
+
+    if (!file) {
+      return null;
+    }
+
+    const dataUrl = await readFileAsDataUrl(file);
+    return normalizeAdmissionFileRecord(
+      {
+        name: String(file.name || "").trim(),
+        type: String(file.type || "").trim(),
+        size: Number(file.size || 0),
+        dataUrl,
+        uploadedAt: nowIso(),
+      },
+      file.name,
+      field.label,
+    );
+  }
+
+  async function collectAdmissionFormFiles(form, fields = ADMISSION_FILE_FIELDS) {
+    const payload = {};
+
+    for (const field of fields) {
+      const fileRecord = await readAdmissionFormFile(form, field);
+      if (fileRecord) {
+        payload[field.fileKey] = fileRecord;
+        payload[field.nameKey] = fileRecord.name;
+      }
+    }
+
+    return payload;
+  }
+
+  function getAdmissionDocumentEntries(admission = {}, options = {}) {
+    const fields = options.includeLegacy === false
+      ? ADMISSION_FILE_FIELDS
+      : [...ADMISSION_FILE_FIELDS, ...ADMISSION_LEGACY_FILE_FIELDS];
+
+    return fields
+      .map((field) => {
+        const fileRecord = normalizeAdmissionFileRecord(
+          getAdmissionDocumentCandidate(admission, field),
+          admission[field.nameKey] || "",
+          field.label,
+        );
+
+        if (!fileRecord) {
+          return null;
+        }
+
+        return {
+          ...fileRecord,
+          fieldName: field.fieldName,
+          fileKey: field.fileKey,
+          nameKey: field.nameKey,
+        };
+      })
+      .filter(Boolean);
+  }
+
   function normalizeAdmissionRecord(record = {}, workspaceId = null) {
     const classApplyingFor = String(record.classApplyingFor || record.level || "").trim();
     const academicClassApplyingFor = String(
@@ -1358,6 +1533,7 @@
     ).trim();
     const guardianFullName = String(record.guardianFullName || record.guardianName || "").trim();
     const guardianEmail = String(record.guardianEmail || "").trim();
+    const admissionFiles = normalizeAdmissionFileFields(record);
 
     return {
       id: String(record.id || createId()),
@@ -1372,7 +1548,8 @@
       level: String(record.level || classApplyingFor || academicClassApplyingFor).trim(),
       classApplyingFor,
       previousSchool: String(record.previousSchool || record.previousSchoolName || "").trim(),
-      passportPhotoName: String(record.passportPhotoName || "").trim(),
+      passportPhotoName: String(record.passportPhotoName || admissionFiles.passportPhotoFile?.name || "").trim(),
+      passportPhotoFile: admissionFiles.passportPhotoFile,
       guardianName: guardianFullName,
       guardianFullName,
       guardianRelationship: String(record.guardianRelationship || "").trim(),
@@ -1391,12 +1568,21 @@
       healthConditionDetails: String(record.healthConditionDetails || "").trim(),
       healthAllergies: String(record.healthAllergies || "").trim(),
       healthMedications: String(record.healthMedications || "").trim(),
-      docPreviousReportName: String(record.docPreviousReportName || "").trim(),
-      docBirthCertificateName: String(record.docBirthCertificateName || "").trim(),
-      docPreviousSchoolResultName: String(record.docPreviousSchoolResultName || "").trim(),
-      docTransferCertificateName: String(record.docTransferCertificateName || "").trim(),
-      docPassportPhotographName: String(record.docPassportPhotographName || "").trim(),
-      docOtherName: String(record.docOtherName || "").trim(),
+      docPreviousReportName: String(record.docPreviousReportName || admissionFiles.docPreviousReportFile?.name || "").trim(),
+      docPreviousReportFile: admissionFiles.docPreviousReportFile,
+      docBirthCertificateName: String(record.docBirthCertificateName || admissionFiles.docBirthCertificateFile?.name || "").trim(),
+      docBirthCertificateFile: admissionFiles.docBirthCertificateFile,
+      docPreviousSchoolResultName: String(
+        record.docPreviousSchoolResultName || admissionFiles.docPreviousSchoolResultFile?.name || "",
+      ).trim(),
+      docPreviousSchoolResultFile: admissionFiles.docPreviousSchoolResultFile,
+      docTransferCertificateName: String(record.docTransferCertificateName || admissionFiles.docTransferCertificateFile?.name || "").trim(),
+      docTransferCertificateFile: admissionFiles.docTransferCertificateFile,
+      docPassportPhotographName: String(record.docPassportPhotographName || admissionFiles.docPassportPhotographFile?.name || "").trim(),
+      docPassportPhotographFile: admissionFiles.docPassportPhotographFile,
+      docOtherName: String(record.docOtherName || admissionFiles.docOtherFile?.name || "").trim(),
+      docOtherFile: admissionFiles.docOtherFile,
+      documents: getAdmissionDocumentEntries({ ...record, ...admissionFiles }, { includeLegacy: true }),
       notes: String(record.notes || "").trim(),
       status: normalizeAdmissionStatus(record.status),
       statusNote: String(record.statusNote || "").trim(),
@@ -19307,7 +19493,6 @@
         docBirthCertificateName: readFileName("docBirthCertificate"),
         docPreviousSchoolResultName: readFileName("docPreviousSchoolResult"),
         docTransferCertificateName: readFileName("docTransferCertificate"),
-        docPassportPhotographName: readFileName("docPassportPhotograph"),
         docOtherName: readFileName("docOther"),
         notes: String(form.elements.notes?.value || "").trim(),
         status: "pending",
@@ -19343,7 +19528,6 @@
         payload.docBirthCertificateName,
         payload.docPreviousSchoolResultName,
         payload.docTransferCertificateName,
-        payload.docPassportPhotographName,
         payload.docOtherName,
       ].filter(Boolean);
 
@@ -19535,6 +19719,13 @@
       payload.admissionSessionId = openAdmissionSession?.id || "";
       payload.admissionSessionName = openAdmissionSession?.name || "";
       payload.applicationStage = firstActiveStage?.name || "Submitted";
+
+      try {
+        Object.assign(payload, await collectAdmissionFormFiles(form, ADMISSION_FILE_FIELDS));
+      } catch {
+        setStatus(status, "error", "Could not read one of the uploaded documents. Try selecting the file again.");
+        return;
+      }
 
       let savedPayload = payload;
 
@@ -22093,6 +22284,77 @@
     let modalBody = null;
     let activeAdmissionId = "";
     let admissionToastTimer = null;
+    let editingAdmissionId = "";
+    const submitButton = document.getElementById("portal-admission-submit-button") || form.querySelector('button[type="submit"]');
+    const cancelEditButton = document.getElementById("portal-admission-cancel-edit");
+
+    const clearAdmissionFileInputs = () => {
+      ADMISSION_FILE_FIELDS.forEach((field) => {
+        const input = form.elements[field.fieldName];
+        if (input && input.type === "file") {
+          input.value = "";
+        }
+      });
+    };
+
+    const setAdmissionFormMode = (mode = "create") => {
+      const isEditing = mode === "edit";
+      if (submitButton) {
+        submitButton.textContent = isEditing ? "Save application" : "Add application";
+      }
+      if (cancelEditButton) {
+        cancelEditButton.hidden = !isEditing;
+      }
+    };
+
+    const stopAdmissionEdit = ({ reset = true } = {}) => {
+      editingAdmissionId = "";
+      if (reset) {
+        form.reset();
+        clearAdmissionFileInputs();
+        refreshApplicationLevelOptions();
+      }
+      setAdmissionFormMode("create");
+    };
+
+    const startAdmissionEdit = (admissionId) => {
+      const admission = getAdmissions(workspaceId).find((entry) => entry.id === admissionId);
+      if (!admission) {
+        setStatus(status, "error", "Application not found.");
+        return;
+      }
+
+      editingAdmissionId = admission.id;
+      form.elements.fullName.value = admission.fullName || "";
+      form.elements.email.value = admission.email || "";
+      form.elements.phone.value = admission.phone || "";
+      const selectedLevel = admission.level || admission.classApplyingFor || admission.academicClassApplyingFor || "";
+      if (
+        selectedLevel &&
+        levelSelect &&
+        !Array.from(levelSelect.options || []).some((option) => option.value === selectedLevel)
+      ) {
+        levelSelect.add(new Option(selectedLevel, selectedLevel));
+      }
+      form.elements.level.value = selectedLevel;
+      form.elements.dateOfBirth.value = admission.dateOfBirth || "";
+      form.elements.guardianName.value = admission.guardianFullName || admission.guardianName || "";
+      form.elements.guardianEmail.value = admission.guardianEmail || "";
+      form.elements.guardianPhone.value = admission.guardianPhone || "";
+      form.elements.notes.value = admission.notes || admission.statusNote || "";
+      clearAdmissionFileInputs();
+      setAdmissionFormMode("edit");
+      setModalOpen(false);
+      setStatus(status, "info", `Editing application for <strong>${escapeHtml(admission.fullName)}</strong>. Upload new files only when replacing existing documents.`);
+      form.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+
+    if (cancelEditButton) {
+      cancelEditButton.addEventListener("click", () => {
+        stopAdmissionEdit();
+        setStatus(status, "", "");
+      });
+    }
 
     const showAdmissionApprovalToast = (message) => {
       if (!message) {
@@ -22168,6 +22430,38 @@
       return modalElement;
     };
 
+    const renderAdmissionDocumentList = (admission) => {
+      const entries = getAdmissionDocumentEntries(admission);
+
+      if (!entries.length) {
+        return `<p class="portal-admission-doc-empty">No documents have been uploaded for this application yet.</p>`;
+      }
+
+      return `
+        <div class="portal-admission-doc-list">
+          ${entries
+            .map((entry) => {
+              const meta = [entry.type, entry.size ? formatFileSize(entry.size) : ""].filter(Boolean).join(" • ");
+              const hasDownload = Boolean(entry.dataUrl);
+              return `
+                <div class="portal-admission-doc-row">
+                  <div>
+                    <strong>${escapeHtml(entry.label || "Document")}</strong>
+                    <span>${escapeHtml(entry.name || "Uploaded file")}${meta ? ` • ${escapeHtml(meta)}` : ""}</span>
+                  </div>
+                  ${
+                    hasDownload
+                      ? `<a class="portal-admission-doc-link" href="${escapeHtml(entry.dataUrl)}" download="${escapeHtml(entry.name || "document")}">Download</a>`
+                      : `<span class="portal-admission-doc-link is-disabled">Name only</span>`
+                  }
+                </div>
+              `;
+            })
+            .join("")}
+        </div>
+      `;
+    };
+
     const renderModalBody = (admission) => {
       if (!modalBody || !admission) return;
 
@@ -22188,20 +22482,11 @@
           <div class="portal-admission-modal-item"><span>Previous School</span><strong>${escapeHtml(admission.previousSchoolName || admission.previousSchool || "—")}</strong></div>
           <div class="portal-admission-modal-item"><span>Health</span><strong>${escapeHtml(admission.healthCondition || "—")}${admission.healthConditionDetails ? ` • ${escapeHtml(admission.healthConditionDetails)}` : ""}</strong></div>
           <div class="portal-admission-modal-item"><span>Allergies / Medication</span><strong>${escapeHtml(admission.healthAllergies || "—")} • ${escapeHtml(admission.healthMedications || "—")}</strong></div>
-          <div class="portal-admission-modal-item"><span>Documents</span><strong>${escapeHtml(
-            [
-              admission.passportPhotoName,
-              admission.docPreviousReportName,
-              admission.docBirthCertificateName,
-              admission.docPreviousSchoolResultName,
-              admission.docTransferCertificateName,
-              admission.docPassportPhotographName,
-              admission.docOtherName,
-            ].filter(Boolean).join(", ") || "No uploaded document names",
-          )}</strong></div>
+          <div class="portal-admission-modal-item portal-admission-modal-item-wide"><span>Documents</span>${renderAdmissionDocumentList(admission)}</div>
           <div class="portal-admission-modal-item portal-admission-modal-item-wide"><span>Notes</span><strong>${escapeHtml(admission.notes || admission.statusNote || "—")}</strong></div>
         </div>
         <div class="portal-admission-modal-actions">
+          <button class="portal-class-button" type="button" data-admission-action="edit" data-admission-id="${escapeHtml(admission.id)}" ${isAdmin ? "" : "disabled"}>Edit</button>
           <button class="portal-class-button" type="button" data-admission-action="review" data-admission-id="${escapeHtml(admission.id)}" ${isAdmin ? "" : "disabled"}>Review</button>
           <button class="portal-class-button" type="button" data-admission-action="shortlisted" data-admission-id="${escapeHtml(admission.id)}" ${isAdmin ? "" : "disabled"}>Shortlist</button>
           <button class="portal-class-button is-archive" type="button" data-admission-action="rejected" data-admission-id="${escapeHtml(admission.id)}" ${isAdmin ? "" : "disabled"}>Decline</button>
@@ -22280,7 +22565,7 @@
       }
     });
 
-    form.addEventListener("submit", (event) => {
+    form.addEventListener("submit", async (event) => {
       event.preventDefault();
 
       if (!isAdmin) {
@@ -22288,17 +22573,28 @@
         return;
       }
 
+      const existingAdmission = editingAdmissionId
+        ? getAdmissions(workspaceId).find((entry) => entry.id === editingAdmissionId) || null
+        : null;
+      const isEditingAdmission = Boolean(existingAdmission);
+      const selectedLevel = String(form.elements.level?.value || "").trim();
       const payload = {
+        ...(existingAdmission || {}),
         fullName: String(form.elements.fullName?.value || "").trim(),
         email: String(form.elements.email?.value || "").trim(),
         phone: String(form.elements.phone?.value || "").trim(),
-        level: String(form.elements.level?.value || "").trim(),
+        level: selectedLevel,
+        classApplyingFor: selectedLevel,
+        academicClassApplyingFor: selectedLevel,
+        dateOfBirth: String(form.elements.dateOfBirth?.value || "").trim(),
         guardianName: String(form.elements.guardianName?.value || "").trim(),
+        guardianFullName: String(form.elements.guardianName?.value || "").trim(),
         guardianEmail: String(form.elements.guardianEmail?.value || "").trim(),
         guardianPhone: String(form.elements.guardianPhone?.value || "").trim(),
         notes: String(form.elements.notes?.value || "").trim(),
-        status: "pending",
-        source: "admin",
+        status: existingAdmission?.status || "pending",
+        source: existingAdmission?.source || "admin",
+        updatedAt: nowIso(),
       };
 
       const admissionConfig =
@@ -22307,9 +22603,9 @@
           : null;
       const openAdmissionSession = admissionConfig?.openSession || null;
       const firstActiveStage = (admissionConfig?.activeStages || [])[0] || null;
-      payload.admissionSessionId = openAdmissionSession?.id || "";
-      payload.admissionSessionName = openAdmissionSession?.name || "";
-      payload.applicationStage = firstActiveStage?.name || "Submitted";
+      payload.admissionSessionId = openAdmissionSession?.id || existingAdmission?.admissionSessionId || "";
+      payload.admissionSessionName = openAdmissionSession?.name || existingAdmission?.admissionSessionName || "";
+      payload.applicationStage = existingAdmission?.applicationStage || firstActiveStage?.name || "Submitted";
 
       if (!payload.fullName || !payload.level || !payload.guardianName || !payload.guardianEmail) {
         setStatus(status, "error", "Full name, level, guardian name, and guardian email are required.");
@@ -22326,22 +22622,33 @@
         return;
       }
 
+      try {
+        Object.assign(payload, await collectAdmissionFormFiles(form, ADMISSION_FILE_FIELDS));
+      } catch {
+        setStatus(status, "error", "Could not read one of the uploaded documents. Try selecting the file again.");
+        return;
+      }
+
       const saved = upsertAdmission(payload, workspaceId)[0];
       recordAuditEvent({
-        action: "created",
+        action: isEditingAdmission ? "updated" : "created",
         entityType: "admission-application",
         entityId: saved?.id || payload.fullName,
-        summary: `Admission application received for ${payload.fullName}`,
+        summary: isEditingAdmission
+          ? `Admission application updated for ${payload.fullName}`
+          : `Admission application received for ${payload.fullName}`,
         details: `${payload.level} • ${payload.guardianName}`,
         workspaceId,
       });
       pushNotification(
         {
-          title: `Admission application: ${payload.fullName}`,
-          message: `${payload.level} applicant submitted and awaiting review.`,
+          title: isEditingAdmission ? `Admission updated: ${payload.fullName}` : `Admission application: ${payload.fullName}`,
+          message: isEditingAdmission
+            ? `${payload.level} applicant details were updated.`
+            : `${payload.level} applicant submitted and awaiting review.`,
           entityType: "admission-application",
           entityId: saved?.id || "",
-          action: "submitted",
+          action: isEditingAdmission ? "updated" : "submitted",
           visibleToRoles: ["Admin"],
         },
         workspaceId,
@@ -22349,9 +22656,14 @@
 
       form.reset();
       clearFormDraftFor(form);
+      stopAdmissionEdit({ reset: false });
       refreshApplicationLevelOptions();
       refresh();
-      setStatus(status, "success", `Application for <strong>${escapeHtml(payload.fullName)}</strong> added.`);
+      setStatus(
+        status,
+        "success",
+        `Application for <strong>${escapeHtml(payload.fullName)}</strong> ${isEditingAdmission ? "updated" : "added"}.`,
+      );
     });
 
     const convertAdmissionToStudent = async (admission) => {
@@ -22447,6 +22759,11 @@
           return;
         }
         await convertAdmissionToStudent(admission);
+        return;
+      }
+
+      if (action === "edit") {
+        startAdmissionEdit(admissionId);
         return;
       }
 
