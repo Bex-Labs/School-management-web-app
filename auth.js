@@ -63,6 +63,8 @@
   ]);
   const ADMISSIONS_STORAGE_KEY_BASE = "schoolsphere.admissions.v1";
   const ADMISSIONS_EVENT_NAME = "schoolsphere:admissions:updated";
+  const ADMISSION_FILE_SIZE_LIMIT_BYTES = 200 * 1024;
+  const ADMISSION_FILE_SIZE_LIMIT_LABEL = "200KB";
   const ADMISSION_FILE_FIELDS = Object.freeze([
     {
       fieldName: "passportPhoto",
@@ -1464,11 +1466,19 @@
     }, {});
   }
 
+  function getAdmissionFileSizeLimitMessage() {
+    return `Each uploaded file must be ${ADMISSION_FILE_SIZE_LIMIT_LABEL} or smaller.`;
+  }
+
   async function readAdmissionFormFile(form, field = {}) {
     const file = form?.elements?.[field.fieldName]?.files?.[0] || null;
 
     if (!file) {
       return null;
+    }
+
+    if (Number(file.size || 0) > ADMISSION_FILE_SIZE_LIMIT_BYTES) {
+      throw new Error("admission_file_too_large");
     }
 
     const dataUrl = await readFileAsDataUrl(file);
@@ -19229,6 +19239,8 @@
     const healthConditionDetailsInput = document.getElementById("apply-health-condition-details");
     const admissionConfigManager = getAdmissionConfigManager();
     const applyingClassSelect = form?.elements?.academicClassApplyingFor || null;
+    const submitButton = form?.querySelector('button[type="submit"]') || null;
+    const fileUploadInputs = form ? Array.from(form.querySelectorAll('input[type="file"]')) : [];
 
     if (!form || !status || !workspaceInput) {
       return;
@@ -19436,6 +19448,118 @@
 
     const stepSections = Array.from(form.querySelectorAll("[data-admissions-step]"));
     let activeStepIndex = 0;
+    let applyToastTimer = null;
+
+    const showApplyToast = (type, message, autoHideMs = 4200) => {
+      if (!message) {
+        return;
+      }
+
+      let toast = document.getElementById("admissions-apply-toast");
+      if (!toast) {
+        toast = document.createElement("div");
+        toast.id = "admissions-apply-toast";
+        toast.setAttribute("role", "status");
+        toast.setAttribute("aria-live", "polite");
+        document.body.appendChild(toast);
+      }
+
+      const safeType = type === "error" ? "error" : type === "info" ? "info" : "success";
+      toast.className = `portal-toast portal-toast--${safeType} portal-toast--center admissions-apply-toast`;
+      toast.innerHTML = message;
+      toast.hidden = false;
+      window.clearTimeout(applyToastTimer);
+
+      if (autoHideMs > 0) {
+        applyToastTimer = window.setTimeout(() => {
+          toast.hidden = true;
+        }, autoHideMs);
+      }
+    };
+
+    const setApplySubmitting = (isSubmitting) => {
+      if (!submitButton) {
+        return;
+      }
+
+      submitButton.disabled = Boolean(isSubmitting);
+      submitButton.textContent = isSubmitting ? "Submitting..." : "Submit Application";
+      submitButton.classList.toggle("is-loading", Boolean(isSubmitting));
+    };
+
+    const renderAdmissionFileSelection = (input) => {
+      if (!input) {
+        return;
+      }
+
+      const fieldBlock = input.closest(".auth-field-block");
+      const selectionRow = fieldBlock?.querySelector("[data-apply-file-selection]");
+
+      if (!selectionRow) {
+        return;
+      }
+
+      const file = input.files?.[0] || null;
+      if (!file) {
+        selectionRow.hidden = true;
+        selectionRow.innerHTML = "";
+        return;
+      }
+
+      const fileName = String(file.name || "Selected document").trim() || "Selected document";
+      const fileSize = Number(file.size || 0);
+      const sizeLabel = fileSize ? formatFileSize(fileSize) : "";
+
+      selectionRow.hidden = false;
+      selectionRow.innerHTML = `
+        <span>
+          <strong>${escapeHtml(fileName)}</strong>
+          ${sizeLabel ? `<small>${escapeHtml(sizeLabel)}</small>` : ""}
+        </span>
+        <button class="apply-file-remove" type="button" data-apply-file-remove="${escapeHtml(input.name || input.id || "")}" aria-label="Remove ${escapeHtml(fileName)}" title="Remove file">
+          x
+        </button>
+      `;
+    };
+
+    const refreshAdmissionFileSelections = () => {
+      fileUploadInputs.forEach((input) => renderAdmissionFileSelection(input));
+    };
+
+    const initAdmissionFileRemovers = () => {
+      fileUploadInputs.forEach((input) => {
+        const fieldBlock = input.closest(".auth-field-block");
+
+        if (!fieldBlock || fieldBlock.querySelector("[data-apply-file-selection]")) {
+          renderAdmissionFileSelection(input);
+          return;
+        }
+
+        const selectionRow = document.createElement("div");
+        selectionRow.className = "apply-file-selection";
+        selectionRow.setAttribute("data-apply-file-selection", "");
+        selectionRow.hidden = true;
+        fieldBlock.appendChild(selectionRow);
+
+        input.addEventListener("change", () => {
+          const file = input.files?.[0] || null;
+          if (file && Number(file.size || 0) > ADMISSION_FILE_SIZE_LIMIT_BYTES) {
+            const message = getAdmissionFileSizeLimitMessage();
+            input.value = "";
+            renderAdmissionFileSelection(input);
+            setStatus(status, "error", message);
+            showApplyToast(
+              "error",
+              `<strong>File too large</strong><span>${escapeHtml(message)}</span>`,
+              5200,
+            );
+            return;
+          }
+
+          renderAdmissionFileSelection(input);
+        });
+      });
+    };
 
     const refreshPublicAdmissionClassOptions = () => {
       const admissionConfig = getPublicAdmissionConfigSummary();
@@ -19662,6 +19786,30 @@
 
     form.addEventListener("change", () => {
       toggleHealthConditionDetails();
+      refreshAdmissionFileSelections();
+      if (activeStepIndex === stepSections.length - 1) {
+        renderReviewPanel();
+      }
+    });
+
+    form.addEventListener("click", (event) => {
+      const removeButton = event.target.closest("[data-apply-file-remove]");
+
+      if (!removeButton) {
+        return;
+      }
+
+      const fieldName = String(removeButton.dataset.applyFileRemove || "").trim();
+      const input = fileUploadInputs.find((entry) => entry.name === fieldName || entry.id === fieldName);
+
+      if (!input) {
+        return;
+      }
+
+      input.value = "";
+      renderAdmissionFileSelection(input);
+      setStatus(status, "", "");
+
       if (activeStepIndex === stepSections.length - 1) {
         renderReviewPanel();
       }
@@ -19694,7 +19842,13 @@
 
       for (let step = 0; step < stepSections.length - 1; step += 1) {
         if (!validateStep(step, false)) {
+          const validationMessage = status.textContent || `Complete all required fields in Section ${step + 1}.`;
           setStep(step);
+          showApplyToast(
+            "error",
+            `<strong>Check Section ${step + 1}</strong><span>${escapeHtml(validationMessage)}</span>`,
+            5200,
+          );
           return;
         }
       }
@@ -19703,12 +19857,16 @@
       const payload = getPayload();
 
       if (payload.email && !EMAIL_REGEX.test(payload.email)) {
-        setStatus(status, "error", "Applicant email format is invalid.");
+        const message = "Applicant email format is invalid.";
+        setStatus(status, "error", message);
+        showApplyToast("error", `<strong>Cannot submit yet</strong><span>${escapeHtml(message)}</span>`, 5200);
         return;
       }
 
       if (!EMAIL_REGEX.test(payload.guardianEmail)) {
-        setStatus(status, "error", "Guardian email format is invalid.");
+        const message = "Guardian email format is invalid.";
+        setStatus(status, "error", message);
+        showApplyToast("error", `<strong>Cannot submit yet</strong><span>${escapeHtml(message)}</span>`, 5200);
         return;
       }
 
@@ -19720,63 +19878,83 @@
       payload.admissionSessionName = openAdmissionSession?.name || "";
       payload.applicationStage = firstActiveStage?.name || "Submitted";
 
+      setApplySubmitting(true);
+      setStatus(status, "info", "Submitting application...");
+      showApplyToast(
+        "info",
+        "<strong>Submitting application</strong><span>Please wait while we send it to the school.</span>",
+        0,
+      );
+
       try {
         Object.assign(payload, await collectAdmissionFormFiles(form, ADMISSION_FILE_FIELDS));
-      } catch {
-        setStatus(status, "error", "Could not read one of the uploaded documents. Try selecting the file again.");
-        return;
-      }
 
-      let savedPayload = payload;
+        let savedPayload = payload;
 
-      if (isSupabaseConfigured()) {
-        const remoteSubmitResult = await submitPublicAdmissionToSupabase({
+        if (isSupabaseConfigured()) {
+          const remoteSubmitResult = await submitPublicAdmissionToSupabase({
+            workspaceId,
+            institutionId: lockedInstitutionId,
+            payload,
+          });
+
+          if (!remoteSubmitResult.ok) {
+            const message = remoteSubmitResult.message || "Could not submit application.";
+            setStatus(status, "error", escapeHtml(message));
+            showApplyToast("error", `<strong>Submission failed</strong><span>${escapeHtml(message)}</span>`, 6200);
+            return;
+          }
+
+          if (remoteSubmitResult.record && typeof remoteSubmitResult.record === "object") {
+            savedPayload = {
+              ...payload,
+              ...remoteSubmitResult.record,
+            };
+          }
+        }
+
+        const admissions = upsertAdmission(savedPayload, workspaceId);
+        const latest = admissions[0] || savedPayload;
+        pushNotification(
+          {
+            title: `New application: ${savedPayload.fullName}`,
+            message: `${savedPayload.level} application submitted by guardian ${savedPayload.guardianFullName}.`,
+            entityType: "admission-application",
+            entityId: latest.id || "",
+            action: "submitted",
+            visibleToRoles: ["Admin"],
+          },
           workspaceId,
-          institutionId: lockedInstitutionId,
-          payload,
-        });
+        );
 
-        if (!remoteSubmitResult.ok) {
-          setStatus(status, "error", escapeHtml(remoteSubmitResult.message || "Could not submit application."));
-          return;
-        }
-
-        if (remoteSubmitResult.record && typeof remoteSubmitResult.record === "object") {
-          savedPayload = {
-            ...payload,
-            ...remoteSubmitResult.record,
-          };
-        }
+        const successMessage = `Application submitted successfully for <strong>${escapeHtml(savedPayload.fullName)}</strong>. The school admin will review and update the status.`;
+        form.reset();
+        workspaceInput.value = workspaceId;
+        toggleHealthConditionDetails();
+        refreshAdmissionFileSelections();
+        refreshPublicAdmissionClassOptions();
+        setStep(0);
+        clearFormDraftFor(form);
+        setStatus(status, "success", successMessage);
+        showApplyToast("success", `<strong>Application submitted</strong><span>${escapeHtml(savedPayload.fullName)} has been sent to the school.</span>`, 5200);
+      } catch (error) {
+        const errorMessage =
+          String(error?.message || "") === "admission_file_too_large"
+            ? getAdmissionFileSizeLimitMessage()
+            : String(error?.name || "").toLowerCase().includes("quota") ||
+                String(error?.message || "").toLowerCase().includes("quota")
+              ? "The uploaded files are too large for this browser. Reduce the file sizes and try again."
+              : "Could not submit application. Please try again.";
+        setStatus(status, "error", escapeHtml(errorMessage));
+        showApplyToast("error", `<strong>Submission failed</strong><span>${escapeHtml(errorMessage)}</span>`, 6200);
+      } finally {
+        setApplySubmitting(false);
       }
-
-      const admissions = upsertAdmission(savedPayload, workspaceId);
-      const latest = admissions[0] || savedPayload;
-      pushNotification(
-        {
-          title: `New application: ${savedPayload.fullName}`,
-          message: `${savedPayload.level} application submitted by guardian ${savedPayload.guardianFullName}.`,
-          entityType: "admission-application",
-          entityId: latest.id || "",
-          action: "submitted",
-          visibleToRoles: ["Admin"],
-        },
-        workspaceId,
-      );
-
-      form.reset();
-      workspaceInput.value = workspaceId;
-      toggleHealthConditionDetails();
-      refreshPublicAdmissionClassOptions();
-      setStep(0);
-      clearFormDraftFor(form);
-      setStatus(
-        status,
-        "success",
-        `Application submitted successfully for <strong>${escapeHtml(savedPayload.fullName)}</strong>. The school admin will review and update the status.`,
-      );
     });
 
     toggleHealthConditionDetails();
+    initAdmissionFileRemovers();
+    refreshAdmissionFileSelections();
     refreshPublicAdmissionClassOptions();
     if (admissionConfigManager?.eventName) {
       window.addEventListener(admissionConfigManager.eventName, refreshPublicAdmissionClassOptions);
@@ -22443,16 +22621,20 @@
             .map((entry) => {
               const meta = [entry.type, entry.size ? formatFileSize(entry.size) : ""].filter(Boolean).join(" • ");
               const hasDownload = Boolean(entry.dataUrl);
+              const availabilityCopy = hasDownload
+                ? "Stored file is ready to download."
+                : "Older record: only the filename was saved. Re-upload this document from Edit to enable download.";
               return `
                 <div class="portal-admission-doc-row">
                   <div>
                     <strong>${escapeHtml(entry.label || "Document")}</strong>
                     <span>${escapeHtml(entry.name || "Uploaded file")}${meta ? ` • ${escapeHtml(meta)}` : ""}</span>
+                    <small class="portal-admission-doc-note">${escapeHtml(availabilityCopy)}</small>
                   </div>
                   ${
                     hasDownload
                       ? `<a class="portal-admission-doc-link" href="${escapeHtml(entry.dataUrl)}" download="${escapeHtml(entry.name || "document")}">Download</a>`
-                      : `<span class="portal-admission-doc-link is-disabled">Name only</span>`
+                      : `<span class="portal-admission-doc-link is-disabled" title="${escapeHtml(availabilityCopy)}">Unavailable</span>`
                   }
                 </div>
               `;
@@ -22624,8 +22806,14 @@
 
       try {
         Object.assign(payload, await collectAdmissionFormFiles(form, ADMISSION_FILE_FIELDS));
-      } catch {
-        setStatus(status, "error", "Could not read one of the uploaded documents. Try selecting the file again.");
+      } catch (error) {
+        setStatus(
+          status,
+          "error",
+          String(error?.message || "") === "admission_file_too_large"
+            ? getAdmissionFileSizeLimitMessage()
+            : "Could not read one of the uploaded documents. Try selecting the file again.",
+        );
         return;
       }
 

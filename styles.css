@@ -2830,6 +2830,55 @@ body[data-page="home"] .product-hero::after {
   color: var(--navy-900);
 }
 
+input[type="file"] {
+  color: #53647f;
+  font-size: 0.84rem;
+}
+
+input[type="file"]::file-selector-button {
+  min-height: 36px;
+  margin-right: 12px;
+  padding: 0 14px;
+  border: 1px solid #c8d8ed;
+  border-radius: 999px;
+  background: #eaf2fb;
+  color: #1e4673;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease, color 160ms ease;
+}
+
+input[type="file"]::-webkit-file-upload-button {
+  min-height: 36px;
+  margin-right: 12px;
+  padding: 0 14px;
+  border: 1px solid #c8d8ed;
+  border-radius: 999px;
+  background: #eaf2fb;
+  color: #1e4673;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease, color 160ms ease;
+}
+
+input[type="file"]:hover::file-selector-button {
+  border-color: #9fbbd9;
+  background: #dcecff;
+  color: #0f2b4a;
+  box-shadow: 0 8px 18px rgba(15, 43, 74, 0.1);
+}
+
+input[type="file"]:hover::-webkit-file-upload-button {
+  border-color: #9fbbd9;
+  background: #dcecff;
+  color: #0f2b4a;
+  box-shadow: 0 8px 18px rgba(15, 43, 74, 0.1);
+}
+
 .portal-toast[hidden] {
   display: none;
 }
@@ -2851,6 +2900,18 @@ body[data-page="home"] .product-hero::after {
   border: 1px solid rgba(7, 148, 85, 0.24);
   background: #effcf5;
   color: #0f6b46;
+}
+
+.portal-toast--error {
+  border: 1px solid rgba(217, 45, 32, 0.22);
+  background: #fff2f0;
+  color: #9f2f23;
+}
+
+.portal-toast--info {
+  border: 1px solid rgba(16, 132, 255, 0.22);
+  background: #f0f7ff;
+  color: #123b68;
 }
 
 .portal-toast--center {
@@ -4058,7 +4119,72 @@ body.auth-page[data-page="admissions-apply"] .auth-line-field input::placeholder
 body.auth-page[data-page="admissions-apply"] .auth-line-field input[type="file"] {
   display: flex;
   align-items: center;
-  padding-top: 14px;
+  height: auto;
+  min-height: 52px;
+  padding: 8px 0;
+}
+
+body.auth-page[data-page="admissions-apply"] .apply-file-selection[hidden] {
+  display: none;
+}
+
+body.auth-page[data-page="admissions-apply"] .apply-file-selection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  margin-top: 8px;
+  padding: 9px 10px;
+  border: 1px solid #dce5f3;
+  border-radius: 10px;
+  background: #f8fbff;
+}
+
+body.auth-page[data-page="admissions-apply"] .apply-file-selection span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+body.auth-page[data-page="admissions-apply"] .apply-file-selection strong,
+body.auth-page[data-page="admissions-apply"] .apply-file-selection small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.auth-page[data-page="admissions-apply"] .apply-file-selection strong {
+  color: #10284d;
+  font-size: 0.82rem;
+}
+
+body.auth-page[data-page="admissions-apply"] .apply-file-selection small {
+  color: #6b7d97;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+body.auth-page[data-page="admissions-apply"] .apply-file-remove {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid #d5dfec;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #9f2f23;
+  font-size: 0.78rem;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+}
+
+body.auth-page[data-page="admissions-apply"] .apply-file-remove:hover {
+  border-color: rgba(217, 45, 32, 0.28);
+  background: #fff2f0;
 }
 
 body.auth-page[data-page="admissions-apply"] .admissions-review-panel {
@@ -8882,6 +9008,13 @@ body.admin-dashboard-page .portal-admission-doc-row div span {
   white-space: nowrap;
 }
 
+body.admin-dashboard-page .portal-admission-doc-note {
+  color: #47627f;
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
 body.admin-dashboard-page .portal-admission-doc-link {
   flex: 0 0 auto;
   display: inline-flex;
@@ -10808,4 +10941,53 @@ body.admin-dashboard-page .portal-class-button.is-restore {
 body.admin-dashboard-page .portal-class-route-links a:hover,
 body.admin-dashboard-page .portal-class-button:hover:not(:disabled) {
   box-shadow: 0 10px 18px rgba(15, 43, 74, 0.12);
+}
+
+@media (min-width: 760px) {
+  body.auth-page[data-page="admissions-apply"] {
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  body.auth-page[data-page="admissions-apply"] .auth-screen,
+  body.auth-page[data-page="admissions-apply"] .auth-shell {
+    height: 100vh;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+
+  body.auth-page[data-page="admissions-apply"] .auth-shell {
+    grid-template-columns: minmax(420px, 0.92fr) minmax(300px, 1fr);
+  }
+
+  body.auth-page[data-page="admissions-apply"] .auth-pane-left {
+    order: 1;
+    height: 100vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  body.auth-page[data-page="admissions-apply"] .auth-left-inner {
+    min-height: 100vh;
+    justify-content: flex-start;
+    padding-bottom: 48px;
+  }
+
+  body.auth-page[data-page="admissions-apply"] .auth-pane-right {
+    order: 2;
+    align-self: stretch;
+    height: 100vh;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+}
+
+@media (max-width: 759px) {
+  body.auth-page[data-page="admissions-apply"] .auth-pane-left {
+    order: 1;
+  }
+
+  body.auth-page[data-page="admissions-apply"] .auth-pane-right {
+    display: none;
+  }
 }
