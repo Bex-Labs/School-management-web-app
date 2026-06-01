@@ -22661,6 +22661,32 @@
       Number(report.admissionCounts.pending || 0) +
       Number(report.admissionCounts.review || 0) +
       Number(report.admissionCounts.shortlisted || 0);
+    const attendanceRateValue = Number.isFinite(Number(report.attendanceSummary.attendanceRate))
+      ? clampReportScore(report.attendanceSummary.attendanceRate)
+      : 0;
+    const markedRate = report.attendanceSummary.activeStudentCount
+      ? clampReportScore((Number(report.attendanceSummary.markedCount || 0) / Number(report.attendanceSummary.activeStudentCount || 1)) * 100)
+      : 0;
+    const paidAmount = Math.max(0, report.invoiceTotalDue - report.invoiceBalance);
+    const collectionRate = report.invoiceTotalDue ? clampReportScore((paidAmount / report.invoiceTotalDue) * 100) : 0;
+    const classTeacherRate = report.activeClasses.length
+      ? clampReportScore((report.classTeacherCount / report.activeClasses.length) * 100)
+      : 0;
+    const feeCoverageRate = report.activeClasses.length
+      ? clampReportScore((Number(report.feeSummary.classCount || 0) / report.activeClasses.length) * 100)
+      : 0;
+    const timetableCoverageRate = report.activeClasses.length
+      ? clampReportScore((Number(report.timetableSummary.classCount || 0) / report.activeClasses.length) * 100)
+      : 0;
+    const admissionsTotal = activePipeline + approvedAdmissions + Number(report.admissionCounts.rejected || 0);
+    const admissionsApprovalRate = admissionsTotal ? clampReportScore((approvedAdmissions / admissionsTotal) * 100) : 0;
+    const admissionsStageRows = [
+      { label: "Pending", value: Number(report.admissionCounts.pending || 0) },
+      { label: "Review", value: Number(report.admissionCounts.review || 0) },
+      { label: "Shortlisted", value: Number(report.admissionCounts.shortlisted || 0) },
+      { label: "Approved", value: approvedAdmissions },
+    ];
+    const admissionsStageMax = Math.max(...admissionsStageRows.map((stage) => stage.value), 1);
 
     kpiTarget.innerHTML = `
       <article class="admin-report-kpi">
@@ -22695,48 +22721,57 @@
       </article>
     `;
 
-    const insightRows = [
-      {
-        title: "Student population",
-        body: report.activeStudents.length
-          ? `The school currently has ${formatReportNumber(report.activeStudents.length)} active student${report.activeStudents.length === 1 ? "" : "s"} spread across ${formatReportNumber(report.activeClasses.length)} class group${report.activeClasses.length === 1 ? "" : "s"}. This explains the size of daily operations.`
-          : "No active students have been added yet, so most reports will remain empty until student profiles are created.",
-        tone: report.activeStudents.length ? "good" : "attention",
-      },
-      {
-        title: "Attendance reliability",
-        body: unmarkedCount
-          ? `${formatReportNumber(unmarkedCount)} student${unmarkedCount === 1 ? "" : "s"} still need attendance marking today. When attendance is incomplete, absence and punctuality reports can mislead parents and leadership.`
-          : "Attendance is fully marked for the students currently in the register today, so daily attendance reporting is ready for review.",
-        tone: unmarkedCount ? "attention" : "good",
-      },
-      {
-        title: "Finance position",
-        body: report.invoices.length
-          ? `Generated invoices total ${formatCurrencyAmount(report.invoiceTotalDue)}. Guardians have ${formatCurrencyAmount(report.invoiceBalance)} still outstanding, about ${formatReportPercent(outstandingRate)} of billed invoices.`
-          : `Fee items worth ${formatCurrencyAmount(report.feeSummary.activeAmount || 0)} are configured, but invoices have not been generated yet. Generate invoices when guardians should start seeing balances.`,
-        tone: report.invoiceBalance > 0 ? "attention" : "good",
-      },
-      {
-        title: "Staff and timetable",
-        body:
-          report.activeClasses.length && report.classTeacherCount < report.activeClasses.length
-            ? `${formatReportNumber(report.activeClasses.length - report.classTeacherCount)} class group${report.activeClasses.length - report.classTeacherCount === 1 ? "" : "s"} still need a class teacher. This can affect attendance follow-up, parent contact, and report ownership.`
-            : `Teacher coverage looks organised: ${formatReportNumber(report.teachers.length)} active teacher account${report.teachers.length === 1 ? "" : "s"} and ${formatReportNumber(report.timetableSummary.teacherCount || 0)} teacher${Number(report.timetableSummary.teacherCount || 0) === 1 ? "" : "s"} already appear on timetable lessons.`,
-        tone: report.activeClasses.length && report.classTeacherCount < report.activeClasses.length ? "attention" : "good",
-      },
-    ];
+    insightsTarget.innerHTML = `
+      <div class="admin-report-chart-grid">
+        <article class="admin-report-chart-card">
+          <header><span>Attendance</span><strong>${escapeHtml(attendanceRateLabel)}</strong></header>
+          <div class="admin-report-donut" style="--score:${attendanceRateValue}"><span>${escapeHtml(attendanceRateLabel)}</span></div>
+          <div class="admin-report-mini-legend">
+            <span><i class="is-good"></i>Present ${formatReportNumber(attendanceCounts.present || 0)}</span>
+            <span><i class="is-warn"></i>Late ${formatReportNumber(attendanceCounts.late || 0)}</span>
+            <span><i class="is-bad"></i>Absent ${formatReportNumber(attendanceCounts.absent || 0)}</span>
+          </div>
+        </article>
 
-    insightsTarget.innerHTML = insightRows
-      .map(
-        (row) => `
-          <article class="admin-report-insight is-${row.tone}">
-            <strong>${escapeHtml(row.title)}</strong>
-            <p>${escapeHtml(row.body)}</p>
-          </article>
-        `,
-      )
-      .join("");
+        <article class="admin-report-chart-card">
+          <header><span>Fee collection</span><strong>${formatReportPercent(collectionRate)}</strong></header>
+          <div class="admin-report-stacked-bar" aria-hidden="true">
+            <i style="width:${collectionRate}%"></i>
+          </div>
+          <div class="admin-report-split-metric">
+            <span>Paid <strong>${escapeHtml(formatCurrencyAmount(paidAmount))}</strong></span>
+            <span>Due <strong>${escapeHtml(formatCurrencyAmount(report.invoiceBalance))}</strong></span>
+          </div>
+        </article>
+
+        <article class="admin-report-chart-card">
+          <header><span>Operations</span><strong>${formatReportPercent(report.overallScore)}</strong></header>
+          <div class="admin-report-mini-bars">
+            <div><span>Attendance marked</span><b>${formatReportPercent(markedRate)}</b><i><em style="width:${markedRate}%"></em></i></div>
+            <div><span>Class teachers</span><b>${formatReportPercent(classTeacherRate)}</b><i><em style="width:${classTeacherRate}%"></em></i></div>
+            <div><span>Fees coverage</span><b>${formatReportPercent(feeCoverageRate)}</b><i><em style="width:${feeCoverageRate}%"></em></i></div>
+            <div><span>Timetable</span><b>${formatReportPercent(timetableCoverageRate)}</b><i><em style="width:${timetableCoverageRate}%"></em></i></div>
+          </div>
+        </article>
+
+        <article class="admin-report-chart-card">
+          <header><span>Admissions</span><strong>${formatReportNumber(activePipeline)}</strong></header>
+          <div class="admin-report-admission-bars">
+            ${admissionsStageRows
+              .map(
+                (stage) => `
+                  <div>
+                    <span>${escapeHtml(stage.label)}</span>
+                    <strong>${formatReportNumber(stage.value)}</strong>
+                    <i><em style="width:${clampReportScore((stage.value / admissionsStageMax) * 100)}%"></em></i>
+                  </div>
+                `,
+              )
+              .join("")}
+          </div>
+        </article>
+      </div>
+    `;
 
     healthTarget.innerHTML = `
       <div class="admin-report-health-score" style="--score:${report.overallScore}">
@@ -22764,48 +22799,48 @@
       {
         title: "Students and Guardians",
         metric: `${formatReportNumber(report.activeStudents.length)} active students`,
-        meaning: "Shows whether the school register is complete enough for attendance, fees, communication, and reports.",
-        watch: report.activeStudents.length ? "Check students without complete guardian details before sending parent-facing reports." : "Create student profiles first.",
+        score: report.activeStudents.length ? 100 : 0,
+        status: report.activeStudents.length ? "Active register" : "No register",
         href: "./admin-students.html",
         action: "Open students",
       },
       {
         title: "Attendance",
         metric: attendanceRateLabel,
-        meaning: "Shows how many students were present or late out of the students expected today.",
-        watch: unmarkedCount ? "Follow up classes that have not submitted attendance." : "Review absence patterns and repeated lateness.",
+        score: attendanceRateValue,
+        status: unmarkedCount ? `${formatReportNumber(unmarkedCount)} unmarked` : "Complete today",
         href: "./admin-attendance.html",
         action: "Open attendance",
       },
       {
         title: "Fees and Invoices",
         metric: formatCurrencyAmount(report.invoiceBalance || report.feeSummary.activeAmount || 0),
-        meaning: "Shows how much money is configured, billed, or still unpaid depending on invoice progress.",
-        watch: report.invoices.length ? "Compare outstanding balances with payment follow-up." : "Generate invoices so guardians can see balances.",
+        score: report.invoices.length ? collectionRate : feeCoverageRate,
+        status: report.invoices.length ? `${formatReportPercent(outstandingRate)} outstanding` : "Invoice pending",
         href: "./admin-fees.html",
         action: "Open fees",
       },
       {
         title: "Classes and Teachers",
         metric: `${formatReportNumber(report.classTeacherCount)}/${formatReportNumber(report.activeClasses.length)} assigned`,
-        meaning: "Shows whether each class has an accountable teacher for daily follow-up and reporting.",
-        watch: report.classTeacherCount < report.activeClasses.length ? "Assign missing class teachers." : "Keep teacher assignments updated when classes change.",
+        score: classTeacherRate,
+        status: report.classTeacherCount < report.activeClasses.length ? "Needs assignment" : "Assigned",
         href: "./admin-classes.html",
         action: "Open classes",
       },
       {
         title: "Timetable",
         metric: `${formatReportNumber(report.timetableSummary.classCount || 0)} classes covered`,
-        meaning: "Shows whether classes have recorded lessons and whether the week is structured.",
-        watch: Number(report.timetableSummary.draftCount || 0) ? "Publish draft lessons when the timetable is final." : "Review teacher workload before the term begins.",
+        score: timetableCoverageRate,
+        status: Number(report.timetableSummary.draftCount || 0) ? "Draft lessons" : "Published ready",
         href: "./admin-schedule.html",
         action: "Open timetable",
       },
       {
         title: "Admissions",
         metric: `${formatReportNumber(activePipeline)} in progress`,
-        meaning: "Shows how many applicants still need review before they become students.",
-        watch: activePipeline ? "Move approved applicants into student records once admission is confirmed." : "Keep stages updated for the next admission window.",
+        score: admissionsApprovalRate,
+        status: activePipeline ? "Pipeline active" : "No queue",
         href: "./admin-admissions.html",
         action: "Open admissions",
       },
@@ -22819,9 +22854,11 @@
               <span>${escapeHtml(area.title)}</span>
               <strong>${escapeHtml(area.metric)}</strong>
             </div>
-            <p><b>Meaning:</b> ${escapeHtml(area.meaning)}</p>
-            <p><b>Watch:</b> ${escapeHtml(area.watch)}</p>
-            <a href="${escapeHtml(area.href)}">${escapeHtml(area.action)}</a>
+            <div class="admin-report-area-chart"><i style="width:${area.score}%"></i></div>
+            <footer>
+              <small>${escapeHtml(area.status)}</small>
+              <a href="${escapeHtml(area.href)}">${escapeHtml(area.action)}</a>
+            </footer>
           </article>
         `,
       )

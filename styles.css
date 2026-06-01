@@ -5691,6 +5691,197 @@ body.admin-dashboard-page .admin-report-insight.is-attention {
   border-left-color: #e99d2f;
 }
 
+body.admin-dashboard-page .admin-report-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+body.admin-dashboard-page .admin-report-chart-card {
+  display: grid;
+  gap: 14px;
+  min-height: 230px;
+  padding: 16px;
+  border: 1px solid #e2e7f0;
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+body.admin-dashboard-page .admin-report-chart-card header,
+body.admin-dashboard-page .admin-report-area footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+body.admin-dashboard-page .admin-report-chart-card header span,
+body.admin-dashboard-page .admin-report-area footer small {
+  color: #667188;
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+body.admin-dashboard-page .admin-report-chart-card header strong {
+  color: #17233a;
+  font-size: 1.25rem;
+}
+
+body.admin-dashboard-page .admin-report-donut {
+  display: grid;
+  place-items: center;
+  width: 132px;
+  aspect-ratio: 1;
+  justify-self: center;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at center, #fbfcff 0 57%, transparent 58%),
+    conic-gradient(#2f6fed calc(var(--score) * 1%), #e6edf6 0);
+}
+
+body.admin-dashboard-page .admin-report-donut span {
+  color: #17233a;
+  font-size: 1.2rem;
+  font-weight: 900;
+}
+
+body.admin-dashboard-page .admin-report-mini-legend,
+body.admin-dashboard-page .admin-report-split-metric {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+body.admin-dashboard-page .admin-report-mini-legend span,
+body.admin-dashboard-page .admin-report-split-metric span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #5f6d85;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+body.admin-dashboard-page .admin-report-mini-legend i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+body.admin-dashboard-page .admin-report-mini-legend i.is-good {
+  background: #24a061;
+}
+
+body.admin-dashboard-page .admin-report-mini-legend i.is-warn {
+  background: #e99d2f;
+}
+
+body.admin-dashboard-page .admin-report-mini-legend i.is-bad {
+  background: #cf2d27;
+}
+
+body.admin-dashboard-page .admin-report-stacked-bar,
+body.admin-dashboard-page .admin-report-area-chart {
+  height: 14px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e8eef6;
+}
+
+body.admin-dashboard-page .admin-report-stacked-bar i,
+body.admin-dashboard-page .admin-report-area-chart i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #2f6fed;
+}
+
+body.admin-dashboard-page .admin-report-split-metric {
+  justify-content: space-between;
+}
+
+body.admin-dashboard-page .admin-report-split-metric strong {
+  color: #17233a;
+}
+
+body.admin-dashboard-page .admin-report-mini-bars {
+  display: grid;
+  gap: 10px;
+}
+
+body.admin-dashboard-page .admin-report-mini-bars div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 10px;
+  align-items: center;
+}
+
+body.admin-dashboard-page .admin-report-mini-bars span,
+body.admin-dashboard-page .admin-report-mini-bars b {
+  color: #5f6d85;
+  font-size: 0.8rem;
+}
+
+body.admin-dashboard-page .admin-report-mini-bars i {
+  grid-column: 1 / -1;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e8eef6;
+}
+
+body.admin-dashboard-page .admin-report-mini-bars em {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #2f6fed;
+}
+
+body.admin-dashboard-page .admin-report-admission-bars {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+body.admin-dashboard-page .admin-report-admission-bars div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px 10px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #e2e7f0;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+body.admin-dashboard-page .admin-report-admission-bars span {
+  color: #667188;
+  font-size: 0.74rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+body.admin-dashboard-page .admin-report-admission-bars strong {
+  color: #17233a;
+  font-size: 1.15rem;
+}
+
+body.admin-dashboard-page .admin-report-admission-bars i {
+  grid-column: 1 / -1;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e8eef6;
+}
+
+body.admin-dashboard-page .admin-report-admission-bars em {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #2f6fed;
+}
+
 body.admin-dashboard-page .admin-report-insight strong,
 body.admin-dashboard-page .admin-report-area strong,
 body.admin-dashboard-page .admin-report-health-row strong,
@@ -5783,6 +5974,10 @@ body.admin-dashboard-page .admin-report-area {
 body.admin-dashboard-page .admin-report-area div {
   display: grid;
   gap: 5px;
+}
+
+body.admin-dashboard-page .admin-report-area footer {
+  padding-top: 2px;
 }
 
 body.admin-dashboard-page .admin-report-area a,
@@ -9248,6 +9443,7 @@ body.admin-dashboard-page .portal-class-empty p {
 
   body.admin-dashboard-page .admin-metrics-grid,
   body.admin-dashboard-page .admin-report-kpis,
+  body.admin-dashboard-page .admin-report-chart-grid,
   body.admin-dashboard-page .portal-settings-grid,
   body.admin-dashboard-page .portal-student-browser,
   body.admin-dashboard-page .portal-admission-share,
