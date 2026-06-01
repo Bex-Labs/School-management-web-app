@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Admissions | SchoolSphere Admin</title>
     <meta name="description" content="Admissions workflow for reviewing, shortlisting, rejecting, and approving applicants." />
-    <link rel="stylesheet" href="./styles.css?v=admissions-history-collapse" />
+    <link rel="stylesheet" href="./styles.css?v=admission-open-classes" />
   </head>
   <body data-page="admin-admissions" class="admin-dashboard-page">
     <main class="admin-dashboard-shell">
@@ -230,53 +230,59 @@
             </div>
           </article>
 
-          <article class="admin-surface-card admin-admission-config-card" hidden aria-hidden="true">
+          <article class="admin-surface-card admin-admission-config-card">
             <div class="admin-surface-head">
               <div>
-                <h2>Admission Settings</h2>
-                <span>Set the active admission cycle, classes open for applications, and the review stages in one place.</span>
+                <h2>Open Admission Classes</h2>
+                <span>Choose the classes that should appear on the public application form.</span>
               </div>
             </div>
 
-            <div id="portal-admission-config-summary" class="portal-class-summary"></div>
+            <div id="portal-admission-config-summary" class="portal-class-summary" hidden></div>
 
-            <form id="portal-admission-setup-form" class="portal-admission-setup-form" novalidate>
-              <div id="portal-admission-setup-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+            <details class="portal-admission-open-classes-shell">
+              <summary>
+                <span>Classes open for admission</span>
+              </summary>
 
-              <div class="portal-admission-setup-grid">
-                <label class="portal-field" for="admission-setup-session-name">
-                  <span>Admission session</span>
-                  <input id="admission-setup-session-name" name="sessionName" type="text" placeholder="2026/2027 Admissions" />
-                  <p class="portal-field-error" data-admission-setup-error-for="sessionName"></p>
-                </label>
+              <form id="portal-admission-setup-form" class="portal-admission-setup-form" novalidate>
+                <div id="portal-admission-setup-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
 
-                <label class="portal-field" for="admission-setup-session-status">
-                  <span>Application form</span>
-                  <select id="admission-setup-session-status" name="sessionStatus">
-                    <option value="open">Open for applications</option>
-                    <option value="closed">Closed</option>
-                  </select>
-                </label>
+                <div class="portal-admission-setup-grid">
+                  <label class="portal-field" for="admission-setup-session-name" hidden>
+                    <span>Admission session</span>
+                    <input id="admission-setup-session-name" name="sessionName" type="text" placeholder="2026/2027 Admissions" />
+                    <p class="portal-field-error" data-admission-setup-error-for="sessionName"></p>
+                  </label>
 
-                <div class="portal-field portal-field-span-2">
-                  <span>Classes open for admission</span>
-                  <div id="portal-admission-class-picker" class="portal-admission-choice-grid"></div>
-                  <p class="portal-field-error" data-admission-setup-error-for="classes"></p>
+                  <label class="portal-field" for="admission-setup-session-status" hidden>
+                    <span>Application form</span>
+                    <select id="admission-setup-session-status" name="sessionStatus">
+                      <option value="open">Open for applications</option>
+                      <option value="closed">Closed</option>
+                    </select>
+                  </label>
+
+                  <div class="portal-field portal-field-span-2">
+                    <span>Classes open for admission</span>
+                    <div id="portal-admission-class-picker" class="portal-admission-choice-grid"></div>
+                    <p class="portal-field-error" data-admission-setup-error-for="classes"></p>
+                  </div>
+
+                  <label class="portal-field portal-field-span-2" for="admission-setup-stages" hidden>
+                    <span>Review stages</span>
+                    <textarea id="admission-setup-stages" name="stages" rows="3" placeholder="Submitted, Screening, Interview, Approved"></textarea>
+                    <small class="portal-field-hint">Separate stages with commas or new lines.</small>
+                    <p class="portal-field-error" data-admission-setup-error-for="stages"></p>
+                  </label>
                 </div>
 
-                <label class="portal-field portal-field-span-2" for="admission-setup-stages">
-                  <span>Review stages</span>
-                  <textarea id="admission-setup-stages" name="stages" rows="3" placeholder="Submitted, Screening, Interview, Approved"></textarea>
-                  <small class="portal-field-hint">Separate stages with commas or new lines.</small>
-                  <p class="portal-field-error" data-admission-setup-error-for="stages"></p>
-                </label>
-              </div>
-
-              <div class="utility-actions">
-                <button class="button button-primary" type="submit">Save admission settings</button>
-                <button class="button button-outline" type="button" data-admission-setup-recommended>Use recommended setup</button>
-              </div>
-            </form>
+                <div class="utility-actions">
+                  <button class="button button-primary" type="submit">Save open classes</button>
+                  <button class="button button-outline" type="button" data-admission-setup-recommended>Select all classes</button>
+                </div>
+              </form>
+            </details>
 
             <div id="portal-admission-setup-preview" class="portal-admission-setup-preview"></div>
           </article>
@@ -286,6 +292,6 @@
 
     <script src="./app.js"></script>
     <script src="./supabase-config.js"></script>
-    <script src="./auth.js?v=admissions-history-collapse"></script>
+    <script src="./auth.js?v=admission-open-classes"></script>
   </body>
 </html>

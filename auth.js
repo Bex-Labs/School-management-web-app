@@ -8114,7 +8114,7 @@
       form.querySelectorAll('input[name="admissionClassOption"]').forEach((input) => {
         input.checked = true;
       });
-      setStatus(status, "info", "Recommended setup filled in. Save when it looks right.");
+      setStatus(status, "info", "All classes selected. Save when it looks right.");
     };
 
     clearPortalAdmissionSetupErrors(form);
@@ -8173,7 +8173,7 @@
       }
 
       if (hasError) {
-        setStatus(status, "error", "Fix the highlighted admission settings.");
+        setStatus(status, "error", "Fix the highlighted admission classes.");
         return;
       }
 
@@ -8257,10 +8257,10 @@
         action: "updated",
         entityType: "admission-settings",
         entityId: sessionName,
-        summary: `Updated admission settings for ${sessionName}`,
+        summary: `Updated open admission classes for ${sessionName}`,
         details: `${selectedClassNames.length} classes • ${stageNames.length} review stages • ${sessionStatus}`,
       });
-      setStatus(status, "success", "Admission settings saved.");
+      setStatus(status, "success", "Open admission classes saved.");
       refresh();
     });
 
@@ -19149,6 +19149,92 @@
       }
     };
 
+    const normalizePublicAdmissionConfigStatus = (value) => {
+      const normalized = String(value || "").trim().toLowerCase();
+      return normalized === "archived" || normalized === "inactive" ? "archived" : "active";
+    };
+
+    const normalizePublicAdmissionSession = (record = {}) => ({
+      ...record,
+      id: String(record.id || "").trim(),
+      name: String(record.name || "").trim(),
+      status: String(record.status || "").trim().toLowerCase() === "open" ? "open" : "closed",
+      createdAt: record.createdAt || "",
+      updatedAt: record.updatedAt || "",
+    });
+
+    const normalizePublicAdmissionClass = (record = {}) => ({
+      ...record,
+      id: String(record.id || "").trim(),
+      name: String(record.name || "").trim(),
+      status: normalizePublicAdmissionConfigStatus(record.status),
+      createdAt: record.createdAt || "",
+      updatedAt: record.updatedAt || "",
+    });
+
+    const normalizePublicAdmissionStage = (record = {}, index = 0) => ({
+      ...record,
+      id: String(record.id || "").trim(),
+      name: String(record.name || "").trim(),
+      order: Number.isFinite(Number(record.order)) && Number(record.order) > 0 ? Number(record.order) : index + 1,
+      status: normalizePublicAdmissionConfigStatus(record.status),
+      createdAt: record.createdAt || "",
+      updatedAt: record.updatedAt || "",
+    });
+
+    const summarizePublicAdmissionConfigState = (state = {}) => {
+      const sessions = Array.isArray(state.sessions)
+        ? state.sessions
+            .map((record) => normalizePublicAdmissionSession(record))
+            .filter((record) => record.name)
+        : [];
+      const classes = Array.isArray(state.classes)
+        ? state.classes
+            .map((record) => normalizePublicAdmissionClass(record))
+            .filter((record) => record.name)
+        : [];
+      const defaultStages = [
+        { id: "stage-submitted", name: "Submitted", order: 1, status: "active" },
+        { id: "stage-review", name: "Review", order: 2, status: "active" },
+        { id: "stage-shortlisted", name: "Shortlisted", order: 3, status: "active" },
+        { id: "stage-approved", name: "Approved", order: 4, status: "active" },
+      ];
+      const stages = (Array.isArray(state.stages) && state.stages.length ? state.stages : defaultStages)
+        .map((record, index) => normalizePublicAdmissionStage(record, index))
+        .filter((record) => record.name)
+        .sort((left, right) => left.order - right.order || left.name.localeCompare(right.name));
+      const openSession = sessions.find((entry) => entry.status === "open") || null;
+      const activeClasses = classes.filter((entry) => entry.status === "active");
+      const activeStages = stages.filter((entry) => entry.status === "active");
+
+      return {
+        sessions,
+        classes,
+        stages,
+        openSession,
+        activeClasses,
+        activeStages,
+      };
+    };
+
+    const getPublicAdmissionConfigSummary = () => {
+      const storageKeys = [
+        lockedWorkspaceId ? `${SUPABASE_STATE_KEY_ADMISSION_CONFIG}::${normalizeWorkspaceId(lockedWorkspaceId)}` : "",
+        SUPABASE_STATE_KEY_ADMISSION_CONFIG,
+      ].filter(Boolean);
+
+      for (const storageKey of storageKeys) {
+        const storedConfig = parseJSON(localStorage.getItem(storageKey), null);
+        if (storedConfig && typeof storedConfig === "object" && !Array.isArray(storedConfig)) {
+          return summarizePublicAdmissionConfigState(storedConfig);
+        }
+      }
+
+      return admissionConfigManager && typeof admissionConfigManager.summarize === "function"
+        ? admissionConfigManager.summarize()
+        : summarizePublicAdmissionConfigState();
+    };
+
     applyAdmissionsApplyBranding(getLocalApplySchoolSettings(lockedWorkspaceId));
     if (lockedInstitutionId) {
       fetchInstitutionBranding(lockedInstitutionId).then((settings) => {
@@ -19166,14 +19252,12 @@
     let activeStepIndex = 0;
 
     const refreshPublicAdmissionClassOptions = () => {
-      const admissionConfig =
-        admissionConfigManager && typeof admissionConfigManager.summarize === "function"
-          ? admissionConfigManager.summarize()
-          : null;
+      const admissionConfig = getPublicAdmissionConfigSummary();
       const activeClassNames = (admissionConfig?.activeClasses || [])
         .map((entry) => entry.name)
         .filter(Boolean);
-      syncAdmissionClassFieldOptions(activeClassNames, applyingClassSelect, {
+      const classNames = activeClassNames.length ? activeClassNames : getConfiguredStudentLevelOptions();
+      syncAdmissionClassFieldOptions(classNames, applyingClassSelect, {
         placeholder: "Select class applying for",
         emptyLabel: "No admission classes are open",
       });
@@ -19445,10 +19529,7 @@
       }
 
       payload.level = payload.classApplyingFor || payload.academicClassApplyingFor;
-      const admissionConfig =
-        admissionConfigManager && typeof admissionConfigManager.summarize === "function"
-          ? admissionConfigManager.summarize()
-          : null;
+      const admissionConfig = getPublicAdmissionConfigSummary();
       const openAdmissionSession = admissionConfig?.openSession || null;
       const firstActiveStage = (admissionConfig?.activeStages || [])[0] || null;
       payload.admissionSessionId = openAdmissionSession?.id || "";
