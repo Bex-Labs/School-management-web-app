@@ -777,18 +777,12 @@
 
     const updateBanner = () => {
       if (!navigator.onLine) {
-        renderBannerState(
-          "offline",
-          "You are offline. Keep filling forms; your entries are saved locally until you reconnect.",
-        );
+        renderBannerState("offline", "No network");
         return;
       }
 
       if (isSlow()) {
-        renderBannerState(
-          "slow",
-          "Slow connection detected. Forms remain usable and drafts are auto-saved.",
-        );
+        renderBannerState("slow", "slow network");
         return;
       }
 
@@ -4099,7 +4093,7 @@
     }
 
     if (/network_timeout/i.test(message)) {
-      return "The network is slow right now. Your form is saved locally, so you can retry in a moment.";
+      return "slow network";
     }
 
     return message;
@@ -8007,22 +8001,7 @@
       return;
     }
 
-    previewTarget.innerHTML = `
-      <article class="portal-admission-setup-card">
-        <div>
-          <span>Public application setup</span>
-          <strong>${openSessionName ? escapeHtml(openSessionName) : "Applications closed"}</strong>
-        </div>
-        <p>${activeClassNames.length ? escapeHtml(activeClassNames.join(", ")) : "No classes have been opened for admission."}</p>
-      </article>
-      <article class="portal-admission-setup-card">
-        <div>
-          <span>Review flow</span>
-          <strong>${activeStageNames.length ? `${activeStageNames.length} stage${activeStageNames.length === 1 ? "" : "s"}` : "Not set"}</strong>
-        </div>
-        <p>${activeStageNames.length ? escapeHtml(activeStageNames.join(" -> ")) : "Submitted, Screening, Interview, Approved is the recommended flow."}</p>
-      </article>
-    `;
+    previewTarget.innerHTML = "";
   }
 
   function initAdmissionSetupControls({
@@ -20724,7 +20703,7 @@
     }
 
     const cards = Array.from(main.querySelectorAll(".admin-surface-card")).filter(
-      (card) => card.querySelector(".admin-surface-head h2"),
+      (card) => !card.hidden && card.getAttribute("aria-hidden") !== "true" && card.querySelector(".admin-surface-head h2"),
     );
 
     if (cards.length < 2) {
@@ -21693,6 +21672,16 @@
     return "Pending";
   }
 
+  function sourceLabelForAdmission(value) {
+    const source = String(value || "").trim().toLowerCase();
+
+    if (source.includes("public") || source.includes("apply") || source.includes("link")) {
+      return "Online";
+    }
+
+    return "";
+  }
+
   function renderAdmissionsSummary(target, admissions = []) {
     if (!target) {
       return;
@@ -21721,7 +21710,7 @@
       <article class="portal-class-stat portal-class-stat-violet">
         <span>Approved</span>
         <strong>${counts.approved}</strong>
-        <p>Accepted applicants pending conversion or already processed.</p>
+        <p>Accepted applicants are added to student records automatically.</p>
       </article>
       <article class="portal-class-stat portal-class-stat-rose">
         <span>Declined</span>
@@ -21771,7 +21760,50 @@
     `;
   }
 
-  function initAdmissionsControls({ isAdmin, form, status, summaryTarget, listTarget, applyLinkTarget }) {
+  function renderAdmissionsHistory(target, admissions = []) {
+    if (!target) {
+      return;
+    }
+
+    if (!admissions.length) {
+      target.innerHTML = `
+        <article class="portal-class-empty">
+          <strong>No admission history yet</strong>
+          <p>Applications will appear here after they are submitted or added on the platform.</p>
+        </article>
+      `;
+      return;
+    }
+
+    target.innerHTML = `
+      <div class="portal-admission-name-list">
+        ${admissions
+          .map((entry) => {
+            const status = normalizeAdmissionStatus(entry.status);
+            const level = entry.academicClassApplyingFor || entry.classApplyingFor || entry.level || "Class not set";
+            const sourceLabel = sourceLabelForAdmission(entry.source);
+            const decisionDate = entry.convertedAt || entry.reviewedAt || entry.updatedAt || entry.createdAt;
+            return `
+              <button class="portal-admission-name-item portal-admission-history-item" type="button" data-admission-open="${escapeHtml(entry.id)}">
+                <span class="portal-admission-name-copy">
+                  <strong>${escapeHtml(entry.fullName)}</strong>
+                  <small>${escapeHtml(level)}</small>
+                  <small>Date: ${escapeHtml(formatTimestamp(entry.createdAt))}</small>
+                </span>
+                <span class="portal-admission-name-meta">
+                  <span class="portal-class-status is-${status === "approved" || status === "shortlisted" ? "active" : status === "rejected" ? "archived" : "pending"}">${escapeHtml(statusLabelForAdmission(status))}</span>
+                  ${sourceLabel ? `<span class="portal-admission-source-pill">${escapeHtml(sourceLabel)}</span>` : ""}
+                  <small>Updated: ${escapeHtml(formatTimestamp(decisionDate))}</small>
+                </span>
+              </button>
+            `;
+          })
+          .join("")}
+      </div>
+    `;
+  }
+
+  function initAdmissionsControls({ isAdmin, form, status, summaryTarget, listTarget, historyTarget, applyLinkTarget }) {
     if (!form || !status || !summaryTarget || !listTarget) {
       return;
     }
@@ -21874,17 +21906,43 @@
     };
 
     const refresh = () => {
-      const admissions = getAdmissions(workspaceId).filter(
+      const allAdmissions = getAdmissions(workspaceId);
+      const admissions = allAdmissions.filter(
         (entry) => !String(entry.convertedAt || "").trim(),
       );
       renderAdmissionsSummary(summaryTarget, admissions);
       renderAdmissionsList(listTarget, admissions, isAdmin);
+      renderAdmissionsHistory(historyTarget, allAdmissions);
       refreshApplicationLevelOptions();
     };
 
     let modalElement = null;
     let modalBody = null;
     let activeAdmissionId = "";
+    let admissionToastTimer = null;
+
+    const showAdmissionApprovalToast = (message) => {
+      if (!message) {
+        return;
+      }
+
+      let toast = document.getElementById("portal-admission-approval-toast");
+      if (!toast) {
+        toast = document.createElement("div");
+        toast.id = "portal-admission-approval-toast";
+        toast.className = "portal-toast portal-toast--success portal-toast--center portal-admission-approval-toast";
+        toast.setAttribute("role", "status");
+        toast.setAttribute("aria-live", "polite");
+        document.body.appendChild(toast);
+      }
+
+      toast.innerHTML = message;
+      toast.hidden = false;
+      window.clearTimeout(admissionToastTimer);
+      admissionToastTimer = window.setTimeout(() => {
+        toast.hidden = true;
+      }, 3400);
+    };
 
     const setModalOpen = (isOpen) => {
       if (!modalElement) return;
@@ -21939,8 +21997,6 @@
 
     const renderModalBody = (admission) => {
       if (!modalBody || !admission) return;
-      const isApproved = normalizeAdmissionStatus(admission.status) === "approved";
-      const isConverted = Boolean(String(admission.convertedAt || "").trim());
 
       modalBody.innerHTML = `
         <div class="portal-admission-modal-grid">
@@ -21977,7 +22033,6 @@
           <button class="portal-class-button" type="button" data-admission-action="shortlisted" data-admission-id="${escapeHtml(admission.id)}" ${isAdmin ? "" : "disabled"}>Shortlist</button>
           <button class="portal-class-button is-archive" type="button" data-admission-action="rejected" data-admission-id="${escapeHtml(admission.id)}" ${isAdmin ? "" : "disabled"}>Decline</button>
           <button class="portal-class-button is-restore" type="button" data-admission-action="approved" data-admission-id="${escapeHtml(admission.id)}" ${isAdmin ? "" : "disabled"}>Accept</button>
-          <button class="portal-class-button" type="button" data-admission-action="convert" data-admission-id="${escapeHtml(admission.id)}" ${isAdmin && isApproved && !isConverted ? "" : "disabled"}>${isConverted ? "Added to Students" : "Add to Students"}</button>
         </div>
       `;
     };
@@ -22204,6 +22259,10 @@
             studentPayload.admissionNo,
           )}</strong> in <strong>${escapeHtml(studentPayload.level)}</strong>.${createdParentCopy}${googleParentCopy}${failedParentCopy}`,
         );
+        showAdmissionApprovalToast(`
+          <strong>Application approved</strong>
+          <span>${escapeHtml(admission.fullName)} has been added to Students.</span>
+        `);
         return studentPayload;
     };
 
@@ -22286,7 +22345,7 @@
       setStatus(status, "success", `Application moved to <strong>${escapeHtml(statusLabelForAdmission(nextStatus))}</strong>.`);
     };
 
-    listTarget.addEventListener("click", (event) => {
+    const handleAdmissionOpenClick = (event) => {
       const entryButton = event.target.closest("[data-admission-open]");
       if (!entryButton) {
         return;
@@ -22296,7 +22355,12 @@
         return;
       }
       openAdmissionModal(admissionId);
-    });
+    };
+
+    listTarget.addEventListener("click", handleAdmissionOpenClick);
+    if (historyTarget) {
+      historyTarget.addEventListener("click", handleAdmissionOpenClick);
+    }
 
     window.addEventListener(ADMISSIONS_EVENT_NAME, (event) => {
       const eventWorkspaceId = normalizeWorkspaceId(event?.detail?.workspaceId || workspaceId);
@@ -22323,6 +22387,7 @@
     const status = document.getElementById("portal-admission-status");
     const summaryTarget = document.getElementById("portal-admission-summary");
     const listTarget = document.getElementById("portal-admission-list");
+    const historyTarget = document.getElementById("portal-admission-history");
     const applyLinkTarget = document.getElementById("portal-admission-apply-link");
     const configManager = getAdmissionConfigManager();
     const configSummary = document.getElementById("portal-admission-config-summary");
@@ -22337,6 +22402,7 @@
       status,
       summaryTarget,
       listTarget,
+      historyTarget,
       applyLinkTarget,
     });
 

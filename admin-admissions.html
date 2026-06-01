@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Admissions | SchoolSphere Admin</title>
     <meta name="description" content="Admissions workflow for reviewing, shortlisting, rejecting, and approving applicants." />
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=admissions-history-collapse" />
   </head>
   <body data-page="admin-admissions" class="admin-dashboard-page">
     <main class="admin-dashboard-shell">
@@ -138,7 +138,7 @@
           <div class="admin-dashboard-greeting">
             <span class="admin-topline-chip" id="portal-last-updated">Last updated --</span>
             <h1 id="portal-heading">Admissions</h1>
-            <p id="portal-copy">Capture applications and review each one through shortlist, reject, or approval decisions.</p>
+            <p id="portal-copy">Capture applications and approve or decline applicants from one list.</p>
           </div>
         </header>
 
@@ -147,7 +147,7 @@
             <div class="admin-surface-head">
               <div>
                 <h2>Application Workflow</h2>
-                <span>Receive applications from students/guardians and move each application through review states.</span>
+                <span>Receive applications from students/guardians and make admission decisions quickly.</span>
               </div>
               <a id="portal-admission-apply-link" class="button button-outline" href="./admissions-apply.html">Open/Share Application Form</a>
             </div>
@@ -220,10 +220,17 @@
 
               <h3 class="portal-list-subheading">Applications</h3>
               <div id="portal-admission-list" class="portal-class-list"></div>
+
+              <details class="portal-admission-history-shell">
+                <summary>
+                  <span>Admission History</span>
+                </summary>
+                <div id="portal-admission-history" class="portal-class-list portal-admission-history"></div>
+              </details>
             </div>
           </article>
 
-          <article class="admin-surface-card admin-admission-config-card">
+          <article class="admin-surface-card admin-admission-config-card" hidden aria-hidden="true">
             <div class="admin-surface-head">
               <div>
                 <h2>Admission Settings</h2>
@@ -279,6 +286,6 @@
 
     <script src="./app.js"></script>
     <script src="./supabase-config.js"></script>
-    <script src="./auth.js"></script>
+    <script src="./auth.js?v=admissions-history-collapse"></script>
   </body>
 </html>
