@@ -270,7 +270,7 @@ const AUDIT_TRAIL_EVENT = "schoolsphere:audit-trail-updated";
 const MAX_AUDIT_TRAIL_ENTRIES = 300;
 const ROLE_PERMISSIONS_STORAGE_KEY = "schoolsphere.rolePermissions.v1";
 const ROLE_PERMISSIONS_EVENT = "schoolsphere:role-permissions-updated";
-const ROLE_PERMISSION_ROLES = ["Admin", "Teacher", "Parent", "Student"];
+const ROLE_PERMISSION_ROLES = ["Teacher", "Parent", "Student"];
 const ROLE_PERMISSION_OPTIONS = [
   { key: "dashboard_view", label: "View dashboard" },
   { key: "students_manage", label: "Manage students" },
@@ -3139,7 +3139,6 @@ function summarizeFeatureToggleState() {
 
 function normalizeRolePermissions(raw = {}) {
   const roleAliases = {
-    Admin: ["Admin", "Administrator"],
     Teacher: ["Teacher", "Employee"],
     Parent: ["Parent"],
     Student: ["Student"],

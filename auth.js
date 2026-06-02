@@ -126,6 +126,22 @@
     "parent-fees": "./parent-fees.html",
     "parent-reports": "./parent-reports.html",
   };
+  const PARENT_PAGE_PERMISSION_KEYS = {
+    "parent-portal": "dashboard_view",
+    "parent-teachers": "teachers_manage",
+    "parent-courses": "courses_manage",
+    "parent-attendance": "attendance_manage",
+    "parent-fees": "fees_manage",
+    "parent-reports": "reports_view",
+  };
+  const PARENT_PAGE_LABELS = {
+    "parent-portal": "My child performance",
+    "parent-teachers": "Teachers by class",
+    "parent-courses": "My child courses",
+    "parent-attendance": "Attendance",
+    "parent-fees": "Fees and balance",
+    "parent-reports": "Reports",
+  };
   let supabaseClientPromise = null;
 
   const DASHBOARD_SECTION_LINKS = [
@@ -4873,6 +4889,19 @@
       });
     }
 
+    const refreshSidebarPermissionVisibility = () => {
+      const { roleLabel } = getAdminAccessContext();
+      applyRolePermissionSidebarVisibility(nav, roleLabel);
+    };
+
+    if (nav) {
+      refreshSidebarPermissionVisibility();
+      const manager = getRolePermissionManager();
+      if (manager?.eventName) {
+        window.addEventListener(manager.eventName, refreshSidebarPermissionVisibility);
+      }
+    }
+
     const existingButton = document.querySelector("[data-sidebar-toggle]");
     const toggleButton = existingButton || document.createElement("button");
 
@@ -4908,6 +4937,56 @@
     });
   }
 
+  function getPageIdFromHref(href) {
+    if (!href) {
+      return "";
+    }
+
+    try {
+      const url = new URL(href, window.location.href);
+      const fileName = url.pathname.split("/").filter(Boolean).pop() || "portal.html";
+      return fileName.replace(/\.html$/i, "") || "portal";
+    } catch (error) {
+      return String(href)
+        .replace(/^\.?\//, "")
+        .replace(/\.html(?:[#?].*)?$/i, "");
+    }
+  }
+
+  function getSidebarPermissionKey(link) {
+    if (!link) {
+      return null;
+    }
+
+    const pageId = getPageIdFromHref(link.getAttribute("href") || "");
+    return PARENT_PAGE_PERMISSION_KEYS[pageId] || PAGE_PERMISSION_KEYS[pageId] || null;
+  }
+
+  function applyRolePermissionSidebarVisibility(nav, roleLabel) {
+    if (!nav) {
+      return;
+    }
+
+    const normalizedRole = normalizeRoleLabel(roleLabel || DEFAULT_AUTH_ROLE);
+    const isAdminRole = /admin/i.test(normalizedRole);
+
+    nav.querySelectorAll(".admin-sidebar-link").forEach((link) => {
+      const permissionKey = getSidebarPermissionKey(link);
+      const isAllowed = isAdminRole || !permissionKey || canAccessPermission(normalizedRole, permissionKey);
+
+      link.hidden = !isAllowed;
+      link.classList.toggle("is-permission-hidden", !isAllowed);
+
+      if (isAllowed) {
+        link.removeAttribute("aria-hidden");
+        link.removeAttribute("tabindex");
+      } else {
+        link.setAttribute("aria-hidden", "true");
+        link.setAttribute("tabindex", "-1");
+      }
+    });
+  }
+
   function getFeatureModuleManager() {
     return window.SchoolSphereFeatureModules || null;
   }
@@ -4924,8 +5003,12 @@
     }
 
     const normalizedRole = normalizeRoleLabel(roleLabel || DEFAULT_AUTH_ROLE);
+    if (/admin/i.test(normalizedRole)) {
+      return null;
+    }
+
     const permissions = manager.getPermissions();
-    return permissions[normalizedRole] || permissions.Admin || null;
+    return permissions[normalizedRole] || null;
   }
 
   function canAccessPermission(roleLabel, permissionKey) {
@@ -4933,10 +5016,16 @@
       return true;
     }
 
-    const permissionSnapshot = getRolePermissionSnapshot(roleLabel);
+    const normalizedRole = normalizeRoleLabel(roleLabel || DEFAULT_AUTH_ROLE);
+
+    if (/admin/i.test(normalizedRole)) {
+      return true;
+    }
+
+    const permissionSnapshot = getRolePermissionSnapshot(normalizedRole);
 
     if (!permissionSnapshot) {
-      return /admin/i.test(normalizeRoleLabel(roleLabel));
+      return false;
     }
 
     return Boolean(permissionSnapshot[permissionKey]);
@@ -13654,7 +13743,7 @@
       listTarget.innerHTML = `
         <article class="portal-class-empty">
           <strong>No access grants yet</strong>
-          <p>Add teacher, student, parent, or admin emails here to control who can create accounts.</p>
+          <p>Add teacher, student, or parent emails here to control who can create accounts.</p>
         </article>
       `;
       return;
@@ -13797,6 +13886,11 @@
         hasError = true;
       } else if (!EMAIL_REGEX.test(payload.email)) {
         setPortalAccessError(form, "email", "Enter a valid email format.");
+        hasError = true;
+      }
+
+      if (payload.role === "Admin") {
+        setPortalAccessError(form, "role", "Admin access is reserved for the existing school admin.");
         hasError = true;
       }
 
@@ -14770,11 +14864,11 @@
       .join(" • ");
 
     summaryTarget.innerHTML = `
-      <strong>Standard roles: ${roles.join(", ")}</strong>
+      <strong>Managed roles: ${roles.join(", ")}</strong>
       <span>${
         isAdmin
-          ? `Permission changes save instantly. ${escapeHtml(summaryText)}`
-          : "Only administrator accounts can change role permissions."
+          ? `Admin has full access. Permission changes save instantly. ${escapeHtml(summaryText)}`
+          : "Admin has full access. Only administrator accounts can change role permissions."
       }</span>
     `;
 
@@ -23076,6 +23170,21 @@
     `;
   }
 
+  function renderParentPermissionRestrictedPage(target, page) {
+    const label = PARENT_PAGE_LABELS[page] || "Parent section";
+    target.innerHTML = `
+      <article class="admin-surface-card">
+        <div class="admin-surface-head">
+          <div>
+            <h2>${escapeHtml(label)} unavailable</h2>
+            <span>Permission required</span>
+          </div>
+        </div>
+        <p class="auth-helper-text">This section is currently hidden by parent role permissions.</p>
+      </article>
+    `;
+  }
+
   function initParentPages() {
     const page = getPage();
 
@@ -23141,6 +23250,12 @@
 
     const contentHost = document.getElementById("parent-page-content");
     if (!contentHost) {
+      return;
+    }
+
+    const permissionKey = PARENT_PAGE_PERMISSION_KEYS[page] || PAGE_PERMISSION_KEYS.portal;
+    if (!canAccessPermission(roleLabel, permissionKey)) {
+      renderParentPermissionRestrictedPage(contentHost, page);
       return;
     }
 
