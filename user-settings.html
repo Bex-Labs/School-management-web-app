@@ -58,7 +58,7 @@
           <div class="admin-dashboard-greeting">
             <span class="admin-topline-chip" id="portal-last-updated">Last updated --</span>
             <h1 id="portal-heading">Personal Settings</h1>
-            <p id="portal-copy">Update your account password and keep your login secure.</p>
+            <p id="portal-copy">Update your profile, photo, and account security.</p>
           </div>
         </header>
 
@@ -66,8 +66,31 @@
           <article class="admin-surface-card">
             <div class="admin-surface-head">
               <h2>Account Profile</h2>
-              <span>Your current account identity in this school workspace.</span>
+              <span>Keep your name and profile picture current across this workspace.</span>
             </div>
+            <form id="user-profile-form" class="portal-settings-form user-profile-form" novalidate>
+              <div id="user-profile-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+              <div class="user-profile-editor">
+                <span id="user-settings-photo-preview" class="admin-profile-avatar user-settings-photo-preview">A</span>
+                <div class="user-profile-editor-fields">
+                  <input id="user-profile-photo-url" name="profilePhotoUrl" type="hidden" />
+                  <label class="portal-field" for="user-display-name">
+                    <span>Full name</span>
+                    <input id="user-display-name" name="displayName" type="text" autocomplete="name" placeholder="Enter your full name" />
+                    <p class="portal-field-error auth-field-error" data-error-for="displayName"></p>
+                  </label>
+                  <label class="portal-field" for="user-profile-photo">
+                    <span>Profile picture</span>
+                    <input id="user-profile-photo" name="profilePhoto" type="file" accept="image/*" />
+                    <p class="portal-field-error auth-field-error" data-error-for="profilePhoto"></p>
+                  </label>
+                  <div class="utility-actions user-profile-actions">
+                    <button class="button button-primary" type="submit">Save profile</button>
+                    <button class="button button-outline" type="button" data-user-profile-remove-photo>Remove picture</button>
+                  </div>
+                </div>
+              </div>
+            </form>
             <div class="admin-session-grid">
               <div class="admin-session-card">
                 <span>Name</span>

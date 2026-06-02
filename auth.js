@@ -185,7 +185,7 @@
     },
     {
       label: "Settings",
-      href: "./admin-settings.html",
+      href: "./admin-settings-school.html",
       permissionKey: "settings_manage",
       copy: "Update school profile, logo, campus details, and structure settings.",
     },
@@ -1010,6 +1010,8 @@
   function normalizeUserRecord(record = {}) {
     return {
       ...record,
+      displayName: String(record.displayName || "").trim(),
+      profilePhotoUrl: String(record.profilePhotoUrl || record.avatarUrl || record.photoUrl || "").trim(),
       role: normalizeRoleLabel(record.role || DEFAULT_AUTH_ROLE),
       status: normalizeUserStatus(record.status),
       mustChangePassword: Boolean(record.mustChangePassword),
@@ -3337,6 +3339,13 @@
     emitHydratedWorkspaceStateEvent(stateKey, workspaceId);
   }
 
+  function getNonEmptyLocalWorkspaceArrayPayload(stateKey, workspaceId) {
+    const storageKey = getWorkspaceStateStorageKeyForState(stateKey, workspaceId);
+    const payload = parseJSON(localStorage.getItem(storageKey), null);
+
+    return Array.isArray(payload) && payload.length ? payload : null;
+  }
+
   function emitHydratedWorkspaceStateEvent(stateKey, workspaceId = getCurrentWorkspaceId()) {
     const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId || getCurrentWorkspaceId());
     const managerEventMap = new Map([
@@ -3406,10 +3415,25 @@
             continue;
           }
 
+          const workspaceId = result.context?.workspaceId || getCurrentWorkspaceId();
+          const localArrayPayload = getNonEmptyLocalWorkspaceArrayPayload(stateKey, workspaceId);
+
+          if (
+            result.source === "table-native" &&
+            Array.isArray(result.payload) &&
+            !result.payload.length &&
+            localArrayPayload
+          ) {
+            saveWorkspaceStatePayloadToSupabase(stateKey, localArrayPayload, roleLabel, context).catch(() => {
+              // Keep the locally saved timetable/classes usable when remote sync is delayed.
+            });
+            continue;
+          }
+
           writeWorkspaceStatePayloadToLocal(
             stateKey,
             result.payload,
-            result.context?.workspaceId || getCurrentWorkspaceId(),
+            workspaceId,
           );
         } catch {
           // Continue hydrating remaining keys even if one key fails.
@@ -4242,6 +4266,9 @@
       email,
       normalizedEmail,
       displayName,
+      profilePhotoUrl:
+        String(authUser.user_metadata?.avatar_url || authUser.user_metadata?.picture || "").trim() ||
+        (existingIndex >= 0 ? users[existingIndex].profilePhotoUrl || "" : ""),
       workspaceId,
       passwordHash: existingIndex >= 0 ? users[existingIndex].passwordHash : null,
       provider,
@@ -4503,6 +4530,24 @@
     }
 
     return parts.map((part) => part.charAt(0).toUpperCase()).join("");
+  }
+
+  function renderUserAvatar(target, user = {}, fallback = "S") {
+    if (!target) {
+      return;
+    }
+
+    const profilePhotoUrl = String(user?.profilePhotoUrl || "").trim();
+    const label = String(user?.displayName || user?.email || fallback || "User").trim();
+
+    if (profilePhotoUrl) {
+      target.classList.add("is-image");
+      target.innerHTML = `<img src="${escapeHtml(profilePhotoUrl)}" alt="${escapeHtml(label)} profile picture" />`;
+      return;
+    }
+
+    target.classList.remove("is-image");
+    target.textContent = getInitials(label);
   }
 
   function getDayGreeting() {
@@ -6124,7 +6169,272 @@
       });
     }
 
+    let classTimetableModalElement = null;
+    let classTimetableModalBody = null;
+    let classTimetableModalTitle = null;
+    let activeClassTimetablePrintData = null;
+
+    const setClassTimetableModalOpen = (visible) => {
+      if (!classTimetableModalElement) {
+        return;
+      }
+      classTimetableModalElement.hidden = !visible;
+      document.body.classList.toggle("portal-overlay-open", visible);
+    };
+
+    const ensureClassTimetableModal = () => {
+      if (classTimetableModalElement) {
+        return classTimetableModalElement;
+      }
+
+      const wrapper = document.createElement("div");
+      wrapper.innerHTML = `
+        <div id="portal-class-timetable-quick-modal" class="portal-overlay portal-timetable-class-modal portal-class-timetable-quick-modal" hidden>
+          <button class="portal-overlay-backdrop" type="button" data-class-timetable-close aria-label="Close timetable preview"></button>
+          <section class="portal-overlay-panel portal-timetable-class-modal-panel" role="dialog" aria-modal="true" aria-labelledby="portal-class-timetable-modal-title">
+            <header class="portal-overlay-head">
+              <div>
+                <h3 id="portal-class-timetable-modal-title">Class timetable</h3>
+                <span>Quick view from class management</span>
+              </div>
+              <button class="portal-overlay-close" type="button" data-class-timetable-close aria-label="Close timetable preview">&times;</button>
+            </header>
+            <div id="portal-class-timetable-modal-body" class="portal-timetable-class-modal-body"></div>
+            <div class="utility-actions portal-timetable-modal-actions">
+              <button class="button button-primary" type="button" data-class-timetable-print>Print timetable</button>
+              <button class="button button-outline" type="button" data-class-timetable-close>Close</button>
+            </div>
+          </section>
+        </div>
+      `;
+      document.body.appendChild(wrapper.firstElementChild);
+      classTimetableModalElement = document.getElementById("portal-class-timetable-quick-modal");
+      classTimetableModalBody = document.getElementById("portal-class-timetable-modal-body");
+      classTimetableModalTitle = document.getElementById("portal-class-timetable-modal-title");
+      classTimetableModalElement.addEventListener("click", (event) => {
+        if (event.target.closest("[data-class-timetable-close]")) {
+          setClassTimetableModalOpen(false);
+          return;
+        }
+        if (event.target.closest("[data-class-timetable-print]") && activeClassTimetablePrintData) {
+          printClassTimetableFromClasses(activeClassTimetablePrintData);
+        }
+      });
+      return classTimetableModalElement;
+    };
+
+    const classTimetableMatchesRecord = (entry = {}, classRecord = {}) => {
+      const entryClassId = String(entry.classId || "").trim();
+      const recordClassId = String(classRecord.id || "").trim();
+      if (entryClassId && recordClassId) {
+        return entryClassId === recordClassId;
+      }
+      return (
+        String(entry.classLevel || "").trim().toLowerCase() ===
+        getClassDisplayName(classRecord).trim().toLowerCase()
+      );
+    };
+
+    const getLatestClassTimetableGroup = (classRecord = {}) => {
+      const timetableManager = getTimetableManager();
+
+      if (!timetableManager || typeof timetableManager.getEntries !== "function") {
+        return null;
+      }
+
+      const groups = timetableManager
+        .getEntries()
+        .filter((entry) => entry.status !== "archived" && classTimetableMatchesRecord(entry, classRecord))
+        .reduce((collection, entry) => {
+          const key = [entry.sessionId || "", entry.termId || ""].join("|");
+          if (!collection.has(key)) {
+            collection.set(key, {
+              key,
+              sessionId: entry.sessionId || "",
+              termId: entry.termId || "",
+              rows: [],
+              updatedAt: 0,
+            });
+          }
+
+          const group = collection.get(key);
+          group.rows.push(entry);
+          group.updatedAt = Math.max(
+            group.updatedAt,
+            Date.parse(entry.updatedAt || entry.publishedAt || entry.createdAt || "") || 0,
+          );
+          return collection;
+        }, new Map());
+
+      return Array.from(groups.values())
+        .map((group) => {
+          const weekTypes = Array.from(new Set(group.rows.map((entry) => entry.weekType || "all")));
+          return {
+            ...group,
+            weekType: weekTypes.length === 1 ? weekTypes[0] : "all",
+            isPublished: group.rows.length > 0 && group.rows.every((entry) => entry.status === "published"),
+          };
+        })
+        .sort((left, right) => right.updatedAt - left.updatedAt)[0] || null;
+    };
+
+    const renderClassTimetableEmptyState = (classLabel, message) => `
+      <article class="portal-class-empty portal-class-timetable-empty">
+        <strong>${escapeHtml(classLabel)}</strong>
+        <p>${escapeHtml(message)}</p>
+        <a class="button button-primary" href="./admin-schedule.html">Open schedule</a>
+      </article>
+    `;
+
+    const buildClassTimetablePrintData = (classRecord = {}) => {
+      const timetableManager = getTimetableManager();
+      const classLabel = getClassDisplayName(classRecord);
+      const group = getLatestClassTimetableGroup(classRecord);
+
+      if (!timetableManager || !group || !group.rows.length) {
+        return null;
+      }
+
+      const cycleManager = getAcademicCycleManager();
+      const cycleState =
+        cycleManager && typeof cycleManager.getState === "function"
+          ? cycleManager.getState()
+          : { sessions: [], terms: [] };
+      const summary =
+        timetableManager && typeof timetableManager.summarize === "function"
+          ? timetableManager.summarize()
+          : {
+              activePeriods:
+                timetableManager && typeof timetableManager.getPeriods === "function"
+                  ? timetableManager.getPeriods().filter((period) => period.status !== "archived")
+                  : [],
+            };
+      const days = timetableManager.schoolDays || ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+      const settings = getConfiguredSchoolSettings();
+
+      return {
+        schoolName: settings.schoolName || "School",
+        classLevel: classLabel,
+        sessionName: getSessionLabelFromCycle(cycleState, group.sessionId),
+        termName: getTermLabelFromCycle(cycleState, group.termId),
+        weekType: group.weekType || "all",
+        days,
+        slotRows: getPortalTimetableSlotRows(summary.activePeriods || [], days),
+        entries: group.rows,
+        sessionId: group.sessionId,
+        termId: group.termId,
+        isPublished: group.isPublished,
+      };
+    };
+
+    const printClassTimetableFromClasses = (data = {}) => {
+      if (!data.entries?.length) {
+        return;
+      }
+
+      const printWindow = window.open("", "_blank");
+      if (!printWindow) {
+        setStatus(status, "info", "Allow popups for this page, then try printing again.");
+        return;
+      }
+
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>${escapeHtml(data.classLevel || "Class")} Timetable</title>
+            <style>
+              * { box-sizing: border-box; }
+              body { margin: 0; padding: 24px; font-family: Arial, sans-serif; color: #17233a; background: #ffffff; }
+              .portal-timetable-print-head { text-align: center; margin-bottom: 18px; }
+              .portal-timetable-print-head h1 { margin: 0 0 4px; font-size: 22px; }
+              .portal-timetable-print-head h2 { margin: 0 0 6px; font-size: 18px; }
+              .portal-timetable-print-head p { margin: 0; color: #526070; font-size: 12px; }
+              .portal-timetable-print-grid { width: 100%; border-collapse: collapse; table-layout: fixed; }
+              .portal-timetable-print-grid th,
+              .portal-timetable-print-grid td { border: 1px solid #aeb9c8; padding: 8px; min-height: 58px; vertical-align: top; font-size: 11px; }
+              .portal-timetable-print-grid thead th { background: #17233a; color: #ffffff; text-align: center; }
+              .portal-timetable-print-grid tbody th { width: 120px; background: #f1f5f9; text-align: left; }
+              .portal-timetable-print-grid strong,
+              .portal-timetable-print-grid span { display: block; overflow-wrap: anywhere; }
+              .portal-timetable-print-empty { color: #8a95a7; }
+              @page { size: landscape; margin: 12mm; }
+            </style>
+          </head>
+          <body>
+            ${renderPortalTimetablePrintSheet(data)}
+            <script>
+              window.addEventListener("load", function () {
+                window.focus();
+                window.print();
+              });
+            </script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+    };
+
+    const renderClassTimetablePreview = (classRecord = {}) => {
+      ensureClassTimetableModal();
+      const classLabel = getClassDisplayName(classRecord);
+      const printButton = classTimetableModalElement.querySelector("[data-class-timetable-print]");
+      activeClassTimetablePrintData = buildClassTimetablePrintData(classRecord);
+
+      if (classTimetableModalTitle) {
+        classTimetableModalTitle.textContent = `${classLabel} timetable`;
+      }
+
+      if (!getTimetableManager()) {
+        if (printButton) {
+          printButton.hidden = true;
+        }
+        classTimetableModalBody.innerHTML = renderClassTimetableEmptyState(
+          classLabel,
+          "The timetable manager is not available on this page.",
+        );
+        setClassTimetableModalOpen(true);
+        return;
+      }
+
+      if (!activeClassTimetablePrintData) {
+        if (printButton) {
+          printButton.hidden = true;
+        }
+        classTimetableModalBody.innerHTML = renderClassTimetableEmptyState(
+          classLabel,
+          "No timetable has been saved for this class yet.",
+        );
+        setClassTimetableModalOpen(true);
+        return;
+      }
+
+      if (printButton) {
+        printButton.hidden = false;
+      }
+      classTimetableModalBody.innerHTML = `
+        <div class="portal-class-timetable-preview-meta">
+          <span>${activeClassTimetablePrintData.isPublished ? "Saved timetable" : "Draft timetable"}</span>
+          <strong>${escapeHtml(activeClassTimetablePrintData.sessionName)} - ${escapeHtml(activeClassTimetablePrintData.termName)}</strong>
+        </div>
+        ${renderPortalTimetablePrintSheet(activeClassTimetablePrintData)}
+      `;
+      setClassTimetableModalOpen(true);
+    };
+
     listTarget.addEventListener("click", (event) => {
+      const timetableButton = event.target.closest("[data-class-timetable-view]");
+
+      if (timetableButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        const record = manager.getClasses().find((item) => item.id === String(timetableButton.dataset.classId || "").trim());
+        if (record) {
+          renderClassTimetablePreview(record);
+        }
+        return;
+      }
+
       const actionButton = event.target.closest("[data-class-action]");
 
       if (!actionButton || !isAdmin) {
@@ -8757,6 +9067,7 @@
       activeTimetablePrintCriteria = {
         sessionId: data.sessionId,
         termId: data.termId,
+        classId: data.classId,
         classLevel: data.classLevel,
         weekType: data.weekType,
       };
@@ -8816,6 +9127,61 @@
         </html>
       `);
       printWindow.document.close();
+    };
+
+    const findClassRecordForTimetable = (criteria = {}) => {
+      const classId = String(criteria.classId || "").trim();
+      const classLevel = String(criteria.classLevel || "").trim().toLowerCase();
+      const classes = getActiveClasses();
+
+      return (
+        (classId ? classes.find((record) => String(record.id || "").trim() === classId) : null) ||
+        classes.find((record) => getTimetableClassLabel(record).toLowerCase() === classLevel) ||
+        classes.find((record) => String(record.level || "").trim().toLowerCase() === classLevel) ||
+        null
+      );
+    };
+
+    const openClassTimetableForEdit = (criteria = {}) => {
+      const classRecord = findClassRecordForTimetable(criteria);
+
+      if (!classRecord) {
+        setStatus(status, "info", "This timetable is saved, but the class is not active. Reactivate the class before editing it.");
+        return;
+      }
+
+      if (viewModeSelect) {
+        viewModeSelect.value = "class";
+      }
+      if (sessionSelect) {
+        sessionSelect.value = String(criteria.sessionId || "").trim();
+      }
+      applySessionTermClassOptions();
+      if (termSelect) {
+        termSelect.value = String(criteria.termId || "").trim();
+      }
+      if (weekTypeSelect) {
+        weekTypeSelect.value = "all";
+      }
+      applySessionTermClassOptions();
+      if (classSelect) {
+        classSelect.value = classRecord.id;
+      }
+
+      clearPortalTimetableErrors(form);
+      resetPortalTimetableForm(form, isAdmin);
+      state.selectedPeriodId = "";
+      state.editingEntryId = "";
+      setFormVisibility(false);
+      refresh();
+      setStatus(
+        status,
+        "info",
+        `Editing <strong>${escapeHtml(getTimetableClassLabel(classRecord))}</strong>. Click any lesson slot in the grid to update it.`,
+      );
+      window.setTimeout(() => {
+        listTarget.querySelector(".portal-timetable-grid")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 50);
     };
 
     const getSubjectOptions = () => {
@@ -8987,6 +9353,9 @@
         sessionId: getSelectedSessionId(),
         termId: getSelectedTermId(),
         periodId: selectedPeriod?.id || "",
+        day: selectedPeriod?.day || "",
+        startTime: selectedPeriod?.startTime || "",
+        endTime: selectedPeriod?.endTime || "",
         classId: selectedClass?.id || "",
         classLevel: getTimetableClassLabel(selectedClass),
         subjectId: selectedSubject && selectedSubjectId !== "__custom" ? selectedSubject.id : "",
@@ -9292,10 +9661,12 @@
           termId: String(classActionButton.dataset.timetableTermId || "").trim(),
           classId: String(classActionButton.dataset.timetableClassId || "").trim(),
           classLevel: String(classActionButton.dataset.timetableClass || "").trim(),
-          weekType: getSelectedWeekType(),
+          weekType: String(classActionButton.dataset.timetableWeekType || getSelectedWeekType()).trim() || "all",
         };
         if (action === "view") {
           renderClassTimetableModal(criteria);
+        } else if (action === "edit") {
+          openClassTimetableForEdit(criteria);
         } else if (action === "print") {
           printClassTimetable(criteria);
         }
@@ -9553,6 +9924,9 @@
           `Timetable for <strong>${escapeHtml(selectedClassLabel)}</strong> saved. Select another class to create the next timetable.`,
         );
         refresh();
+        window.setTimeout(() => {
+          listTarget.querySelector(".portal-timetable-saved-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 50);
       });
     }
 
@@ -14242,7 +14616,7 @@
                                     <a href="./admin-students.html">Students</a>
                                     <a href="./admin-courses.html">Subjects</a>
                                     <a href="./admin-attendance.html">Attendance</a>
-                                    <a href="./admin-schedule.html">Timetable</a>
+                                    <button type="button" data-class-timetable-view data-class-id="${escapeHtml(record.id)}">Timetable</button>
                                     <a href="./admin-reports.html">Results</a>
                                   </div>
                                   <div class="portal-class-actions">
@@ -14921,6 +15295,10 @@
     return Array.from(groups.values())
       .map((group) => ({
         ...group,
+        weekType:
+          Array.from(new Set(group.rows.map((row) => String(row.weekType || "all").trim() || "all"))).length === 1
+            ? String(group.rows[0]?.weekType || "all").trim() || "all"
+            : "all",
         rows: group.rows.sort((left, right) => {
           const dayComparison = String(left.day || "").localeCompare(String(right.day || ""));
           if (dayComparison !== 0) return dayComparison;
@@ -15069,12 +15447,33 @@
     const entryByPeriod = new Map(visibleEntries.map((entry) => [entry.periodId, entry]));
     const slotRows = getPortalTimetableSlotRows(activePeriods, days);
     const classTimetableGroups = getPortalTimetableClassGroups(entries, {
-      sessionId: selectedSessionId,
-      termId: selectedTermId,
-      weekType: selectedWeekType,
+      weekType: "all",
     });
     const setupMessages = [];
     const canAssignSlots = Boolean(isAdmin && selectedSessionId && selectedTermId && selectedClass);
+    const classTimetableListHtml = classTimetableGroups.length
+      ? classTimetableGroups
+          .map(
+            (group) => `
+              <div class="portal-timetable-entry-row portal-timetable-class-row">
+                <span>
+                  <strong>${escapeHtml(group.classLevel)}</strong>
+                  ${group.isPublished ? "Saved timetable" : "Draft timetable"}
+                </span>
+                <span>${group.rows.length} lesson${group.rows.length === 1 ? "" : "s"}</span>
+                <span>${escapeHtml(getSessionLabelFromCycle(cycleState, group.sessionId))} • ${escapeHtml(
+                  getTermLabelFromCycle(cycleState, group.termId),
+                )}</span>
+                <span class="portal-timetable-row-actions">
+                  <button class="portal-class-button" type="button" data-timetable-class-action="view" data-timetable-session-id="${escapeHtml(group.sessionId)}" data-timetable-term-id="${escapeHtml(group.termId)}" data-timetable-class-id="${escapeHtml(group.classId || "")}" data-timetable-class="${escapeHtml(group.classLevel)}" data-timetable-week-type="${escapeHtml(group.weekType)}">View</button>
+                  <button class="portal-class-button" type="button" data-timetable-class-action="edit" data-timetable-session-id="${escapeHtml(group.sessionId)}" data-timetable-term-id="${escapeHtml(group.termId)}" data-timetable-class-id="${escapeHtml(group.classId || "")}" data-timetable-class="${escapeHtml(group.classLevel)}" data-timetable-week-type="${escapeHtml(group.weekType)}">Edit</button>
+                  <button class="portal-class-button" type="button" data-timetable-class-action="print" data-timetable-session-id="${escapeHtml(group.sessionId)}" data-timetable-term-id="${escapeHtml(group.termId)}" data-timetable-class-id="${escapeHtml(group.classId || "")}" data-timetable-class="${escapeHtml(group.classLevel)}" data-timetable-week-type="${escapeHtml(group.weekType)}">Print</button>
+                </span>
+              </div>
+            `,
+          )
+          .join("")
+      : `<p>No class timetables have been recorded yet.</p>`;
 
     if (!selectedSessionId) setupMessages.push(`Create or select a session from <a href="./admin-settings-academic.html">Sessions and Terms</a>.`);
     if (!selectedTermId) setupMessages.push(`Create or select a term or semester before assigning timetable slots.`);
@@ -15126,6 +15525,17 @@
           <span>${viewMode === "teacher" && selectedTeacher ? "teacher workload" : "lessons in this class grid"}</span>
         </div>
       </section>
+      <section class="portal-class-card portal-timetable-panel portal-timetable-saved-panel">
+        <div class="portal-class-card-head">
+          <div class="portal-class-title">
+            <strong>Class timetables</strong>
+            <span>${classTimetableGroups.length} saved timetable${classTimetableGroups.length === 1 ? "" : "s"} available for view, print, or edit</span>
+          </div>
+        </div>
+        <div class="portal-timetable-entry-list">
+          ${classTimetableListHtml}
+        </div>
+      </section>
       <div class="portal-timetable-grid" style="--timetable-day-count:${days.length}">
         <div class="portal-timetable-grid-corner">Period</div>
         ${days.map((day) => `<div class="portal-timetable-day-head">${escapeHtml(day.slice(0, 3))}</div>`).join("")}
@@ -15166,38 +15576,6 @@
         }
       </div>
       <section class="portal-timetable-footer-panels">
-        <article class="portal-class-card portal-timetable-panel">
-          <div class="portal-class-card-head">
-            <div class="portal-class-title">
-              <strong>Class timetables</strong>
-              <span>${classTimetableGroups.length} class${classTimetableGroups.length === 1 ? "" : "es"} with recorded lessons</span>
-            </div>
-          </div>
-          <div class="portal-timetable-entry-list">
-            ${
-              classTimetableGroups.length
-                ? classTimetableGroups
-                    .map(
-                      (group) => `
-                        <div class="portal-timetable-entry-row portal-timetable-class-row">
-                          <span>
-                            <strong>${escapeHtml(group.classLevel)}</strong>
-                            ${group.isPublished ? "Saved timetable" : "Draft timetable"}
-                          </span>
-                          <span>${group.rows.length} lesson${group.rows.length === 1 ? "" : "s"}</span>
-                          <span>${escapeHtml(getTermLabelFromCycle(cycleState, group.termId))}</span>
-                          <span class="portal-timetable-row-actions">
-                            <button class="portal-class-button" type="button" data-timetable-class-action="view" data-timetable-session-id="${escapeHtml(group.sessionId)}" data-timetable-term-id="${escapeHtml(group.termId)}" data-timetable-class-id="${escapeHtml(group.classId || "")}" data-timetable-class="${escapeHtml(group.classLevel)}">View</button>
-                            <button class="portal-class-button" type="button" data-timetable-class-action="print" data-timetable-session-id="${escapeHtml(group.sessionId)}" data-timetable-term-id="${escapeHtml(group.termId)}" data-timetable-class-id="${escapeHtml(group.classId || "")}" data-timetable-class="${escapeHtml(group.classLevel)}">Print</button>
-                          </span>
-                        </div>
-                      `,
-                    )
-                    .join("")
-                : `<p>No class timetables have been recorded for this period yet.</p>`
-            }
-          </div>
-        </article>
         <article class="portal-class-card portal-timetable-panel">
           <div class="portal-class-title">
             <strong>Substitution log</strong>
@@ -18370,6 +18748,7 @@
   function clearFieldErrors(form) {
     form.querySelectorAll(".auth-line-field").forEach((field) => field.classList.remove("is-invalid"));
     form.querySelectorAll(".auth-check").forEach((field) => field.classList.remove("is-invalid"));
+    form.querySelectorAll(".portal-field").forEach((field) => field.classList.remove("is-invalid"));
     form.querySelectorAll(".auth-field-error").forEach((error) => {
       error.textContent = "";
     });
@@ -18383,7 +18762,9 @@
         ? control.closest(".auth-line-field")
         : control && control.closest(".auth-check")
           ? control.closest(".auth-check")
-          : null;
+          : control && control.closest(".portal-field")
+            ? control.closest(".portal-field")
+            : null;
 
     if (error) {
       error.textContent = message;
@@ -22075,9 +22456,7 @@
     const settingsManager = getSchoolSettingsManager();
     applyAdminBranding(brandMark, brandName, brandSubtitle, settingsManager);
 
-    if (profileAvatar) {
-      profileAvatar.textContent = getInitials(user.displayName || user.email);
-    }
+    renderUserAvatar(profileAvatar, user, "Parent");
     if (profileName) {
       profileName.textContent = user.displayName || user.email;
     }
@@ -22186,7 +22565,7 @@
       return;
     }
 
-    profileAvatar.textContent = getInitials(user.displayName || user.email);
+    renderUserAvatar(profileAvatar, user, roleLabel);
     profileName.textContent = user.displayName || user.email;
     profileRole.textContent = roleLabel;
     gate.innerHTML = `
@@ -23389,9 +23768,8 @@
     const healthTarget = document.getElementById("admin-report-health");
     const areasTarget = document.getElementById("admin-report-areas");
     const checklistTarget = document.getElementById("admin-report-checklist");
-    const actionsTarget = document.getElementById("admin-report-actions");
 
-    if (!kpiTarget || !insightsTarget || !healthTarget || !areasTarget || !checklistTarget || !actionsTarget) {
+    if (!kpiTarget || !insightsTarget || !healthTarget || !areasTarget || !checklistTarget) {
       return;
     }
 
@@ -23653,24 +24031,6 @@
       )
       .join("");
 
-    const actions = [
-      { label: "Student register", href: "./admin-students.html", copy: "Review complete student and guardian profiles." },
-      { label: "Attendance review", href: "./admin-attendance.html", copy: "Check present, absent, late, and unmarked students." },
-      { label: "Fee configuration", href: "./admin-fees.html", copy: "Review class fees, invoices, and outstanding balances." },
-      { label: "Timetable sheets", href: "./admin-schedule.html", copy: "View and print saved class timetables." },
-      { label: "School identity", href: "./admin-settings-school.html", copy: "Confirm school name, address, logo, and structure." },
-    ];
-
-    actionsTarget.innerHTML = actions
-      .map(
-        (action) => `
-          <a class="admin-report-action" href="${escapeHtml(action.href)}">
-            <strong>${escapeHtml(action.label)}</strong>
-            <span>${escapeHtml(action.copy)}</span>
-          </a>
-        `,
-      )
-      .join("");
   }
 
   function initAdminReportsPage() {
@@ -23826,10 +24186,26 @@
     const profileName = document.getElementById("user-settings-name");
     const profileRole = document.getElementById("user-settings-role");
     const profileEmail = document.getElementById("user-settings-email");
+    const profileForm = document.getElementById("user-profile-form");
+    const profileStatus = document.getElementById("user-profile-status");
+    const profilePhotoPreview = document.getElementById("user-settings-photo-preview");
+    const profilePhotoInput = document.getElementById("user-profile-photo");
+    const removePhotoButton = document.querySelector("[data-user-profile-remove-photo]");
     const hint = document.getElementById("user-settings-hint");
     const { session, user, roleLabel } = getAdminAccessContext();
+    let activeUser = user;
 
-    if (!form || !status || !profileName || !profileRole || !profileEmail || !hint) {
+    if (
+      !form ||
+      !status ||
+      !profileName ||
+      !profileRole ||
+      !profileEmail ||
+      !profileForm ||
+      !profileStatus ||
+      !profilePhotoPreview ||
+      !hint
+    ) {
       return;
     }
 
@@ -23838,14 +24214,165 @@
       form.querySelectorAll("input, button").forEach((field) => {
         field.disabled = true;
       });
+      profileForm.querySelectorAll("input, button").forEach((field) => {
+        field.disabled = true;
+      });
       return;
     }
 
-    profileName.textContent = user.displayName || "School User";
-    profileRole.textContent = roleLabel;
-    profileEmail.textContent = user.email;
+    const renderUserSettingsProfile = (record = activeUser) => {
+      const displayName = record.displayName || record.email || "School User";
+      profileName.textContent = displayName;
+      profileRole.textContent = roleLabel;
+      profileEmail.textContent = record.email;
+      profileForm.elements.displayName.value = displayName;
+      profileForm.elements.profilePhotoUrl.value = record.profilePhotoUrl || "";
+      renderUserAvatar(profilePhotoPreview, record, roleLabel);
+      renderUserAvatar(document.getElementById("admin-profile-avatar"), record, roleLabel);
+      const shellProfileName = document.getElementById("admin-profile-name");
+      if (shellProfileName) {
+        shellProfileName.textContent = displayName;
+      }
+      if (removePhotoButton) {
+        removePhotoButton.disabled = !record.profilePhotoUrl;
+      }
+    };
 
-    const isGoogleAccount = user.provider === "google";
+    renderUserSettingsProfile(activeUser);
+
+    profileForm.addEventListener("input", () => {
+      clearFieldErrors(profileForm);
+      setStatus(profileStatus, "", "");
+    });
+
+    if (profilePhotoInput instanceof HTMLInputElement) {
+      profilePhotoInput.addEventListener("change", async () => {
+        clearFieldErrors(profileForm);
+        setStatus(profileStatus, "", "");
+
+        const selectedFile = profilePhotoInput.files?.[0] || null;
+
+        if (!selectedFile) {
+          return;
+        }
+
+        if (!selectedFile.type.startsWith("image/")) {
+          setFieldError(profileForm, "profilePhoto", "Choose a valid image file.");
+          setStatus(profileStatus, "error", "Only image files are allowed for profile pictures.");
+          return;
+        }
+
+        if (selectedFile.size > 2 * 1024 * 1024) {
+          setFieldError(profileForm, "profilePhoto", "Profile picture must be 2MB or smaller.");
+          setStatus(profileStatus, "error", "Profile picture is too large. Use an image up to 2MB.");
+          return;
+        }
+
+        try {
+          const dataUrl = await readFileAsDataUrl(selectedFile);
+          profileForm.elements.profilePhotoUrl.value = dataUrl;
+          renderUserAvatar(profilePhotoPreview, {
+            ...activeUser,
+            displayName: profileForm.elements.displayName.value.trim() || activeUser.displayName,
+            profilePhotoUrl: dataUrl,
+          }, roleLabel);
+          if (removePhotoButton) {
+            removePhotoButton.disabled = false;
+          }
+          setStatus(profileStatus, "info", "Profile picture selected. Click Save profile to keep it.");
+        } catch {
+          setFieldError(profileForm, "profilePhoto", "Could not read this image.");
+          setStatus(profileStatus, "error", "Could not read the selected profile picture.");
+        }
+      });
+    }
+
+    if (removePhotoButton) {
+      removePhotoButton.addEventListener("click", () => {
+        if (profilePhotoInput instanceof HTMLInputElement) {
+          profilePhotoInput.value = "";
+        }
+        profileForm.elements.profilePhotoUrl.value = "";
+        renderUserAvatar(profilePhotoPreview, {
+          ...activeUser,
+          displayName: profileForm.elements.displayName.value.trim() || activeUser.displayName,
+          profilePhotoUrl: "",
+        }, roleLabel);
+        removePhotoButton.disabled = true;
+        setStatus(profileStatus, "info", "Profile picture removed. Click Save profile to keep this change.");
+      });
+    }
+
+    profileForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      clearFieldErrors(profileForm);
+      setStatus(profileStatus, "", "");
+
+      const displayName = String(profileForm.elements.displayName.value || "").trim();
+      const profilePhotoUrl = String(profileForm.elements.profilePhotoUrl.value || "").trim();
+
+      if (!displayName) {
+        setFieldError(profileForm, "displayName", "Enter your name.");
+        setStatus(profileStatus, "error", "Enter your name before saving.");
+        return;
+      }
+
+      if (isSupabaseConfigured() && session.source === "supabase") {
+        const client = await getSupabaseClient();
+        let error;
+
+        try {
+          ({ error } = await withNetworkTimeout(
+            client.auth.updateUser({
+              data: {
+                display_name: displayName,
+                avatar_url: profilePhotoUrl || null,
+              },
+            }),
+          ));
+        } catch (requestError) {
+          error = requestError;
+        }
+
+        if (error) {
+          setStatus(profileStatus, "error", formatSupabaseAuthError(error, "Could not update your profile."));
+          return;
+        }
+      }
+
+      const updatedUser = updateUser(activeUser.id, (record) => ({
+        ...record,
+        displayName,
+        profilePhotoUrl,
+      }));
+
+      if (!updatedUser) {
+        setStatus(profileStatus, "error", "Could not update your profile. Please sign in again.");
+        return;
+      }
+
+      activeUser = updatedUser;
+      setSession(
+        {
+          ...session,
+          displayName: updatedUser.displayName,
+          profilePhotoUrl: updatedUser.profilePhotoUrl || "",
+        },
+        (session.persistence || "persistent") !== "session",
+      );
+      renderUserSettingsProfile(updatedUser);
+      recordAuditEvent({
+        action: "updated",
+        entityType: "user-profile",
+        entityId: updatedUser.email,
+        summary: `Updated profile for ${updatedUser.email}`,
+        details: `Role: ${normalizeRoleLabel(updatedUser.role)}`,
+      });
+      setStatus(profileStatus, "success", "Profile updated successfully.");
+    });
+
+    const isGoogleAccount = activeUser.provider === "google";
     if (isGoogleAccount) {
       hint.textContent = "This account uses Google sign-in. Password changes should be done from your Google account.";
       form.querySelectorAll("input, button").forEach((field) => {
@@ -23855,7 +24382,7 @@
       return;
     }
 
-    if (user.mustChangePassword) {
+    if (activeUser.mustChangePassword) {
       hint.textContent = "You are using a default password. Only you can change it from this page.";
     }
 
@@ -23903,13 +24430,13 @@
 
       const currentPasswordHash = await hashSecret(currentPassword);
 
-      if (user.passwordHash && currentPasswordHash !== user.passwordHash) {
+      if (activeUser.passwordHash && currentPasswordHash !== activeUser.passwordHash) {
         setFieldError(form, "currentPassword", "Current password is incorrect.");
         setStatus(status, "error", "Current password is incorrect.");
         return;
       }
 
-      if (!user.passwordHash && session.source !== "supabase") {
+      if (!activeUser.passwordHash && session.source !== "supabase") {
         setFieldError(form, "currentPassword", "Sign in again before changing this password.");
         setStatus(status, "error", "We could not verify the current password for this account.");
         return;
@@ -23943,18 +24470,29 @@
         }
       }
 
-      const updatedUser = updateUser(user.id, (record) => ({
+      const updatedUser = updateUser(activeUser.id, (record) => ({
         ...record,
         passwordHash: nextPasswordHash,
         mustChangePassword: false,
       }));
 
+      if (updatedUser) {
+        activeUser = updatedUser;
+        setSession(
+          {
+            ...session,
+            mustChangePassword: false,
+          },
+          (session.persistence || "persistent") !== "session",
+        );
+      }
+
       recordAuditEvent({
         action: "updated",
         entityType: "user-password",
-        entityId: updatedUser?.email || user.email,
-        summary: `Password changed for ${updatedUser?.email || user.email}`,
-        details: `Role: ${normalizeRoleLabel(updatedUser?.role || user.role)}`,
+        entityId: updatedUser?.email || activeUser.email,
+        summary: `Password changed for ${updatedUser?.email || activeUser.email}`,
+        details: `Role: ${normalizeRoleLabel(updatedUser?.role || activeUser.role)}`,
       });
 
       form.reset();
@@ -24065,7 +24603,7 @@
         return;
       }
 
-      profileAvatar.textContent = getInitials(userRecord.displayName || userRecord.email);
+      renderUserAvatar(profileAvatar, userRecord, roleLabel);
       profileName.textContent = userRecord.displayName || userRecord.email;
       profileRole.textContent = roleLabel;
       heading.textContent = `${getDayGreeting()}, ${getFirstName(userRecord.displayName)}!`;

@@ -4944,6 +4944,18 @@ body.admin-dashboard-page .admin-profile-avatar {
   box-shadow: 0 12px 24px rgba(28, 38, 59, 0.18);
 }
 
+body.admin-dashboard-page .admin-profile-avatar.is-image {
+  overflow: hidden;
+  background: #ffffff;
+}
+
+body.admin-dashboard-page .admin-profile-avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 body.admin-dashboard-page .admin-profile-copy {
   display: grid;
   gap: 4px;
@@ -5902,8 +5914,7 @@ body.admin-dashboard-page .admin-report-layout {
 
 body.admin-dashboard-page .admin-report-insights,
 body.admin-dashboard-page .admin-report-health,
-body.admin-dashboard-page .admin-report-checklist,
-body.admin-dashboard-page .admin-report-actions {
+body.admin-dashboard-page .admin-report-checklist {
   display: grid;
   gap: 12px;
 }
@@ -6120,15 +6131,13 @@ body.admin-dashboard-page .admin-report-admission-bars em {
 body.admin-dashboard-page .admin-report-insight strong,
 body.admin-dashboard-page .admin-report-area strong,
 body.admin-dashboard-page .admin-report-health-row strong,
-body.admin-dashboard-page .admin-report-check strong,
-body.admin-dashboard-page .admin-report-action strong {
+body.admin-dashboard-page .admin-report-check strong {
   color: #17233a;
 }
 
 body.admin-dashboard-page .admin-report-insight p,
 body.admin-dashboard-page .admin-report-area p,
-body.admin-dashboard-page .admin-report-check p,
-body.admin-dashboard-page .admin-report-action span {
+body.admin-dashboard-page .admin-report-check p {
   margin: 0;
   color: #647188;
   font-size: 0.9rem;
@@ -6215,8 +6224,7 @@ body.admin-dashboard-page .admin-report-area footer {
   padding-top: 2px;
 }
 
-body.admin-dashboard-page .admin-report-area a,
-body.admin-dashboard-page .admin-report-action {
+body.admin-dashboard-page .admin-report-area a {
   color: #1e5ed7;
   font-size: 0.86rem;
   font-weight: 900;
@@ -6251,15 +6259,6 @@ body.admin-dashboard-page .admin-report-check > span.is-pending {
   color: #a76412;
 }
 
-body.admin-dashboard-page .admin-report-action {
-  display: grid;
-  gap: 5px;
-  padding: 14px;
-  border: 1px solid #e2e7f0;
-  border-radius: 14px;
-  background: #fbfcff;
-}
-
 body.admin-dashboard-page .portal-school-preview {
   margin-top: 0;
 }
@@ -6274,6 +6273,34 @@ body.admin-dashboard-page .portal-school-preview-copy strong {
 
 body.admin-dashboard-page .portal-settings-form {
   margin-top: 18px;
+}
+
+body.admin-dashboard-page .user-profile-form {
+  margin-top: 0;
+}
+
+body.admin-dashboard-page .user-profile-editor {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  margin-bottom: 16px;
+}
+
+body.admin-dashboard-page .user-settings-photo-preview {
+  width: 76px;
+  height: 76px;
+  font-size: 1.2rem;
+}
+
+body.admin-dashboard-page .user-profile-editor-fields {
+  display: grid;
+  gap: 12px;
+}
+
+body.admin-dashboard-page .user-profile-actions {
+  justify-content: flex-start;
+  margin-top: 0;
 }
 
 body.admin-dashboard-page .portal-settings-grid {
@@ -6875,6 +6902,10 @@ body.admin-dashboard-page .portal-timetable-panel {
   border-radius: 12px;
 }
 
+body.admin-dashboard-page .portal-timetable-footer-panels > .portal-timetable-panel:only-child {
+  grid-column: 1 / -1;
+}
+
 body.admin-dashboard-page .portal-timetable-entry-list {
   display: grid;
   gap: 8px;
@@ -6924,6 +6955,35 @@ body.admin-dashboard-page .portal-timetable-class-modal-body {
 body.admin-dashboard-page .portal-timetable-modal-actions {
   justify-content: flex-end;
   padding: 0 18px 18px;
+}
+
+body.admin-dashboard-page .portal-class-timetable-preview-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid #dce6f4;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+body.admin-dashboard-page .portal-class-timetable-preview-meta span {
+  color: #2f6fed;
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+body.admin-dashboard-page .portal-class-timetable-preview-meta strong {
+  color: #17233a;
+  font-size: 0.9rem;
+  text-align: right;
+}
+
+body.admin-dashboard-page .portal-class-timetable-empty {
+  margin: 0;
 }
 
 body.admin-dashboard-page .portal-timetable-print-sheet {
@@ -9705,6 +9765,7 @@ body.admin-dashboard-page .portal-class-actions {
 }
 
 body.admin-dashboard-page .portal-class-route-links a,
+body.admin-dashboard-page .portal-class-route-links button,
 body.admin-dashboard-page .portal-class-button {
   display: inline-flex;
   align-items: center;
@@ -9715,15 +9776,22 @@ body.admin-dashboard-page .portal-class-button {
   border-radius: 16px;
   background: #ffffff;
   color: #4f5fff;
+  font-family: inherit;
   font-size: 0.92rem;
   font-weight: 800;
+  text-decoration: none;
   transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
 }
 
 body.admin-dashboard-page .portal-class-route-links a:hover,
+body.admin-dashboard-page .portal-class-route-links button:hover,
 body.admin-dashboard-page .portal-class-button:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 10px 18px rgba(79, 95, 255, 0.1);
+}
+
+body.admin-dashboard-page .portal-class-route-links button {
+  cursor: pointer;
 }
 
 body.admin-dashboard-page .portal-class-button {
@@ -9900,6 +9968,14 @@ body.admin-dashboard-page .portal-class-empty p {
     grid-template-columns: 1fr;
   }
 
+  body.admin-dashboard-page .user-profile-editor {
+    grid-template-columns: 1fr;
+  }
+
+  body.admin-dashboard-page .user-settings-photo-preview {
+    justify-self: start;
+  }
+
   body.admin-dashboard-page .admin-report-heading {
     align-items: stretch;
     flex-direction: column;
@@ -9911,6 +9987,15 @@ body.admin-dashboard-page .portal-class-empty p {
 
   body.admin-dashboard-page .admin-report-check {
     grid-template-columns: 1fr;
+  }
+
+  body.admin-dashboard-page .portal-class-timetable-preview-meta {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  body.admin-dashboard-page .portal-class-timetable-preview-meta strong {
+    text-align: left;
   }
 
   body.admin-dashboard-page .attendance-status-picker {
