@@ -3973,6 +3973,201 @@
       .replaceAll("'", "&#39;");
   }
 
+  let appActionDialogState = null;
+
+  function setAppActionDialogOpen(dialog, isOpen) {
+    if (!dialog) {
+      return;
+    }
+
+    dialog.hidden = !isOpen;
+    document.body.classList.toggle("app-action-dialog-open", isOpen);
+  }
+
+  function closeAppActionDialog(result) {
+    const state = appActionDialogState;
+    const dialog = document.getElementById("app-action-dialog");
+
+    appActionDialogState = null;
+    setAppActionDialogOpen(dialog, false);
+
+    if (state?.lastFocused && typeof state.lastFocused.focus === "function") {
+      state.lastFocused.focus();
+    }
+
+    if (typeof state?.resolve === "function") {
+      state.resolve(result);
+    }
+  }
+
+  function ensureAppActionDialog() {
+    let dialog = document.getElementById("app-action-dialog");
+
+    if (dialog) {
+      return dialog;
+    }
+
+    const wrapper = document.createElement("div");
+    wrapper.innerHTML = `
+      <div id="app-action-dialog" class="app-action-dialog" hidden>
+        <button class="app-action-dialog-backdrop" type="button" data-app-action-cancel aria-label="Cancel action"></button>
+        <section class="app-action-dialog-card" role="dialog" aria-modal="true" aria-labelledby="app-action-dialog-title" aria-describedby="app-action-dialog-message">
+          <form id="app-action-dialog-form" class="app-action-dialog-form" novalidate>
+            <header class="app-action-dialog-head">
+              <span id="app-action-dialog-kicker">Confirm action</span>
+              <h2 id="app-action-dialog-title">Confirm action</h2>
+            </header>
+            <p id="app-action-dialog-message" class="app-action-dialog-message"></p>
+            <p id="app-action-dialog-details" class="app-action-dialog-details" hidden></p>
+            <label id="app-action-dialog-prompt" class="app-action-dialog-prompt" hidden>
+              <span id="app-action-dialog-input-label">Value</span>
+              <input id="app-action-dialog-input" type="text" autocomplete="off" />
+              <small id="app-action-dialog-error"></small>
+            </label>
+            <div class="app-action-dialog-actions">
+              <button id="app-action-dialog-cancel" class="app-action-dialog-cancel" type="button" data-app-action-cancel>Cancel</button>
+              <button id="app-action-dialog-confirm" class="app-action-dialog-confirm" type="submit">Continue</button>
+            </div>
+          </form>
+        </section>
+      </div>
+    `;
+    document.body.appendChild(wrapper.firstElementChild);
+    dialog = document.getElementById("app-action-dialog");
+
+    dialog.addEventListener("click", (event) => {
+      if (event.target.closest("[data-app-action-cancel]")) {
+        closeAppActionDialog({ confirmed: false, value: null });
+      }
+    });
+
+    dialog.querySelector("#app-action-dialog-form")?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const input = dialog.querySelector("#app-action-dialog-input");
+      const error = dialog.querySelector("#app-action-dialog-error");
+      const isPrompt = dialog.dataset.mode === "prompt";
+      const isRequired = dialog.dataset.required === "true";
+      const value = input ? input.value.trim() : "";
+
+      if (isPrompt && isRequired && !value) {
+        if (error) {
+          error.textContent = "This field is required.";
+        }
+        input?.focus();
+        return;
+      }
+
+      closeAppActionDialog({ confirmed: true, value: isPrompt ? value : true });
+    });
+
+    dialog.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeAppActionDialog({ confirmed: false, value: null });
+      }
+    });
+
+    return dialog;
+  }
+
+  function openAppActionDialog(options = {}) {
+    if (!document.body) {
+      return Promise.resolve({ confirmed: false, value: null });
+    }
+
+    const dialog = ensureAppActionDialog();
+    const mode = options.mode === "prompt" ? "prompt" : "confirm";
+    const variant = ["danger", "success", "primary"].includes(options.variant) ? options.variant : "primary";
+    const title = String(options.title || "Confirm action").trim();
+    const message = String(options.message || "Do you want to continue?").trim();
+    const details = String(options.details || "").trim();
+    const confirmLabel = String(options.confirmLabel || "Continue").trim();
+    const cancelLabel = String(options.cancelLabel || "Cancel").trim();
+    const inputLabel = String(options.inputLabel || "Value").trim();
+    const placeholder = String(options.placeholder || "").trim();
+    const defaultValue = String(options.defaultValue || "").trim();
+
+    if (appActionDialogState?.resolve) {
+      closeAppActionDialog({ confirmed: false, value: null });
+    }
+
+    return new Promise((resolve) => {
+      appActionDialogState = {
+        resolve,
+        lastFocused: document.activeElement instanceof HTMLElement ? document.activeElement : null,
+      };
+
+      dialog.dataset.mode = mode;
+      dialog.dataset.required = options.required ? "true" : "false";
+
+      const kicker = dialog.querySelector("#app-action-dialog-kicker");
+      const titleTarget = dialog.querySelector("#app-action-dialog-title");
+      const messageTarget = dialog.querySelector("#app-action-dialog-message");
+      const detailsTarget = dialog.querySelector("#app-action-dialog-details");
+      const promptTarget = dialog.querySelector("#app-action-dialog-prompt");
+      const inputLabelTarget = dialog.querySelector("#app-action-dialog-input-label");
+      const input = dialog.querySelector("#app-action-dialog-input");
+      const error = dialog.querySelector("#app-action-dialog-error");
+      const cancelButton = dialog.querySelector("#app-action-dialog-cancel");
+      const confirmButton = dialog.querySelector("#app-action-dialog-confirm");
+
+      if (kicker) {
+        kicker.textContent = mode === "prompt" ? "Input required" : "Confirm action";
+      }
+      if (titleTarget) {
+        titleTarget.textContent = title;
+      }
+      if (messageTarget) {
+        messageTarget.textContent = message;
+      }
+      if (detailsTarget) {
+        detailsTarget.textContent = details;
+        detailsTarget.hidden = !details;
+      }
+      if (promptTarget) {
+        promptTarget.hidden = mode !== "prompt";
+      }
+      if (inputLabelTarget) {
+        inputLabelTarget.textContent = inputLabel;
+      }
+      if (input) {
+        input.value = defaultValue;
+        input.placeholder = placeholder;
+      }
+      if (error) {
+        error.textContent = "";
+      }
+      if (cancelButton) {
+        cancelButton.textContent = cancelLabel;
+      }
+      if (confirmButton) {
+        confirmButton.textContent = confirmLabel;
+        confirmButton.className = `app-action-dialog-confirm is-${variant}`;
+      }
+
+      setAppActionDialogOpen(dialog, true);
+
+      window.setTimeout(() => {
+        if (mode === "prompt") {
+          input?.focus();
+          input?.select?.();
+          return;
+        }
+        cancelButton?.focus();
+      }, 0);
+    });
+  }
+
+  async function showAppConfirm(options = {}) {
+    const result = await openAppActionDialog({ ...options, mode: "confirm" });
+    return Boolean(result.confirmed);
+  }
+
+  async function showAppPrompt(options = {}) {
+    const result = await openAppActionDialog({ ...options, mode: "prompt" });
+    return result.confirmed ? String(result.value || "") : null;
+  }
+
   function isGoogleAuthEmail(email) {
     return EMAIL_REGEX.test(email);
   }
@@ -6621,7 +6816,7 @@
       setClassTimetableModalOpen(true);
     };
 
-    listTarget.addEventListener("click", (event) => {
+    listTarget.addEventListener("click", async (event) => {
       const subjectButton = event.target.closest("[data-class-subjects-view]");
 
       if (subjectButton) {
@@ -6665,7 +6860,15 @@
           return;
         }
 
-        const armName = normalizeClassArmName(window.prompt(`Add a custom arm for ${level}`, "") || "");
+        const armNameInput = await showAppPrompt({
+          title: "Add custom arm",
+          message: `Enter the new arm for ${level}.`,
+          inputLabel: "Arm name",
+          placeholder: "Example: D",
+          confirmLabel: "Add arm",
+          variant: "primary",
+        });
+        const armName = normalizeClassArmName(armNameInput || "");
 
         if (!armName) {
           return;
@@ -6725,9 +6928,13 @@
           return;
         }
 
-        const confirmed = window.confirm(
-          `Delete ${level} and all ${levelRecords.length} arm${levelRecords.length === 1 ? "" : "s"}? This cannot be undone.`,
-        );
+        const confirmed = await showAppConfirm({
+          title: "Delete class level?",
+          message: `Delete ${level} and all ${levelRecords.length} arm${levelRecords.length === 1 ? "" : "s"}?`,
+          details: "This permanently removes the class level from the class list.",
+          confirmLabel: "Delete class",
+          variant: "danger",
+        });
 
         if (!confirmed) {
           return;
@@ -7726,7 +7933,7 @@
       });
     }
 
-    listTarget.addEventListener("click", (event) => {
+    listTarget.addEventListener("click", async (event) => {
       const actionButton = event.target.closest("[data-course-action]");
 
       if (!actionButton || !isAdmin) {
@@ -7793,9 +8000,13 @@
       }
 
       if (action === "delete") {
-        const confirmed = window.confirm(
-          `Delete ${record.code || record.name} from ${record.level || "this level"}? This cannot be undone.`,
-        );
+        const confirmed = await showAppConfirm({
+          title: "Delete subject/course?",
+          message: `Delete ${record.code || record.name} from ${record.level || "this level"}?`,
+          details: "This permanently removes it from the subject/course list.",
+          confirmLabel: "Delete",
+          variant: "danger",
+        });
 
         if (!confirmed) {
           return;
@@ -9854,7 +10065,7 @@
       });
     }
 
-    listTarget.addEventListener("click", (event) => {
+    listTarget.addEventListener("click", async (event) => {
       const periodEditButton = event.target.closest("[data-timetable-period-edit]");
       const slotButton = event.target.closest("[data-timetable-slot]");
       const rowActionButton = event.target.closest("[data-timetable-action]");
@@ -9964,9 +10175,26 @@
 
         if (action === "substitute") {
           const teachers = getTeacherDirectory();
-          const replacementName = window.prompt("Replacement teacher name");
+          const replacementName = await showAppPrompt({
+            title: "Log substitution",
+            message: `Who will cover ${row.subject || "this lesson"}?`,
+            inputLabel: "Replacement teacher",
+            placeholder: "Teacher name or email",
+            confirmLabel: "Continue",
+            required: true,
+            variant: "primary",
+          });
           if (!replacementName) return;
-          const reason = window.prompt("Reason for substitution", "Cover lesson") || "";
+          const reason = await showAppPrompt({
+            title: "Substitution reason",
+            message: "Add a short reason for the substitution.",
+            inputLabel: "Reason",
+            defaultValue: "Cover lesson",
+            placeholder: "Cover lesson",
+            confirmLabel: "Log substitution",
+            variant: "primary",
+          });
+          if (reason === null) return;
           const replacement = teachers.find(
             (teacher) => teacher.name.toLowerCase() === replacementName.trim().toLowerCase() || teacher.email.toLowerCase() === replacementName.trim().toLowerCase(),
           );
@@ -18304,7 +18532,7 @@
       });
     }
 
-    listTarget.addEventListener("click", (event) => {
+    listTarget.addEventListener("click", async (event) => {
       const bulkDeleteButton = event.target.closest("[data-student-bulk-delete-level]");
 
       if (bulkDeleteButton) {
@@ -18326,9 +18554,13 @@
           return;
         }
 
-        const confirmed = window.confirm(
-          `Delete all ${matchingStudents.length} student record${matchingStudents.length === 1 ? "" : "s"} in ${level}? This cannot be undone.`,
-        );
+        const confirmed = await showAppConfirm({
+          title: "Delete class students?",
+          message: `Delete all ${matchingStudents.length} student record${matchingStudents.length === 1 ? "" : "s"} in ${level}?`,
+          details: "This permanently removes these student profiles from the registry.",
+          confirmLabel: "Delete students",
+          variant: "danger",
+        });
 
         if (!confirmed) {
           return;
@@ -18580,52 +18812,56 @@
         return;
       }
 
-	      clearPortalStudentErrors(form);
+      clearPortalStudentErrors(form);
 
-	      if (action === "delete") {
-	        const confirmed = window.confirm(
-	          `Delete ${record.fullName || record.admissionNo || "this student"} permanently? This cannot be undone.`,
-	        );
+      if (action === "delete") {
+        const confirmed = await showAppConfirm({
+          title: "Delete student?",
+          message: `Delete ${record.fullName || record.admissionNo || "this student"} permanently?`,
+          details: "This permanently removes the student profile and saved documents from the registry.",
+          confirmLabel: "Delete student",
+          variant: "danger",
+        });
 
-	        if (!confirmed) {
-	          return;
-	        }
+        if (!confirmed) {
+          return;
+        }
 
-	        const result =
-	          typeof manager.deleteStudent === "function"
-	            ? manager.deleteStudent(record.id)
-	            : {
-	                deletedCount: 1,
-	                students: manager.saveStudents(
-	                  manager.getStudents().filter((student) => student.id !== record.id),
-	                ),
-	              };
-	        const deletedCount = result.deletedCount || 0;
+        const result =
+          typeof manager.deleteStudent === "function"
+            ? manager.deleteStudent(record.id)
+            : {
+                deletedCount: 1,
+                students: manager.saveStudents(
+                  manager.getStudents().filter((student) => student.id !== record.id),
+                ),
+              };
+        const deletedCount = result.deletedCount || 0;
 
-	        recordAuditEvent({
-	          action: "deleted",
-	          entityType: "student",
-	          entityId: record.admissionNo || record.id,
-	          summary: `Deleted student record for ${record.fullName || record.admissionNo || "student"}`,
-	          details: record.level || "",
-	        });
-	        resetPortalStudentForm(form, guardianList, isAdmin);
-	        setStudentFormVisibility(false);
-	        setOverlayState(viewOverlay, false);
-	        setOverlayState(docsOverlay, false);
-	        refreshStudentSection();
-	        setStatus(
-	          status,
-	          deletedCount ? "success" : "info",
-	          deletedCount
-	            ? `Student <strong>${escapeHtml(record.fullName || record.admissionNo || "record")}</strong> deleted.`
-	            : "Student record was not found.",
-	        );
-	        return;
-	      }
+        recordAuditEvent({
+          action: "deleted",
+          entityType: "student",
+          entityId: record.admissionNo || record.id,
+          summary: `Deleted student record for ${record.fullName || record.admissionNo || "student"}`,
+          details: record.level || "",
+        });
+        resetPortalStudentForm(form, guardianList, isAdmin);
+        setStudentFormVisibility(false);
+        setOverlayState(viewOverlay, false);
+        setOverlayState(docsOverlay, false);
+        refreshStudentSection();
+        setStatus(
+          status,
+          deletedCount ? "success" : "info",
+          deletedCount
+            ? `Student <strong>${escapeHtml(record.fullName || record.admissionNo || "record")}</strong> deleted.`
+            : "Student record was not found.",
+        );
+        return;
+      }
 
-	      if (action === "edit") {
-	        if (createTitle) {
+      if (action === "edit") {
+        if (createTitle) {
           createTitle.textContent = "Edit Student";
         }
         populatePortalStudentForm(form, guardianList, record, isAdmin);
@@ -18756,7 +18992,15 @@
       }
 
       if (action === "transfer") {
-        const transferNote = window.prompt("Transfer note (optional)", record.transferReason || "");
+        const transferNote = await showAppPrompt({
+          title: "Transfer student",
+          message: `Add a transfer note for ${record.fullName || record.admissionNo || "this student"}.`,
+          inputLabel: "Transfer note",
+          defaultValue: record.transferReason || "",
+          placeholder: "Reason or destination school",
+          confirmLabel: "Transfer out",
+          variant: "danger",
+        });
         if (transferNote === null) {
           return;
         }
@@ -23745,14 +23989,14 @@
       }
 
       const nextStatus = normalizeAdmissionStatus(action || "review");
+      const admission = getAdmissions(workspaceId).find((entry) => entry.id === admissionId);
+
+      if (!admission) {
+        setStatus(status, "error", "Application not found.");
+        return;
+      }
 
       if (nextStatus === "approved") {
-        const admission = getAdmissions(workspaceId).find((entry) => entry.id === admissionId);
-        if (!admission) {
-          setStatus(status, "error", "Application not found.");
-          return;
-        }
-
         if (!studentManager || typeof studentManager.upsertStudent !== "function") {
           setStatus(status, "error", "Student manager is not available right now.");
           return;
@@ -23766,6 +24010,25 @@
         const conversion = buildStudentPayloadFromAdmission(admission);
         if (conversion.error) {
           setStatus(status, "error", conversion.error);
+          return;
+        }
+      }
+
+      if (nextStatus === "approved" || nextStatus === "rejected") {
+        const isApproval = nextStatus === "approved";
+        const confirmed = await showAppConfirm({
+          title: isApproval ? "Approve application?" : "Decline application?",
+          message: isApproval
+            ? `Approve ${admission.fullName || "this applicant"} and add them to Students?`
+            : `Decline ${admission.fullName || "this applicant"}?`,
+          details: isApproval
+            ? "A student profile will be created automatically from this application."
+            : "The application will stay in admission history for future reference.",
+          confirmLabel: isApproval ? "Approve and add" : "Decline",
+          variant: isApproval ? "success" : "danger",
+        });
+
+        if (!confirmed) {
           return;
         }
       }

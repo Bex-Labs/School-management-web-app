@@ -7912,6 +7912,184 @@ body.portal-overlay-open {
   overflow: hidden;
 }
 
+body.app-action-dialog-open {
+  overflow: hidden;
+}
+
+.app-action-dialog[hidden] {
+  display: none;
+}
+
+.app-action-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 360;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+}
+
+.app-action-dialog-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(9, 22, 39, 0.58);
+  backdrop-filter: blur(5px);
+}
+
+.app-action-dialog-card {
+  position: relative;
+  z-index: 1;
+  width: min(500px, 100%);
+  overflow: hidden;
+  border: 1px solid #d9e4f2;
+  border-radius: 22px;
+  background: #ffffff;
+  box-shadow: 0 28px 70px rgba(9, 22, 39, 0.28);
+}
+
+.app-action-dialog-form {
+  display: grid;
+  gap: 16px;
+  padding: 22px;
+}
+
+.app-action-dialog-head {
+  display: grid;
+  gap: 6px;
+}
+
+.app-action-dialog-head span {
+  color: #4f5fff;
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app-action-dialog-head h2 {
+  margin: 0;
+  color: #17233a;
+  font-size: 1.22rem;
+  line-height: 1.2;
+}
+
+.app-action-dialog-message,
+.app-action-dialog-details {
+  margin: 0;
+  color: #5c6980;
+  font-size: 0.94rem;
+  line-height: 1.55;
+}
+
+.app-action-dialog-details {
+  padding: 12px 14px;
+  border: 1px solid #e5edf7;
+  border-radius: 14px;
+  background: #f8fbff;
+  color: #44536b;
+  font-weight: 700;
+}
+
+.app-action-dialog-prompt {
+  display: grid;
+  gap: 8px;
+}
+
+.app-action-dialog-prompt[hidden] {
+  display: none;
+}
+
+.app-action-dialog-prompt span {
+  color: #29384f;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.app-action-dialog-prompt input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 13px;
+  border: 1px solid #cfdae9;
+  border-radius: 14px;
+  background: #ffffff;
+  color: #17233a;
+  font: inherit;
+  outline: none;
+  box-shadow: none;
+}
+
+.app-action-dialog-prompt input:focus {
+  border-color: #4f5fff;
+  box-shadow: 0 0 0 4px rgba(79, 95, 255, 0.12);
+}
+
+.app-action-dialog-prompt input:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset;
+  -webkit-text-fill-color: #17233a;
+}
+
+.app-action-dialog-prompt small {
+  min-height: 1em;
+  color: #b42318;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.app-action-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.app-action-dialog-cancel,
+.app-action-dialog-confirm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid #dbe2ee;
+  border-radius: 14px;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.app-action-dialog-cancel {
+  background: #ffffff;
+  color: #34435a;
+}
+
+.app-action-dialog-confirm {
+  border-color: #4f5fff;
+  background: #4f5fff;
+  color: #ffffff;
+}
+
+.app-action-dialog-confirm.is-danger {
+  border-color: #b42318;
+  background: #b42318;
+}
+
+.app-action-dialog-confirm.is-success {
+  border-color: #14804a;
+  background: #14804a;
+}
+
+.app-action-dialog-confirm.is-primary {
+  border-color: #4f5fff;
+  background: #4f5fff;
+}
+
+.app-action-dialog-cancel:hover,
+.app-action-dialog-confirm:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 22px rgba(15, 35, 62, 0.12);
+}
+
 body.admin-dashboard-page .portal-overlay[hidden] {
   display: none;
 }
@@ -10226,6 +10404,29 @@ body.admin-dashboard-page .portal-class-empty p {
 
   body.admin-dashboard-page .portal-overlay {
     padding: 12px;
+  }
+
+  .app-action-dialog {
+    align-items: end;
+    padding: 12px;
+  }
+
+  .app-action-dialog-card {
+    border-radius: 18px;
+  }
+
+  .app-action-dialog-form {
+    padding: 18px;
+  }
+
+  .app-action-dialog-actions {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+
+  .app-action-dialog-cancel,
+  .app-action-dialog-confirm {
+    width: 100%;
   }
 
   body.admin-dashboard-page .portal-overlay-panel {
