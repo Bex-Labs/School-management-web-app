@@ -7820,6 +7820,24 @@ body.admin-dashboard-page .portal-student-group-title span {
   font-weight: 700;
 }
 
+body.admin-dashboard-page .portal-student-group-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
+}
+
+body.admin-dashboard-page .portal-student-group-delete {
+  min-height: 38px;
+  padding: 0 12px;
+  border-color: #ffd5d5;
+  background: #fff7f7;
+  color: #b42318;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
 body.admin-dashboard-page .portal-student-group-toggle {
   display: inline-flex;
   align-items: center;
@@ -7929,6 +7947,136 @@ body.admin-dashboard-page .portal-overlay-panel {
 
 body.admin-dashboard-page .portal-overlay-panel-sm {
   width: min(680px, 100%);
+}
+
+body.admin-dashboard-page .portal-class-subject-modal-panel {
+  width: min(820px, 100%);
+}
+
+body.admin-dashboard-page .portal-class-subject-modal-body {
+  display: grid;
+  gap: 14px;
+  padding: 18px 20px 4px;
+  background: #f8fbff;
+}
+
+body.admin-dashboard-page .portal-class-subject-overview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid #dce7f4;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+body.admin-dashboard-page .portal-class-subject-overview div {
+  display: grid;
+  gap: 4px;
+}
+
+body.admin-dashboard-page .portal-class-subject-overview span {
+  color: #315d9b;
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+body.admin-dashboard-page .portal-class-subject-overview strong {
+  color: #17233a;
+  font-size: 1.08rem;
+}
+
+body.admin-dashboard-page .portal-class-subject-overview p {
+  margin: 0;
+  color: #667188;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+body.admin-dashboard-page .portal-class-subject-overview > strong {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: #eef5ff;
+  color: #1e4673;
+}
+
+body.admin-dashboard-page .portal-class-subject-list {
+  display: grid;
+  gap: 10px;
+}
+
+body.admin-dashboard-page .portal-class-subject-item,
+body.admin-dashboard-page .portal-class-subject-empty {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #e2eaf5;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+body.admin-dashboard-page .portal-class-subject-item header,
+body.admin-dashboard-page .portal-class-subject-item footer {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+body.admin-dashboard-page .portal-class-subject-item header div,
+body.admin-dashboard-page .portal-class-subject-empty {
+  min-width: 0;
+}
+
+body.admin-dashboard-page .portal-class-subject-item strong,
+body.admin-dashboard-page .portal-class-subject-empty strong {
+  color: #17233a;
+}
+
+body.admin-dashboard-page .portal-class-subject-item span,
+body.admin-dashboard-page .portal-class-subject-empty p {
+  margin: 0;
+  color: #667188;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+body.admin-dashboard-page .portal-class-subject-item em {
+  flex: 0 0 auto;
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: #f0f5fb;
+  color: #315d9b;
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+body.admin-dashboard-page .portal-class-subject-item footer {
+  padding-top: 10px;
+  border-top: 1px solid #edf2f8;
+}
+
+body.admin-dashboard-page .portal-class-subject-item footer span {
+  font-weight: 800;
+}
+
+body.admin-dashboard-page .portal-class-subject-item footer strong {
+  text-align: right;
+  font-size: 0.9rem;
+}
+
+body.admin-dashboard-page .portal-class-subject-modal-actions {
+  padding: 0 20px 18px;
+  background: #f8fbff;
 }
 
 body.admin-dashboard-page .portal-overlay-head {
@@ -10025,6 +10173,23 @@ body.admin-dashboard-page .portal-class-empty p {
     flex-direction: column;
   }
 
+  body.admin-dashboard-page .portal-student-group-head,
+  body.admin-dashboard-page .portal-class-subject-item header,
+  body.admin-dashboard-page .portal-class-subject-item footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  body.admin-dashboard-page .portal-student-group-actions {
+    justify-content: space-between;
+    width: 100%;
+    margin-left: 0;
+  }
+
+  body.admin-dashboard-page .portal-class-subject-item footer strong {
+    text-align: left;
+  }
+
   body.admin-dashboard-page .portal-admission-name-item {
     align-items: flex-start;
     flex-direction: column;
@@ -11014,6 +11179,7 @@ body.admin-dashboard-page .admin-metric-card-rose p,
 body.admin-dashboard-page .admin-activity-copy span,
 body.admin-dashboard-page .admin-link-card span,
 body.admin-dashboard-page .portal-class-route-links a,
+body.admin-dashboard-page .portal-class-route-links button,
 body.admin-dashboard-page .portal-class-button.is-restore {
   color: var(--sky-600);
 }
@@ -11024,6 +11190,7 @@ body.admin-dashboard-page .portal-class-button.is-restore {
 }
 
 body.admin-dashboard-page .portal-class-route-links a:hover,
+body.admin-dashboard-page .portal-class-route-links button:hover,
 body.admin-dashboard-page .portal-class-button:hover:not(:disabled) {
   box-shadow: 0 10px 18px rgba(15, 43, 74, 0.12);
 }

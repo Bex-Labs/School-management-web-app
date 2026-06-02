@@ -6169,6 +6169,205 @@
       });
     }
 
+    let classSubjectModalElement = null;
+    let classSubjectModalBody = null;
+    let classSubjectModalTitle = null;
+    let classSubjectModalSubtitle = null;
+    let classSubjectManageLink = null;
+
+    const getClassSubjectTerminology = (classRecord = {}) =>
+      inferSchoolTypeFromLevel(classRecord.level) === "higher"
+        ? { singular: "Course", plural: "Courses", manageLabel: "Manage courses" }
+        : { singular: "Subject", plural: "Subjects", manageLabel: "Manage subjects" };
+
+    const setClassSubjectModalOpen = (visible) => {
+      if (!classSubjectModalElement) {
+        return;
+      }
+      classSubjectModalElement.hidden = !visible;
+      document.body.classList.toggle("portal-overlay-open", visible);
+    };
+
+    const ensureClassSubjectModal = () => {
+      if (classSubjectModalElement) {
+        return classSubjectModalElement;
+      }
+
+      const wrapper = document.createElement("div");
+      wrapper.innerHTML = `
+        <div id="portal-class-subject-modal" class="portal-overlay portal-class-subject-modal" hidden>
+          <button class="portal-overlay-backdrop" type="button" data-class-subject-close aria-label="Close subject list"></button>
+          <section class="portal-overlay-panel portal-class-subject-modal-panel" role="dialog" aria-modal="true" aria-labelledby="portal-class-subject-modal-title">
+            <header class="portal-overlay-head">
+              <div>
+                <h3 id="portal-class-subject-modal-title">Class subjects</h3>
+                <span id="portal-class-subject-modal-subtitle">Subjects linked to this class.</span>
+              </div>
+              <button class="portal-overlay-close" type="button" data-class-subject-close aria-label="Close subject list">&times;</button>
+            </header>
+            <div id="portal-class-subject-modal-body" class="portal-class-subject-modal-body"></div>
+            <div class="utility-actions portal-class-subject-modal-actions">
+              <a class="button button-primary" href="./admin-courses.html" data-class-subject-manage>Manage subjects</a>
+              <button class="button button-outline" type="button" data-class-subject-close>Close</button>
+            </div>
+          </section>
+        </div>
+      `;
+      document.body.appendChild(wrapper.firstElementChild);
+      classSubjectModalElement = document.getElementById("portal-class-subject-modal");
+      classSubjectModalBody = document.getElementById("portal-class-subject-modal-body");
+      classSubjectModalTitle = document.getElementById("portal-class-subject-modal-title");
+      classSubjectModalSubtitle = document.getElementById("portal-class-subject-modal-subtitle");
+      classSubjectManageLink = classSubjectModalElement.querySelector("[data-class-subject-manage]");
+      classSubjectModalElement.addEventListener("click", (event) => {
+        if (event.target.closest("[data-class-subject-close]")) {
+          setClassSubjectModalOpen(false);
+        }
+      });
+      return classSubjectModalElement;
+    };
+
+    const getClassCourseRecords = (classRecord = {}) => {
+      if (!courseManager || typeof courseManager.getCourses !== "function") {
+        return [];
+      }
+
+      const levelToken = normalizeLevelToken(classRecord.level);
+      const displayToken = normalizeLevelToken(getClassDisplayName(classRecord));
+
+      return courseManager
+        .getCourses()
+        .filter((course) => course.status !== "archived")
+        .filter((course) => {
+          const courseLevelToken = normalizeLevelToken(course.level);
+          return courseLevelToken && (courseLevelToken === levelToken || courseLevelToken === displayToken);
+        });
+    };
+
+    const buildClassSubjectRows = (classRecord = {}) => {
+      const rows = new Map();
+      const terminology = getClassSubjectTerminology(classRecord);
+
+      const ensureRow = ({ name, code = "", category = "", source = "", teachers = [] }) => {
+        const label = String(name || code || "").trim();
+
+        if (!label) {
+          return null;
+        }
+
+        const key = [String(code || "").trim().toLowerCase(), label.toLowerCase()].filter(Boolean).join("|") || label.toLowerCase();
+
+        if (!rows.has(key)) {
+          rows.set(key, {
+            name: label,
+            code: String(code || "").trim(),
+            category: String(category || "").trim(),
+            source: String(source || "").trim(),
+            teachers: new Set(),
+          });
+        }
+
+        const row = rows.get(key);
+        if (!row.code && code) row.code = String(code).trim();
+        if (!row.category && category) row.category = String(category).trim();
+        if (!row.source && source) row.source = String(source).trim();
+        teachers.forEach((teacher) => {
+          const teacherName = String(teacher || "").trim();
+          if (teacherName) row.teachers.add(teacherName);
+        });
+        return row;
+      };
+
+      getClassCourseRecords(classRecord).forEach((course) => {
+        ensureRow({
+          name: course.name,
+          code: course.code,
+          category: course.category,
+          source: `${terminology.singular} library`,
+          teachers: course.teacherAssignments || [],
+        });
+      });
+
+      (classRecord.subjects || []).forEach((subject) => {
+        ensureRow({
+          name: subject,
+          source: "Class setup",
+        });
+      });
+
+      (classRecord.teacherAssignments || []).forEach((assignment) => {
+        ensureRow({
+          name: assignment.subject,
+          source: "Teacher assignment",
+          teachers: [assignment.teacher],
+        });
+      });
+
+      return Array.from(rows.values())
+        .map((row) => ({
+          ...row,
+          teachers: Array.from(row.teachers),
+        }))
+        .sort((left, right) => left.name.localeCompare(right.name, undefined, { numeric: true }));
+    };
+
+    const renderClassSubjectModal = (classRecord = {}) => {
+      ensureClassSubjectModal();
+      const terminology = getClassSubjectTerminology(classRecord);
+      const classLabel = getClassDisplayName(classRecord);
+      const rows = buildClassSubjectRows(classRecord);
+
+      if (classSubjectModalTitle) {
+        classSubjectModalTitle.textContent = `${classLabel} ${terminology.plural.toLowerCase()}`;
+      }
+      if (classSubjectModalSubtitle) {
+        classSubjectModalSubtitle.textContent = `${terminology.plural} linked to this class or level.`;
+      }
+      if (classSubjectManageLink) {
+        classSubjectManageLink.textContent = terminology.manageLabel;
+      }
+
+      classSubjectModalBody.innerHTML = `
+        <section class="portal-class-subject-overview">
+          <div>
+            <span>${escapeHtml(terminology.plural)}</span>
+            <strong>${escapeHtml(classLabel)}</strong>
+            <p>${escapeHtml(classRecord.level || "No level")} • ${escapeHtml(normalizeClassArmName(classRecord.name) || "No arm")}</p>
+          </div>
+          <strong>${rows.length}</strong>
+        </section>
+        ${
+          rows.length
+            ? `<div class="portal-class-subject-list">
+                ${rows
+                  .map(
+                    (row) => `
+                      <article class="portal-class-subject-item">
+                        <header>
+                          <div>
+                            <strong>${escapeHtml(row.name)}</strong>
+                            <span>${escapeHtml([row.code, row.category].filter(Boolean).join(" • ") || row.source || terminology.singular)}</span>
+                          </div>
+                          <em>${escapeHtml(row.source || terminology.singular)}</em>
+                        </header>
+                        <footer>
+                          <span>Assigned teacher</span>
+                          <strong>${escapeHtml(row.teachers.length ? row.teachers.join(", ") : "Not assigned")}</strong>
+                        </footer>
+                      </article>
+                    `,
+                  )
+                  .join("")}
+              </div>`
+            : `<article class="portal-class-subject-empty">
+                <strong>No ${escapeHtml(terminology.plural.toLowerCase())} linked yet</strong>
+                <p>Add ${escapeHtml(terminology.plural.toLowerCase())} from the ${escapeHtml(terminology.singular.toLowerCase())} library or edit this class setup.</p>
+              </article>`
+        }
+      `;
+      setClassSubjectModalOpen(true);
+    };
+
     let classTimetableModalElement = null;
     let classTimetableModalBody = null;
     let classTimetableModalTitle = null;
@@ -6423,6 +6622,18 @@
     };
 
     listTarget.addEventListener("click", (event) => {
+      const subjectButton = event.target.closest("[data-class-subjects-view]");
+
+      if (subjectButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        const record = manager.getClasses().find((item) => item.id === String(subjectButton.dataset.classId || "").trim());
+        if (record) {
+          renderClassSubjectModal(record);
+        }
+        return;
+      }
+
       const timetableButton = event.target.closest("[data-class-timetable-view]");
 
       if (timetableButton) {
@@ -14595,6 +14806,7 @@
                             .map((record) => {
                               const isArchived = record.status === "archived";
                               const displayName = normalizeClassArmName(record.name) || "Unnamed class";
+                              const subjectRouteLabel = inferSchoolTypeFromLevel(record.level) === "higher" ? "Courses" : "Subjects";
                               return `
                                 <article class="portal-class-arm-card ${isArchived ? "is-archived" : ""}">
                                   <div class="portal-class-arm-card-head">
@@ -14614,7 +14826,7 @@
                                   </div>
                                   <div class="portal-class-route-links">
                                     <a href="./admin-students.html">Students</a>
-                                    <a href="./admin-courses.html">Subjects</a>
+                                    <button type="button" data-class-subjects-view data-class-id="${escapeHtml(record.id)}">${escapeHtml(subjectRouteLabel)}</button>
                                     <a href="./admin-attendance.html">Attendance</a>
                                     <button type="button" data-class-timetable-view data-class-id="${escapeHtml(record.id)}">Timetable</button>
                                     <a href="./admin-reports.html">Results</a>
@@ -15908,6 +16120,8 @@
           .filter(Boolean),
       ),
     ).sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
+    const countAllStudentsForLevel = (level) =>
+      students.filter((record) => normalizeLevelToken(record.level) === normalizeLevelToken(level)).length;
 
     if (classFiltersTarget) {
       const classButtons = [
@@ -15978,6 +16192,7 @@
         .map(([level, records], groupIndex) => {
           const levelToken = normalizeLevelToken(level) || `group-${groupIndex + 1}`;
           const isExpanded = expandedClassTokens instanceof Set ? expandedClassTokens.has(levelToken) : false;
+          const allLevelStudentCount = countAllStudentsForLevel(level);
           return `
             <section class="portal-student-group">
               <header class="portal-student-group-head">
@@ -15985,15 +16200,29 @@
                   <h3>${escapeHtml(level)}</h3>
                   <span>${records.length} student${records.length === 1 ? "" : "s"}</span>
                 </div>
-                <button
-                  class="portal-student-group-toggle"
-                  type="button"
-                  data-student-class-toggle="${escapeHtml(levelToken)}"
-                  aria-expanded="${isExpanded ? "true" : "false"}"
-                  aria-label="${isExpanded ? "Collapse class list" : "Expand class list"}"
-                >
-                  <span class="portal-student-group-toggle-arrow" aria-hidden="true">${isExpanded ? "▴" : "▾"}</span>
-                </button>
+                <div class="portal-student-group-actions">
+                  ${
+                    isAdmin
+                      ? `<button
+                          class="portal-class-button portal-student-group-delete"
+                          type="button"
+                          data-student-bulk-delete-level="${escapeHtml(level)}"
+                          data-student-bulk-delete-count="${escapeHtml(String(allLevelStudentCount))}"
+                        >
+                          Delete class students
+                        </button>`
+                      : ""
+                  }
+                  <button
+                    class="portal-student-group-toggle"
+                    type="button"
+                    data-student-class-toggle="${escapeHtml(levelToken)}"
+                    aria-expanded="${isExpanded ? "true" : "false"}"
+                    aria-label="${isExpanded ? "Collapse class list" : "Expand class list"}"
+                  >
+                    <span class="portal-student-group-toggle-arrow" aria-hidden="true">${isExpanded ? "▴" : "▾"}</span>
+                  </button>
+                </div>
               </header>
               <div class="portal-student-group-list" ${isExpanded ? "" : "hidden"}>
                 ${records
@@ -18006,6 +18235,75 @@
     }
 
     listTarget.addEventListener("click", (event) => {
+      const bulkDeleteButton = event.target.closest("[data-student-bulk-delete-level]");
+
+      if (bulkDeleteButton) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (!isAdmin) {
+          setStatus(status, "info", "Only administrators can delete student records.");
+          return;
+        }
+
+        const level = String(bulkDeleteButton.dataset.studentBulkDeleteLevel || "").trim();
+        const matchingStudents = manager
+          .getStudents()
+          .filter((student) => normalizeLevelToken(student.level) === normalizeLevelToken(level));
+
+        if (!level || !matchingStudents.length) {
+          setStatus(status, "info", "No students found for this class.");
+          return;
+        }
+
+        const confirmed = window.confirm(
+          `Delete all ${matchingStudents.length} student record${matchingStudents.length === 1 ? "" : "s"} in ${level}? This cannot be undone.`,
+        );
+
+        if (!confirmed) {
+          return;
+        }
+
+        const result =
+          typeof manager.deleteStudentsByLevel === "function"
+            ? manager.deleteStudentsByLevel(level)
+            : {
+                deletedCount: matchingStudents.length,
+                students: manager.saveStudents(
+                  manager
+                    .getStudents()
+                    .filter((student) => normalizeLevelToken(student.level) !== normalizeLevelToken(level)),
+                ),
+              };
+
+        recordAuditEvent({
+          action: "deleted",
+          entityType: "student-class",
+          entityId: level,
+          summary: `Deleted ${result.deletedCount || matchingStudents.length} student record(s) from ${level}`,
+          details: matchingStudents
+            .slice(0, 8)
+            .map((student) => student.admissionNo || student.fullName)
+            .filter(Boolean)
+            .join(", "),
+        });
+
+        resetPortalStudentForm(form, guardianList, isAdmin);
+        setStudentFormVisibility(false);
+        setOverlayState(viewOverlay, false);
+        setOverlayState(docsOverlay, false);
+        expandedClassTokens.delete(normalizeLevelToken(level));
+        refreshStudentSection();
+        setStatus(
+          status,
+          "success",
+          `Deleted <strong>${escapeHtml(String(result.deletedCount || matchingStudents.length))}</strong> student record${
+            (result.deletedCount || matchingStudents.length) === 1 ? "" : "s"
+          } from <strong>${escapeHtml(level)}</strong>.`,
+        );
+        return;
+      }
+
       const classToggleButton = event.target.closest("[data-student-class-toggle]");
 
       if (classToggleButton) {

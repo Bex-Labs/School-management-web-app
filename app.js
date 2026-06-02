@@ -2756,6 +2756,45 @@ function setSchoolStudentTransferred(studentId, transferReason = "") {
   return saveSchoolStudents(nextStudents);
 }
 
+function normalizeStudentLevelKey(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function deleteSchoolStudent(studentId) {
+  const normalizedStudentId = String(studentId || "").trim();
+
+  if (!normalizedStudentId) {
+    return { deletedCount: 0, students: getSchoolStudents() };
+  }
+
+  const students = getSchoolStudents();
+  const nextStudents = students.filter((record) => record.id !== normalizedStudentId);
+
+  return {
+    deletedCount: students.length - nextStudents.length,
+    students: saveSchoolStudents(nextStudents),
+  };
+}
+
+function deleteSchoolStudentsByLevel(level) {
+  const levelKey = normalizeStudentLevelKey(level);
+
+  if (!levelKey) {
+    return { deletedCount: 0, students: getSchoolStudents() };
+  }
+
+  const students = getSchoolStudents();
+  const nextStudents = students.filter((record) => normalizeStudentLevelKey(record.level) !== levelKey);
+
+  return {
+    deletedCount: students.length - nextStudents.length,
+    students: saveSchoolStudents(nextStudents),
+  };
+}
+
 function updateSchoolStudentProgression(studentId, updater) {
   if (typeof updater !== "function") {
     return getSchoolStudents();
@@ -3298,6 +3337,8 @@ window.SchoolSphereStudents = {
   transferStudentOut: setSchoolStudentTransferred,
   archiveStudent: (studentId) => setSchoolStudentArchived(studentId, true),
   activateStudent: (studentId) => setSchoolStudentArchived(studentId, false),
+  deleteStudent: deleteSchoolStudent,
+  deleteStudentsByLevel: deleteSchoolStudentsByLevel,
   eventName: SCHOOL_STUDENTS_EVENT,
 };
 
