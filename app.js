@@ -1248,12 +1248,28 @@ function normalizeAdmissionConfigStage(record = {}) {
 }
 
 function normalizeAdmissionConfiguration(state = {}) {
-  const sessions = Array.isArray(state.sessions)
+  const normalizedSessions = Array.isArray(state.sessions)
     ? state.sessions
         .map((record) => normalizeAdmissionConfigSession(record))
         .filter((record) => record.name)
         .sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)))
     : [];
+  let hasOpenAdmissionSession = false;
+  const sessions = normalizedSessions.map((session) => {
+    if (session.status !== "open") {
+      return session;
+    }
+
+    if (!hasOpenAdmissionSession) {
+      hasOpenAdmissionSession = true;
+      return session;
+    }
+
+    return {
+      ...session,
+      status: "closed",
+    };
+  });
   const classes = Array.isArray(state.classes)
     ? state.classes
         .map((record) => normalizeAdmissionConfigClass(record))

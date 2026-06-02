@@ -252,15 +252,15 @@
 
   const DASHBOARD_ACTIVITY_ITEMS = [
     {
-      person: "Mr. Davis",
+      person: "Teacher",
       accent: "Math 101",
       message: "submitted grades for",
       timeAgo: "Recently",
       tone: "blue",
     },
     {
-      person: "Mrs. Smith",
-      accent: "Tommy Hill",
+      person: "Teacher",
+      accent: "Student record",
       message: "marked absent:",
       timeAgo: "Recently",
       tone: "violet",
@@ -17088,15 +17088,15 @@
         "parent/guardian email",
       ],
       [
-        "Amina",
-        "Yusuf",
+        "First Name",
+        "Last Name",
         "csa26/jss1/001",
         "Junior Secondary School 1 (JSS1)",
         "2013-10-08",
         "Female",
-        "Mary Yusuf",
+        "Guardian Name",
         "+2348000000000",
-        "mary@example.com",
+        "guardian@example.com",
       ],
     ];
   }
