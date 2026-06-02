@@ -2773,10 +2773,22 @@ function setSchoolStudentTransferred(studentId, transferReason = "") {
 }
 
 function normalizeStudentLevelKey(value) {
-  return String(value || "")
+  const token = String(value || "")
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "");
+
+  const juniorSecondaryMatch = token.match(/(?:juniorsecondaryschool|jss)([1-3])/);
+  if (juniorSecondaryMatch) {
+    return `jss${juniorSecondaryMatch[1]}`;
+  }
+
+  const seniorSecondaryMatch = token.match(/(?:seniorsecondaryschool|sss|ss)([1-3])/);
+  if (seniorSecondaryMatch) {
+    return `sss${seniorSecondaryMatch[1]}`;
+  }
+
+  return token;
 }
 
 function deleteSchoolStudent(studentId) {

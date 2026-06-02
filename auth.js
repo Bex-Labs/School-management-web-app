@@ -16113,24 +16113,38 @@
 
     const normalizedSearch = String(searchQuery || "").trim().toLowerCase();
     const normalizedSelectedClass = normalizeLevelToken(selectedClass === "all" ? "" : selectedClass);
-    const classLevels = Array.from(
-      new Set(
-        students
-          .map((record) => String(record.level || "").trim())
-          .filter(Boolean),
-      ),
-    ).sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
+    const classLevelGroups = Array.from(
+      students
+        .reduce((map, record) => {
+          const level = String(record.level || "").trim();
+          const token = normalizeLevelToken(level);
+
+          if (!level || !token) {
+            return map;
+          }
+
+          if (!map.has(token)) {
+            map.set(token, {
+              token,
+              label: getStudentLevelDisplayLabel(level),
+            });
+          }
+
+          return map;
+        }, new Map())
+        .values(),
+    ).sort((left, right) => left.label.localeCompare(right.label, undefined, { numeric: true }));
     const countAllStudentsForLevel = (level) =>
       students.filter((record) => normalizeLevelToken(record.level) === normalizeLevelToken(level)).length;
 
     if (classFiltersTarget) {
       const classButtons = [
         `<button class="portal-student-class-filter ${selectedClass === "all" ? "is-active" : ""}" type="button" data-student-class="all">All classes</button>`,
-        ...classLevels.map(
-          (level) => `
+        ...classLevelGroups.map(
+          (group) => `
             <button class="portal-student-class-filter ${
-              normalizeLevelToken(level) === normalizeLevelToken(selectedClass) ? "is-active" : ""
-            }" type="button" data-student-class="${escapeHtml(level)}">${escapeHtml(level)}</button>
+              group.token === normalizedSelectedClass ? "is-active" : ""
+            }" type="button" data-student-class="${escapeHtml(group.token)}">${escapeHtml(group.label)}</button>
           `,
         ),
       ];
@@ -16158,6 +16172,7 @@
         record.firstName,
         record.lastName,
         record.level,
+        getStudentLevelDisplayLabel(record.level),
         record.admissionNo,
         record.gender,
         record.promotionDecision,
@@ -16179,20 +16194,26 @@
       `;
     } else {
       const groups = filteredStudents.reduce((map, record) => {
-        const level = record.level || "Unassigned";
-        if (!map.has(level)) {
-          map.set(level, []);
+        const rawLevel = String(record.level || "").trim();
+        const levelToken = normalizeLevelToken(rawLevel) || "unassigned";
+        if (!map.has(levelToken)) {
+          map.set(levelToken, {
+            label: rawLevel ? getStudentLevelDisplayLabel(rawLevel) : "Unassigned",
+            records: [],
+            token: levelToken,
+          });
         }
-        map.get(level).push(record);
+        map.get(levelToken).records.push(record);
         return map;
       }, new Map());
 
-      listTarget.innerHTML = Array.from(groups.entries())
-        .sort(([left], [right]) => left.localeCompare(right, undefined, { numeric: true }))
-        .map(([level, records], groupIndex) => {
-          const levelToken = normalizeLevelToken(level) || `group-${groupIndex + 1}`;
+      listTarget.innerHTML = Array.from(groups.values())
+        .sort((left, right) => left.label.localeCompare(right.label, undefined, { numeric: true }))
+        .map((group, groupIndex) => {
+          const { label: level, records } = group;
+          const levelToken = group.token || `group-${groupIndex + 1}`;
           const isExpanded = expandedClassTokens instanceof Set ? expandedClassTokens.has(levelToken) : false;
-          const allLevelStudentCount = countAllStudentsForLevel(level);
+          const allLevelStudentCount = countAllStudentsForLevel(levelToken);
           return `
             <section class="portal-student-group">
               <header class="portal-student-group-head">
@@ -16250,19 +16271,27 @@
                       const adminActions = !isAdmin
                         ? ""
                         : isArchived || isTransferred
-                          ? `
-                            ${manageDocsAction}
-                            <button
-                              class="portal-class-button is-restore"
-                              type="button"
+	                          ? `
+	                            ${manageDocsAction}
+	                            <button
+	                              class="portal-class-button is-restore"
+	                              type="button"
                               data-student-action="activate"
                               data-student-id="${record.id}"
-                            >
-                              Reactivate
-                            </button>
-                          `
-                          : `
-                            ${manageDocsAction}
+	                            >
+	                              Reactivate
+	                            </button>
+	                            <button
+	                              class="portal-class-button is-danger"
+	                              type="button"
+	                              data-student-action="delete"
+	                              data-student-id="${record.id}"
+	                            >
+	                              Delete
+	                            </button>
+	                          `
+	                          : `
+	                            ${manageDocsAction}
                             <button
                               class="portal-class-button"
                               type="button"
@@ -16308,10 +16337,18 @@
                               type="button"
                               data-student-action="archive"
                               data-student-id="${record.id}"
-                            >
-                              Archive
-                            </button>
-                          `;
+	                            >
+	                              Archive
+	                            </button>
+	                            <button
+	                              class="portal-class-button is-danger"
+	                              type="button"
+	                              data-student-action="delete"
+	                              data-student-id="${record.id}"
+	                            >
+	                              Delete
+	                            </button>
+	                          `;
                       return `
                       <article class="portal-student-row ${record.status === "archived" || record.status === "transferred" ? "is-archived" : ""}">
                         <button
@@ -16456,6 +16493,35 @@
     }
 
     return token;
+  }
+
+  function getStudentLevelDisplayLabel(value) {
+    const raw = String(value || "").trim();
+    const token = normalizeLevelToken(raw);
+
+    if (!raw || !token) {
+      return "";
+    }
+
+    const secondaryLevel = SECONDARY_LEVEL_TEMPLATES.find(
+      (level) => normalizeLevelToken(level) === token,
+    );
+
+    if (secondaryLevel) {
+      return secondaryLevel;
+    }
+
+    const juniorSecondaryMatch = token.match(/^jss([1-3])$/);
+    if (juniorSecondaryMatch) {
+      return `Junior Secondary School ${juniorSecondaryMatch[1]} (JSS${juniorSecondaryMatch[1]})`;
+    }
+
+    const seniorSecondaryMatch = token.match(/^sss([1-3])$/);
+    if (seniorSecondaryMatch) {
+      return `Senior Secondary School ${seniorSecondaryMatch[1]} (SSS${seniorSecondaryMatch[1]})`;
+    }
+
+    return raw;
   }
 
   function getTodayDateValue() {
@@ -16916,9 +16982,13 @@
     form.elements.admissionNo.value = record.admissionNo || "";
     form.elements.admissionNo.dataset.autoGenerated = "false";
     if (form.elements.level instanceof HTMLSelectElement) {
-      renderStudentLevelSelectOptions(form.elements.level, record.level || "");
+      const levels = renderStudentLevelSelectOptions(form.elements.level, record.level || "");
+      const matchingLevel =
+        levels.find((level) => normalizeLevelToken(level) === normalizeLevelToken(record.level)) || record.level || "";
+      form.elements.level.value = matchingLevel;
+    } else {
+      form.elements.level.value = record.level || "";
     }
-    form.elements.level.value = record.level || "";
     if (form.elements.dateOfBirth) {
       form.elements.dateOfBirth.value = record.dateOfBirth || "";
     }
@@ -18370,7 +18440,7 @@
         const profileName = record.fullName || "Unnamed student";
         const initials = getInitials(profileName).slice(0, 2) || "ST";
         const admissionLabel = record.admissionNo ? `Admission No. ${record.admissionNo}` : "No admission number";
-        const levelLabel = record.level || "No class assigned";
+        const levelLabel = getStudentLevelDisplayLabel(record.level) || "No class assigned";
         const progressionLabel =
           record.promotionDecision === "repeat"
             ? "Repeat class"
@@ -18453,7 +18523,7 @@
                   </article>
                   <article>
                     <span>Level / Class</span>
-                    <strong>${escapeHtml(record.level || "Not assigned")}</strong>
+                    <strong>${escapeHtml(levelLabel || "Not assigned")}</strong>
                   </article>
                   <article>
                     <span>Gender</span>
@@ -18510,10 +18580,52 @@
         return;
       }
 
-      clearPortalStudentErrors(form);
+	      clearPortalStudentErrors(form);
 
-      if (action === "edit") {
-        if (createTitle) {
+	      if (action === "delete") {
+	        const confirmed = window.confirm(
+	          `Delete ${record.fullName || record.admissionNo || "this student"} permanently? This cannot be undone.`,
+	        );
+
+	        if (!confirmed) {
+	          return;
+	        }
+
+	        const result =
+	          typeof manager.deleteStudent === "function"
+	            ? manager.deleteStudent(record.id)
+	            : {
+	                deletedCount: 1,
+	                students: manager.saveStudents(
+	                  manager.getStudents().filter((student) => student.id !== record.id),
+	                ),
+	              };
+	        const deletedCount = result.deletedCount || 0;
+
+	        recordAuditEvent({
+	          action: "deleted",
+	          entityType: "student",
+	          entityId: record.admissionNo || record.id,
+	          summary: `Deleted student record for ${record.fullName || record.admissionNo || "student"}`,
+	          details: record.level || "",
+	        });
+	        resetPortalStudentForm(form, guardianList, isAdmin);
+	        setStudentFormVisibility(false);
+	        setOverlayState(viewOverlay, false);
+	        setOverlayState(docsOverlay, false);
+	        refreshStudentSection();
+	        setStatus(
+	          status,
+	          deletedCount ? "success" : "info",
+	          deletedCount
+	            ? `Student <strong>${escapeHtml(record.fullName || record.admissionNo || "record")}</strong> deleted.`
+	            : "Student record was not found.",
+	        );
+	        return;
+	      }
+
+	      if (action === "edit") {
+	        if (createTitle) {
           createTitle.textContent = "Edit Student";
         }
         populatePortalStudentForm(form, guardianList, record, isAdmin);
