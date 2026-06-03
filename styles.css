@@ -9840,6 +9840,21 @@ body.admin-dashboard-page .staff-portal-tile {
   padding: 16px;
 }
 
+body.admin-dashboard-page .staff-portal-link-tile {
+  color: inherit;
+  text-decoration: none;
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+body.admin-dashboard-page .staff-portal-link-tile:hover {
+  transform: translateY(-2px);
+  border-color: #cdd8ea;
+  box-shadow: 0 16px 34px rgba(38, 48, 72, 0.1);
+}
+
 body.staff-portal-page .admin-sidebar-link {
   min-height: 39px;
 }

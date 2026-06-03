@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Settings | SchoolSphere Staff</title>
+    <meta name="description" content="Staff account settings for SchoolSphere users." />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body data-page="staff-settings" class="admin-dashboard-page staff-portal-page">
+    <main class="admin-dashboard-shell">
+      <aside class="admin-sidebar">
+        <a class="admin-sidebar-brand" href="./staff-dashboard.html" aria-label="Staff dashboard home">
+          <span id="admin-brand-mark" class="admin-brand-mark">S</span>
+          <div class="admin-sidebar-brand-copy">
+            <strong id="admin-brand-name">SchoolSphere</strong>
+            <span id="admin-brand-subtitle">Staff portal</span>
+          </div>
+        </a>
+
+        <nav class="admin-sidebar-nav" aria-label="Staff portal"></nav>
+
+        <section class="admin-sidebar-profile">
+          <div class="admin-profile-avatar" id="admin-profile-avatar">T</div>
+          <div class="admin-profile-copy">
+            <strong id="admin-profile-name">Loading user...</strong>
+            <span id="admin-profile-role">Teacher</span>
+          </div>
+          <div id="portal-gate" class="admin-profile-actions">
+            <button class="admin-signout-button" type="button" data-signout>Log out</button>
+          </div>
+        </section>
+      </aside>
+
+      <section class="admin-dashboard-main">
+        <header class="admin-dashboard-topbar">
+          <div class="admin-dashboard-greeting">
+            <span class="admin-topline-chip" id="portal-last-updated">Last updated --</span>
+            <h1 id="portal-heading">Settings</h1>
+            <p id="portal-copy">Account info, password, and profile picture.</p>
+          </div>
+          <div class="admin-dashboard-tools">
+            <div class="admin-searchbox">
+              <label class="admin-searchbar" for="admin-global-search">
+                <span class="admin-search-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="7"></circle>
+                    <path d="m20 20-3.5-3.5"></path>
+                  </svg>
+                </span>
+                <input id="admin-global-search" type="search" placeholder="Search staff portal..." autocomplete="off" aria-controls="admin-search-suggestions" aria-expanded="false" />
+              </label>
+              <div id="admin-search-suggestions" class="admin-search-suggestions" role="listbox" hidden></div>
+            </div>
+            <button id="admin-notification-button" class="admin-notification-button" type="button" aria-label="Open notifications" aria-controls="admin-notification-overlay" aria-expanded="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M15 17h5l-1.4-1.4a2 2 0 0 1-.6-1.4V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5"></path>
+                <path d="M10 17a2 2 0 0 0 4 0"></path>
+              </svg>
+              <span id="admin-notification-dot" class="admin-notification-dot" hidden></span>
+            </button>
+          </div>
+        </header>
+
+        <section class="admin-class-grid">
+          <article class="admin-surface-card">
+            <div class="admin-surface-head">
+              <h2>Account Profile</h2>
+              <span>Keep your name and profile picture current across this workspace.</span>
+            </div>
+            <form id="user-profile-form" class="portal-settings-form user-profile-form" novalidate>
+              <div id="user-profile-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+              <div class="user-profile-editor">
+                <span id="user-settings-photo-preview" class="admin-profile-avatar user-settings-photo-preview">T</span>
+                <div class="user-profile-editor-fields">
+                  <input id="user-profile-photo-url" name="profilePhotoUrl" type="hidden" />
+                  <label class="portal-field" for="user-display-name">
+                    <span>Full name</span>
+                    <input id="user-display-name" name="displayName" type="text" autocomplete="name" placeholder="Enter your full name" />
+                    <p class="portal-field-error auth-field-error" data-error-for="displayName"></p>
+                  </label>
+                  <label class="portal-field" for="user-profile-photo">
+                    <span>Profile picture</span>
+                    <input id="user-profile-photo" name="profilePhoto" type="file" accept="image/*" />
+                    <p class="portal-field-error auth-field-error" data-error-for="profilePhoto"></p>
+                  </label>
+                  <div class="utility-actions user-profile-actions">
+                    <button class="button button-primary" type="submit">Save profile</button>
+                    <button class="button button-outline" type="button" data-user-profile-remove-photo>Remove picture</button>
+                  </div>
+                </div>
+              </div>
+            </form>
+            <div class="admin-session-grid">
+              <div class="admin-session-card">
+                <span>Name</span>
+                <strong id="user-settings-name">--</strong>
+              </div>
+              <div class="admin-session-card">
+                <span>Role</span>
+                <strong id="user-settings-role">--</strong>
+              </div>
+              <div class="admin-session-card">
+                <span>Email</span>
+                <strong id="user-settings-email">--</strong>
+              </div>
+            </div>
+          </article>
+
+          <article class="admin-surface-card">
+            <div class="admin-surface-head">
+              <h2>Change Password</h2>
+              <span id="user-settings-hint">Use a strong password with letters and numbers.</span>
+            </div>
+            <form id="user-settings-form" class="portal-settings-form" novalidate>
+              <div id="user-settings-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+              <div class="portal-settings-grid">
+                <label class="portal-field" for="user-current-password">
+                  <span>Current password</span>
+                  <input id="user-current-password" name="currentPassword" type="password" autocomplete="current-password" />
+                  <p class="portal-field-error auth-field-error" data-error-for="currentPassword"></p>
+                </label>
+                <label class="portal-field" for="user-new-password">
+                  <span>New password</span>
+                  <input id="user-new-password" name="newPassword" type="password" autocomplete="new-password" />
+                  <p class="portal-field-error auth-field-error" data-error-for="newPassword"></p>
+                </label>
+                <label class="portal-field portal-field-span-2" for="user-confirm-password">
+                  <span>Confirm new password</span>
+                  <input id="user-confirm-password" name="confirmPassword" type="password" autocomplete="new-password" />
+                  <p class="portal-field-error auth-field-error" data-error-for="confirmPassword"></p>
+                </label>
+              </div>
+              <div class="utility-actions">
+                <button class="button button-primary" type="submit">Save new password</button>
+              </div>
+            </form>
+          </article>
+        </section>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+    <script src="./supabase-config.js"></script>
+    <script src="./auth.js"></script>
+  </body>
+</html>
