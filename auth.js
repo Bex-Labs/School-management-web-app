@@ -19877,6 +19877,60 @@
       setStatus(status, "info", guardNotice);
     }
 
+    status.addEventListener("click", async (event) => {
+      const resendButton = event.target.closest("[data-supabase-resend-confirmation]");
+
+      if (!resendButton || !isSupabaseConfigured()) {
+        return;
+      }
+
+      event.preventDefault();
+
+      const email = normalizeEmail(resendButton.dataset.email || form.elements.email.value);
+
+      if (!email || !EMAIL_REGEX.test(email)) {
+        setStatus(status, "error", "Enter a valid email address before resending the confirmation email.");
+        return;
+      }
+
+      resendButton.disabled = true;
+      resendButton.textContent = "Sending...";
+
+      const client = await getSupabaseClient();
+      let error;
+
+      try {
+        ({ error } = await withNetworkTimeout(
+          client.auth.resend({
+            type: "signup",
+            email,
+            options: {
+              emailRedirectTo: buildSupabaseEmailRedirectUrl(),
+            },
+          }),
+        ));
+      } catch (requestError) {
+        error = requestError;
+      }
+
+      if (error) {
+        setStatus(
+          status,
+          "error",
+          `${formatSupabaseAuthError(error, "We could not resend the confirmation email.")} If this keeps happening, check your Supabase email provider and rate limits.`,
+        );
+        return;
+      }
+
+      setStatus(
+        status,
+        "success",
+        `Confirmation email resent to <strong>${escapeHtml(
+          email,
+        )}</strong>. Check Inbox, Spam, Promotions, and Updates. If it still does not arrive, check your Supabase email settings.`,
+      );
+    });
+
     form.addEventListener("input", () => {
       clearFieldErrors(form);
       setStatus(status, "", "");
@@ -20001,12 +20055,29 @@
         form.reset();
         clearFormDraftFor(form);
         markAccessGrantClaimed(email, grantedRole, "password", data?.user?.id || null, signupWorkspaceId);
+        const signupDiagnostic = data?.user?.id
+          ? `
+            <details class="auth-debug-details">
+              <summary>Signup diagnostic</summary>
+              <span>Supabase accepted this signup.</span>
+              <span>User ID: <code>${escapeHtml(data.user.id)}</code></span>
+              <span>Email confirmed: ${data.user.email_confirmed_at ? "Yes" : "No"}</span>
+            </details>
+          `
+          : `
+            <details class="auth-debug-details">
+              <summary>Signup diagnostic</summary>
+              <span>No Supabase user ID was returned. Check the project URL, anon key, browser network request, and Supabase project selection.</span>
+            </details>
+          `;
         setStatus(
           status,
           "success",
           `Supabase has sent a confirmation email to <strong>${escapeHtml(
             email,
-          )}</strong>. Confirm it, then return to sign in.`,
+          )}</strong>. Check Inbox, Spam, Promotions, and Updates. <button class="auth-status-button" type="button" data-supabase-resend-confirmation data-email="${escapeHtml(
+            email,
+          )}">Resend confirmation email</button>${signupDiagnostic}`,
         );
         return;
       }
