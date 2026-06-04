@@ -3480,8 +3480,19 @@ function currentPage() {
 }
 
 function hrefMatchesCurrentFile(href, currentFile) {
-  const targetFile = href.split("#")[0].replace("./", "") || "index.html";
-  return targetFile === currentFile;
+  const [rawTarget = "", rawHash = ""] = String(href || "").split("#");
+  const targetFile = rawTarget.replace("./", "") || "";
+  const normalizedCurrentFile = currentFile || "index.html";
+
+  if (!targetFile && rawHash) {
+    return window.location.hash === `#${rawHash}`;
+  }
+
+  if (rawHash) {
+    return targetFile === normalizedCurrentFile && window.location.hash === `#${rawHash}`;
+  }
+
+  return (targetFile || "index.html") === normalizedCurrentFile;
 }
 
 function renderHeader() {
@@ -3847,4 +3858,5 @@ window.addEventListener(SCHOOL_SETTINGS_EVENT, () => {
   renderFooter();
   applySchoolSettingsBranding();
 });
+window.addEventListener("hashchange", renderHeader);
 window.addEventListener(FEATURE_TOGGLE_EVENT, renderFeatureSurfaces);

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Attendance | SchoolSphere Staff</title>
+    <meta name="description" content="Staff attendance page for marking class registers." />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body data-page="staff-attendance" class="admin-dashboard-page staff-portal-page">
+    <main class="admin-dashboard-shell">
+      <aside class="admin-sidebar">
+        <a class="admin-sidebar-brand" href="./staff-dashboard.html" aria-label="Staff dashboard home">
+          <span id="admin-brand-mark" class="admin-brand-mark">S</span>
+          <div class="admin-sidebar-brand-copy"><strong id="admin-brand-name">SchoolSphere</strong><span id="admin-brand-subtitle">Staff portal</span></div>
+        </a>
+        <nav class="admin-sidebar-nav" aria-label="Staff portal"></nav>
+        <section class="admin-sidebar-profile">
+          <div class="admin-profile-avatar" id="admin-profile-avatar">T</div>
+          <div class="admin-profile-copy"><strong id="admin-profile-name">Loading user...</strong><span id="admin-profile-role">Teacher</span></div>
+          <div id="portal-gate" class="admin-profile-actions"><button class="admin-signout-button" type="button" data-signout>Log out</button></div>
+        </section>
+      </aside>
+      <section class="admin-dashboard-main">
+        <header class="admin-dashboard-topbar">
+          <div class="admin-dashboard-greeting">
+            <span class="admin-topline-chip" id="portal-last-updated">Last updated --</span>
+            <h1 id="portal-heading">Attendance</h1>
+            <p id="portal-copy">Mark the class register for classes assigned to you.</p>
+          </div>
+          <div class="admin-dashboard-tools">
+            <div class="admin-searchbox">
+              <label class="admin-searchbar" for="admin-global-search">
+                <span class="admin-search-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg></span>
+                <input id="admin-global-search" type="search" placeholder="Search staff portal..." autocomplete="off" aria-controls="admin-search-suggestions" aria-expanded="false" />
+              </label>
+              <div id="admin-search-suggestions" class="admin-search-suggestions" role="listbox" hidden></div>
+            </div>
+            <button id="admin-notification-button" class="admin-notification-button" type="button" aria-label="Open notifications" aria-controls="admin-notification-overlay" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 17h5l-1.4-1.4a2 2 0 0 1-.6-1.4V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5"></path><path d="M10 17a2 2 0 0 0 4 0"></path></svg><span id="admin-notification-dot" class="admin-notification-dot" hidden></span></button>
+          </div>
+        </header>
+        <section id="staff-page-content" class="staff-portal-workspace" hidden></section>
+      </section>
+    </main>
+    <script src="./app.js"></script>
+    <script src="./supabase-config.js"></script>
+    <script src="./auth.js"></script>
+  </body>
+</html>
