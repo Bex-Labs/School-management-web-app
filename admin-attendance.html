@@ -126,7 +126,7 @@
           <div class="admin-dashboard-greeting">
             <span class="admin-topline-chip" id="portal-last-updated">Last updated --</span>
             <h1 id="portal-heading">Attendance Review</h1>
-            <p id="portal-copy">Follow daily presence trends, late arrivals, and absence exceptions from one page.</p>
+            <p id="portal-copy">Review attendance by date, class, student, term, or semester.</p>
           </div>
         </header>
 
@@ -136,15 +136,28 @@
           <article class="admin-surface-card attendance-review-card">
             <div class="admin-surface-head">
               <div>
-                <h2>Attendance Review</h2>
-                <span>All enrolled students for the selected date</span>
+                <h2>Attendance Reports</h2>
+                <span data-attendance-review-copy>All enrolled students for the selected date</span>
               </div>
             </div>
 
             <div class="attendance-toolbar attendance-review-toolbar">
-              <label class="portal-field" for="attendance-review-date">
+              <label class="portal-field" for="attendance-review-view">
+                <span>Report view</span>
+                <select id="attendance-review-view" data-attendance-review-view>
+                  <option value="daily">Daily register</option>
+                  <option value="term">Term / semester report</option>
+                </select>
+              </label>
+              <label class="portal-field" for="attendance-review-date" data-attendance-review-date-wrap>
                 <span>Date</span>
                 <input id="attendance-review-date" type="date" data-attendance-review-date />
+              </label>
+              <label class="portal-field" for="attendance-review-term" data-attendance-review-term-wrap hidden>
+                <span>Term / semester</span>
+                <select id="attendance-review-term" data-attendance-review-term>
+                  <option value="">Select term or semester</option>
+                </select>
               </label>
               <label class="portal-field" for="attendance-review-class">
                 <span>Class</span>
@@ -152,7 +165,13 @@
                   <option value="all">All classes</option>
                 </select>
               </label>
-              <label class="portal-field" for="attendance-review-status">
+              <label class="portal-field" for="attendance-review-student">
+                <span>Student</span>
+                <select id="attendance-review-student" data-attendance-review-student>
+                  <option value="all">All students</option>
+                </select>
+              </label>
+              <label class="portal-field" for="attendance-review-status" data-attendance-review-status-wrap>
                 <span>Status</span>
                 <select id="attendance-review-status" data-attendance-review-status>
                   <option value="all">All statuses</option>
@@ -177,7 +196,7 @@
             <div class="admin-surface-head">
               <div>
                 <h2>Teacher Submissions</h2>
-                <span>Registers submitted for the selected date</span>
+                <span data-attendance-submission-copy>Registers submitted for the selected date</span>
               </div>
             </div>
             <div id="portal-attendance-submission-list" class="attendance-submission-list"></div>

@@ -73,17 +73,10 @@ Add every local URL you actually use:
 - Google auth now redirects through Supabase OAuth instead of using the old fake modal flow.
 - Sign-out calls Supabase sign-out when Supabase mode is enabled.
 - The app mirrors the authenticated Supabase user into the existing dashboard session so the current admin pages keep working.
-- School Settings now includes a **Migrate Workspace Data** button that copies current browser workspace state into:
-  - `public.workspace_states`
-  - `public.workspace_migration_runs`
-  - and syncs school profile fields into `public.institutions`.
 
-## Run browser-storage migration now
+## Browser-storage migration utility
 
-1. Sign in as an **Admin**.
-2. Go to **Settings → School Settings**.
-3. Click **Migrate Workspace Data**.
-4. Wait for the success message showing migrated keys and workspace id.
+The migration function remains in the frontend code for developer-led migration of legacy browser storage. It is intentionally not exposed in the normal school admin UI.
 
 This migrates state such as school settings, sessions/terms, classes, courses, students, feature modules, permissions, admissions, and notifications for the current workspace.
 
@@ -134,8 +127,8 @@ Done in Phase 5 (table-native completion):
 - Parent fee updates now auto-sync to Supabase in the background.
 - Access grant updates now auto-sync to Supabase in the background.
 
-Migration button behavior now:
-- **Migrate Workspace Data** writes all known module keys to dedicated table-native targets.
+Migration utility behavior now:
+- The developer migration utility writes all known module keys to dedicated table-native targets.
 - `public.workspace_states` remains only as compatibility fallback for unknown/future keys.
 
 The `public.institutions` table now includes:

@@ -2879,11 +2879,43 @@ function normalizeAttendanceEntry(entry = {}) {
   };
 }
 
+function findAcademicTermForDate(date, cycleState = getAcademicCycles()) {
+  const normalizedDate = String(date || "").trim();
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedDate)) {
+    return null;
+  }
+
+  const matchingTerms = (cycleState.terms || []).filter((term) => {
+    const startDate = String(term.startDate || "").trim();
+    const endDate = String(term.endDate || "").trim();
+
+    if (!startDate || !endDate) {
+      return false;
+    }
+
+    return normalizedDate >= startDate && normalizedDate <= endDate;
+  });
+
+  const openUndatedTerm = (cycleState.terms || []).find((term) => {
+    const startDate = String(term.startDate || "").trim();
+    const endDate = String(term.endDate || "").trim();
+    return term.status === "open" && (!startDate || !endDate);
+  });
+
+  return matchingTerms.find((term) => term.status === "open") || matchingTerms[0] || openUndatedTerm || null;
+}
+
 function normalizeAttendanceRecord(record = {}) {
   const timestamp = new Date().toISOString();
   const date = /^\d{4}-\d{2}-\d{2}$/.test(String(record.date || "").trim())
     ? String(record.date).trim()
     : getLocalDateValue();
+  const cycleState = getAcademicCycles();
+  const providedTermId = String(record.termId || record.term_id || "").trim();
+  const mappedTerm =
+    (cycleState.terms || []).find((term) => term.id === providedTermId) ||
+    findAcademicTermForDate(date, cycleState);
   const classId = String(record.classId || "").trim();
   const entries = Array.isArray(record.entries)
     ? record.entries
@@ -2895,6 +2927,8 @@ function normalizeAttendanceRecord(record = {}) {
     id: String(record.id || createStorageId("attendance")),
     date,
     classId,
+    sessionId: String(record.sessionId || record.session_id || mappedTerm?.sessionId || "").trim(),
+    termId: String(providedTermId || mappedTerm?.id || "").trim(),
     className: String(record.className || "").trim(),
     level: String(record.level || "").trim(),
     submittedById: String(record.submittedById || "").trim(),

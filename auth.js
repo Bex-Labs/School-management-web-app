@@ -143,6 +143,7 @@
     "parent-reports": "Reports",
   };
   let supabaseClientPromise = null;
+  let isSignOutInProgress = false;
 
   const DASHBOARD_SECTION_LINKS = [
     {
@@ -374,6 +375,8 @@
   let isHydratingWorkspaceStateFromSupabase = false;
 
   document.addEventListener("DOMContentLoaded", async () => {
+    wireSignOutButton(document);
+
     try {
       await initSupabaseAuthBridge();
     } catch {
@@ -897,6 +900,13 @@
   function clearSession() {
     localStorage.removeItem(STORAGE_KEYS.persistentSession);
     sessionStorage.removeItem(STORAGE_KEYS.transientSession);
+  }
+
+  function clearSupabaseBrowserSession() {
+    localStorage.removeItem(SUPABASE_STORAGE_KEY);
+    sessionStorage.removeItem(SUPABASE_STORAGE_KEY);
+    localStorage.removeItem(`${SUPABASE_STORAGE_KEY}-code-verifier`);
+    sessionStorage.removeItem(`${SUPABASE_STORAGE_KEY}-code-verifier`);
   }
 
   function getSession() {
@@ -4534,7 +4544,7 @@
   }
 
   async function syncSupabaseSessionToLocal(options = {}) {
-    if (!isSupabaseConfigured()) {
+    if (!isSupabaseConfigured() || isSignOutInProgress) {
       return null;
     }
 
@@ -4547,6 +4557,10 @@
     const {
       data: { session },
     } = await client.auth.getSession();
+
+    if (isSignOutInProgress) {
+      return null;
+    }
 
     if (!session?.user) {
       const localSession = getSession();
@@ -5677,12 +5691,28 @@
   }
 
   async function signOutCurrentUser() {
-    if (isSupabaseConfigured()) {
-      const client = await getSupabaseClient();
-      await client.auth.signOut();
+    isSignOutInProgress = true;
+    clearSession();
+
+    if (!isSupabaseConfigured()) {
+      clearSupabaseBrowserSession();
+      return;
     }
 
-    clearSession();
+    try {
+      await withNetworkTimeout(
+        (async () => {
+          const client = await getSupabaseClient();
+          await client.auth.signOut({ scope: "local" });
+        })(),
+        5000,
+      );
+    } catch {
+      // A remote sign-out failure must not keep the user signed in on this device.
+    } finally {
+      clearSession();
+      clearSupabaseBrowserSession();
+    }
   }
 
   function wireSignOutButton(gate) {
@@ -5696,9 +5726,27 @@
       return;
     }
 
-    activeSignOutButton.addEventListener("click", async () => {
-      await signOutCurrentUser();
-      window.location.assign("./login.html");
+    if (activeSignOutButton.dataset.signoutWired === "true") {
+      return;
+    }
+
+    activeSignOutButton.dataset.signoutWired = "true";
+    activeSignOutButton.addEventListener("click", async (event) => {
+      event.preventDefault();
+
+      if (isSignOutInProgress) {
+        return;
+      }
+
+      activeSignOutButton.disabled = true;
+      activeSignOutButton.setAttribute("aria-busy", "true");
+      activeSignOutButton.textContent = "Logging out...";
+
+      try {
+        await signOutCurrentUser();
+      } finally {
+        window.location.replace("./login.html");
+      }
     });
   }
 
@@ -16996,6 +17044,105 @@
     );
   }
 
+  function isAttendanceDateWithinAcademicTerm(date, term = {}) {
+    const normalizedDate = String(date || "").trim();
+    const startDate = String(term.startDate || "").trim();
+    const endDate = String(term.endDate || "").trim();
+
+    return Boolean(
+      normalizedDate &&
+      startDate &&
+      endDate &&
+      normalizedDate >= startDate &&
+      normalizedDate <= endDate,
+    );
+  }
+
+  function getAttendanceAcademicTermForDate(cycleState = {}, date = "") {
+    const matchingTerms = (cycleState.terms || []).filter((term) =>
+      isAttendanceDateWithinAcademicTerm(date, term),
+    );
+    const openUndatedTerm = (cycleState.terms || []).find((term) => {
+      const startDate = String(term.startDate || "").trim();
+      const endDate = String(term.endDate || "").trim();
+      return term.status === "open" && (!startDate || !endDate);
+    });
+
+    return matchingTerms.find((term) => term.status === "open") || matchingTerms[0] || openUndatedTerm || null;
+  }
+
+  function attendanceRecordMatchesAcademicTerm(record = {}, term = {}, cycleState = {}) {
+    const recordTermId = String(record.termId || "").trim();
+
+    if (recordTermId) {
+      return recordTermId === term.id;
+    }
+
+    const inferredTerm = getAttendanceAcademicTermForDate(cycleState, record.date);
+    return inferredTerm?.id === term.id;
+  }
+
+  function summarizeAttendancePeriodForStudents(students = [], records = []) {
+    const latestEntryByStudentDate = new Map();
+
+    records.forEach((record) => {
+      (record.entries || []).forEach((entry) => {
+        const key = `${entry.studentId}:${record.date}`;
+        const previous = latestEntryByStudentDate.get(key);
+        const previousTimestamp = new Date(previous?.takenAt || previous?.updatedAt || 0).getTime();
+        const nextTimestamp = new Date(record.takenAt || record.updatedAt || 0).getTime();
+
+        if (!previous || nextTimestamp >= previousTimestamp) {
+          latestEntryByStudentDate.set(key, {
+            ...entry,
+            date: record.date,
+            classId: record.classId,
+            className: record.className,
+            level: record.level,
+            submittedByName: record.submittedByName,
+            submittedByEmail: record.submittedByEmail,
+            takenAt: record.takenAt,
+            updatedAt: record.updatedAt,
+          });
+        }
+      });
+    });
+
+    return students.reduce(
+      (summary, student) => {
+        const entries = Array.from(latestEntryByStudentDate.values())
+          .filter((entry) => entry.studentId === student.id)
+          .sort((left, right) => String(right.date || "").localeCompare(String(left.date || "")));
+        const counts = entries.reduce(
+          (totals, entry) => {
+            const status = normalizeAttendanceStatus(entry.status);
+            totals[status] += 1;
+            summary.counts[status] += 1;
+            return totals;
+          },
+          { present: 0, absent: 0, late: 0, excused: 0 },
+        );
+        const rateDenominator = counts.present + counts.late + counts.absent;
+        const attendanceRate = rateDenominator
+          ? Math.round(((counts.present + counts.late) / rateDenominator) * 100)
+          : null;
+
+        summary.rows.push({
+          student,
+          counts,
+          recordedDays: entries.length,
+          attendanceRate,
+          lastEntry: entries[0] || null,
+        });
+        return summary;
+      },
+      {
+        counts: { present: 0, absent: 0, late: 0, excused: 0 },
+        rows: [],
+      },
+    );
+  }
+
   function getActiveClassLevelTokenSet() {
     const classManager = window.SchoolSphereClasses;
     const set = new Set();
@@ -21334,10 +21481,18 @@
           return;
         }
 
+        const cycleManager = getAcademicCycleManager();
+        const cycleState =
+          cycleManager && typeof cycleManager.getState === "function"
+            ? cycleManager.getState()
+            : { sessions: [], terms: [] };
+        const academicTerm = getAttendanceAcademicTermForDate(cycleState, selectedDate);
         const savedRecords = manager.upsertRecord({
           id: existingRecord?.id,
           date: selectedDate,
           classId: selectedClass.id,
+          sessionId: existingRecord?.sessionId || academicTerm?.sessionId || "",
+          termId: existingRecord?.termId || academicTerm?.id || "",
           className: getClassDisplayName(selectedClass),
           level: selectedClass.level,
           submittedById: user.id,
@@ -21371,10 +21526,18 @@
     statusTarget,
     listTarget,
     submissionTarget,
+    viewSelect,
     dateInput,
+    termSelect,
     classSelect,
+    studentSelect,
     statusSelect,
     searchInput,
+    dateWrap,
+    termWrap,
+    statusWrap,
+    reviewCopyTarget,
+    submissionCopyTarget,
   }) {
     if (!summaryTarget || !listTarget || !submissionTarget) {
       return;
@@ -21382,6 +21545,7 @@
 
     const classManager = getClassManager();
     const studentManager = getStudentManager();
+    const academicCycleManager = getAcademicCycleManager();
     const getClasses = () =>
       classManager && typeof classManager.getClasses === "function"
         ? classManager.getClasses().filter((record) => record.status !== "archived")
@@ -21390,14 +21554,21 @@
       studentManager && typeof studentManager.getStudents === "function"
         ? studentManager.getStudents().filter((student) => student.status === "active")
         : [];
+    const getCycleState = () =>
+      academicCycleManager && typeof academicCycleManager.getState === "function"
+        ? academicCycleManager.getState()
+        : { sessions: [], terms: [] };
 
     if (dateInput instanceof HTMLInputElement && !dateInput.value) {
       dateInput.value = getTodayDateValue();
     }
 
     const getState = () => ({
+      view: viewSelect instanceof HTMLSelectElement && viewSelect.value === "term" ? "term" : "daily",
       date: dateInput instanceof HTMLInputElement ? dateInput.value || getTodayDateValue() : getTodayDateValue(),
+      termId: termSelect instanceof HTMLSelectElement ? termSelect.value : "",
       classId: classSelect instanceof HTMLSelectElement ? classSelect.value || "all" : "all",
+      studentId: studentSelect instanceof HTMLSelectElement ? studentSelect.value || "all" : "all",
       status: statusSelect instanceof HTMLSelectElement ? statusSelect.value || "all" : "all",
       search: searchInput instanceof HTMLInputElement ? searchInput.value.trim().toLowerCase() : "",
     });
@@ -21429,25 +21600,76 @@
       }
 
       const state = getState();
+      const cycleState = getCycleState();
+      const terms = (cycleState.terms || [])
+        .slice()
+        .sort((left, right) => {
+          const startDateComparison = String(right.startDate || "").localeCompare(String(left.startDate || ""));
+          if (startDateComparison) {
+            return startDateComparison;
+          }
+          return String(right.createdAt || "").localeCompare(String(left.createdAt || ""));
+        });
+      const openTerm = terms.find((term) => term.status === "open") || null;
+
+      if (dateWrap instanceof HTMLElement) {
+        dateWrap.hidden = state.view !== "daily";
+      }
+      if (termWrap instanceof HTMLElement) {
+        termWrap.hidden = state.view !== "term";
+      }
+      if (statusWrap instanceof HTMLElement) {
+        statusWrap.hidden = state.view !== "daily";
+      }
+      if (searchInput instanceof HTMLInputElement) {
+        searchInput.placeholder =
+          state.view === "term"
+            ? "Student or admission no..."
+            : "Student, admission no, teacher...";
+      }
+
+      if (termSelect instanceof HTMLSelectElement) {
+        const previousValue = terms.some((term) => term.id === state.termId)
+          ? state.termId
+          : openTerm?.id || terms[0]?.id || "";
+        const sessions = (cycleState.sessions || []).slice().sort((left, right) => {
+          const startDateComparison = String(right.startDate || "").localeCompare(String(left.startDate || ""));
+          if (startDateComparison) {
+            return startDateComparison;
+          }
+          return String(right.createdAt || "").localeCompare(String(left.createdAt || ""));
+        });
+
+        termSelect.innerHTML = `
+          <option value="">${terms.length ? "Select term or semester" : "No terms or semesters configured"}</option>
+          ${sessions
+            .map((session) => {
+              const sessionTerms = terms.filter((term) => term.sessionId === session.id);
+              if (!sessionTerms.length) {
+                return "";
+              }
+              return `
+                <optgroup label="${escapeHtml(session.name)}">
+                  ${sessionTerms
+                    .map((term) => {
+                      const periodLabel = term.periodType === "semester" ? "Semester" : "Term";
+                      return `<option value="${escapeHtml(term.id)}">${escapeHtml(
+                        `${periodLabel}: ${term.name}${term.status === "open" ? " (Open)" : ""}`,
+                      )}</option>`;
+                    })
+                    .join("")}
+                </optgroup>
+              `;
+            })
+            .join("")}
+        `;
+        termSelect.value = previousValue;
+        termSelect.disabled = !terms.length;
+        state.termId = previousValue;
+      }
+
       const classes = getClasses();
       const allStudents = getStudents();
-      const selectedClass = classes.find((classRecord) => classRecord.id === state.classId) || null;
-      const recordsForDate = manager.getRecords().filter((record) => record.date === state.date);
-      const scopedRecords = selectedClass
-        ? recordsForDate.filter((record) => record.classId === selectedClass.id)
-        : recordsForDate;
-      const scopedStudents = selectedClass ? getActiveStudentsForClass(selectedClass) : allStudents;
-      const summary = summarizeAttendanceForStudents(scopedStudents, scopedRecords);
-      const rate = scopedStudents.length
-        ? Math.round(((summary.counts.present + summary.counts.late) / scopedStudents.length) * 100)
-        : null;
-      const submittedClassIds = new Set(recordsForDate.map((record) => record.classId));
-      const classesWithStudents = classes.filter((classRecord) => getActiveStudentsForClass(classRecord).length > 0);
-      const missingClasses = selectedClass
-        ? selectedClass && getActiveStudentsForClass(selectedClass).length && !submittedClassIds.has(selectedClass.id)
-          ? 1
-          : 0
-        : classesWithStudents.filter((classRecord) => !submittedClassIds.has(classRecord.id)).length;
 
       if (classSelect instanceof HTMLSelectElement) {
         const previousValue = state.classId;
@@ -21465,129 +21687,341 @@
         `;
         if (!classes.some((classRecord) => classRecord.id === previousValue)) {
           classSelect.value = "all";
+          state.classId = "all";
         }
       }
 
-      summaryTarget.innerHTML = `
-        <article class="portal-class-stat portal-class-stat-blue">
-          <span>Enrolled students</span>
-          <strong>${scopedStudents.length}</strong>
-          <p>${selectedClass ? escapeHtml(getClassDisplayName(selectedClass)) : "Active students across all classes."}</p>
-        </article>
-        <article class="portal-class-stat portal-class-stat-green">
-          <span>Attendance rate</span>
-          <strong>${rate === null ? "—" : `${rate}%`}</strong>
-          <p>Present and late marks against active enrolment.</p>
-        </article>
-        <article class="portal-class-stat portal-class-stat-rose">
-          <span>Absent</span>
-          <strong>${summary.counts.absent || 0}</strong>
-          <p>Students marked absent on ${escapeHtml(state.date)}.</p>
-        </article>
-        <article class="portal-class-stat portal-class-stat-amber">
-          <span>Late</span>
-          <strong>${summary.counts.late || 0}</strong>
-          <p>Students marked late by teachers.</p>
-        </article>
-        <article class="portal-class-stat portal-class-stat-slate">
-          <span>Unmarked</span>
-          <strong>${summary.counts.unmarked || 0}</strong>
-          <p>Enrolled students without a saved mark.</p>
-        </article>
-        <article class="portal-class-stat portal-class-stat-violet">
-          <span>Missing registers</span>
-          <strong>${missingClasses}</strong>
-          <p>Classes with enrolled students and no teacher submission.</p>
-        </article>
-      `;
+      const selectedClass = classes.find((classRecord) => classRecord.id === state.classId) || null;
+      const studentsForClass = selectedClass ? getActiveStudentsForClass(selectedClass) : allStudents;
 
-      const filteredRows = summary.rows.filter(({ student, entry, status }) => {
-        if (state.status !== "all" && status !== state.status) {
-          return false;
+      if (studentSelect instanceof HTMLSelectElement) {
+        const previousValue = studentsForClass.some((student) => student.id === state.studentId)
+          ? state.studentId
+          : "all";
+        studentSelect.innerHTML = `
+          <option value="all">All students</option>
+          ${studentsForClass
+            .slice()
+            .sort((left, right) => String(left.fullName || "").localeCompare(String(right.fullName || "")))
+            .map(
+              (student) => `
+                <option value="${escapeHtml(student.id)}">${escapeHtml(student.fullName)}${
+                  student.admissionNo ? ` (${escapeHtml(student.admissionNo)})` : ""
+                }</option>
+              `,
+            )
+            .join("")}
+        `;
+        studentSelect.value = previousValue;
+        state.studentId = previousValue;
+      }
+
+      const selectedStudent = studentsForClass.find((student) => student.id === state.studentId) || null;
+      const studentsInView = selectedStudent ? [selectedStudent] : studentsForClass;
+      const selectedTerm = terms.find((term) => term.id === state.termId) || null;
+      const periodLabel = selectedTerm
+        ? `${getSessionLabelFromCycle(cycleState, selectedTerm.sessionId)} • ${getTermLabelFromCycle(cycleState, selectedTerm.id)}`
+        : "";
+      const allRecords = manager.getRecords();
+
+      if (state.view === "term" && !selectedTerm) {
+        if (reviewCopyTarget) {
+          reviewCopyTarget.textContent = "Select a term or semester to review attendance";
         }
-
-        if (!state.search) {
-          return true;
+        if (submissionCopyTarget) {
+          submissionCopyTarget.textContent = "No academic period selected";
         }
-
-        return [
-          student.fullName,
-          student.admissionNo,
-          student.level,
-          status,
-          entry?.submittedByName,
-          entry?.submittedByEmail,
-          entry?.note,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase()
-          .includes(state.search);
-      });
-
-      if (!filteredRows.length) {
+        summaryTarget.innerHTML = "";
         listTarget.innerHTML = `
           <article class="portal-class-empty">
-            <strong>No attendance rows match this view</strong>
-            <p>Try another date, class, status, or search keyword.</p>
+            <strong>No term or semester selected</strong>
+            <p>Create an academic period in Settings, then return to review its attendance report.</p>
           </article>
         `;
-      } else {
-        const groupedRows = filteredRows.reduce((groups, row) => {
-          const level = row.student.level || "Unassigned";
-          if (!groups.has(level)) {
-            groups.set(level, []);
-          }
-          groups.get(level).push(row);
-          return groups;
-        }, new Map());
-
-        listTarget.innerHTML = Array.from(groupedRows.entries())
-          .sort(([left], [right]) => left.localeCompare(right, undefined, { numeric: true }))
-          .map(
-            ([level, rows]) => `
-              <section class="attendance-review-group">
-                <header class="attendance-review-group-head">
-                  <strong>${escapeHtml(level)}</strong>
-                  <span>${rows.length} student${rows.length === 1 ? "" : "s"}</span>
-                </header>
-                <div class="attendance-review-table">
-                  ${rows
-                    .map(({ student, entry, status }) => {
-                      const chipClass = status === "unmarked" ? "is-unmarked" : getAttendanceStatusClass(status);
-                      const label = status === "unmarked" ? "Unmarked" : getAttendanceStatusLabel(status);
-                      return `
-                        <article class="attendance-review-row">
-                          <div class="attendance-review-student">
-                            <strong>${escapeHtml(student.fullName)}</strong>
-                            <span>${escapeHtml(student.admissionNo || "No admission no.")}</span>
-                          </div>
-                          <span class="attendance-chip ${chipClass}">${escapeHtml(label)}</span>
-                          <div class="attendance-review-meta">
-                            <span>Teacher</span>
-                            <strong>${escapeHtml(entry?.submittedByName || entry?.submittedByEmail || "No submission")}</strong>
-                          </div>
-                          <div class="attendance-review-meta">
-                            <span>Submitted</span>
-                            <strong>${entry?.takenAt ? escapeHtml(formatTimestamp(entry.takenAt)) : "Not yet"}</strong>
-                          </div>
-                          <div class="attendance-review-note">
-                            ${escapeHtml(entry?.note || "No note")}
-                          </div>
-                        </article>
-                      `;
-                    })
-                    .join("")}
-                </div>
-              </section>
-            `,
-          )
-          .join("");
+        submissionTarget.innerHTML = "";
+        setStatus(
+          statusTarget,
+          "info",
+          `Add a term or semester under <a href="./admin-settings-academic.html">Settings &gt; Sessions and Terms</a> to review attendance by academic period.`,
+        );
+        return;
       }
 
-      const submissionRecords = scopedRecords.slice().sort((left, right) => {
-        return new Date(right.takenAt || right.updatedAt).getTime() - new Date(left.takenAt || left.updatedAt).getTime();
-      });
+      const recordsForView =
+        state.view === "term"
+          ? allRecords.filter((record) => attendanceRecordMatchesAcademicTerm(record, selectedTerm, cycleState))
+          : allRecords.filter((record) => record.date === state.date);
+      const scopedRecords = selectedClass
+        ? recordsForView.filter((record) => record.classId === selectedClass.id)
+        : recordsForView;
+      const reportRecords = selectedStudent
+        ? scopedRecords.filter((record) => (record.entries || []).some((entry) => entry.studentId === selectedStudent.id))
+        : scopedRecords;
+
+      if (reviewCopyTarget) {
+        reviewCopyTarget.textContent =
+          state.view === "term"
+            ? `Aggregated attendance for ${periodLabel}`
+            : `All enrolled students for ${state.date}`;
+      }
+      if (submissionCopyTarget) {
+        submissionCopyTarget.textContent =
+          state.view === "term"
+            ? `Registers included in ${periodLabel}`
+            : `Registers submitted for ${state.date}`;
+      }
+
+      if (state.view === "term") {
+        const summary = summarizeAttendancePeriodForStudents(studentsInView, reportRecords);
+        const rateDenominator = summary.counts.present + summary.counts.late + summary.counts.absent;
+        const rate = rateDenominator
+          ? Math.round(((summary.counts.present + summary.counts.late) / rateDenominator) * 100)
+          : null;
+        const registerDays = new Set(reportRecords.map((record) => record.date).filter(Boolean)).size;
+
+        summaryTarget.innerHTML = `
+          <article class="portal-class-stat portal-class-stat-blue">
+            <span>Students in view</span>
+            <strong>${studentsInView.length}</strong>
+            <p>${selectedStudent ? escapeHtml(selectedStudent.fullName) : selectedClass ? escapeHtml(getClassDisplayName(selectedClass)) : "Active students across all classes."}</p>
+          </article>
+          <article class="portal-class-stat portal-class-stat-violet">
+            <span>Register days</span>
+            <strong>${registerDays}</strong>
+            <p>${escapeHtml(periodLabel)}</p>
+          </article>
+          <article class="portal-class-stat portal-class-stat-green">
+            <span>Attendance rate</span>
+            <strong>${rate === null ? "—" : `${rate}%`}</strong>
+            <p>Present and late marks against recorded attendance.</p>
+          </article>
+          <article class="portal-class-stat portal-class-stat-rose">
+            <span>Absent marks</span>
+            <strong>${summary.counts.absent || 0}</strong>
+            <p>Absences recorded in this period.</p>
+          </article>
+          <article class="portal-class-stat portal-class-stat-amber">
+            <span>Late marks</span>
+            <strong>${summary.counts.late || 0}</strong>
+            <p>Late arrivals recorded in this period.</p>
+          </article>
+          <article class="portal-class-stat portal-class-stat-slate">
+            <span>Excused marks</span>
+            <strong>${summary.counts.excused || 0}</strong>
+            <p>Excused attendance records in this period.</p>
+          </article>
+        `;
+
+        const filteredRows = summary.rows.filter(({ student }) => {
+          if (!state.search) {
+            return true;
+          }
+          return [student.fullName, student.admissionNo, student.level]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase()
+            .includes(state.search);
+        });
+
+        if (!filteredRows.length) {
+          listTarget.innerHTML = `
+            <article class="portal-class-empty">
+              <strong>No student attendance rows match this report</strong>
+              <p>Try another term, class, student, or search keyword.</p>
+            </article>
+          `;
+        } else {
+          const groupedRows = filteredRows.reduce((groups, row) => {
+            const level = row.student.level || "Unassigned";
+            if (!groups.has(level)) {
+              groups.set(level, []);
+            }
+            groups.get(level).push(row);
+            return groups;
+          }, new Map());
+
+          listTarget.innerHTML = Array.from(groupedRows.entries())
+            .sort(([left], [right]) => left.localeCompare(right, undefined, { numeric: true }))
+            .map(
+              ([level, rows]) => `
+                <section class="attendance-review-group">
+                  <header class="attendance-review-group-head">
+                    <strong>${escapeHtml(level)}</strong>
+                    <span>${rows.length} student${rows.length === 1 ? "" : "s"}</span>
+                  </header>
+                  <div class="attendance-review-table">
+                    ${rows
+                      .map(({ student, counts, recordedDays, attendanceRate, lastEntry }) => {
+                        const rateChipClass =
+                          attendanceRate === null
+                            ? "is-unmarked"
+                            : attendanceRate >= 80
+                              ? "is-present"
+                              : attendanceRate >= 60
+                                ? "is-late"
+                                : "is-absent";
+                        return `
+                          <article class="attendance-review-row attendance-term-review-row">
+                            <div class="attendance-review-student">
+                              <strong>${escapeHtml(student.fullName)}</strong>
+                              <span>${escapeHtml(student.admissionNo || "No admission no.")} • Last recorded ${escapeHtml(lastEntry?.date || "Not yet")}</span>
+                            </div>
+                            <div class="attendance-review-meta"><span>Recorded days</span><strong>${recordedDays}</strong></div>
+                            <div class="attendance-review-meta"><span>Present</span><strong>${counts.present}</strong></div>
+                            <div class="attendance-review-meta"><span>Late</span><strong>${counts.late}</strong></div>
+                            <div class="attendance-review-meta"><span>Absent</span><strong>${counts.absent}</strong></div>
+                            <div class="attendance-review-meta"><span>Excused</span><strong>${counts.excused}</strong></div>
+                            <span class="attendance-chip ${rateChipClass}">${attendanceRate === null ? "—" : `${attendanceRate}%`}</span>
+                          </article>
+                        `;
+                      })
+                      .join("")}
+                  </div>
+                </section>
+              `,
+            )
+            .join("");
+        }
+      } else {
+        const summary = summarizeAttendanceForStudents(studentsInView, reportRecords);
+        const rate = studentsInView.length
+          ? Math.round(((summary.counts.present + summary.counts.late) / studentsInView.length) * 100)
+          : null;
+        const submittedClassIds = new Set(recordsForView.map((record) => record.classId));
+        const classesWithStudents = classes.filter((classRecord) => getActiveStudentsForClass(classRecord).length > 0);
+        const missingClasses = selectedStudent
+          ? reportRecords.length
+            ? 0
+            : 1
+          : selectedClass
+            ? getActiveStudentsForClass(selectedClass).length && !submittedClassIds.has(selectedClass.id)
+              ? 1
+              : 0
+            : classesWithStudents.filter((classRecord) => !submittedClassIds.has(classRecord.id)).length;
+
+        summaryTarget.innerHTML = `
+          <article class="portal-class-stat portal-class-stat-blue">
+            <span>Students in view</span>
+            <strong>${studentsInView.length}</strong>
+            <p>${selectedStudent ? escapeHtml(selectedStudent.fullName) : selectedClass ? escapeHtml(getClassDisplayName(selectedClass)) : "Active students across all classes."}</p>
+          </article>
+          <article class="portal-class-stat portal-class-stat-green">
+            <span>Attendance rate</span>
+            <strong>${rate === null ? "—" : `${rate}%`}</strong>
+            <p>Present and late marks against active enrolment.</p>
+          </article>
+          <article class="portal-class-stat portal-class-stat-rose">
+            <span>Absent</span>
+            <strong>${summary.counts.absent || 0}</strong>
+            <p>Students marked absent on ${escapeHtml(state.date)}.</p>
+          </article>
+          <article class="portal-class-stat portal-class-stat-amber">
+            <span>Late</span>
+            <strong>${summary.counts.late || 0}</strong>
+            <p>Students marked late by teachers.</p>
+          </article>
+          <article class="portal-class-stat portal-class-stat-slate">
+            <span>Unmarked</span>
+            <strong>${summary.counts.unmarked || 0}</strong>
+            <p>Students without a saved mark.</p>
+          </article>
+          <article class="portal-class-stat portal-class-stat-violet">
+            <span>Missing registers</span>
+            <strong>${missingClasses}</strong>
+            <p>Classes with enrolled students and no teacher submission.</p>
+          </article>
+        `;
+
+        const filteredRows = summary.rows.filter(({ student, entry, status }) => {
+          if (state.status !== "all" && status !== state.status) {
+            return false;
+          }
+
+          if (!state.search) {
+            return true;
+          }
+
+          return [
+            student.fullName,
+            student.admissionNo,
+            student.level,
+            status,
+            entry?.submittedByName,
+            entry?.submittedByEmail,
+            entry?.note,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase()
+            .includes(state.search);
+        });
+
+        if (!filteredRows.length) {
+          listTarget.innerHTML = `
+            <article class="portal-class-empty">
+              <strong>No attendance rows match this view</strong>
+              <p>Try another date, class, student, status, or search keyword.</p>
+            </article>
+          `;
+        } else {
+          const groupedRows = filteredRows.reduce((groups, row) => {
+            const level = row.student.level || "Unassigned";
+            if (!groups.has(level)) {
+              groups.set(level, []);
+            }
+            groups.get(level).push(row);
+            return groups;
+          }, new Map());
+
+          listTarget.innerHTML = Array.from(groupedRows.entries())
+            .sort(([left], [right]) => left.localeCompare(right, undefined, { numeric: true }))
+            .map(
+              ([level, rows]) => `
+                <section class="attendance-review-group">
+                  <header class="attendance-review-group-head">
+                    <strong>${escapeHtml(level)}</strong>
+                    <span>${rows.length} student${rows.length === 1 ? "" : "s"}</span>
+                  </header>
+                  <div class="attendance-review-table">
+                    ${rows
+                      .map(({ student, entry, status }) => {
+                        const chipClass = status === "unmarked" ? "is-unmarked" : getAttendanceStatusClass(status);
+                        const label = status === "unmarked" ? "Unmarked" : getAttendanceStatusLabel(status);
+                        return `
+                          <article class="attendance-review-row">
+                            <div class="attendance-review-student">
+                              <strong>${escapeHtml(student.fullName)}</strong>
+                              <span>${escapeHtml(student.admissionNo || "No admission no.")}</span>
+                            </div>
+                            <span class="attendance-chip ${chipClass}">${escapeHtml(label)}</span>
+                            <div class="attendance-review-meta">
+                              <span>Teacher</span>
+                              <strong>${escapeHtml(entry?.submittedByName || entry?.submittedByEmail || "No submission")}</strong>
+                            </div>
+                            <div class="attendance-review-meta">
+                              <span>Submitted</span>
+                              <strong>${entry?.takenAt ? escapeHtml(formatTimestamp(entry.takenAt)) : "Not yet"}</strong>
+                            </div>
+                            <div class="attendance-review-note">
+                              ${escapeHtml(entry?.note || "No note")}
+                            </div>
+                          </article>
+                        `;
+                      })
+                      .join("")}
+                  </div>
+                </section>
+              `,
+            )
+            .join("");
+        }
+      }
+
+      const submissionRecords = reportRecords
+        .slice()
+        .sort((left, right) => {
+          return new Date(right.takenAt || right.updatedAt).getTime() - new Date(left.takenAt || left.updatedAt).getTime();
+        });
 
       submissionTarget.innerHTML = submissionRecords.length
         ? submissionRecords
@@ -21605,7 +22039,7 @@
                 <article class="attendance-submission-row">
                   <div>
                     <strong>${escapeHtml(record.className || record.level || "Class")}</strong>
-                    <span>${escapeHtml(record.submittedByName || record.submittedByEmail || "Unknown teacher")}</span>
+                    <span>${escapeHtml(record.submittedByName || record.submittedByEmail || "Unknown teacher")} • ${escapeHtml(record.date || "Date not set")}</span>
                   </div>
                   <div class="attendance-submission-counts">
                     <span class="attendance-chip is-present">${counts.present}</span>
@@ -21627,14 +22061,18 @@
 
       setStatus(
         statusTarget,
-        recordsForDate.length ? "success" : "info",
-        recordsForDate.length
-          ? `${recordsForDate.length} register${recordsForDate.length === 1 ? "" : "s"} submitted for ${escapeHtml(state.date)}.`
-          : `No attendance registers submitted for ${escapeHtml(state.date)} yet.`,
+        reportRecords.length ? "success" : "info",
+        reportRecords.length
+          ? `${reportRecords.length} register${reportRecords.length === 1 ? "" : "s"} included in ${
+              state.view === "term" ? escapeHtml(periodLabel) : escapeHtml(state.date)
+            }.`
+          : `No attendance registers found for ${
+              state.view === "term" ? escapeHtml(periodLabel) : escapeHtml(state.date)
+            }.`,
       );
     };
 
-    [dateInput, classSelect, statusSelect, searchInput].forEach((control) => {
+    [viewSelect, dateInput, termSelect, classSelect, studentSelect, statusSelect, searchInput].forEach((control) => {
       if (!control) {
         return;
       }
@@ -21650,6 +22088,9 @@
     }
     if (studentManager?.eventName) {
       window.addEventListener(studentManager.eventName, render);
+    }
+    if (academicCycleManager?.eventName) {
+      window.addEventListener(academicCycleManager.eventName, render);
     }
 
     render();
@@ -24435,10 +24876,18 @@
       statusTarget: document.getElementById("portal-attendance-status"),
       listTarget: document.getElementById("portal-attendance-review-list"),
       submissionTarget: document.getElementById("portal-attendance-submission-list"),
+      viewSelect: document.querySelector("[data-attendance-review-view]"),
       dateInput: document.querySelector("[data-attendance-review-date]"),
+      termSelect: document.querySelector("[data-attendance-review-term]"),
       classSelect: document.querySelector("[data-attendance-review-class]"),
+      studentSelect: document.querySelector("[data-attendance-review-student]"),
       statusSelect: document.querySelector("[data-attendance-review-status]"),
       searchInput: document.querySelector("[data-attendance-review-search]"),
+      dateWrap: document.querySelector("[data-attendance-review-date-wrap]"),
+      termWrap: document.querySelector("[data-attendance-review-term-wrap]"),
+      statusWrap: document.querySelector("[data-attendance-review-status-wrap]"),
+      reviewCopyTarget: document.querySelector("[data-attendance-review-copy]"),
+      submissionCopyTarget: document.querySelector("[data-attendance-submission-copy]"),
     });
   }
 
@@ -24911,8 +25360,6 @@
     const termForm = document.getElementById("portal-term-form");
     const termStatus = document.getElementById("portal-term-status");
     const termList = document.getElementById("portal-term-list");
-    const migrationButton = document.querySelector("[data-run-supabase-migration]");
-    const migrationStatus = document.getElementById("portal-supabase-migration-status");
 
     initSchoolSettingsControls({
       isAdmin: canManageSettings,
@@ -24957,11 +25404,6 @@
       termListTarget: termList,
     });
 
-    initWorkspaceStateMigrationControls({
-      isAdmin: canManageSettings,
-      triggerButton: migrationButton,
-      statusTarget: migrationStatus,
-    });
   }
 
   function initUserSettingsPage() {
@@ -25577,14 +26019,7 @@
       <a class="admin-signout-button" href="./user-settings.html">My settings</a>
       <button class="admin-signout-button" type="button" data-signout>Log out</button>
     `;
-    const activeSignOutButton = gate.querySelector("[data-signout]");
-
-    if (activeSignOutButton) {
-      activeSignOutButton.addEventListener("click", async () => {
-        await signOutCurrentUser();
-        window.location.assign("./login.html");
-      });
-    }
+    wireSignOutButton(gate);
 
     initAdminSectionQuickNav();
     initDashboardGlobalSearch(dashboardSearchInput, session, roleLabel);
