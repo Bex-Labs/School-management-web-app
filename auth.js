@@ -445,6 +445,7 @@
   const STUDENT_LIST_PREVIEW_COUNT = 5;
   const DEFAULT_PARENT_PASSWORD = "Parent@123";
   const DEFAULT_STAFF_PASSWORD = "Staff@123";
+  const DEFAULT_STUDENT_PASSWORD = "Student@123";
   const WORKSPACE_SCOPED_STATE_KEYS = Object.freeze([
     "schoolsphere.schoolSettings.v1",
     "schoolsphere.academicCycles.v1",
@@ -1263,6 +1264,123 @@
       .sort((left, right) => right[1] - left[1])[0][0];
   }
 
+  function normalizeAdmissionLoginValue(value) {
+    return String(value || "")
+      .trim()
+      .toLowerCase();
+  }
+
+  function getStudentEmailForLogin(record = {}) {
+    return String(record.studentEmail || record.email || "").trim();
+  }
+
+  function discoverStudentLoginByAdmissionNumber(admissionNumber) {
+    const normalizedAdmission = normalizeAdmissionLoginValue(admissionNumber);
+
+    if (!normalizedAdmission) {
+      return null;
+    }
+
+    const userMatch = getUsers().find(
+      (user) =>
+        normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE) === "Student" &&
+        normalizeAdmissionLoginValue(user.admissionNo) === normalizedAdmission,
+    );
+
+    if (userMatch?.email) {
+      return {
+        workspaceId: normalizeWorkspaceId(userMatch.workspaceId || "public"),
+        student: {
+          id: userMatch.studentRecordId || "",
+          admissionNo: userMatch.admissionNo || admissionNumber,
+          studentEmail: userMatch.email,
+          fullName: userMatch.displayName || "",
+        },
+        studentEmail: userMatch.email,
+      };
+    }
+
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      const workspaceId =
+        key === STUDENT_STORAGE_KEY_BASE
+          ? "public"
+          : parseWorkspaceIdFromScopedStorageKey(key, STUDENT_STORAGE_KEY_BASE);
+
+      if (!workspaceId) {
+        continue;
+      }
+
+      const records = parseJSON(localStorage.getItem(key), []);
+
+      if (!Array.isArray(records)) {
+        continue;
+      }
+
+      const match = records.find(
+        (record) => normalizeAdmissionLoginValue(record?.admissionNo) === normalizedAdmission,
+      );
+
+      if (!match) {
+        continue;
+      }
+
+      const studentEmail = getStudentEmailForLogin(match);
+      return {
+        workspaceId,
+        student: match,
+        studentEmail,
+      };
+    }
+
+    return null;
+  }
+
+  function resolveStudentLoginIdentifier(identifier) {
+    const rawIdentifier = String(identifier || "").trim();
+
+    if (!rawIdentifier) {
+      return {
+        email: "",
+        workspaceId: "",
+        error: "Enter your student email or admission number.",
+      };
+    }
+
+    if (EMAIL_REGEX.test(rawIdentifier)) {
+      return {
+        email: rawIdentifier,
+        workspaceId: "",
+        error: "",
+      };
+    }
+
+    const match = discoverStudentLoginByAdmissionNumber(rawIdentifier);
+
+    if (!match) {
+      return {
+        email: "",
+        workspaceId: "",
+        error: "We could not find a student with that admission number.",
+      };
+    }
+
+    if (!match.studentEmail || !EMAIL_REGEX.test(match.studentEmail)) {
+      return {
+        email: "",
+        workspaceId: match.workspaceId,
+        error: "This student does not have a valid email saved yet.",
+      };
+    }
+
+    return {
+      email: match.studentEmail,
+      workspaceId: match.workspaceId,
+      student: match.student,
+      error: "",
+    };
+  }
+
   function alignParentWorkspaceFromGuardianLink(user, session) {
     if (!user || normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE) !== "Parent") {
       return user;
@@ -1706,6 +1824,7 @@
     ).trim();
     const guardianFullName = String(record.guardianFullName || record.guardianName || "").trim();
     const guardianEmail = String(record.guardianEmail || "").trim();
+    const studentEmail = String(record.studentEmail || record.email || "").trim();
     const admissionFiles = normalizeAdmissionFileFields(record);
 
     return {
@@ -1716,7 +1835,8 @@
       lastName: String(record.lastName || "").trim(),
       gender: String(record.gender || "").trim(),
       dateOfBirth: String(record.dateOfBirth || "").trim(),
-      email: String(record.email || "").trim(),
+      email: String(record.email || studentEmail).trim(),
+      studentEmail,
       phone: String(record.phone || "").trim(),
       level: String(record.level || classApplyingFor || academicClassApplyingFor).trim(),
       classApplyingFor,
@@ -2361,7 +2481,7 @@
     );
 
     if (profileError) {
-      throw new Error(formatSupabaseAuthError(profileError, "Could not read your Supabase profile."));
+      throw new Error(formatSupabaseAuthError(profileError, "Could not read your account profile."));
     }
 
     if (profile?.institution_id) {
@@ -2377,7 +2497,7 @@
       throw new Error(
         formatSupabaseAuthError(
           insertInstitutionError,
-          "Could not create your school workspace in Supabase.",
+          "Could not create your school workspace online.",
         ),
       );
     }
@@ -2427,7 +2547,7 @@
     );
 
     if (error) {
-      throw new Error(formatSupabaseAuthError(error, "Could not sync school settings to Supabase."));
+      throw new Error(formatSupabaseAuthError(error, "Could not save school settings online."));
     }
   }
 
@@ -2567,7 +2687,7 @@
     } = await withNetworkTimeout(client.auth.getSession());
 
     if (sessionError || !supabaseSession?.user?.id) {
-      throw new Error("Could not verify your Supabase session while saving school settings.");
+      throw new Error("Could not verify your online session while saving school settings.");
     }
 
     const workspaceId = normalizeWorkspaceId(localSession.workspaceId || getCurrentWorkspaceId());
@@ -2753,7 +2873,7 @@
 
       if (error) {
         throw new Error(
-          formatSupabaseAuthError(error, "Could not load feature modules from Supabase."),
+          formatSupabaseAuthError(error, "Could not load feature modules from online storage."),
         );
       }
 
@@ -2776,7 +2896,7 @@
 
       if (error) {
         throw new Error(
-          formatSupabaseAuthError(error, "Could not load role permissions from Supabase."),
+          formatSupabaseAuthError(error, "Could not load role permissions from online storage."),
         );
       }
 
@@ -2805,7 +2925,7 @@
       );
 
       if (error) {
-        throw new Error(formatSupabaseAuthError(error, "Could not load classes from Supabase."));
+        throw new Error(formatSupabaseAuthError(error, "Could not load classes from online storage."));
       }
 
       return {
@@ -2862,7 +2982,7 @@
 
     if (error) {
       throw new Error(
-        formatSupabaseAuthError(error, `Could not load ${stateKey} from Supabase.`),
+        formatSupabaseAuthError(error, `Could not load ${stateKey} from online storage.`),
       );
     }
 
@@ -2916,7 +3036,7 @@
         );
         if (error) {
           throw new Error(
-            formatSupabaseAuthError(error, "Could not save feature modules to Supabase."),
+            formatSupabaseAuthError(error, "Could not save feature modules online."),
           );
         }
       }
@@ -2945,7 +3065,7 @@
         );
         if (error) {
           throw new Error(
-            formatSupabaseAuthError(error, "Could not save role permissions to Supabase."),
+            formatSupabaseAuthError(error, "Could not save role permissions online."),
           );
         }
       }
@@ -3431,7 +3551,7 @@
     );
 
     if (error) {
-      throw new Error(formatSupabaseAuthError(error, "Could not load workspace state from Supabase."));
+      throw new Error(formatSupabaseAuthError(error, "Could not load workspace state from online storage."));
     }
 
     const rowPayload = data?.payload;
@@ -3480,7 +3600,7 @@
     );
 
     if (error) {
-      throw new Error(formatSupabaseAuthError(error, "Could not save workspace state to Supabase."));
+      throw new Error(formatSupabaseAuthError(error, "Could not save workspace state online."));
     }
 
     return { synced: true, context, source: "workspace-states" };
@@ -3806,7 +3926,7 @@
 
   async function migrateWorkspaceStateToSupabase() {
     if (!isSupabaseConfigured()) {
-      throw new Error("Supabase is not configured. Update supabase-config.js first.");
+      throw new Error("Online sync is not configured. Update the app configuration first.");
     }
 
     const client = await getSupabaseClient();
@@ -3816,11 +3936,11 @@
     } = await withNetworkTimeout(client.auth.getSession());
 
     if (sessionError) {
-      throw new Error(formatSupabaseAuthError(sessionError, "Could not verify your Supabase session."));
+      throw new Error(formatSupabaseAuthError(sessionError, "Could not verify your online session."));
     }
 
     if (!session?.user?.id) {
-      throw new Error("You are not signed in to Supabase. Please sign in again.");
+      throw new Error("You are not signed in online. Please sign in again.");
     }
 
     const { user, roleLabel, isAdmin } = getAdminAccessContext();
@@ -3901,7 +4021,7 @@
     triggerButton.disabled = !isAdmin || !configured;
 
     if (!isAdmin) {
-      setStatus(statusTarget, "info", "Only administrators can run Supabase migration.");
+      setStatus(statusTarget, "info", "Only administrators can run online data migration.");
       return;
     }
 
@@ -3909,7 +4029,7 @@
       setStatus(
         statusTarget,
         "info",
-        "Supabase is currently disabled. Add project URL and anon key in <code>supabase-config.js</code> first.",
+        "Online sync is currently disabled. Add the required project URL and key in the app configuration first.",
       );
       return;
     }
@@ -3917,12 +4037,12 @@
     setStatus(
       statusTarget,
       "info",
-      "Ready to migrate local browser workspace data to Supabase.",
+      "Ready to migrate local browser workspace data to online storage.",
     );
 
     triggerButton.addEventListener("click", async () => {
       triggerButton.disabled = true;
-      setStatus(statusTarget, "info", "Migrating workspace data to Supabase...");
+      setStatus(statusTarget, "info", "Migrating workspace data to online storage...");
 
       try {
         const result = await migrateWorkspaceStateToSupabase();
@@ -3940,7 +4060,7 @@
           statusTarget,
           "error",
           escapeHtml(
-            String(error?.message || "Could not migrate local workspace data to Supabase."),
+            String(error?.message || "Could not migrate local workspace data online."),
           ),
         );
       } finally {
@@ -4038,7 +4158,7 @@
       return {
         status: "error",
         user: null,
-        message: formatSupabaseAuthError(requestError, "Could not provision this account in Supabase."),
+        message: formatSupabaseAuthError(requestError, "Could not create this account online."),
       };
     }
 
@@ -4046,7 +4166,7 @@
       return {
         status: "error",
         user: null,
-        message: formatSupabaseAuthError(error, "Could not provision this account in Supabase."),
+        message: formatSupabaseAuthError(error, "Could not create this account online."),
       };
     }
 
@@ -4057,7 +4177,7 @@
         status: "error",
         user: null,
         message:
-          String(payload?.message || "").trim() || "Could not provision this account in Supabase.",
+          sanitizeUserFacingServiceMessage(payload?.message, "Could not create this account online."),
       };
     }
 
@@ -4079,7 +4199,7 @@
       return {
         status: "error",
         user: null,
-        message: "Supabase provisioned this account, but local sync failed.",
+        message: "The account was created online, but local sync failed.",
       };
     }
 
@@ -4109,7 +4229,7 @@
     if (!isSupabaseConfigured()) {
       return {
         ok: false,
-        message: "Supabase is not configured for online admissions yet.",
+        message: "Online admissions are not configured yet.",
       };
     }
 
@@ -4121,7 +4241,7 @@
     if (!url || !anonKey) {
       return {
         ok: false,
-        message: "Supabase URL or anon key is missing.",
+        message: "Online admissions configuration is incomplete.",
       };
     }
 
@@ -4161,7 +4281,7 @@
       return {
         ok: false,
         message:
-          String(responsePayload?.message || "").trim() ||
+          sanitizeUserFacingServiceMessage(responsePayload?.message) ||
           "Could not submit this application online.",
       };
     }
@@ -4591,7 +4711,7 @@
         if (localFallback.user) {
           result = {
             ...localFallback,
-            message: result.message || "Supabase parent provisioning failed. Local fallback account created.",
+            message: result.message || "Parent account could not be created online. Local fallback account created.",
           };
         }
       }
@@ -4637,6 +4757,112 @@
     }
 
     return { created, updated, existingGoogle, failed };
+  }
+
+  async function provisionStudentAccountForStudent(studentPayload = {}) {
+    const studentEmail = String(studentPayload.studentEmail || studentPayload.email || "").trim();
+
+    if (!studentEmail) {
+      return {
+        status: "skipped",
+        user: null,
+        message: "No student email saved.",
+      };
+    }
+
+    if (!EMAIL_REGEX.test(studentEmail)) {
+      return {
+        status: "invalid_email",
+        user: null,
+        message: "Student email format is invalid.",
+      };
+    }
+
+    const displayName =
+      String(studentPayload.fullName || "").trim() ||
+      [studentPayload.firstName, studentPayload.lastName].filter(Boolean).join(" ").trim() ||
+      buildDisplayName(studentEmail) ||
+      "Student";
+    const workspaceId = getCurrentWorkspaceId();
+    let result = isSupabaseConfigured()
+      ? await provisionSupabaseManagedUser({
+          email: studentEmail,
+          displayName,
+          role: "Student",
+          password: DEFAULT_STUDENT_PASSWORD,
+          workspaceId,
+          mustChangePassword: true,
+        })
+      : await upsertManagedPasswordUser({
+          email: studentEmail,
+          displayName,
+          role: "Student",
+          password: DEFAULT_STUDENT_PASSWORD,
+          workspaceId,
+          preserveExistingPassword: true,
+          forcePasswordReset: true,
+        });
+
+    if (!result.user && isSupabaseConfigured()) {
+      const localFallback = await upsertManagedPasswordUser({
+        email: studentEmail,
+        displayName,
+        role: "Student",
+        password: DEFAULT_STUDENT_PASSWORD,
+        workspaceId,
+        preserveExistingPassword: true,
+        forcePasswordReset: true,
+      });
+
+      if (localFallback.user) {
+        result = {
+          ...localFallback,
+          message: result.message || "Student account could not be created online. Local fallback account created.",
+        };
+      }
+    }
+
+    if (!result.user) {
+      return {
+        status: "error",
+        user: null,
+        message: result.message || "Student account could not be created.",
+      };
+    }
+
+    const updatedUser =
+      updateUser(result.user.id, (currentUser) => ({
+        ...currentUser,
+        displayName,
+        role: "Student",
+        workspaceId,
+        admissionNo: String(studentPayload.admissionNo || "").trim(),
+        studentRecordId: String(studentPayload.id || "").trim(),
+        studentProfileManaged: true,
+        updatedAt: nowIso(),
+      })) || result.user;
+
+    upsertAccessGrant(
+      {
+        email: updatedUser.email,
+        role: "Student",
+        authMethod: updatedUser.provider === "google" ? "google" : "password",
+        status: "active",
+      },
+      workspaceId,
+    );
+    markAccessGrantClaimed(
+      updatedUser.email,
+      "Student",
+      updatedUser.provider === "google" ? "google" : "password",
+      updatedUser.id,
+      workspaceId,
+    );
+
+    return {
+      ...result,
+      user: updatedUser,
+    };
   }
 
   function upsertLocalUserFromSupabase(authUser, roleOverride, workspaceOverride) {
@@ -4702,18 +4928,18 @@
   }
 
   function formatSupabaseAuthError(error, fallbackMessage) {
-    const message = String(error?.message || fallbackMessage || "").trim();
+    const message = sanitizeUserFacingServiceMessage(error?.message || fallbackMessage);
 
     if (!message) {
       return fallbackMessage || "Something went wrong. Please try again.";
     }
 
     if (/invalid login credentials/i.test(message)) {
-      return "Your email or password is incorrect.";
+      return "Your login details are incorrect.";
     }
 
     if (/email not confirmed/i.test(message)) {
-      return "Please confirm your email from the Supabase message before signing in.";
+      return "Please confirm your email from the confirmation message before signing in.";
     }
 
     if (/already registered|already been registered/i.test(message)) {
@@ -4739,10 +4965,22 @@
 
       return isSlowConnection
         ? "slow network"
-        : "Network request failed. Check your connection, browser blockers, or Supabase function setup.";
+        : "Network request failed. Check your connection or try again.";
     }
 
     return message;
+  }
+
+  function sanitizeUserFacingServiceMessage(value, fallbackMessage = "") {
+    const message = String(value || fallbackMessage || "").trim();
+
+    if (!message) {
+      return "";
+    }
+
+    return message
+      .replace(/\bSupabase\b/gi, "the online service")
+      .replace(/\bsupabase-config\.js\b/gi, "the app configuration");
   }
 
   async function syncSupabaseSessionToLocal(options = {}) {
@@ -12212,7 +12450,7 @@
             "error",
             escapeHtml(
               String(
-                error?.message || "Could not save school settings to Supabase. Please retry.",
+                error?.message || "Could not save school settings online. Please retry.",
               ),
             ),
           );
@@ -12263,7 +12501,7 @@
               "error",
               escapeHtml(
                 String(
-                  error?.message || "Could not reset school settings in Supabase. Please retry.",
+                  error?.message || "Could not reset school settings online. Please retry.",
                 ),
               ),
             );
@@ -12324,11 +12562,11 @@
             manager.getState(),
           );
           if (statusTarget) {
-            setStatus(statusTarget, "success", "Feature modules synced to Supabase.");
+            setStatus(statusTarget, "success", "Feature modules saved online.");
           }
         } catch (error) {
           if (statusTarget) {
-            setStatus(statusTarget, "error", escapeHtml(String(error?.message || "Could not sync feature modules to Supabase.")));
+            setStatus(statusTarget, "error", escapeHtml(String(error?.message || "Could not save feature modules online.")));
           }
         }
       }, 320);
@@ -12356,10 +12594,10 @@
           if (synced && payload && typeof payload === "object") {
             manager.saveState(payload);
             if (statusTarget) {
-              setStatus(statusTarget, "info", "Feature modules loaded from Supabase.");
+              setStatus(statusTarget, "info", "Feature modules loaded from online storage.");
             }
           } else if (statusTarget) {
-            setStatus(statusTarget, "info", "Using local feature modules until first Supabase sync.");
+            setStatus(statusTarget, "info", "Using local feature modules until first online sync.");
           }
         })
         .catch((error) => {
@@ -12368,7 +12606,7 @@
               statusTarget,
               "error",
               escapeHtml(
-                String(error?.message || "Could not load feature modules from Supabase."),
+                String(error?.message || "Could not load feature modules from online storage."),
               ),
             );
           }
@@ -12396,7 +12634,7 @@
 
     let isHydratingSupabase = false;
 
-    const syncPermissionsToSupabase = async (successMessage = "Role permissions synced to Supabase.") => {
+    const syncPermissionsToSupabase = async (successMessage = "Role permissions saved online.") => {
       if (!isAdmin || !manager || !isSupabaseConfigured()) {
         return;
       }
@@ -12414,7 +12652,7 @@
           setStatus(
             statusTarget,
             "error",
-            escapeHtml(String(error?.message || "Could not sync role permissions to Supabase.")),
+            escapeHtml(String(error?.message || "Could not save role permissions online.")),
           );
         }
       }
@@ -12442,10 +12680,10 @@
           if (synced && payload && typeof payload === "object") {
             manager.savePermissions(payload);
             if (statusTarget) {
-              setStatus(statusTarget, "info", "Role permissions loaded from Supabase.");
+              setStatus(statusTarget, "info", "Role permissions loaded from online storage.");
             }
           } else if (statusTarget) {
-            setStatus(statusTarget, "info", "Using local role permissions until first Supabase sync.");
+            setStatus(statusTarget, "info", "Using local role permissions until first online sync.");
           }
         })
         .catch((error) => {
@@ -12454,7 +12692,7 @@
               statusTarget,
               "error",
               escapeHtml(
-                String(error?.message || "Could not load role permissions from Supabase."),
+                String(error?.message || "Could not load role permissions from online storage."),
               ),
             );
           }
@@ -12502,7 +12740,7 @@
         }
         manager.resetPermissions();
         if (!isHydratingSupabase) {
-          syncPermissionsToSupabase("Role permissions reset and synced to Supabase.");
+          syncPermissionsToSupabase("Role permissions reset and saved online.");
         }
         recordAuditEvent({
           action: "reset",
@@ -15030,7 +15268,7 @@
         if (localFallback.user) {
           result = {
             ...localFallback,
-            message: result.message || "Supabase staff provisioning failed. Local fallback account created.",
+            message: result.message || "Staff account could not be created online. Local fallback account created.",
           };
         }
       }
@@ -16909,6 +17147,7 @@
         record.level,
         getStudentLevelDisplayLabel(record.level),
         record.admissionNo,
+        record.studentEmail,
         record.gender,
         record.promotionDecision,
         guardianText,
@@ -17094,7 +17333,10 @@
                         >
                           <div class="portal-student-row-copy">
                             <strong>${escapeHtml(record.fullName)}</strong>
-                            <span>Admission ${escapeHtml(record.admissionNo)} • ${record.guardians.length} guardian contact${
+                            <span>Admission ${escapeHtml(record.admissionNo)} • ${escapeHtml(
+                              record.studentEmail || "No student email",
+                            )}</span>
+                            <span>${record.guardians.length} guardian contact${
                               record.guardians.length === 1 ? "" : "s"
                             }</span>
                             <span>Session close: ${escapeHtml(
@@ -17814,6 +18056,9 @@
     form.elements.firstName.value = record.firstName || "";
     form.elements.lastName.value = record.lastName || "";
     form.elements.admissionNo.value = record.admissionNo || "";
+    if (form.elements.studentEmail) {
+      form.elements.studentEmail.value = record.studentEmail || "";
+    }
     form.elements.admissionNo.dataset.autoGenerated = "false";
     if (form.elements.level instanceof HTMLSelectElement) {
       const levels = renderStudentLevelSelectOptions(form.elements.level, record.level || "");
@@ -17983,6 +18228,7 @@
       [
         "first name",
         "last name",
+        "student email",
         "admission number",
         "level/class",
         "date of birth",
@@ -17994,6 +18240,7 @@
       [
         "First Name",
         "Last Name",
+        "student@example.com",
         "csa26/jss1/001",
         "Junior Secondary School 1 (JSS1)",
         "2013-10-08",
@@ -18074,6 +18321,7 @@
   function buildStudentPayloadFromImportRow(row, manager, takenAdmissions) {
     const firstName = getImportFieldValue(row, ["first name", "firstname"]);
     const lastName = getImportFieldValue(row, ["last name", "lastname"]);
+    const studentEmail = getImportFieldValue(row, ["student email", "learner email", "student e-mail"]);
     const level = getImportFieldValue(row, ["level/class", "level class", "level"]);
     const dateOfBirth = getImportFieldValue(row, ["date of birth", "dob"]);
     const gender = getImportFieldValue(row, ["gender"]);
@@ -18094,6 +18342,7 @@
       firstName,
       lastName,
       fullName: [firstName, lastName].filter(Boolean).join(" ").trim(),
+      studentEmail,
       admissionNo,
       level,
       dateOfBirth,
@@ -18129,6 +18378,10 @@
 
     if (!payload.admissionNo) {
       errors.push("Admission number missing");
+    }
+
+    if (payload.studentEmail && !EMAIL_REGEX.test(payload.studentEmail)) {
+      errors.push("Invalid student email");
     }
 
     if (payload.admissionNo) {
@@ -18193,6 +18446,7 @@
               <th>#</th>
               <th>First name</th>
               <th>Last name</th>
+              <th>Student email</th>
               <th>Admission no.</th>
               <th>Level/Class</th>
               <th>DOB</th>
@@ -18211,6 +18465,7 @@
                     <td>${index + 1}</td>
                     <td>${escapeHtml(item.payload.firstName || "—")}</td>
                     <td>${escapeHtml(item.payload.lastName || "—")}</td>
+                    <td>${escapeHtml(item.payload.studentEmail || "—")}</td>
                     <td>${escapeHtml(item.payload.admissionNo || "—")}</td>
                     <td>${escapeHtml(item.payload.level || "—")}</td>
                     <td>${escapeHtml(item.payload.dateOfBirth || "—")}</td>
@@ -18977,6 +19232,7 @@
       const studentId = form.elements.studentId.value;
       const firstName = form.elements.firstName.value.trim();
       const lastName = form.elements.lastName.value.trim();
+      const studentEmail = String(form.elements.studentEmail?.value || "").trim();
       const level = form.elements.level.value.trim();
       const admissionNoRaw = form.elements.admissionNo.value.trim();
       const promotionDecisionRaw = String(form.elements.promotionDecision?.value || "promote")
@@ -18991,6 +19247,7 @@
         firstName,
         lastName,
         fullName: [firstName, lastName].filter(Boolean).join(" ").trim(),
+        studentEmail,
         admissionNo:
           admissionNoRaw ||
           generateAdmissionNumber({
@@ -19029,6 +19286,11 @@
 
       if (!payload.admissionNo) {
         setPortalStudentError(form, "admissionNo", "Enter the admission number.");
+        hasError = true;
+      }
+
+      if (payload.studentEmail && !EMAIL_REGEX.test(payload.studentEmail)) {
+        setPortalStudentError(form, "studentEmail", "Enter a valid student email format.");
         hasError = true;
       }
 
@@ -19085,12 +19347,20 @@
       }
 
       const currentRecord = manager.getStudents().find((record) => record.id === studentId) || null;
-      manager.upsertStudent({
+      const savedStudentPayload = {
         ...currentRecord,
         ...payload,
         status: currentRecord ? currentRecord.status : "active",
-      });
-      const parentProvisioning = await provisionParentAccountsForStudent(payload);
+      };
+      manager.upsertStudent(savedStudentPayload);
+      const persistedStudent =
+        manager.getStudents().find(
+          (record) =>
+            (studentId && record.id === studentId) ||
+            String(record.admissionNo || "").toLowerCase() === payload.admissionNo.toLowerCase(),
+        ) || savedStudentPayload;
+      const parentProvisioning = await provisionParentAccountsForStudent(persistedStudent);
+      const studentProvisioning = await provisionStudentAccountForStudent(persistedStudent);
 
       recordAuditEvent({
         action: currentRecord ? "updated" : "created",
@@ -19116,14 +19386,28 @@
         ? ` ${parentProvisioning.existingGoogle.length} guardian account(s) already use Google sign-in.`
         : "";
       const failedParentCopy = parentProvisioning.failed?.length
-        ? ` ${parentProvisioning.failed.length} guardian account(s) could not be provisioned. Check Supabase function setup.`
+        ? ` ${parentProvisioning.failed.length} guardian account(s) could not be created online. Check account service setup.`
         : "";
+      const studentLoginCopy =
+        studentProvisioning.status === "created"
+          ? ` Student login created: <strong>${escapeHtml(
+              studentProvisioning.user.email,
+            )}</strong>. Default password: <strong>${escapeHtml(DEFAULT_STUDENT_PASSWORD)}</strong>.`
+          : studentProvisioning.status === "updated"
+            ? ` Student login updated for <strong>${escapeHtml(studentProvisioning.user.email)}</strong>.`
+            : studentProvisioning.status === "existing_google"
+              ? " Student account already uses Google sign-in."
+              : studentProvisioning.status === "skipped"
+                ? ""
+                : studentProvisioning.message
+                  ? ` ${escapeHtml(studentProvisioning.message)}`
+                  : "";
       setStatus(
         status,
         "success",
         currentRecord
-          ? `Student <strong>${escapeHtml(payload.fullName || payload.admissionNo)}</strong> updated with guardian relationships.${createdParentCopy}${googleParentCopy}${failedParentCopy}`
-          : `Student <strong>${escapeHtml(payload.fullName || payload.admissionNo)}</strong> created with guardian relationships.${createdParentCopy}${googleParentCopy}${failedParentCopy}`,
+          ? `Student <strong>${escapeHtml(payload.fullName || payload.admissionNo)}</strong> updated with guardian relationships.${createdParentCopy}${googleParentCopy}${failedParentCopy}${studentLoginCopy}`
+          : `Student <strong>${escapeHtml(payload.fullName || payload.admissionNo)}</strong> created with guardian relationships.${createdParentCopy}${googleParentCopy}${failedParentCopy}${studentLoginCopy}`,
       );
     });
 
@@ -19358,6 +19642,10 @@
                   <article>
                     <span>Admission No</span>
                     <strong>${escapeHtml(record.admissionNo || "Not recorded")}</strong>
+                  </article>
+                  <article>
+                    <span>Student email</span>
+                    <strong>${escapeHtml(record.studentEmail || "Not recorded")}</strong>
                   </article>
                   <article>
                     <span>Level / Class</span>
@@ -19887,15 +20175,32 @@
 
         let createdParentLogins = 0;
         let failedParentLogins = 0;
+        let createdStudentLogins = 0;
+        let failedStudentLogins = 0;
 
         for (const row of validRows) {
           manager.upsertStudent({
             ...row.payload,
             status: "active",
           });
-          const parentProvisioning = await provisionParentAccountsForStudent(row.payload);
+          const persistedStudent =
+            manager.getStudents().find(
+              (record) =>
+                String(record.admissionNo || "").toLowerCase() ===
+                String(row.payload.admissionNo || "").toLowerCase(),
+            ) || row.payload;
+          const parentProvisioning = await provisionParentAccountsForStudent(persistedStudent);
+          const studentProvisioning = await provisionStudentAccountForStudent(persistedStudent);
           createdParentLogins += parentProvisioning.created.length;
           failedParentLogins += parentProvisioning.failed?.length || 0;
+          if (studentProvisioning.status === "created") {
+            createdStudentLogins += 1;
+          } else if (
+            row.payload.studentEmail &&
+            !["updated", "existing_google"].includes(studentProvisioning.status)
+          ) {
+            failedStudentLogins += 1;
+          }
         }
 
         recordAuditEvent({
@@ -19925,6 +20230,14 @@
                 failedParentLogins
                   ? ` ${failedParentLogins} parent login account(s) could not be provisioned.`
                   : ""
+              }${
+                createdStudentLogins
+                  ? ` ${createdStudentLogins} student login account(s) were auto-created (default password: ${DEFAULT_STUDENT_PASSWORD}).`
+                  : ""
+              }${
+                failedStudentLogins
+                  ? ` ${failedStudentLogins} student login account(s) could not be created.`
+                  : ""
               }`
             : `Imported ${validRows.length} students successfully.${
                 createdParentLogins
@@ -19933,6 +20246,14 @@
               }${
                 failedParentLogins
                   ? ` ${failedParentLogins} parent login account(s) could not be provisioned.`
+                  : ""
+              }${
+                createdStudentLogins
+                  ? ` ${createdStudentLogins} student login account(s) were auto-created (default password: ${DEFAULT_STUDENT_PASSWORD}).`
+                  : ""
+              }${
+                failedStudentLogins
+                  ? ` ${failedStudentLogins} student login account(s) could not be created.`
                   : ""
               }`,
         );
@@ -19962,12 +20283,32 @@
   }
 
   function initRoleButtons() {
+    const refreshLoginIdentifierCopy = () => {
+      if (getPage() !== "login") {
+        return;
+      }
+
+      const selectedRole = getSelectedRole();
+      const emailInput = document.getElementById("login-email");
+      const emailLabel = document.querySelector('.auth-field-label[for="login-email"]');
+
+      if (emailLabel) {
+        emailLabel.textContent = selectedRole === "Student" ? "Email or admission number" : "Email";
+      }
+
+      if (emailInput instanceof HTMLInputElement) {
+        emailInput.placeholder = selectedRole === "Student" ? "Email or admission number" : "name@school.edu";
+      }
+    };
+
     document.querySelectorAll(".auth-role").forEach((button) => {
       button.addEventListener("click", () => {
         document.querySelectorAll(".auth-role").forEach((item) => item.classList.remove("is-active"));
         button.classList.add("is-active");
+        refreshLoginIdentifierCopy();
       });
     });
+    refreshLoginIdentifierCopy();
   }
 
   function initPasswordToggles() {
@@ -20145,7 +20486,7 @@
         setStatus(
           status,
           "error",
-          `${formatSupabaseAuthError(error, "We could not resend the confirmation email.")} If this keeps happening, check your Supabase email provider and rate limits.`,
+          `${formatSupabaseAuthError(error, "We could not resend the confirmation email.")} If this keeps happening, check your email delivery settings and rate limits.`,
         );
         return;
       }
@@ -20155,7 +20496,7 @@
         "success",
         `Confirmation email resent to <strong>${escapeHtml(
           email,
-        )}</strong>. Check Inbox, Spam, Promotions, and Updates. If it still does not arrive, check your Supabase email settings.`,
+        )}</strong>. Check Inbox, Spam, Promotions, and Updates. If it still does not arrive, check your email delivery settings.`,
       );
     });
 
@@ -20287,7 +20628,7 @@
           ? `
             <details class="auth-debug-details">
               <summary>Signup diagnostic</summary>
-              <span>Supabase accepted this signup.</span>
+              <span>The account service accepted this signup.</span>
               <span>User ID: <code>${escapeHtml(data.user.id)}</code></span>
               <span>Email confirmed: ${data.user.email_confirmed_at ? "Yes" : "No"}</span>
             </details>
@@ -20295,13 +20636,13 @@
           : `
             <details class="auth-debug-details">
               <summary>Signup diagnostic</summary>
-              <span>No Supabase user ID was returned. Check the project URL, anon key, browser network request, and Supabase project selection.</span>
+              <span>No online account ID was returned. Check the app configuration and browser network request.</span>
             </details>
           `;
         setStatus(
           status,
           "success",
-          `Supabase has sent a confirmation email to <strong>${escapeHtml(
+          `A confirmation email has been sent to <strong>${escapeHtml(
             email,
           )}</strong>. Check Inbox, Spam, Promotions, and Updates. <button class="auth-status-button" type="button" data-supabase-resend-confirmation data-email="${escapeHtml(
             email,
@@ -20376,15 +20717,27 @@
       clearFieldErrors(form);
       setStatus(status, "", "");
 
-      const email = form.elements.email.value.trim();
+      const loginIdentifier = form.elements.email.value.trim();
       const password = form.elements.password.value;
       const remember = form.elements.remember.checked;
       const selectedRole = getSelectedRole();
+      const studentLogin =
+        selectedRole === "Student" ? resolveStudentLoginIdentifier(loginIdentifier) : null;
+      const email = studentLogin ? studentLogin.email : loginIdentifier;
 
       let hasError = false;
 
-      if (!email) {
-        setFieldError(form, "email", "Enter your school email address.");
+      if (!loginIdentifier) {
+        setFieldError(
+          form,
+          "email",
+          selectedRole === "Student"
+            ? "Enter your student email or admission number."
+            : "Enter your school email address.",
+        );
+        hasError = true;
+      } else if (studentLogin?.error) {
+        setFieldError(form, "email", studentLogin.error);
         hasError = true;
       } else if (!EMAIL_REGEX.test(email)) {
         setFieldError(form, "email", "Enter a valid email address.");
@@ -20483,7 +20836,7 @@
               }
             }
 
-            setFieldError(form, "password", "Incorrect email or password.");
+            setFieldError(form, "password", "Incorrect login details.");
           }
 
           setStatus(status, "error", friendlyMessage);
@@ -20514,6 +20867,7 @@
 
         const authResult = await syncSupabaseSessionToLocal({
           preferredRole: resolvedRole,
+          preferredWorkspaceId: studentLogin?.workspaceId || null,
           redirectAuthenticatedAuthPages: false,
         });
 
@@ -21296,6 +21650,7 @@
       const lastName = String(form.elements.lastName?.value || "").trim();
       const fullName = [firstName, middleName, lastName].filter(Boolean).join(" ").trim();
       const academicClassApplyingFor = String(form.elements.academicClassApplyingFor?.value || "").trim();
+      const studentEmail = String(form.elements.studentEmail?.value || form.elements.email?.value || "").trim();
 
       return {
         fullName,
@@ -21307,7 +21662,8 @@
         classApplyingFor: academicClassApplyingFor,
         previousSchool: String(form.elements.previousSchoolName?.value || "").trim(),
         passportPhotoName: readFileName("passportPhoto"),
-        email: String(form.elements.email?.value || "").trim(),
+        email: studentEmail,
+        studentEmail,
         phone: String(form.elements.phone?.value || "").trim(),
         level: academicClassApplyingFor,
         guardianName: String(form.elements.guardianFullName?.value || "").trim(),
@@ -21373,6 +21729,7 @@
           <p><strong>Name:</strong> ${escapeHtml(payload.fullName || "—")}</p>
           <p><strong>Gender:</strong> ${escapeHtml(payload.gender || "—")}</p>
           <p><strong>Date of Birth:</strong> ${escapeHtml(payload.dateOfBirth || "—")}</p>
+          <p><strong>Student Email:</strong> ${escapeHtml(payload.studentEmail || "—")}</p>
         </div>
         <div class="admissions-review-group">
           <h4>Parent/Guardian</h4>
@@ -21440,6 +21797,11 @@
       if (stepIndex === 0) {
         if (!payload.firstName || !payload.lastName || !payload.gender || !payload.dateOfBirth) {
           setStatus(status, "error", "Complete all required fields in Section 1.");
+          return false;
+        }
+
+        if (payload.studentEmail && !EMAIL_REGEX.test(payload.studentEmail)) {
+          setStatus(status, "error", "Student email format is invalid.");
           return false;
         }
       }
@@ -21568,8 +21930,8 @@
       const workspaceId = lockedWorkspaceId;
       const payload = getPayload();
 
-      if (payload.email && !EMAIL_REGEX.test(payload.email)) {
-        const message = "Applicant email format is invalid.";
+      if (payload.studentEmail && !EMAIL_REGEX.test(payload.studentEmail)) {
+        const message = "Student email format is invalid.";
         setStatus(status, "error", message);
         showApplyToast("error", `<strong>Cannot submit yet</strong><span>${escapeHtml(message)}</span>`, 5200);
         return;
@@ -24764,9 +25126,11 @@
           addDashboardSearchEntry(entries, {
             type: "Student",
             title: record.fullName || [record.firstName, record.lastName].filter(Boolean).join(" "),
-            subtitle: `${record.admissionNo || "No admission number"} · ${record.level || "No class assigned"}`,
+            subtitle: `${record.admissionNo || "No admission number"} · ${
+              record.studentEmail || record.level || "No class assigned"
+            }`,
             href: "./admin-students.html",
-            keywords: `${record.firstName || ""} ${record.lastName || ""} ${record.fullName || ""} ${record.admissionNo || ""} ${record.level || ""} student learner`,
+            keywords: `${record.firstName || ""} ${record.lastName || ""} ${record.fullName || ""} ${record.admissionNo || ""} ${record.studentEmail || ""} ${record.level || ""} student learner`,
           });
 
           (record.guardians || []).forEach((guardian) => {
@@ -26403,6 +26767,7 @@
     const buildStudentPayloadFromAdmission = (entry) => {
       const classLevelSet = getActiveClassLevelTokenSet();
       const level = String(entry.academicClassApplyingFor || entry.classApplyingFor || entry.level || "").trim();
+      const studentEmail = String(entry.studentEmail || entry.email || "").trim();
       const firstName = String(entry.firstName || "").trim() || String(entry.fullName || "").trim().split(/\s+/)[0] || "";
       const lastName =
         String(entry.lastName || "").trim() ||
@@ -26450,11 +26815,23 @@
         return { error: "Guardian phone number format is invalid." };
       }
 
+      if (studentEmail && !EMAIL_REGEX.test(studentEmail)) {
+        return { error: "Student email format is invalid." };
+      }
+
       const studentId = createId();
-      const admissionNo = generateAdmissionNumber({
-        manager: studentManager,
-        levelValue: level,
-      });
+      const existingAdmissionNo = String(entry.admissionNo || entry.admissionNumber || "").trim();
+      const admissionNumberTaken =
+        existingAdmissionNo &&
+        studentManager?.getStudents?.().some(
+          (student) => String(student.admissionNo || "").toLowerCase() === existingAdmissionNo.toLowerCase(),
+        );
+      const admissionNo = !admissionNumberTaken && existingAdmissionNo
+        ? existingAdmissionNo
+        : generateAdmissionNumber({
+            manager: studentManager,
+            levelValue: level,
+          });
 
       return {
         payload: {
@@ -26463,6 +26840,7 @@
           lastName,
           fullName: fullName || [firstName, lastName].join(" ").trim(),
           admissionNo,
+          studentEmail,
           level,
           dateOfBirth: String(entry.dateOfBirth || "").trim(),
           gender: String(entry.gender || "").trim(),
@@ -26530,8 +26908,11 @@
       }
 
       editingAdmissionId = admission.id;
+      const studentEmailInput = form.elements.studentEmail || form.elements.email || null;
       form.elements.fullName.value = admission.fullName || "";
-      form.elements.email.value = admission.email || "";
+      if (studentEmailInput) {
+        studentEmailInput.value = admission.studentEmail || admission.email || "";
+      }
       form.elements.phone.value = admission.phone || "";
       const selectedLevel = admission.level || admission.classApplyingFor || admission.academicClassApplyingFor || "";
       if (
@@ -26682,7 +27063,7 @@
           <div class="portal-admission-modal-item"><span>Stage</span><strong>${escapeHtml(admission.applicationStage || "Submitted")}</strong></div>
           <div class="portal-admission-modal-item"><span>Gender / DOB</span><strong>${escapeHtml(admission.gender || "—")} • ${escapeHtml(admission.dateOfBirth || "—")}</strong></div>
           <div class="portal-admission-modal-item"><span>Applied</span><strong>${escapeHtml(formatTimestamp(admission.createdAt))}</strong></div>
-          <div class="portal-admission-modal-item"><span>Email</span><strong>${escapeHtml(admission.email || "—")}</strong></div>
+          <div class="portal-admission-modal-item"><span>Student Email</span><strong>${escapeHtml(admission.studentEmail || admission.email || "—")}</strong></div>
           <div class="portal-admission-modal-item"><span>Guardian</span><strong>${escapeHtml(admission.guardianFullName || admission.guardianName || "—")}</strong></div>
           <div class="portal-admission-modal-item"><span>Guardian Contact</span><strong>${escapeHtml(admission.guardianPhone || "—")} • ${escapeHtml(admission.guardianEmail || "—")}</strong></div>
           <div class="portal-admission-modal-item"><span>Guardian Relationship</span><strong>${escapeHtml(admission.guardianRelationship || "—")}</strong></div>
@@ -26787,10 +27168,12 @@
         : null;
       const isEditingAdmission = Boolean(existingAdmission);
       const selectedLevel = String(form.elements.level?.value || "").trim();
+      const studentEmail = String(form.elements.studentEmail?.value || form.elements.email?.value || "").trim();
       const payload = {
         ...(existingAdmission || {}),
         fullName: String(form.elements.fullName?.value || "").trim(),
-        email: String(form.elements.email?.value || "").trim(),
+        email: studentEmail,
+        studentEmail,
         phone: String(form.elements.phone?.value || "").trim(),
         level: selectedLevel,
         classApplyingFor: selectedLevel,
@@ -26821,8 +27204,8 @@
         return;
       }
 
-      if (payload.email && !EMAIL_REGEX.test(payload.email)) {
-        setStatus(status, "error", "Applicant email format is invalid.");
+      if (payload.studentEmail && !EMAIL_REGEX.test(payload.studentEmail)) {
+        setStatus(status, "error", "Student email format is invalid.");
         return;
       }
 
@@ -26905,11 +27288,19 @@
 
         const studentPayload = conversion.payload;
         studentManager.upsertStudent(studentPayload);
-        const parentProvisioning = await provisionParentAccountsForStudent(studentPayload);
+        const persistedStudent =
+          studentManager.getStudents?.().find(
+            (record) =>
+              String(record.id || "") === String(studentPayload.id || "") ||
+              String(record.admissionNo || "").toLowerCase() === String(studentPayload.admissionNo || "").toLowerCase(),
+          ) || studentPayload;
+        const parentProvisioning = await provisionParentAccountsForStudent(persistedStudent);
+        const studentProvisioning = await provisionStudentAccountForStudent(persistedStudent);
         upsertAdmission(
           {
             ...admission,
-            convertedStudentId: studentPayload.id,
+            convertedStudentId: persistedStudent.id,
+            admissionNo: persistedStudent.admissionNo,
             convertedAt: nowIso(),
             status: "approved",
             statusNote: "Converted to student record",
@@ -26922,16 +27313,16 @@
           entityType: "admission-application",
           entityId: admission.id,
           summary: `Converted approved applicant ${admission.fullName} to student`,
-          details: `${studentPayload.admissionNo} • ${studentPayload.level}`,
+          details: `${persistedStudent.admissionNo} • ${persistedStudent.level}`,
           workspaceId,
         });
 
         pushNotification(
           {
             title: `Applicant converted: ${admission.fullName}`,
-            message: `Student record created as ${studentPayload.admissionNo}.`,
+            message: `Student record created as ${persistedStudent.admissionNo}.`,
             entityType: "student",
-            entityId: studentPayload.admissionNo,
+            entityId: persistedStudent.admissionNo,
             action: "created",
             visibleToRoles: ["Admin"],
           },
@@ -26947,6 +27338,18 @@
         const failedParentCopy = parentProvisioning.failed?.length
           ? ` ${parentProvisioning.failed.length} guardian account(s) could not be provisioned.`
           : "";
+        const studentLoginCopy =
+          studentProvisioning.status === "created"
+            ? ` Student login created with default password <strong>${escapeHtml(DEFAULT_STUDENT_PASSWORD)}</strong>.`
+            : studentProvisioning.status === "updated"
+              ? ` Student login updated for <strong>${escapeHtml(studentProvisioning.user.email)}</strong>.`
+              : studentProvisioning.status === "existing_google"
+                ? " Student account already uses Google sign-in."
+                : studentProvisioning.status === "skipped"
+                  ? ""
+                  : studentProvisioning.message
+                    ? ` ${escapeHtml(studentProvisioning.message)}`
+                    : "";
 
         refresh();
         if (modalElement && !modalElement.hidden) {
@@ -26956,14 +27359,14 @@
           status,
           "success",
           `Accepted <strong>${escapeHtml(admission.fullName)}</strong> and added them as student <strong>${escapeHtml(
-            studentPayload.admissionNo,
-          )}</strong> in <strong>${escapeHtml(studentPayload.level)}</strong>.${createdParentCopy}${googleParentCopy}${failedParentCopy}`,
+            persistedStudent.admissionNo,
+          )}</strong> in <strong>${escapeHtml(persistedStudent.level)}</strong>.${createdParentCopy}${googleParentCopy}${failedParentCopy}${studentLoginCopy}`,
         );
         showAdmissionApprovalToast(`
           <strong>Application approved</strong>
           <span>${escapeHtml(admission.fullName)} has been added to Students.</span>
         `);
-        return studentPayload;
+        return persistedStudent;
     };
 
     const handleAdmissionAction = async (admissionId, action) => {

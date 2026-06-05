@@ -2672,6 +2672,7 @@ function normalizeStudentRecord(record = {}) {
     lastName,
     fullName,
     admissionNo: String(record.admissionNo || "").trim(),
+    studentEmail: String(record.studentEmail || record.email || "").trim(),
     level: String(record.level || "").trim(),
     dateOfBirth: String(record.dateOfBirth || "").trim(),
     gender: String(record.gender || "").trim(),
