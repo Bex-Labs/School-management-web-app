@@ -2224,14 +2224,14 @@
 
   function buildSupabaseRedirectUrl(path) {
     const config = getSupabaseConfig();
-    const baseUrl = config?.siteUrl || window.location.origin;
-    const targetPath = path || config?.redirectPath || "/portal.html";
+    const baseUrl = config?.siteUrl || new URL("./", window.location.href).toString();
+    const targetPath = path || config?.redirectPath || "portal.html";
     return new URL(targetPath, baseUrl).toString();
   }
 
   function buildSupabaseEmailRedirectUrl() {
     const config = getSupabaseConfig();
-    return buildSupabaseRedirectUrl(config?.emailRedirectPath || "/login.html");
+    return buildSupabaseRedirectUrl(config?.emailRedirectPath || "login.html");
   }
 
   async function loadSupabaseLibrary() {

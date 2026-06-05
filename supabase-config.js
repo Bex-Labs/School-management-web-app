@@ -1,3 +1,5 @@
+const schoolSphereAppBaseUrl = new URL("./", window.location.href).toString();
+
 window.SchoolSphereSupabaseConfig = {
   // Set to true after you add your real project values below.
   enableSupabaseAuth: true,
@@ -8,10 +10,10 @@ window.SchoolSphereSupabaseConfig = {
   // Use the public / publishable anon key from Project Settings -> API.
   anonKey: "sb_publishable_EqDd4brc13AWbX7obHOh6Q_GcfGKeTI",
 
-  // Update these if your app lives on another origin or route.
-  siteUrl: window.location.origin,
-  redirectPath: "/portal.html",
-  emailRedirectPath: "/login.html",
+  // Keep redirects in the same folder the app is being served from.
+  siteUrl: schoolSphereAppBaseUrl,
+  redirectPath: "portal.html",
+  emailRedirectPath: "login.html",
   userProvisionFunctionName: "provision-user",
   admissionsSubmitFunctionName: "submit-admission",
 
