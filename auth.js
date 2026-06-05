@@ -359,6 +359,65 @@
     },
   };
 
+  const STUDENT_PORTAL_LINKS = [
+    {
+      key: "dashboard",
+      label: "Dashboard",
+      href: "./portal.html#dashboard",
+      permissionKey: "student_dashboard_view",
+      description: "Student home and school updates",
+    },
+    {
+      key: "timetable",
+      label: "My Timetable",
+      href: "./portal.html#timetable",
+      permissionKey: "student_timetable_view",
+      description: "Weekly class schedule",
+    },
+    {
+      key: "classes",
+      label: "My Classes",
+      href: "./portal.html#classes",
+      permissionKey: "student_classes_view",
+      description: "Class workspace and rosters",
+    },
+    {
+      key: "courses",
+      label: "Subjects or Courses",
+      href: "./portal.html#courses",
+      permissionKey: "student_courses_view",
+      description: "Assigned subjects or courses",
+    },
+    {
+      key: "attendance",
+      label: "Attendance",
+      href: "./portal.html#attendance",
+      permissionKey: "student_attendance_view",
+      description: "Personal attendance record",
+    },
+    {
+      key: "fees",
+      label: "Fees",
+      href: "./portal.html#fees",
+      permissionKey: "student_fees_view",
+      description: "Assigned fee items and balance",
+    },
+    {
+      key: "reports",
+      label: "Results and Report Cards",
+      href: "./portal.html#reports",
+      permissionKey: "student_reports_view",
+      description: "Released results and PDFs",
+    },
+    {
+      key: "profile",
+      label: "My Profile",
+      href: "./user-settings.html",
+      permissionKey: "student_profile_manage",
+      description: "Account info and password",
+    },
+  ];
+
   const ADMIN_SETTINGS_PAGES = new Set([
     "admin-settings",
     "admin-settings-school",
@@ -5251,13 +5310,18 @@
       Boolean(STAFF_PORTAL_PAGE_CONFIG[getPage()]) ||
       getPage() === "staff-settings";
     const isStaffSidebar = normalizedSidebarRole === "Teacher" || isStaffPortalShell;
+    const isStudentSidebar =
+      normalizedSidebarRole === "Student" &&
+      (getPage() === "portal" || getPage() === "user-settings");
 
     if (nav && isStaffSidebar) {
       renderStaffPortalSidebar(nav);
+    } else if (nav && isStudentSidebar) {
+      renderStudentPortalSidebar(nav);
     }
 
     const isAccountSettingsPage = getPage() === "user-settings" || getPage() === "staff-settings";
-    const shouldInjectCourseLink = !isStaffSidebar && !isAccountSettingsPage && !isParentPage();
+    const shouldInjectCourseLink = !isStaffSidebar && !isStudentSidebar && !isAccountSettingsPage && !isParentPage();
 
     if (nav && shouldInjectCourseLink && !nav.querySelector('a[href="./admin-courses.html"]')) {
       const referenceLink = nav.querySelector('a[href="./admin-classes.html"]');
@@ -5292,6 +5356,7 @@
 
     const shouldInjectAdmissionsLink =
       !isStaffSidebar &&
+      !isStudentSidebar &&
       !isAccountSettingsPage &&
       !isParentPage() &&
       !nav?.querySelector('a[href="./admin-admissions.html"]');
@@ -5326,6 +5391,7 @@
 
     const shouldInjectFeesLink =
       !isStaffSidebar &&
+      !isStudentSidebar &&
       !isAccountSettingsPage &&
       !isParentPage() &&
       !nav?.querySelector('a[href="./admin-fees.html"]');
@@ -5373,6 +5439,10 @@
       if (isStaffSidebar) {
         window.addEventListener("hashchange", () => {
           updateStaffPortalSidebarActive(nav);
+        });
+      } else if (isStudentSidebar) {
+        window.addEventListener("hashchange", () => {
+          updateStudentPortalSidebarActive(nav);
         });
       }
     }
@@ -5463,6 +5533,18 @@
         <path d="M8 9h8"></path>
         <path d="M8 13h5"></path>
       `,
+      courses: `
+        <path d="M5 4h12a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2V4Z"></path>
+        <path d="M9 8h6"></path>
+        <path d="M9 12h7"></path>
+        <path d="M9 16h4"></path>
+      `,
+      fees: `
+        <rect x="3" y="6" width="18" height="12" rx="2"></rect>
+        <path d="M3 10h18"></path>
+        <path d="M7 14h4"></path>
+        <path d="M15 14h2"></path>
+      `,
       leave: `
         <path d="M8 3h8"></path>
         <path d="M7 7h10l1 14H6L7 7Z"></path>
@@ -5537,6 +5619,55 @@
       `,
     ).join("");
     updateStaffPortalSidebarActive(nav);
+  }
+
+  function getActiveStudentPortalKey() {
+    if (getPage() === "user-settings") {
+      return "profile";
+    }
+
+    if (getPage() !== "portal") {
+      return "";
+    }
+
+    const requested = String(window.location.hash || "")
+      .replace(/^#/, "")
+      .trim()
+      .toLowerCase();
+    return STUDENT_PORTAL_LINKS.some((item) => item.key === requested && item.key !== "profile")
+      ? requested
+      : "dashboard";
+  }
+
+  function updateStudentPortalSidebarActive(nav) {
+    if (!nav) {
+      return;
+    }
+
+    const activeKey = getActiveStudentPortalKey();
+    nav.querySelectorAll("[data-student-nav-key]").forEach((link) => {
+      link.classList.toggle("is-active", link.dataset.studentNavKey === activeKey);
+    });
+  }
+
+  function renderStudentPortalSidebar(nav) {
+    nav.dataset.navRole = "student";
+    nav.setAttribute("aria-label", "Student portal");
+    nav.innerHTML = STUDENT_PORTAL_LINKS.map(
+      (item) => `
+        <a
+          class="admin-sidebar-link"
+          href="${escapeHtml(item.href)}"
+          title="${escapeHtml(`${item.label} - ${item.description}`)}"
+          data-student-nav-key="${escapeHtml(item.key)}"
+          data-permission-key="${escapeHtml(item.permissionKey)}"
+        >
+          ${getStaffPortalIcon(item.key === "reports" ? "results" : item.key)}
+          <span>${escapeHtml(item.label)}</span>
+        </a>
+      `,
+    ).join("");
+    updateStudentPortalSidebarActive(nav);
   }
 
   function getPageIdFromHref(href) {
@@ -23717,6 +23848,596 @@
     });
   }
 
+  function getStudentPortalRecord(user = {}) {
+    const manager = getStudentManager();
+
+    if (!manager || typeof manager.getStudents !== "function") {
+      return null;
+    }
+
+    const studentRecordId = String(user.studentRecordId || "").trim();
+    const admissionNo = String(user.admissionNo || "").trim().toLowerCase();
+    const userEmail = normalizeEmail(user.email || "");
+    const students = manager.getStudents().filter((student) => student.status === "active");
+
+    return (
+      students.find((student) => studentRecordId && String(student.id || "") === studentRecordId) ||
+      students.find((student) => admissionNo && String(student.admissionNo || "").trim().toLowerCase() === admissionNo) ||
+      students.find((student) => userEmail && normalizeEmail(student.studentEmail || student.email || "") === userEmail) ||
+      null
+    );
+  }
+
+  function getStudentPortalClassRecords(student = null) {
+    if (!student) {
+      return [];
+    }
+
+    const classManager = getClassManager();
+    const studentLevelToken = normalizeLevelToken(student.level);
+
+    if (!classManager || typeof classManager.getClasses !== "function" || !studentLevelToken) {
+      return [];
+    }
+
+    return classManager
+      .getClasses()
+      .filter((record) => record.status !== "archived")
+      .filter((record) =>
+        [
+          record.id,
+          record.level,
+          record.name,
+          getClassDisplayName(record),
+        ].some((value) => normalizeLevelToken(value) === studentLevelToken),
+      )
+      .sort((left, right) => getClassDisplayName(left).localeCompare(getClassDisplayName(right), undefined, { numeric: true }));
+  }
+
+  function getStudentPortalRoster(student = null) {
+    const manager = getStudentManager();
+
+    if (!student || !manager || typeof manager.getStudents !== "function") {
+      return [];
+    }
+
+    const studentLevelToken = normalizeLevelToken(student.level);
+    return manager
+      .getStudents()
+      .filter((record) => record.status === "active" && normalizeLevelToken(record.level) === studentLevelToken)
+      .sort((left, right) => left.fullName.localeCompare(right.fullName, undefined, { numeric: true }));
+  }
+
+  function getStudentPortalTimetableEntries(student = null, options = {}) {
+    if (!student) {
+      return [];
+    }
+
+    const manager = getTimetableManager();
+    const summary = manager && typeof manager.summarize === "function" ? manager.summarize() : null;
+    const { openTerm } = getStaffActiveTermContext();
+    const activeTermOnly = options.activeTermOnly !== false;
+    const classRecords = getStudentPortalClassRecords(student);
+    const classIds = new Set(classRecords.map((record) => String(record.id || "").trim()).filter(Boolean));
+    const classTokens = new Set(
+      [
+        student.level,
+        ...classRecords.flatMap((record) => [record.level, record.name, getClassDisplayName(record)]),
+      ]
+        .map((value) => normalizeLevelToken(value))
+        .filter(Boolean),
+    );
+    const dayOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+    if (!summary) {
+      return [];
+    }
+
+    return (summary.entries || [])
+      .filter((entry) => {
+        if (entry.status === "archived") {
+          return false;
+        }
+        if (activeTermOnly && openTerm?.id && entry.termId && entry.termId !== openTerm.id) {
+          return false;
+        }
+        return (
+          (entry.classId && classIds.has(String(entry.classId || "").trim())) ||
+          classTokens.has(normalizeLevelToken(entry.classLevel))
+        );
+      })
+      .sort((left, right) => {
+        const dayComparison = dayOrder.indexOf(left.day) - dayOrder.indexOf(right.day);
+        if (dayComparison !== 0) {
+          return dayComparison;
+        }
+        return String(left.startTime || "").localeCompare(String(right.startTime || ""));
+      });
+  }
+
+  function renderStudentMetricCards(target, user = {}, student = null) {
+    if (!target) {
+      return;
+    }
+
+    const timetableEntries = getStudentPortalTimetableEntries(student);
+    const courses = getParentCoursesForStudent(student);
+    const attendance = deriveParentAttendanceSummary(student);
+    const feeRecord = student
+      ? readParentFeesState(user.workspaceId || getCurrentWorkspaceId())[student.id] || buildConfiguredParentFeeSnapshot(student)
+      : null;
+
+    target.innerHTML = `
+      <article class="admin-metric-card admin-metric-card-blue">
+        <strong>${escapeHtml(student?.fullName || "No student record")}</strong>
+        <h3>Student Home</h3>
+        <p>${escapeHtml(student?.level || "Class not linked yet")}</p>
+      </article>
+      <article class="admin-metric-card admin-metric-card-mint">
+        <strong>${escapeHtml(String(timetableEntries.length))}</strong>
+        <h3>Weekly Lessons</h3>
+        <p>Active class timetable</p>
+      </article>
+      <article class="admin-metric-card admin-metric-card-violet">
+        <strong>${escapeHtml(String(courses.length))}</strong>
+        <h3>Subjects/Courses</h3>
+        <p>Assigned to your class</p>
+      </article>
+      <article class="admin-metric-card admin-metric-card-rose">
+        <strong>${escapeHtml(formatCurrencyAmount(feeRecord?.balance || 0))}</strong>
+        <h3>Fee Balance</h3>
+        <p>${escapeHtml(attendance.currentTermLabel || "Current term")}</p>
+      </article>
+    `;
+  }
+
+  function renderStudentEvents(target, student = null) {
+    if (!target) {
+      return;
+    }
+
+    const today = getStaffTodayName();
+    const todaysLessons = getStudentPortalTimetableEntries(student).filter((entry) => entry.day === today);
+
+    target.closest(".admin-events-card")?.querySelector(".admin-surface-head h2")?.replaceChildren(document.createTextNode("School Updates and Today's Classes"));
+    const action = target.closest(".admin-events-card")?.querySelector(".admin-surface-head a");
+    if (action) {
+      action.href = "./portal.html#timetable";
+      action.textContent = "My Timetable";
+    }
+
+    if (!student) {
+      target.innerHTML = `
+        <article class="admin-event-row admin-event-row-empty">
+          <div class="admin-event-copy">
+            <strong>No student record linked</strong>
+            <span>Ask the school admin to add your student email/admission number to your student profile.</span>
+          </div>
+        </article>
+      `;
+      return;
+    }
+
+    if (!todaysLessons.length) {
+      target.innerHTML = `
+        <article class="admin-event-row admin-event-row-empty">
+          <div class="admin-event-copy admin-event-copy-blue">
+            <strong>No classes scheduled today</strong>
+            <span>${escapeHtml(today)}</span>
+          </div>
+        </article>
+      `;
+      return;
+    }
+
+    target.innerHTML = todaysLessons
+      .slice(0, 5)
+      .map(
+        (entry) => `
+          <article class="admin-event-row">
+            <div class="admin-event-time">${escapeHtml(`${entry.startTime || "--:--"}-${entry.endTime || "--:--"}`)}</div>
+            <div class="admin-event-copy admin-event-copy-blue">
+              <strong>${escapeHtml(entry.subject || "Lesson")}</strong>
+              <span>${escapeHtml(entry.teacher || "Teacher not assigned")}</span>
+            </div>
+            <a class="admin-event-button admin-event-button-blue" href="./portal.html#timetable">Timetable</a>
+          </article>
+        `,
+      )
+      .join("");
+  }
+
+  function renderStudentPermissionRestrictedPage(target, sectionKey) {
+    const item = STUDENT_PORTAL_LINKS.find((link) => link.key === sectionKey) || STUDENT_PORTAL_LINKS[0];
+    target.innerHTML = `
+      <article class="admin-surface-card">
+        <div class="admin-surface-head">
+          <div>
+            <h2>${escapeHtml(item.label)} unavailable</h2>
+            <span>Permission required</span>
+          </div>
+        </div>
+        <p class="auth-helper-text">This student section is currently hidden by role permissions.</p>
+      </article>
+    `;
+  }
+
+  function renderStudentMissingRecordPage(target, user = {}) {
+    target.innerHTML = `
+      <article class="admin-surface-card">
+        <div class="admin-surface-head">
+          <div>
+            <h2>No student profile linked</h2>
+            <span>Your account is active, but no student record is connected yet.</span>
+          </div>
+        </div>
+        <div class="admin-session-grid">
+          <div class="admin-session-card"><span>Email</span><strong>${escapeHtml(user.email || "Not recorded")}</strong></div>
+          <div class="admin-session-card"><span>Admission number</span><strong>${escapeHtml(user.admissionNo || "Not linked")}</strong></div>
+          <div class="admin-session-card"><span>Next step</span><strong>Ask admin to update student profile</strong></div>
+        </div>
+      </article>
+    `;
+  }
+
+  function renderStudentDashboardSection(target, user = {}, student = null) {
+    if (!student) {
+      renderStudentMissingRecordPage(target, user);
+      return;
+    }
+
+    const attendance = deriveParentAttendanceSummary(student);
+    const timetableEntries = getStudentPortalTimetableEntries(student);
+    const courses = getParentCoursesForStudent(student);
+    const releasedCards =
+      getReportCardManager()?.getRecords?.().filter((record) => record.studentId === student.id && record.status === "released") || [];
+    const nextLessons = timetableEntries.slice(0, 4);
+
+    target.innerHTML = `
+      <section class="staff-portal-section admin-surface-card">
+        <div class="admin-surface-head">
+          <div>
+            <h2>Student Home</h2>
+            <span>${escapeHtml(student.level || "Class not set")} • ${escapeHtml(student.admissionNo || "No admission number")}</span>
+          </div>
+        </div>
+        <div class="staff-portal-grid">
+          <article class="staff-portal-tile">
+            <span>Attendance this term</span>
+            <strong>${escapeHtml(String(attendance.present))}</strong>
+            <p>Present marks recorded</p>
+          </article>
+          <article class="staff-portal-tile">
+            <span>Subjects/Courses</span>
+            <strong>${escapeHtml(String(courses.length))}</strong>
+            <p>Assigned to your class</p>
+          </article>
+          <article class="staff-portal-tile">
+            <span>Report cards</span>
+            <strong>${escapeHtml(String(releasedCards.length))}</strong>
+            <p>Released by school</p>
+          </article>
+          <article class="staff-portal-tile">
+            <span>Weekly timetable</span>
+            <strong>${escapeHtml(String(timetableEntries.length))}</strong>
+            <p>Saved lessons</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="staff-portal-section admin-surface-card">
+        <div class="admin-surface-head">
+          <div>
+            <h2>Upcoming Lessons</h2>
+            <span>${nextLessons.length} lesson${nextLessons.length === 1 ? "" : "s"} listed</span>
+          </div>
+          <a href="./portal.html#timetable">Open timetable</a>
+        </div>
+        <div class="staff-portal-list">
+          ${
+            nextLessons.length
+              ? nextLessons
+                  .map(
+                    (entry) => `
+                      <article class="staff-portal-row">
+                        <div class="staff-portal-row-time">
+                          <strong>${escapeHtml(entry.day || "Day")}</strong>
+                          <span>${escapeHtml(`${entry.startTime || "--:--"}-${entry.endTime || "--:--"}`)}</span>
+                        </div>
+                        <div>
+                          <strong>${escapeHtml(entry.subject || "Lesson")}</strong>
+                          <span>${escapeHtml(entry.teacher || "Teacher not assigned")}</span>
+                        </div>
+                        <small>${escapeHtml(entry.weekType && entry.weekType !== "all" ? entry.weekType : "All weeks")}</small>
+                      </article>
+                    `,
+                  )
+                  .join("")
+              : `
+                <article class="portal-class-empty">
+                  <strong>No timetable yet</strong>
+                  <p>Your class timetable will appear here after the school saves lessons for your class.</p>
+                </article>
+              `
+          }
+        </div>
+      </section>
+    `;
+  }
+
+  function renderStudentTimetableSection(target, student = null) {
+    if (!student) {
+      renderStudentMissingRecordPage(target, {});
+      return;
+    }
+
+    const entries = getStudentPortalTimetableEntries(student);
+    target.innerHTML = `
+      <section class="staff-portal-section admin-surface-card">
+        <div class="admin-surface-head">
+          <div>
+            <h2>My Timetable</h2>
+            <span>${escapeHtml(student.level || "Class")} weekly class schedule</span>
+          </div>
+        </div>
+        <div class="staff-portal-list">
+          ${
+            entries.length
+              ? entries
+                  .map(
+                    (entry) => `
+                      <article class="staff-portal-row">
+                        <div class="staff-portal-row-time">
+                          <strong>${escapeHtml(entry.day || "Day")}</strong>
+                          <span>${escapeHtml(`${entry.startTime || "--:--"}-${entry.endTime || "--:--"}`)}</span>
+                        </div>
+                        <div>
+                          <strong>${escapeHtml(entry.subject || "Lesson")}</strong>
+                          <span>${escapeHtml(entry.teacher || "Teacher not assigned")}</span>
+                        </div>
+                        <small>${escapeHtml(entry.weekType && entry.weekType !== "all" ? entry.weekType : "All weeks")}</small>
+                      </article>
+                    `,
+                  )
+                  .join("")
+              : `
+                <article class="portal-class-empty">
+                  <strong>No timetable entries yet</strong>
+                  <p>Saved lessons for your class will appear here.</p>
+                </article>
+              `
+          }
+        </div>
+      </section>
+    `;
+  }
+
+  function renderStudentClassesSection(target, student = null) {
+    if (!student) {
+      renderStudentMissingRecordPage(target, {});
+      return;
+    }
+
+    const classRecords = getStudentPortalClassRecords(student);
+    const roster = getStudentPortalRoster(student);
+    target.innerHTML = `
+      <section class="staff-portal-section admin-surface-card">
+        <div class="admin-surface-head">
+          <div>
+            <h2>My Classes</h2>
+            <span>Class workspace and rosters</span>
+          </div>
+        </div>
+        <div class="staff-portal-grid">
+          ${
+            classRecords.length
+              ? classRecords
+                  .map(
+                    (classRecord) => `
+                      <article class="staff-portal-tile">
+                        <span>Class</span>
+                        <strong>${escapeHtml(getClassDisplayName(classRecord))}</strong>
+                        <p>${escapeHtml(classRecord.classTeacher || "Class teacher not assigned")}</p>
+                      </article>
+                    `,
+                  )
+                  .join("")
+              : `
+                <article class="portal-class-empty">
+                  <strong>No class workspace found</strong>
+                  <p>Your student level is ${escapeHtml(student.level || "not assigned")}.</p>
+                </article>
+              `
+          }
+        </div>
+      </section>
+      <section class="staff-portal-section admin-surface-card">
+        <div class="admin-surface-head">
+          <div>
+            <h2>Class Roster</h2>
+            <span>${roster.length} student${roster.length === 1 ? "" : "s"} in this class level</span>
+          </div>
+        </div>
+        <div class="staff-portal-list">
+          ${
+            roster.length
+              ? roster
+                  .map(
+                    (record) => `
+                      <article class="staff-portal-row">
+                        <div>
+                          <strong>${escapeHtml(record.fullName)}</strong>
+                          <span>${escapeHtml(record.admissionNo || "No admission number")}</span>
+                        </div>
+                        <small>${escapeHtml(record.id === student.id ? "You" : record.level || "Classmate")}</small>
+                      </article>
+                    `,
+                  )
+                  .join("")
+              : `<article class="portal-class-empty"><strong>No roster yet</strong><p>Classmates will appear here after student records are added.</p></article>`
+          }
+        </div>
+      </section>
+    `;
+  }
+
+  function renderStudentCoursesSection(target, student = null) {
+    if (!student) {
+      renderStudentMissingRecordPage(target, {});
+      return;
+    }
+
+    const courses = getParentCoursesForStudent(student);
+    target.innerHTML = `
+      <section class="staff-portal-section admin-surface-card">
+        <div class="admin-surface-head">
+          <div>
+            <h2>Subjects or Courses</h2>
+            <span>Assigned subjects or courses for ${escapeHtml(student.level || "your class")}</span>
+          </div>
+        </div>
+        <div class="staff-portal-grid">
+          ${
+            courses.length
+              ? courses
+                  .map(
+                    (course) => `
+                      <article class="staff-portal-tile">
+                        <span>${escapeHtml(course.code || "Subject")}</span>
+                        <strong>${escapeHtml(course.name)}</strong>
+                        <p>${escapeHtml(course.level || student.level || "Assigned")}</p>
+                      </article>
+                    `,
+                  )
+                  .join("")
+              : `
+                <article class="portal-class-empty">
+                  <strong>No subjects or courses yet</strong>
+                  <p>Assigned subjects/courses will appear after admin adds them to your class.</p>
+                </article>
+              `
+          }
+        </div>
+      </section>
+    `;
+  }
+
+  function renderStudentAttendanceSection(target, student = null) {
+    if (!student) {
+      renderStudentMissingRecordPage(target, {});
+      return;
+    }
+
+    renderParentAttendancePage(target, student);
+    target.querySelector(".admin-surface-head h2")?.replaceChildren(document.createTextNode(`Attendance: ${student.fullName}`));
+  }
+
+  function renderStudentFeesSection(target, student = null, user = {}) {
+    if (!student) {
+      renderStudentMissingRecordPage(target, user);
+      return;
+    }
+
+    const workspaceId = normalizeWorkspaceId(user?.workspaceId || getCurrentWorkspaceId());
+    const storedFeeRecord = readParentFeesState(workspaceId)[student.id] || null;
+    const configuredFeeRecord = buildConfiguredParentFeeSnapshot(student);
+    const current = storedFeeRecord || configuredFeeRecord || {
+      totalDue: 0,
+      balance: 0,
+      dueDate: "Not set by admin yet",
+      invoiceItems: [],
+      updatedAt: nowIso(),
+    };
+    const invoiceItems = Array.isArray(current.invoiceItems) ? current.invoiceItems : [];
+    target.innerHTML = `
+      <section class="staff-portal-section admin-surface-card">
+        <div class="admin-surface-head">
+          <div>
+            <h2>Fees</h2>
+            <span>Assigned fee items and balance</span>
+          </div>
+        </div>
+        <div class="admin-session-grid">
+          <div class="admin-session-card"><span>Total due</span><strong>${escapeHtml(formatCurrencyAmount(current.totalDue || 0))}</strong></div>
+          <div class="admin-session-card"><span>Outstanding balance</span><strong>${escapeHtml(formatCurrencyAmount(current.balance || 0))}</strong></div>
+          <div class="admin-session-card"><span>Due date</span><strong>${escapeHtml(String(current.dueDate || "Not set"))}</strong></div>
+          <div class="admin-session-card"><span>Academic period</span><strong>${escapeHtml(
+            [current.sessionName, current.termName].filter(Boolean).join(" • ") || "Not selected",
+          )}</strong></div>
+        </div>
+        <div class="portal-import-table-wrap parent-fee-invoice-lines">
+          <table class="portal-import-table">
+            <thead>
+              <tr><th>Category</th><th>Fee item</th><th>Note</th><th>Due date</th><th>Amount</th></tr>
+            </thead>
+            <tbody>
+              ${
+                invoiceItems.length
+                  ? invoiceItems
+                      .map(
+                        (item) => `
+                          <tr>
+                            <td>${escapeHtml(getFeeCategoryLabel(item.category || FEE_CATEGORY_FALLBACK))}</td>
+                            <td>${escapeHtml(item.name || "Fee item")}</td>
+                            <td>${escapeHtml(item.description || "No note")}</td>
+                            <td>${escapeHtml(item.dueDate || current.dueDate || "Not set")}</td>
+                            <td>${escapeHtml(formatCurrencyAmount(item.amount || 0))}</td>
+                          </tr>
+                        `,
+                      )
+                      .join("")
+                  : `<tr><td colspan="5">No fee items have been assigned to your class yet.</td></tr>`
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderStudentReportsSection(target, student = null) {
+    if (!student) {
+      renderStudentMissingRecordPage(target, {});
+      return;
+    }
+
+    renderParentReportsPage(target, student);
+    target.querySelector(".parent-report-card-command .admin-surface-head h2")?.replaceChildren(document.createTextNode("Results and Report Cards"));
+    target.querySelector(".parent-report-card-command .admin-surface-head span")?.replaceChildren(document.createTextNode("Released results and PDFs."));
+  }
+
+  function renderStudentPortalWorkspace(target, user = {}) {
+    if (!target) {
+      return;
+    }
+
+    const sectionKey = getActiveStudentPortalKey();
+    const link = STUDENT_PORTAL_LINKS.find((item) => item.key === sectionKey) || STUDENT_PORTAL_LINKS[0];
+    const student = getStudentPortalRecord(user);
+    target.hidden = false;
+
+    if (!canAccessPermission("Student", link.permissionKey)) {
+      renderStudentPermissionRestrictedPage(target, sectionKey);
+      return;
+    }
+
+    if (sectionKey === "timetable") {
+      renderStudentTimetableSection(target, student);
+    } else if (sectionKey === "classes") {
+      renderStudentClassesSection(target, student);
+    } else if (sectionKey === "courses") {
+      renderStudentCoursesSection(target, student);
+    } else if (sectionKey === "attendance") {
+      renderStudentAttendanceSection(target, student);
+    } else if (sectionKey === "fees") {
+      renderStudentFeesSection(target, student, user);
+    } else if (sectionKey === "reports") {
+      renderStudentReportsSection(target, student);
+    } else {
+      renderStudentDashboardSection(target, user, student);
+    }
+  }
+
   function getTeacherPortalNotifications(user = {}) {
     const workspaceId = normalizeWorkspaceId(user.workspaceId || getCurrentWorkspaceId());
     return filterNotificationsByRole(getNotifications(workspaceId), "Teacher");
@@ -28319,9 +29040,13 @@
     applyAdminBranding(brandMark, brandName, brandSubtitle, getSchoolSettingsManager());
     if (heading && isStaffSettingsPage) {
       heading.textContent = "Settings";
+    } else if (heading && normalizedRole === "Student") {
+      heading.textContent = "My Profile";
     }
     if (copy && isStaffSettingsPage) {
       copy.textContent = "Account info, password, and profile picture.";
+    } else if (copy && normalizedRole === "Student") {
+      copy.textContent = "Account info and password.";
     }
     if (lastUpdated) {
       lastUpdated.textContent = `Updated ${formatTimestamp(nowIso())}`;
@@ -28759,6 +29484,7 @@
     const links = document.getElementById("portal-links");
     const details = document.getElementById("portal-details");
     const staffWorkspace = document.getElementById("staff-portal-workspace");
+    const studentWorkspace = document.getElementById("student-portal-workspace");
     const teacherAttendance = document.getElementById("teacher-attendance-workspace");
     const gate = document.getElementById("portal-gate");
     const schoolSettingsManager = getSchoolSettingsManager();
@@ -28845,7 +29571,9 @@
       copy.textContent =
         roleLabel === "Teacher"
           ? `Your staff workspace for today's lessons, registers, classes, and follow-ups at ${schoolName}.`
-          : `Here's what's happening at ${schoolName} today.`;
+          : roleLabel === "Student"
+            ? `Your student portal for classes, timetable, attendance, fees, and results at ${schoolName}.`
+            : `Here's what's happening at ${schoolName} today.`;
       lastUpdated.textContent = `Updated ${formatTimestamp(snapshot.updatedAt)}`;
     };
 
@@ -28889,6 +29617,10 @@
       if (staffWorkspace) {
         staffWorkspace.hidden = true;
         staffWorkspace.innerHTML = "";
+      }
+      if (studentWorkspace) {
+        studentWorkspace.hidden = true;
+        studentWorkspace.innerHTML = "";
       }
       if (teacherAttendance) {
         teacherAttendance.hidden = true;
@@ -28942,9 +29674,15 @@
       return;
     }
 
-    const hasDashboardAccess = canAccessPermission(roleLabel, PAGE_PERMISSION_KEYS[page] || PAGE_PERMISSION_KEYS.portal);
     const isStaffPortal = page === "staff-dashboard" && roleLabel === "Teacher";
+    const isStudentPortal = page === "portal" && roleLabel === "Student";
+    const hasDashboardAccess = canAccessPermission(roleLabel, PAGE_PERMISSION_KEYS[page] || PAGE_PERMISSION_KEYS.portal);
+    const hasStudentPortalAccess =
+      isStudentPortal &&
+      STUDENT_PORTAL_LINKS.some((item) => item.key !== "profile" && canAccessPermission(roleLabel, item.permissionKey));
+    const canRenderPortal = isStudentPortal ? hasStudentPortalAccess : hasDashboardAccess;
     document.body.classList.toggle("staff-portal-page", isStaffPortal);
+    document.body.classList.toggle("student-portal-page", isStudentPortal);
 
     const refreshStaffPortalDashboard = () => {
       if (!isStaffPortal || !hasDashboardAccess) {
@@ -28960,16 +29698,46 @@
       renderStaffPortalWorkspace(staffWorkspace, user);
     };
 
+    const refreshStudentPortalDashboard = () => {
+      if (!isStudentPortal || !hasStudentPortalAccess) {
+        if (studentWorkspace) {
+          studentWorkspace.hidden = true;
+          studentWorkspace.innerHTML = "";
+        }
+        return;
+      }
+
+      const studentRecord = getStudentPortalRecord(user);
+      renderStudentMetricCards(metrics, user, studentRecord);
+      renderStudentEvents(events, studentRecord);
+      renderStudentPortalWorkspace(studentWorkspace, user);
+      updateStudentPortalSidebarActive(document.querySelector(".admin-sidebar-nav"));
+    };
+
     renderDashboardChrome(user, roleLabel, snapshot);
-    if (hasDashboardAccess) {
+    if (canRenderPortal) {
       if (isStaffPortal) {
         refreshStaffPortalDashboard();
+        if (studentWorkspace) {
+          studentWorkspace.hidden = true;
+          studentWorkspace.innerHTML = "";
+        }
+      } else if (isStudentPortal) {
+        refreshStudentPortalDashboard();
+        if (staffWorkspace) {
+          staffWorkspace.hidden = true;
+          staffWorkspace.innerHTML = "";
+        }
       } else {
         renderAdminMetricCards(metrics, snapshot);
         renderAdminEvents(events);
         if (staffWorkspace) {
           staffWorkspace.hidden = true;
           staffWorkspace.innerHTML = "";
+        }
+        if (studentWorkspace) {
+          studentWorkspace.hidden = true;
+          studentWorkspace.innerHTML = "";
         }
       }
       if (activity) {
@@ -28987,6 +29755,10 @@
       if (staffWorkspace) {
         staffWorkspace.hidden = true;
         staffWorkspace.innerHTML = "";
+      }
+      if (studentWorkspace) {
+        studentWorkspace.hidden = true;
+        studentWorkspace.innerHTML = "";
       }
       if (activity) {
         activity.innerHTML = "";
@@ -29013,6 +29785,8 @@
         if (isStaffPortal) {
           renderStaffEvents(events, user);
           renderStaffPortalWorkspace(staffWorkspace, user);
+        } else if (isStudentPortal) {
+          refreshStudentPortalDashboard();
         } else {
           renderAdminEvents(events);
         }
@@ -29024,23 +29798,37 @@
       window.addEventListener(attendanceManager.eventName, () => {
         if (isStaffPortal) {
           refreshStaffPortalDashboard();
+        } else if (isStudentPortal) {
+          refreshStudentPortalDashboard();
         } else {
           renderAdminMetricCards(metrics, getDashboardSnapshot());
         }
       });
     }
 
-    [getClassManager(), getCourseManager(), getStudentManager()].forEach((manager) => {
+    [getClassManager(), getCourseManager(), getStudentManager(), getTimetableManager(), getFeeItemManager(), getReportCardManager()].forEach((manager) => {
       if (manager?.eventName && teacherAttendance) {
         window.addEventListener(manager.eventName, () => {
           refreshTeacherAttendanceWorkspace();
           refreshStaffPortalDashboard();
+          refreshStudentPortalDashboard();
         });
       }
     });
 
+    if (isStudentPortal) {
+      window.addEventListener("hashchange", refreshStudentPortalDashboard);
+      window.addEventListener(PARENT_FEES_EVENT_NAME, refreshStudentPortalDashboard);
+    }
+
     if (links) {
-      const availableLinks = DASHBOARD_SECTION_LINKS.filter((item) => canAccessPermission(roleLabel, item.permissionKey));
+      const availableLinks = isStudentPortal
+        ? STUDENT_PORTAL_LINKS.filter((item) => canAccessPermission(roleLabel, item.permissionKey)).map((item) => ({
+            label: item.label,
+            href: item.href,
+            copy: item.description,
+          }))
+        : DASHBOARD_SECTION_LINKS.filter((item) => canAccessPermission(roleLabel, item.permissionKey));
       links.innerHTML = availableLinks.map(
         (item) => `
           <a class="admin-link-card" href="${item.href}">
