@@ -127,12 +127,12 @@
     "parent-reports": "./parent-reports.html",
   };
   const PARENT_PAGE_PERMISSION_KEYS = {
-    "parent-portal": "dashboard_view",
-    "parent-teachers": "teachers_manage",
-    "parent-courses": "courses_manage",
-    "parent-attendance": "attendance_manage",
-    "parent-fees": "fees_manage",
-    "parent-reports": "reports_view",
+    "parent-portal": "parent_performance_view",
+    "parent-teachers": "parent_teachers_view",
+    "parent-courses": "parent_courses_view",
+    "parent-attendance": "parent_attendance_view",
+    "parent-fees": "parent_fees_view",
+    "parent-reports": "parent_reports_view",
   };
   const PARENT_PAGE_LABELS = {
     "parent-portal": "My child performance",
@@ -209,7 +209,7 @@
   ];
 
   const PAGE_PERMISSION_KEYS = {
-    portal: "dashboard_view",
+    portal: "student_dashboard_view",
     "admin-students": "students_manage",
     "admin-admissions": "students_manage",
     "admin-teachers": "teachers_manage",
@@ -225,17 +225,17 @@
     "admin-settings-access": "settings_manage",
     "admin-settings-roles": "settings_manage",
     "admin-settings-academic": "settings_manage",
-    "staff-dashboard": "dashboard_view",
-    "staff-timetable": "dashboard_view",
-    "staff-attendance": "attendance_manage",
-    "staff-classes": "dashboard_view",
-    "staff-gradebook": "results_manage",
-    "staff-results": "results_manage",
-    "staff-lesson-plans": "dashboard_view",
-    "staff-messages": "dashboard_view",
-    "staff-leave": "dashboard_view",
-    "staff-settings": "dashboard_view",
-    "user-settings": "dashboard_view",
+    "staff-dashboard": "staff_dashboard_view",
+    "staff-timetable": "staff_timetable_view",
+    "staff-attendance": "staff_attendance_mark",
+    "staff-classes": "staff_classes_view",
+    "staff-gradebook": "staff_gradebook_manage",
+    "staff-results": "staff_results_manage",
+    "staff-lesson-plans": "staff_lesson_plans_manage",
+    "staff-messages": "staff_messages_view",
+    "staff-leave": "staff_leave_manage",
+    "staff-settings": "staff_profile_manage",
+    "user-settings": "student_profile_manage",
   };
 
   const STAFF_PORTAL_LINKS = [
@@ -243,70 +243,70 @@
       key: "dashboard",
       label: "Dashboard",
       href: "./staff-dashboard.html",
-      permissionKey: "dashboard_view",
+      permissionKey: "staff_dashboard_view",
       description: "Home, today's schedule, pending tasks",
     },
     {
       key: "timetable",
       label: "My Timetable",
       href: "./staff-timetable.html",
-      permissionKey: "dashboard_view",
+      permissionKey: "staff_timetable_view",
       description: "Weekly schedule for the active term",
     },
     {
       key: "attendance",
       label: "Attendance",
       href: "./staff-attendance.html",
-      permissionKey: "attendance_manage",
+      permissionKey: "staff_attendance_mark",
       description: "Mark class register",
     },
     {
       key: "classes",
       label: "My Classes",
       href: "./staff-classes.html",
-      permissionKey: "dashboard_view",
+      permissionKey: "staff_classes_view",
       description: "Assigned classes and student rosters",
     },
     {
       key: "gradebook",
       label: "Gradebook",
       href: "./staff-gradebook.html",
-      permissionKey: "results_manage",
+      permissionKey: "staff_gradebook_manage",
       description: "Score entry per subject and assessment",
     },
     {
       key: "results",
       label: "Results",
       href: "./staff-results.html",
-      permissionKey: "results_manage",
+      permissionKey: "staff_results_manage",
       description: "View, comment, and publish term results",
     },
     {
       key: "lesson-plans",
       label: "Lesson Plans",
       href: "./staff-lesson-plans.html",
-      permissionKey: "dashboard_view",
+      permissionKey: "staff_lesson_plans_manage",
       description: "Create and submit weekly plans",
     },
     {
       key: "messages",
       label: "Messages",
       href: "./staff-messages.html",
-      permissionKey: "dashboard_view",
+      permissionKey: "staff_messages_view",
       description: "Inbox from admin, parents, and colleagues",
     },
     {
       key: "leave",
       label: "Leave Requests",
       href: "./staff-leave.html",
-      permissionKey: "dashboard_view",
+      permissionKey: "staff_leave_manage",
       description: "Apply for leave and view approval status",
     },
     {
       key: "settings",
       label: "Settings",
       href: "./staff-settings.html",
-      permissionKey: "dashboard_view",
+      permissionKey: "staff_profile_manage",
       description: "Account info, password, and profile picture",
     },
   ];
@@ -15246,7 +15246,7 @@
       return;
     }
 
-    const { roles, options, rolePermissions, summary } = manager.summarize();
+    const { roles, rolePermissions, summary, optionsByRole = {} } = manager.summarize();
     const summaryText = summary
       .map((item) => `${item.role}: ${item.enabled}/${item.total}`)
       .join(" • ");
@@ -15262,6 +15262,10 @@
 
     gridTarget.innerHTML = roles
       .map((role) => {
+        const options =
+          (typeof manager.getOptions === "function" ? manager.getOptions(role) : null) ||
+          optionsByRole[role] ||
+          [];
         const enabledForRole = options.filter((option) => rolePermissions[role][option.key]).length;
 
         return `
@@ -15275,7 +15279,10 @@
                 .map(
                   (option) => `
                     <label class="portal-role-permission-item">
-                      <span>${escapeHtml(option.label)}</span>
+                      <span>
+                        <strong>${escapeHtml(option.label)}</strong>
+                        ${option.description ? `<small>${escapeHtml(option.description)}</small>` : ""}
+                      </span>
                       <input
                         type="checkbox"
                         data-role-permission-role="${escapeHtml(role)}"
@@ -28260,7 +28267,7 @@
       return;
     }
 
-    const permissionKey = PAGE_PERMISSION_KEYS[page] || "dashboard_view";
+    const permissionKey = PAGE_PERMISSION_KEYS[page] || "staff_dashboard_view";
     const renderPage = () => {
       if (!canAccessPermission(normalizedRole, permissionKey)) {
         contentTarget.hidden = false;
@@ -28570,7 +28577,7 @@
         return;
       }
 
-      if (roleLabel === "Teacher" && canAccessPermission(roleLabel, PAGE_PERMISSION_KEYS["admin-attendance"])) {
+      if (roleLabel === "Teacher" && canAccessPermission(roleLabel, PAGE_PERMISSION_KEYS["staff-attendance"])) {
         renderTeacherAttendanceWorkspace(teacherAttendance, user);
       } else {
         teacherAttendance.hidden = true;

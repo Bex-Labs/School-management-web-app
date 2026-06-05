@@ -274,18 +274,76 @@ const MAX_AUDIT_TRAIL_ENTRIES = 300;
 const ROLE_PERMISSIONS_STORAGE_KEY = "schoolsphere.rolePermissions.v1";
 const ROLE_PERMISSIONS_EVENT = "schoolsphere:role-permissions-updated";
 const ROLE_PERMISSION_ROLES = ["Teacher", "Parent", "Student"];
-const ROLE_PERMISSION_OPTIONS = [
-  { key: "dashboard_view", label: "View dashboard" },
-  { key: "students_manage", label: "Manage students" },
-  { key: "teachers_manage", label: "Manage staff and teachers" },
-  { key: "classes_manage", label: "Manage classes" },
-  { key: "courses_manage", label: "Manage courses" },
-  { key: "attendance_manage", label: "Manage attendance" },
-  { key: "results_manage", label: "Manage exams and results" },
-  { key: "fees_manage", label: "Manage fees and bursary" },
-  { key: "reports_view", label: "View reports" },
-  { key: "settings_manage", label: "Manage school settings" },
-];
+const ROLE_PERMISSION_OPTIONS_BY_ROLE = {
+  Teacher: [
+    { key: "staff_dashboard_view", label: "Dashboard", description: "Home, today's schedule, pending tasks" },
+    { key: "staff_timetable_view", label: "My Timetable", description: "Weekly schedule for the active term" },
+    { key: "staff_attendance_mark", label: "Attendance", description: "Mark class register" },
+    { key: "staff_classes_view", label: "My Classes", description: "Assigned classes and student rosters" },
+    { key: "staff_gradebook_manage", label: "Gradebook", description: "Score entry per subject and assessment" },
+    { key: "staff_results_manage", label: "Results", description: "View, comment, and publish term results" },
+    { key: "staff_lesson_plans_manage", label: "Lesson Plans", description: "Create and submit weekly plans" },
+    { key: "staff_messages_view", label: "Messages", description: "Inbox from admin, parents, and colleagues" },
+    { key: "staff_leave_manage", label: "Leave Requests", description: "Apply for leave and view approval status" },
+    { key: "staff_profile_manage", label: "My Profile", description: "Account info, password, notification prefs" },
+  ],
+  Parent: [
+    { key: "parent_performance_view", label: "My Child Performance", description: "Child overview and key school updates" },
+    { key: "parent_teachers_view", label: "Teachers by Class", description: "Teachers connected to the child" },
+    { key: "parent_courses_view", label: "My Child Courses", description: "Subjects or courses assigned to the child" },
+    { key: "parent_attendance_view", label: "Attendance", description: "Child attendance summary" },
+    { key: "parent_fees_view", label: "Fees and Balance", description: "Invoices, balances, and payments" },
+    { key: "parent_reports_view", label: "Reports", description: "Released report cards and PDFs" },
+  ],
+  Student: [
+    { key: "student_dashboard_view", label: "Dashboard", description: "Student home and school updates" },
+    { key: "student_timetable_view", label: "My Timetable", description: "Weekly class schedule" },
+    { key: "student_classes_view", label: "My Classes", description: "Class workspace and rosters" },
+    { key: "student_courses_view", label: "Subjects or Courses", description: "Assigned subjects or courses" },
+    { key: "student_attendance_view", label: "Attendance", description: "Personal attendance record" },
+    { key: "student_fees_view", label: "Fees", description: "Assigned fee items and balance" },
+    { key: "student_reports_view", label: "Results and Report Cards", description: "Released results and PDFs" },
+    { key: "student_profile_manage", label: "My Profile", description: "Account info and password" },
+  ],
+};
+const ROLE_PERMISSION_OPTIONS = Object.values(ROLE_PERMISSION_OPTIONS_BY_ROLE)
+  .flat()
+  .filter(
+    (option, index, options) =>
+      options.findIndex((candidate) => candidate.key === option.key) === index,
+  );
+const LEGACY_ROLE_PERMISSION_FALLBACKS = {
+  Teacher: {
+    staff_dashboard_view: "dashboard_view",
+    staff_timetable_view: "dashboard_view",
+    staff_attendance_mark: "attendance_manage",
+    staff_classes_view: "dashboard_view",
+    staff_gradebook_manage: "results_manage",
+    staff_results_manage: "results_manage",
+    staff_lesson_plans_manage: "dashboard_view",
+    staff_messages_view: "dashboard_view",
+    staff_leave_manage: "dashboard_view",
+    staff_profile_manage: "dashboard_view",
+  },
+  Parent: {
+    parent_performance_view: "dashboard_view",
+    parent_teachers_view: "teachers_manage",
+    parent_courses_view: "courses_manage",
+    parent_attendance_view: "attendance_manage",
+    parent_fees_view: "fees_manage",
+    parent_reports_view: "reports_view",
+  },
+  Student: {
+    student_dashboard_view: "dashboard_view",
+    student_timetable_view: "classes_manage",
+    student_classes_view: "classes_manage",
+    student_courses_view: "courses_manage",
+    student_attendance_view: "attendance_manage",
+    student_fees_view: "fees_manage",
+    student_reports_view: "reports_view",
+    student_profile_manage: "dashboard_view",
+  },
+};
 
 const AUTH_SESSION_STORAGE_KEYS = {
   persistent: "schoolsphere.session.persistent.v1",
@@ -385,54 +443,22 @@ function isWorkspaceScopedStorageEventKey(eventKey, baseKey) {
   return eventKey === resolveWorkspaceStorageKey(baseKey);
 }
 const DEFAULT_ROLE_PERMISSIONS = {
-  Admin: {
-    dashboard_view: true,
-    students_manage: true,
-    teachers_manage: true,
-    classes_manage: true,
-    courses_manage: true,
-    attendance_manage: true,
-    results_manage: true,
-    fees_manage: true,
-    reports_view: true,
-    settings_manage: true,
-  },
-  Teacher: {
-    dashboard_view: true,
-    students_manage: false,
-    teachers_manage: false,
-    classes_manage: false,
-    courses_manage: false,
-    attendance_manage: true,
-    results_manage: true,
-    fees_manage: false,
-    reports_view: true,
-    settings_manage: false,
-  },
-  Parent: {
-    dashboard_view: true,
-    students_manage: false,
-    teachers_manage: false,
-    classes_manage: false,
-    courses_manage: false,
-    attendance_manage: false,
-    results_manage: false,
-    fees_manage: true,
-    reports_view: true,
-    settings_manage: false,
-  },
-  Student: {
-    dashboard_view: true,
-    students_manage: false,
-    teachers_manage: false,
-    classes_manage: false,
-    courses_manage: false,
-    attendance_manage: false,
-    results_manage: false,
-    fees_manage: false,
-    reports_view: true,
-    settings_manage: false,
-  },
+  Admin: ROLE_PERMISSION_OPTIONS.reduce((permissions, option) => {
+    permissions[option.key] = true;
+    return permissions;
+  }, {}),
+  Teacher: ROLE_PERMISSION_OPTIONS_BY_ROLE.Teacher.reduce((permissions, option) => {
+    permissions[option.key] = true;
+    return permissions;
+  }, {}),
+  Parent: ROLE_PERMISSION_OPTIONS_BY_ROLE.Parent.reduce((permissions, option) => {
+    permissions[option.key] = true;
+    return permissions;
+  }, {}),
+  Student: ROLE_PERMISSION_OPTIONS_BY_ROLE.Student.reduce((permissions, option) => {
+    permissions[option.key] = true;
+    return permissions;
+  }, {}),
 };
 
 const schoolTypes = [
@@ -3372,6 +3398,10 @@ function summarizeFeatureToggleState() {
   };
 }
 
+function getRolePermissionOptions(role) {
+  return ROLE_PERMISSION_OPTIONS_BY_ROLE[role] || [];
+}
+
 function normalizeRolePermissions(raw = {}) {
   const roleAliases = {
     Teacher: ["Teacher", "Employee"],
@@ -3383,11 +3413,18 @@ function normalizeRolePermissions(raw = {}) {
     const aliasKeys = roleAliases[role] || [role];
     const sourceKey = aliasKeys.find((key) => raw[key] && typeof raw[key] === "object");
     const source = sourceKey ? raw[sourceKey] : {};
+    const roleOptions = ROLE_PERMISSION_OPTIONS_BY_ROLE[role] || [];
+    const legacyFallbacks = LEGACY_ROLE_PERMISSION_FALLBACKS[role] || {};
 
-    next[role] = ROLE_PERMISSION_OPTIONS.reduce((rolePermissions, option) => {
+    next[role] = roleOptions.reduce((rolePermissions, option) => {
+      const legacyKey = legacyFallbacks[option.key];
       const fallback = DEFAULT_ROLE_PERMISSIONS[role][option.key];
       rolePermissions[option.key] =
-        typeof source[option.key] === "boolean" ? source[option.key] : fallback;
+        typeof source[option.key] === "boolean"
+          ? source[option.key]
+          : legacyKey && typeof source[legacyKey] === "boolean"
+            ? source[legacyKey]
+            : fallback;
       return rolePermissions;
     }, {});
     return next;
@@ -3419,7 +3456,7 @@ function setRolePermission(role, permissionKey, enabled) {
     return null;
   }
 
-  if (!ROLE_PERMISSION_OPTIONS.some((option) => option.key === permissionKey)) {
+  if (!getRolePermissionOptions(role).some((option) => option.key === permissionKey)) {
     return null;
   }
 
@@ -3437,18 +3474,19 @@ function resetRolePermissions() {
 
 function summarizeRolePermissions() {
   const rolePermissions = getRolePermissions();
-  const total = ROLE_PERMISSION_OPTIONS.length;
   const summary = ROLE_PERMISSION_ROLES.map((role) => {
-    const enabled = ROLE_PERMISSION_OPTIONS.filter(
+    const options = getRolePermissionOptions(role);
+    const enabled = options.filter(
       (option) => rolePermissions[role][option.key],
     ).length;
-    return { role, enabled, total };
+    return { role, enabled, total: options.length };
   });
 
   return {
     rolePermissions,
     roles: ROLE_PERMISSION_ROLES,
     options: ROLE_PERMISSION_OPTIONS,
+    optionsByRole: ROLE_PERMISSION_OPTIONS_BY_ROLE,
     summary,
   };
 }
@@ -3465,7 +3503,9 @@ window.SchoolSphereFeatureModules = {
 window.SchoolSphereRolePermissions = {
   roles: ROLE_PERMISSION_ROLES,
   permissions: ROLE_PERMISSION_OPTIONS,
+  permissionsByRole: ROLE_PERMISSION_OPTIONS_BY_ROLE,
   defaults: DEFAULT_ROLE_PERMISSIONS,
+  getOptions: getRolePermissionOptions,
   getPermissions: getRolePermissions,
   setPermission: setRolePermission,
   savePermissions: saveRolePermissions,
