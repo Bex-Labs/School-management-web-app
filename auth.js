@@ -1533,7 +1533,13 @@
       entityType === "calendar" ||
       entityType === "result" ||
       entityType === "assignment" ||
-      entityType === "activity"
+      entityType === "activity" ||
+      entityType === "announcement" ||
+      entityType === "school-announcement" ||
+      entityType === "school-update" ||
+      entityType === "class-announcement" ||
+      entityType === "class-update" ||
+      entityType === "notice"
     ) {
       return ["Admin", "Teacher", "Student", "Parent"];
     }
@@ -1623,6 +1629,15 @@
       addId(student?.studentEmail);
       addId(student?.email);
       addLevel(student?.level);
+      getStudentPortalClassRecords(student).forEach((classRecord) => {
+        addId(classRecord.id);
+        addId(classRecord.level);
+        addId(classRecord.name);
+        addId(getClassDisplayName(classRecord));
+        addLevel(classRecord.level);
+        addLevel(classRecord.name);
+        addLevel(getClassDisplayName(classRecord));
+      });
     } else if (role === "Parent" && user) {
       getParentLinkedStudents(user.email, getStudentManager()).forEach((student) => {
         addId(student.id);
@@ -1657,6 +1672,10 @@
     }
 
     const entityIdLower = entityId.toLowerCase();
+    if (["all", "everyone", "global", "school", "whole-school", "whole_school"].includes(entityIdLower)) {
+      return true;
+    }
+
     const entityLevelToken = normalizeLevelToken(entityId);
 
     return scope.ids?.has(entityIdLower) || scope.levelTokens?.has(entityLevelToken);
@@ -24050,6 +24069,86 @@
       });
   }
 
+  function isStudentAnnouncementNotification(entry = {}) {
+    const entityType = String(entry.entityType || "")
+      .trim()
+      .toLowerCase();
+    return [
+      "announcement",
+      "school-announcement",
+      "school-update",
+      "class-announcement",
+      "class-update",
+      "notice",
+      "calendar",
+      "activity",
+    ].includes(entityType);
+  }
+
+  function getStudentPortalAnnouncements(user = {}) {
+    const session = getSession() || {};
+    const workspaceId = normalizeWorkspaceId(user.workspaceId || session.workspaceId || getCurrentWorkspaceId());
+    const studentSession = {
+      ...session,
+      role: "Student",
+      userId: user.id || session.userId,
+      email: user.email || session.email,
+      workspaceId,
+    };
+
+    return filterNotificationsForSession(getNotifications(workspaceId), studentSession)
+      .filter((entry) => isStudentAnnouncementNotification(entry))
+      .slice(0, 6);
+  }
+
+  function isWholeSchoolAnnouncement(entry = {}) {
+    const entityId = String(entry.entityId || "")
+      .trim()
+      .toLowerCase();
+    return !entityId || ["all", "everyone", "global", "school", "whole-school", "whole_school"].includes(entityId);
+  }
+
+  function renderStudentAnnouncementsPanel(user = {}) {
+    const announcements = getStudentPortalAnnouncements(user);
+
+    return `
+      <section class="staff-portal-section admin-surface-card">
+        <div class="admin-surface-head">
+          <div>
+            <h2>School Announcements</h2>
+            <span>${announcements.length} notice${announcements.length === 1 ? "" : "s"} for your class or whole school</span>
+          </div>
+        </div>
+        <div class="staff-portal-list">
+          ${
+            announcements.length
+              ? announcements
+                  .map(
+                    (entry) => `
+                      <article class="staff-portal-row staff-portal-row-wide">
+                        <div>
+                          <strong>${escapeHtml(entry.title || "School announcement")}</strong>
+                          <span>${escapeHtml(entry.message || "No extra details.")}</span>
+                        </div>
+                        <small>${escapeHtml(isWholeSchoolAnnouncement(entry) ? "Whole school" : "Your class")} • ${escapeHtml(
+                          formatTimestamp(entry.createdAt),
+                        )}</small>
+                      </article>
+                    `,
+                  )
+                  .join("")
+              : `
+                <article class="portal-class-empty">
+                  <strong>No announcements yet</strong>
+                  <p>Whole-school and class notices will appear here when the school posts them.</p>
+                </article>
+              `
+          }
+        </div>
+      </section>
+    `;
+  }
+
   function renderStudentMetricCards(target, user = {}, student = null) {
     if (!target) {
       return;
@@ -24219,6 +24318,8 @@
           </article>
         </div>
       </section>
+
+      ${renderStudentAnnouncementsPanel(user)}
 
       <section class="staff-portal-section admin-surface-card">
         <div class="admin-surface-head">
@@ -25076,7 +25177,7 @@
           <article class="staff-portal-tile">
             <span>Released report cards</span>
             <strong>${releasedCards.length}</strong>
-            <p>Available to linked parents.</p>
+            <p>Available to linked parents and students.</p>
           </article>
           <article class="staff-portal-tile">
             <span>Active period</span>
@@ -25282,7 +25383,7 @@
               : `
                 <article class="portal-class-empty">
                   <strong>No released report cards yet</strong>
-                  <p>Released cards will appear here and become visible to linked parents.</p>
+                  <p>Released cards will appear here and become visible to linked parents and students.</p>
                 </article>
               `
           }
@@ -25416,7 +25517,7 @@
         }
         const confirmed = await showAppConfirm({
           title: "Release report card?",
-          message: `${selectedStudent.fullName}'s report card will become visible to linked parents.`,
+          message: `${selectedStudent.fullName}'s report card will become visible to linked parents and the student.`,
           details: `${selectedSession.name} • ${selectedTerm.name} • ${getClassDisplayName(selectedClass)}`,
           confirmLabel: "Release report card",
           variant: "success",
@@ -25435,14 +25536,14 @@
           details: `${getClassDisplayName(selectedClass)} • ${selectedSession.name} • ${selectedTerm.name}`,
           visibleToRoles: ["Admin", "Parent", "Student"],
         });
-        showReportCardToast("success", "<strong>Report card released</strong><span>Linked parents can now view, download, and print it.</span>");
+        showReportCardToast("success", "<strong>Report card released</strong><span>Linked parents and the student can now view, download, and print it.</span>");
         return;
       }
 
       if (event.target.closest("[data-report-card-return-draft]") && currentCard) {
         const confirmed = await showAppConfirm({
           title: "Return report card to draft?",
-          message: `${selectedStudent.fullName}'s report card will no longer be visible to linked parents.`,
+          message: `${selectedStudent.fullName}'s report card will no longer be visible to linked parents or the student.`,
           details: `${selectedSession.name} • ${selectedTerm.name}`,
           confirmLabel: "Return to draft",
           variant: "danger",
@@ -25459,7 +25560,7 @@
           details: `${getClassDisplayName(selectedClass)} • ${selectedSession.name} • ${selectedTerm.name}`,
           visibleToRoles: ["Admin"],
         });
-        showReportCardToast("info", "<strong>Report card returned to draft</strong><span>It is hidden from linked parents until released again.</span>");
+        showReportCardToast("info", "<strong>Report card returned to draft</strong><span>It is hidden from linked parents and the student until released again.</span>");
       }
     });
     cardForm.addEventListener("submit", (event) => {
