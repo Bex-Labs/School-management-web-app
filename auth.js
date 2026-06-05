@@ -1587,6 +1587,92 @@
     });
   }
 
+  function getNotificationScopeForSession(session = null) {
+    const role = normalizeRoleLabel(session?.role || DEFAULT_AUTH_ROLE);
+    const user = session?.userId ? getUsers().find((entry) => entry.id === session.userId) || null : null;
+    const ids = new Set();
+    const levelTokens = new Set();
+    const addId = (value) => {
+      const normalized = String(value || "").trim().toLowerCase();
+      if (normalized) {
+        ids.add(normalized);
+      }
+      const emailValue = normalizeEmail(String(value || "").trim());
+      if (emailValue) {
+        ids.add(emailValue);
+      }
+    };
+    const addLevel = (value) => {
+      const token = normalizeLevelToken(value);
+      if (token) {
+        levelTokens.add(token);
+      }
+    };
+
+    addId(session?.userId);
+    addId(session?.email);
+    addId(user?.id);
+    addId(user?.email);
+
+    if (role === "Student" && user) {
+      const student = getStudentPortalRecord(user);
+      addId(user.admissionNo);
+      addId(user.studentRecordId);
+      addId(student?.id);
+      addId(student?.admissionNo);
+      addId(student?.studentEmail);
+      addId(student?.email);
+      addLevel(student?.level);
+    } else if (role === "Parent" && user) {
+      getParentLinkedStudents(user.email, getStudentManager()).forEach((student) => {
+        addId(student.id);
+        addId(student.admissionNo);
+        addId(student.studentEmail);
+        addLevel(student.level);
+      });
+    } else if (role === "Teacher" && user) {
+      getTeacherAssignedClasses(user).forEach((classRecord) => {
+        addId(classRecord.id);
+        addId(getClassDisplayName(classRecord));
+        addLevel(classRecord.level);
+        addLevel(classRecord.name);
+        addLevel(getClassDisplayName(classRecord));
+      });
+    }
+
+    return { role, user, ids, levelTokens };
+  }
+
+  function notificationMatchesUserScope(entry = {}, scope = {}) {
+    const role = normalizeRoleLabel(scope.role || DEFAULT_AUTH_ROLE);
+
+    if (role === "Admin") {
+      return true;
+    }
+
+    const entityId = String(entry.entityId || "").trim();
+
+    if (!entityId) {
+      return true;
+    }
+
+    const entityIdLower = entityId.toLowerCase();
+    const entityLevelToken = normalizeLevelToken(entityId);
+
+    return scope.ids?.has(entityIdLower) || scope.levelTokens?.has(entityLevelToken);
+  }
+
+  function filterNotificationsForSession(notifications = [], session = null) {
+    const scope = getNotificationScopeForSession(session);
+    const roleFiltered = filterNotificationsByRole(notifications, scope.role);
+
+    if (scope.role === "Admin") {
+      return roleFiltered;
+    }
+
+    return roleFiltered.filter((entry) => notificationMatchesUserScope(entry, scope));
+  }
+
   function normalizeNotificationEntry(entry = {}, workspaceId = null) {
     const visibleToRoles = getNotificationAudience(entry);
 
@@ -6397,13 +6483,22 @@
     }
 
     const settings = manager ? manager.getSettings() : getDefaultAdminSchoolSettings();
-    const subtitle =
+    const academicSubtitle =
       manager && manager.formatAcademicYearLabel(settings)
         ? manager.formatAcademicYearLabel(settings)
-        : "Admin workspace";
+        : "";
+    const roleLabel = normalizeRoleLabel(getSession()?.role || DEFAULT_AUTH_ROLE);
+    const subtitle =
+      roleLabel === "Teacher"
+        ? "Staff portal"
+        : roleLabel === "Student"
+          ? "Student portal"
+          : roleLabel === "Parent"
+            ? "Parent portal"
+            : academicSubtitle || "Admin workspace";
 
     brandName.textContent = settings.schoolName || "SchoolSphere";
-    brandSubtitle.textContent = subtitle || "Admin workspace";
+    brandSubtitle.textContent = subtitle || "Workspace";
 
     if (settings.logoUrl) {
       brandMark.classList.add("is-image");
@@ -25338,7 +25433,7 @@
           message: `${selectedStudent.fullName}'s ${selectedTerm.name} report card is now available.`,
           summary: `Released report card for ${selectedStudent.fullName}`,
           details: `${getClassDisplayName(selectedClass)} • ${selectedSession.name} • ${selectedTerm.name}`,
-          visibleToRoles: ["Admin", "Parent"],
+          visibleToRoles: ["Admin", "Parent", "Student"],
         });
         showReportCardToast("success", "<strong>Report card released</strong><span>Linked parents can now view, download, and print it.</span>");
         return;
@@ -26135,7 +26230,6 @@
     const overlay = ensureDashboardNotificationsOverlay();
     const listTarget = document.getElementById("admin-notification-list");
     const workspaceId = normalizeWorkspaceId(session?.workspaceId || getCurrentWorkspaceId());
-    const currentRole = session ? normalizeRoleLabel(session.role || DEFAULT_AUTH_ROLE) : "Guest access";
     const alreadyBound = button.dataset.notificationsBound === "true";
 
     const setOverlayState = (isOpen) => {
@@ -26146,8 +26240,8 @@
 
     const refresh = () => {
       const notifications = getNotifications(workspaceId);
-      const scopedNotifications = filterNotificationsByRole(notifications, currentRole);
-      const fallbackEntries = filterNotificationsByRole(buildDashboardFallbackNotifications(), currentRole);
+      const scopedNotifications = filterNotificationsForSession(notifications, session);
+      const fallbackEntries = filterNotificationsForSession(buildDashboardFallbackNotifications(), session);
       const entries = (scopedNotifications.length ? scopedNotifications : fallbackEntries).slice(0, 12);
       renderNotificationList(listTarget, entries);
 
@@ -26166,7 +26260,7 @@
       button.addEventListener("click", () => {
         refresh();
         setOverlayState(true);
-        const unreadIds = filterNotificationsByRole(getNotifications(workspaceId), currentRole)
+        const unreadIds = filterNotificationsForSession(getNotifications(workspaceId), session)
           .filter((entry) => isNotificationUnread(entry))
           .map((entry) => entry.id);
         markNotificationsRead(unreadIds, workspaceId);
@@ -26211,7 +26305,10 @@
       return;
     }
 
-    if (document.body.classList.contains("staff-portal-page")) {
+    if (
+      document.body.classList.contains("staff-portal-page") ||
+      document.body.classList.contains("student-portal-page")
+    ) {
       return;
     }
 
@@ -29528,14 +29625,24 @@
             hasHigherInstitution: false,
           };
 
-    const renderDashboardBrand = (settings) => {
+    const getPortalBrandSubtitle = (roleLabel, settings) => {
+      const rawRole = String(roleLabel || "").trim().toLowerCase();
+      const normalizedRole = normalizeRoleLabel(roleLabel || DEFAULT_AUTH_ROLE);
       const academicYearLabel =
         schoolSettingsManager && schoolSettingsManager.formatAcademicYearLabel(settings)
           ? schoolSettingsManager.formatAcademicYearLabel(settings)
-          : "Admin dashboard";
+          : "";
 
+      if (rawRole === "guest access" || rawRole === "guest" || rawRole === "system") return "Workspace";
+      if (normalizedRole === "Teacher") return "Staff portal";
+      if (normalizedRole === "Student") return "Student portal";
+      if (normalizedRole === "Parent") return "Parent portal";
+      return academicYearLabel || "Admin dashboard";
+    };
+
+    const renderDashboardBrand = (settings, roleLabel = DEFAULT_AUTH_ROLE) => {
       brandName.textContent = settings.schoolName || "SchoolSphere";
-      brandSubtitle.textContent = academicYearLabel || "Admin dashboard";
+      brandSubtitle.textContent = getPortalBrandSubtitle(roleLabel, settings);
 
       if (settings.logoUrl) {
         brandMark.classList.add("is-image");
@@ -29552,7 +29659,7 @@
       const settings = getActiveSchoolSettings();
       const schoolName = settings.schoolName || "SchoolSphere";
 
-      renderDashboardBrand(settings);
+      renderDashboardBrand(settings, roleLabel);
 
       if (!userRecord) {
         heading.textContent = "You're not signed in yet.";
@@ -29707,9 +29814,21 @@
         return;
       }
 
+      const activeStudentSection = getActiveStudentPortalKey();
+      const isDashboardSection = activeStudentSection === "dashboard";
+      const eventsSection = events.closest(".admin-primary-grid") || events.closest(".admin-surface-card");
       const studentRecord = getStudentPortalRecord(user);
-      renderStudentMetricCards(metrics, user, studentRecord);
-      renderStudentEvents(events, studentRecord);
+      metrics.hidden = !isDashboardSection;
+      if (eventsSection) {
+        eventsSection.hidden = !isDashboardSection;
+      }
+      if (isDashboardSection) {
+        renderStudentMetricCards(metrics, user, studentRecord);
+        renderStudentEvents(events, studentRecord);
+      } else {
+        metrics.innerHTML = "";
+        events.innerHTML = "";
+      }
       renderStudentPortalWorkspace(studentWorkspace, user);
       updateStudentPortalSidebarActive(document.querySelector(".admin-sidebar-nav"));
     };
