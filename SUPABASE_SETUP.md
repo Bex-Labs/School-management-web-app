@@ -135,6 +135,17 @@ Done in Phase 5 (table-native completion):
 - Parent fee updates now auto-sync to Supabase in the background.
 - Access grant updates now auto-sync to Supabase in the background.
 
+Done in Phase 6 (released report cards):
+- `schoolsphere.reportCards.v1` now reads/writes through `public.report_cards`.
+- Teachers can save and release report cards, while parents only receive released cards.
+- Existing projects can apply only `supabase/migrations/20260604190000_add_report_cards.sql`.
+- Fresh projects should apply the complete `supabase/schema.sql` from the first line in one run.
+
+Timetable repair for existing projects:
+- If `public.timetable_periods` or another timetable relation is missing, run the complete `supabase/migrations/20260604193000_add_timetable_support.sql` file as one SQL Editor query.
+- The repair creates the timetable entries, periods, rooms, substitutions, policies, indexes, and conflict-check function without requiring the full schema to be pasted again.
+- If the repair reports that `public.institutions` or `public.profiles` is missing, apply the complete `supabase/schema.sql` from the first line in one run instead.
+
 Migration utility behavior now:
 - The developer migration utility writes all known module keys to dedicated table-native targets.
 - `public.workspace_states` remains only as compatibility fallback for unknown/future keys.

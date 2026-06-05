@@ -128,6 +128,24 @@ create table if not exists public.students (
   unique (institution_id, record_id)
 );
 
+create table if not exists public.report_cards (
+  id uuid primary key default gen_random_uuid(),
+  institution_id uuid not null references public.institutions on delete cascade,
+  record_id text not null,
+  student_record_id text not null,
+  class_record_id text,
+  session_record_id text not null,
+  term_record_id text not null,
+  status text not null default 'draft' check (status in ('draft', 'released')),
+  released_at timestamptz,
+  payload jsonb not null default '{}'::jsonb,
+  created_by uuid references auth.users not null,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now()),
+  unique (institution_id, record_id),
+  unique (institution_id, student_record_id, session_record_id, term_record_id)
+);
+
 create table if not exists public.admissions_applications (
   id uuid primary key default gen_random_uuid(),
   institution_id uuid not null references public.institutions on delete cascade,
@@ -392,6 +410,7 @@ alter table public.role_permissions enable row level security;
 alter table public.classes enable row level security;
 alter table public.courses enable row level security;
 alter table public.students enable row level security;
+alter table public.report_cards enable row level security;
 alter table public.admissions_applications enable row level security;
 alter table public.notifications_log enable row level security;
 alter table public.academic_calendar_events enable row level security;
@@ -519,6 +538,12 @@ execute function public.set_updated_at();
 drop trigger if exists set_students_updated_at on public.students;
 create trigger set_students_updated_at
 before update on public.students
+for each row
+execute function public.set_updated_at();
+
+drop trigger if exists set_report_cards_updated_at on public.report_cards;
+create trigger set_report_cards_updated_at
+before update on public.report_cards
 for each row
 execute function public.set_updated_at();
 
@@ -729,6 +754,65 @@ to authenticated
 using (public.is_current_user_admin(institution_id))
 with check (public.is_current_user_admin(institution_id));
 
+drop policy if exists "report_cards_select_same_institution" on public.report_cards;
+create policy "report_cards_select_same_institution"
+on public.report_cards
+for select
+to authenticated
+using (
+  institution_id = public.current_user_institution_id()
+  and (
+    public.is_current_user_admin(institution_id)
+    or exists (
+      select 1
+      from public.profiles
+      where id = auth.uid()
+        and institution_id = report_cards.institution_id
+        and lower(role) in ('teacher', 'staff', 'employee')
+    )
+    or (
+      status = 'released'
+      and exists (
+        select 1
+        from public.profiles as parent_profile
+        join public.students as linked_student
+          on linked_student.institution_id = parent_profile.institution_id
+          and linked_student.record_id = report_cards.student_record_id
+        cross join lateral jsonb_array_elements(linked_student.guardians) as guardian
+        where parent_profile.id = auth.uid()
+          and lower(parent_profile.role) in ('parent', 'guardian')
+          and lower(coalesce(guardian ->> 'email', '')) = lower(parent_profile.email)
+      )
+    )
+  )
+);
+
+drop policy if exists "report_cards_write_admin_or_teacher" on public.report_cards;
+create policy "report_cards_write_admin_or_teacher"
+on public.report_cards
+for all
+to authenticated
+using (
+  public.is_current_user_admin(institution_id)
+  or exists (
+    select 1
+    from public.profiles
+    where id = auth.uid()
+      and institution_id = report_cards.institution_id
+      and lower(role) in ('teacher', 'staff', 'employee')
+  )
+)
+with check (
+  public.is_current_user_admin(institution_id)
+  or exists (
+    select 1
+    from public.profiles
+    where id = auth.uid()
+      and institution_id = report_cards.institution_id
+      and lower(role) in ('teacher', 'staff', 'employee')
+  )
+);
+
 drop policy if exists "admissions_select_same_institution" on public.admissions_applications;
 create policy "admissions_select_same_institution"
 on public.admissions_applications
@@ -847,6 +931,12 @@ for all
 to authenticated
 using (public.is_current_user_admin(institution_id))
 with check (public.is_current_user_admin(institution_id));
+
+create index if not exists report_cards_student_period_idx
+on public.report_cards (institution_id, student_record_id, session_record_id, term_record_id);
+
+create index if not exists report_cards_class_period_idx
+on public.report_cards (institution_id, class_record_id, session_record_id, term_record_id, status);
 
 create index if not exists timetable_entries_conflict_idx
 on public.timetable_entries (institution_id, term_id, period_id, week_type);

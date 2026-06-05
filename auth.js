@@ -459,6 +459,7 @@
     "schoolsphere.courses.v1",
     "schoolsphere.students.v1",
     "schoolsphere.attendance.v1",
+    "schoolsphere.reportCards.v1",
     "schoolsphere.featureModules.v1",
     "schoolsphere.rolePermissions.v1",
     "schoolsphere.auditTrail.v1",
@@ -470,6 +471,7 @@
   const SUPABASE_STATE_KEY_COURSES = "schoolsphere.courses.v1";
   const SUPABASE_STATE_KEY_STUDENTS = "schoolsphere.students.v1";
   const SUPABASE_STATE_KEY_ATTENDANCE = "schoolsphere.attendance.v1";
+  const SUPABASE_STATE_KEY_REPORT_CARDS = "schoolsphere.reportCards.v1";
   const SUPABASE_STATE_KEY_FEE_ITEMS = "schoolsphere.feeItems.v1";
   const SUPABASE_STATE_KEY_ACADEMIC_CYCLES = "schoolsphere.academicCycles.v1";
   const SUPABASE_STATE_KEY_ADMISSION_CONFIG = "schoolsphere.admissionConfig.v1";
@@ -488,6 +490,7 @@
     SUPABASE_STATE_KEY_COURSES,
     SUPABASE_STATE_KEY_STUDENTS,
     SUPABASE_STATE_KEY_ATTENDANCE,
+    SUPABASE_STATE_KEY_REPORT_CARDS,
     SUPABASE_STATE_KEY_FEE_ITEMS,
     SUPABASE_STATE_KEY_ACADEMIC_CYCLES,
     SUPABASE_STATE_KEY_ADMISSION_CONFIG,
@@ -2639,6 +2642,7 @@
       stateKey === SUPABASE_STATE_KEY_CLASSES ||
       stateKey === SUPABASE_STATE_KEY_COURSES ||
       stateKey === SUPABASE_STATE_KEY_STUDENTS ||
+      stateKey === SUPABASE_STATE_KEY_REPORT_CARDS ||
       stateKey === SUPABASE_STATE_KEY_FEE_ITEMS ||
       stateKey === SUPABASE_STATE_KEY_ACADEMIC_CYCLES ||
       stateKey === SUPABASE_STATE_KEY_ADMISSION_CONFIG ||
@@ -2673,6 +2677,7 @@
     tableName,
     rows,
     conflictKey = "record_id",
+    deleteStale = true,
   }) {
     const normalizedRows = Array.isArray(rows) ? rows : [];
     const ids = normalizedRows
@@ -2680,39 +2685,41 @@
       .filter(Boolean);
     const idSet = new Set(ids);
 
-    const { data: existingRows, error: existingError } = await withNetworkTimeout(
-      context.client
-        .from(tableName)
-        .select(conflictKey)
-        .eq("institution_id", context.institutionId),
-    );
-
-    if (existingError) {
-      throw new Error(
-        formatSupabaseAuthError(
-          existingError,
-          `Could not read existing rows for ${tableName}.`,
-        ),
-      );
-    }
-
-    const staleIds = asArray(existingRows)
-      .map((row) => String(row?.[conflictKey] || "").trim())
-      .filter((recordId) => recordId && !idSet.has(recordId));
-
-    if (staleIds.length) {
-      const { error: deleteError } = await withNetworkTimeout(
+    if (deleteStale) {
+      const { data: existingRows, error: existingError } = await withNetworkTimeout(
         context.client
           .from(tableName)
-          .delete()
-          .eq("institution_id", context.institutionId)
-          .in(conflictKey, staleIds),
+          .select(conflictKey)
+          .eq("institution_id", context.institutionId),
       );
 
-      if (deleteError) {
+      if (existingError) {
         throw new Error(
-          formatSupabaseAuthError(deleteError, `Could not remove stale rows in ${tableName}.`),
+          formatSupabaseAuthError(
+            existingError,
+            `Could not read existing rows for ${tableName}.`,
+          ),
         );
+      }
+
+      const staleIds = asArray(existingRows)
+        .map((row) => String(row?.[conflictKey] || "").trim())
+        .filter((recordId) => recordId && !idSet.has(recordId));
+
+      if (staleIds.length) {
+        const { error: deleteError } = await withNetworkTimeout(
+          context.client
+            .from(tableName)
+            .delete()
+            .eq("institution_id", context.institutionId)
+            .in(conflictKey, staleIds),
+        );
+
+        if (deleteError) {
+          throw new Error(
+            formatSupabaseAuthError(deleteError, `Could not remove stale rows in ${tableName}.`),
+          );
+        }
       }
     }
 
@@ -2828,6 +2835,7 @@
     const tableByState = {
       [SUPABASE_STATE_KEY_COURSES]: "courses",
       [SUPABASE_STATE_KEY_STUDENTS]: "students",
+      [SUPABASE_STATE_KEY_REPORT_CARDS]: "report_cards",
       [SUPABASE_STATE_KEY_FEE_ITEMS]: "fee_items",
       [SUPABASE_STATE_KEY_ACADEMIC_CYCLES]: "academic_cycles_state",
       [SUPABASE_STATE_KEY_ADMISSION_CONFIG]: "admission_config_state",
@@ -3064,6 +3072,34 @@
             created_by: context.userId,
             archived_at: normalized.archivedAt ? String(normalized.archivedAt) : null,
             transferred_at: normalized.transferredAt ? String(normalized.transferredAt) : null,
+            created_at: String(normalized.createdAt || nowIso()),
+            updated_at: String(normalized.updatedAt || nowIso()),
+          };
+        },
+      },
+      [SUPABASE_STATE_KEY_REPORT_CARDS]: {
+        table: "report_cards",
+        map: (record) => {
+          const normalized = asObject(record, {});
+          const recordId = String(normalized.id || "").trim();
+          const studentRecordId = String(normalized.studentId || "").trim();
+          const sessionRecordId = String(normalized.sessionId || "").trim();
+          const termRecordId = String(normalized.termId || "").trim();
+          if (!recordId || !studentRecordId || !sessionRecordId || !termRecordId) return null;
+          return {
+            institution_id: context.institutionId,
+            record_id: recordId,
+            student_record_id: studentRecordId,
+            class_record_id: String(normalized.classId || "").trim() || null,
+            session_record_id: sessionRecordId,
+            term_record_id: termRecordId,
+            status:
+              String(normalized.status || "draft").trim().toLowerCase() === "released"
+                ? "released"
+                : "draft",
+            released_at: normalized.releasedAt ? String(normalized.releasedAt) : null,
+            payload: normalized,
+            created_by: context.userId,
             created_at: String(normalized.createdAt || nowIso()),
             updated_at: String(normalized.updatedAt || nowIso()),
           };
@@ -3357,6 +3393,7 @@
       context,
       tableName: config.table,
       rows: rows.map(config.map).filter(Boolean),
+      deleteStale: stateKey !== SUPABASE_STATE_KEY_REPORT_CARDS,
     });
 
     return { handled: true };
@@ -3512,6 +3549,7 @@
       [SUPABASE_STATE_KEY_COURSES, getCourseManager()?.eventName],
       [SUPABASE_STATE_KEY_STUDENTS, getStudentManager()?.eventName],
       [SUPABASE_STATE_KEY_ATTENDANCE, getAttendanceManager()?.eventName],
+      [SUPABASE_STATE_KEY_REPORT_CARDS, getReportCardManager()?.eventName],
       [SUPABASE_STATE_KEY_FEE_ITEMS, getFeeItemManager()?.eventName],
       [SUPABASE_STATE_KEY_ACADEMIC_CYCLES, getAcademicCycleManager()?.eventName],
       [SUPABASE_STATE_KEY_ADMISSION_CONFIG, getAdmissionConfigManager()?.eventName],
@@ -3607,9 +3645,10 @@
       return;
     }
 
-    const { isAdmin } = getAdminAccessContext();
+    const { isAdmin, roleLabel } = getAdminAccessContext();
+    const canSyncTeacherResults = normalizeRoleLabel(roleLabel || DEFAULT_AUTH_ROLE) === "Teacher";
 
-    if (!isAdmin) {
+    if (!isAdmin && !canSyncTeacherResults) {
       return;
     }
 
@@ -3664,6 +3703,11 @@
         getPayload: (manager) => manager.getRecords(),
       },
       {
+        manager: getReportCardManager(),
+        stateKey: SUPABASE_STATE_KEY_REPORT_CARDS,
+        getPayload: (manager) => manager.getRecords(),
+      },
+      {
         manager: getFeeItemManager(),
         stateKey: SUPABASE_STATE_KEY_FEE_ITEMS,
         getPayload: (manager) => manager.getItems(),
@@ -3715,7 +3759,11 @@
       },
     ];
 
-    managerBindings.forEach((binding) => {
+    const activeManagerBindings = isAdmin
+      ? managerBindings
+      : managerBindings.filter((binding) => binding.stateKey === SUPABASE_STATE_KEY_REPORT_CARDS);
+
+    activeManagerBindings.forEach((binding) => {
       if (!binding.manager || !binding.manager.eventName || typeof binding.getPayload !== "function") {
         return;
       }
@@ -3724,6 +3772,10 @@
         queueSync(binding.stateKey, () => binding.getPayload(binding.manager));
       });
     });
+
+    if (!isAdmin) {
+      return;
+    }
 
     window.addEventListener(ADMISSIONS_EVENT_NAME, () => {
       const workspaceId = normalizeWorkspaceId(getCurrentWorkspaceId());
@@ -5437,6 +5489,10 @@
 
   function getAttendanceManager() {
     return window.SchoolSphereAttendance || null;
+  }
+
+  function getReportCardManager() {
+    return window.SchoolSphereReportCards || null;
   }
 
   function getDefaultAdminSchoolSettings() {
@@ -22575,6 +22631,705 @@
     return rows;
   }
 
+  function normalizeReportCardScore(value) {
+    const score = Number.parseFloat(value);
+
+    if (!Number.isFinite(score) || score < 0) {
+      return 0;
+    }
+
+    return Math.min(100, Math.round(score * 100) / 100);
+  }
+
+  function getReportCardGradeInfo(value) {
+    const score = normalizeReportCardScore(value);
+
+    if (score >= 70) return { grade: "A", remark: "Excellent" };
+    if (score >= 60) return { grade: "B", remark: "Very Good" };
+    if (score >= 50) return { grade: "C", remark: "Good" };
+    if (score >= 45) return { grade: "D", remark: "Fair" };
+    if (score >= 40) return { grade: "E", remark: "Pass" };
+    return { grade: "F", remark: "Needs Improvement" };
+  }
+
+  function summarizeReportCardSubjects(subjects = []) {
+    const manager = getReportCardManager();
+
+    if (manager && typeof manager.summarizeSubjects === "function") {
+      return manager.summarizeSubjects(subjects);
+    }
+
+    const normalizedSubjects = (Array.isArray(subjects) ? subjects : [])
+      .map((subject) => {
+        const caScore = normalizeReportCardScore(subject?.caScore);
+        const examScore = normalizeReportCardScore(subject?.examScore);
+        const totalScore = Math.min(100, Math.round((caScore + examScore) * 100) / 100);
+        const grading = getReportCardGradeInfo(totalScore);
+        return {
+          ...subject,
+          name: String(subject?.name || subject?.subject || "").trim(),
+          caScore,
+          examScore,
+          totalScore,
+          grade: grading.grade,
+          remark: grading.remark,
+        };
+      })
+      .filter((subject) => subject.name);
+    const totalScore = normalizedSubjects.reduce((sum, subject) => sum + subject.totalScore, 0);
+    const averageScore = normalizedSubjects.length
+      ? Math.round((totalScore / normalizedSubjects.length) * 100) / 100
+      : 0;
+    const grading = getReportCardGradeInfo(averageScore);
+
+    return {
+      subjects: normalizedSubjects,
+      subjectCount: normalizedSubjects.length,
+      totalScore,
+      averageScore,
+      grade: grading.grade,
+      remark: grading.remark,
+    };
+  }
+
+  function formatReportCardScore(value) {
+    const score = Number.parseFloat(value);
+
+    if (!Number.isFinite(score)) {
+      return "0";
+    }
+
+    return Number.isInteger(score) ? String(score) : score.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+  }
+
+  function getReportCardDisplayContext(record = {}) {
+    const reportManager = getReportCardManager();
+    const cycleManager = getAcademicCycleManager();
+    const cycleState =
+      cycleManager && typeof cycleManager.getState === "function"
+        ? cycleManager.getState()
+        : { sessions: [], terms: [] };
+    const settingsManager = getSchoolSettingsManager();
+    const settings =
+      settingsManager && typeof settingsManager.getSettings === "function"
+        ? settingsManager.getSettings()
+        : getDefaultAdminSchoolSettings();
+    const studentManager = getStudentManager();
+    const student =
+      studentManager && typeof studentManager.getStudents === "function"
+        ? studentManager.getStudents().find((entry) => entry.id === record.studentId) || null
+        : null;
+    const summary = summarizeReportCardSubjects(record.subjects);
+    const allRecords =
+      reportManager && typeof reportManager.getRecords === "function" ? reportManager.getRecords() : [];
+    const classToken = normalizeLevelToken(record.classLevel);
+    const comparableRecords = allRecords
+      .filter(
+        (entry) =>
+          entry.status === "released" &&
+          entry.sessionId === record.sessionId &&
+          entry.termId === record.termId &&
+          (record.classId
+            ? entry.classId === record.classId
+            : normalizeLevelToken(entry.classLevel) === classToken),
+      )
+      .map((entry) => ({
+        id: entry.id,
+        averageScore: summarizeReportCardSubjects(entry.subjects).averageScore,
+      }))
+      .sort((left, right) => right.averageScore - left.averageScore);
+    const positionIndex = comparableRecords.findIndex((entry) => entry.id === record.id);
+
+    return {
+      ...record,
+      settings,
+      subjects: summary.subjects,
+      subjectCount: summary.subjectCount,
+      totalScore: summary.totalScore,
+      averageScore: summary.averageScore,
+      overallGrade: summary.grade,
+      overallRemark: summary.remark,
+      studentName: String(record.studentName || student?.fullName || "Student").trim(),
+      admissionNo: String(record.admissionNo || student?.admissionNo || "Not set").trim(),
+      classLevel: String(record.classLevel || student?.level || "Class").trim(),
+      sessionName: String(
+        record.sessionName || getSessionLabelFromCycle(cycleState, record.sessionId) || "Session",
+      ).trim(),
+      termName: String(record.termName || getTermLabelFromCycle(cycleState, record.termId) || "Term").trim(),
+      position: positionIndex >= 0 ? `${positionIndex + 1} of ${comparableRecords.length}` : "Not ranked",
+    };
+  }
+
+  function renderReportCardDocument(record = {}) {
+    const card = getReportCardDisplayContext(record);
+    const schoolName = card.settings.schoolName || "School";
+    const schoolLocation = card.settings.address || card.settings.campusDetails || "";
+    const schoolInitial = String(schoolName).trim().charAt(0).toUpperCase() || "S";
+    const logoHtml = card.settings.logoUrl
+      ? `<img src="${escapeHtml(String(card.settings.logoUrl))}" alt="${escapeHtml(String(schoolName))} logo" />`
+      : escapeHtml(schoolInitial);
+    const subjectRows = card.subjects
+      .map(
+        (subject, index) => `
+          <tr>
+            <td>${index + 1}</td>
+            <td>
+              <strong>${escapeHtml(String(subject.name || "Subject"))}</strong>
+              ${subject.code ? `<span>${escapeHtml(String(subject.code))}</span>` : ""}
+            </td>
+            <td>${escapeHtml(formatReportCardScore(subject.caScore))}</td>
+            <td>${escapeHtml(formatReportCardScore(subject.examScore))}</td>
+            <td><strong>${escapeHtml(formatReportCardScore(subject.totalScore))}</strong></td>
+            <td><strong>${escapeHtml(String(subject.grade || ""))}</strong></td>
+            <td>${escapeHtml(String(subject.remark || ""))}</td>
+          </tr>
+        `,
+      )
+      .join("");
+
+    return `
+      <section class="portal-report-card-document">
+        <header class="portal-report-card-head">
+          <div class="portal-report-card-school">
+            <span class="portal-report-card-mark ${card.settings.logoUrl ? "is-image" : ""}">${logoHtml}</span>
+            <div>
+              <span>Official report card</span>
+              <h4>${escapeHtml(String(schoolName))}</h4>
+              ${schoolLocation ? `<p>${escapeHtml(String(schoolLocation))}</p>` : ""}
+            </div>
+          </div>
+          <aside>
+            <span>Status</span>
+            <strong>${card.status === "released" ? "Released" : "Draft"}</strong>
+            <small>${escapeHtml(card.releasedAt ? formatTimestamp(card.releasedAt) : "Not released")}</small>
+          </aside>
+        </header>
+
+        <div class="portal-report-card-meta">
+          <article><span>Student</span><strong>${escapeHtml(card.studentName)}</strong></article>
+          <article><span>Admission No.</span><strong>${escapeHtml(card.admissionNo)}</strong></article>
+          <article><span>Class / Level</span><strong>${escapeHtml(card.classLevel)}</strong></article>
+          <article><span>Academic Session</span><strong>${escapeHtml(card.sessionName)}</strong></article>
+          <article><span>Term / Semester</span><strong>${escapeHtml(card.termName)}</strong></article>
+          <article><span>Position</span><strong>${escapeHtml(card.position)}</strong></article>
+        </div>
+
+        <div class="portal-report-card-table-wrap">
+          <table class="portal-report-card-table">
+            <thead>
+              <tr><th>#</th><th>Subject / Course</th><th>CA</th><th>Exam</th><th>Total</th><th>Grade</th><th>Remark</th></tr>
+            </thead>
+            <tbody>
+              ${
+                subjectRows ||
+                `<tr><td colspan="7"><span>No subject scores recorded.</span></td></tr>`
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <div class="portal-report-card-summary">
+          <article><span>Subjects</span><strong>${card.subjectCount}</strong></article>
+          <article><span>Total Score</span><strong>${escapeHtml(formatReportCardScore(card.totalScore))}</strong></article>
+          <article><span>Average</span><strong>${escapeHtml(formatReportCardScore(card.averageScore))}%</strong></article>
+          <article><span>Overall Grade</span><strong>${escapeHtml(card.overallGrade)}</strong></article>
+        </div>
+
+        <div class="portal-report-card-comments">
+          <article>
+            <span>Teacher&apos;s Comment</span>
+            <p>${escapeHtml(String(card.teacherComment || "No comment recorded."))}</p>
+          </article>
+          <article>
+            <span>School Comment</span>
+            <p>${escapeHtml(String(card.schoolComment || card.overallRemark || "No comment recorded."))}</p>
+          </article>
+        </div>
+
+        <footer class="portal-report-card-footer">
+          <span>Released by ${escapeHtml(String(card.releasedByName || "School administration"))}</span>
+          <strong>${escapeHtml(String(card.overallRemark))}</strong>
+        </footer>
+      </section>
+    `;
+  }
+
+  function renderReportCardPrintDocument(record = {}) {
+    const card = getReportCardDisplayContext(record);
+
+    return `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>${escapeHtml(`${card.studentName} report card`)}</title>
+          <style>
+            * { box-sizing: border-box; }
+            body { margin: 0; padding: 18mm; color: #17233a; font-family: Arial, sans-serif; background: #ffffff; }
+            .portal-report-card-document { display: grid; gap: 18px; max-width: 900px; margin: 0 auto; }
+            .portal-report-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding-bottom: 16px; border-bottom: 2px solid #17233a; }
+            .portal-report-card-school { display: flex; align-items: center; gap: 13px; }
+            .portal-report-card-mark { display: inline-flex; align-items: center; justify-content: center; width: 52px; height: 52px; overflow: hidden; border-radius: 12px; background: #17233a; color: #ffffff; font-size: 24px; font-weight: 800; }
+            .portal-report-card-mark img { width: 100%; height: 100%; object-fit: cover; }
+            .portal-report-card-head span, .portal-report-card-meta span, .portal-report-card-summary span, .portal-report-card-comments span { color: #667188; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+            .portal-report-card-head h4 { margin: 4px 0; font-size: 24px; }
+            .portal-report-card-head p, .portal-report-card-head small { margin: 0; color: #56647a; font-size: 11px; }
+            .portal-report-card-head aside { display: grid; gap: 4px; text-align: right; }
+            .portal-report-card-head aside strong { color: #14804a; font-size: 18px; }
+            .portal-report-card-meta { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
+            .portal-report-card-meta article, .portal-report-card-summary article { padding: 10px; border: 1px solid #dfe7f2; border-radius: 8px; }
+            .portal-report-card-meta strong, .portal-report-card-summary strong { display: block; margin-top: 6px; font-size: 12px; overflow-wrap: anywhere; }
+            table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+            th, td { padding: 9px 7px; border: 1px solid #d8e1ee; text-align: left; vertical-align: top; font-size: 11px; }
+            th { background: #17233a; color: #ffffff; font-size: 9px; letter-spacing: .06em; text-transform: uppercase; }
+            th:first-child, td:first-child { width: 32px; text-align: center; }
+            th:nth-child(3), th:nth-child(4), th:nth-child(5), th:nth-child(6), td:nth-child(3), td:nth-child(4), td:nth-child(5), td:nth-child(6) { width: 58px; text-align: center; }
+            td span { display: block; margin-top: 3px; color: #667188; font-size: 9px; }
+            .portal-report-card-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; }
+            .portal-report-card-comments { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+            .portal-report-card-comments article { min-height: 72px; padding: 11px; border: 1px solid #dfe7f2; border-radius: 8px; }
+            .portal-report-card-comments p { margin: 7px 0 0; color: #34435a; font-size: 11px; line-height: 1.45; }
+            .portal-report-card-footer { display: flex; justify-content: space-between; gap: 16px; padding-top: 12px; border-top: 1px solid #d8e1ee; color: #667188; font-size: 10px; }
+            .portal-report-card-footer strong { color: #17233a; }
+            @page { size: A4 portrait; margin: 12mm; }
+            @media print { body { padding: 0; } }
+          </style>
+        </head>
+        <body>
+          ${renderReportCardDocument(card)}
+          <script>
+            window.addEventListener("load", function () {
+              window.focus();
+              window.print();
+            });
+          </script>
+        </body>
+      </html>
+    `;
+  }
+
+  function showReportCardToast(type, message) {
+    let toast = document.getElementById("portal-report-card-toast");
+
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = "portal-report-card-toast";
+      toast.setAttribute("role", "status");
+      toast.setAttribute("aria-live", "polite");
+      document.body.appendChild(toast);
+    }
+
+    const safeType = ["success", "error", "info"].includes(type) ? type : "info";
+    toast.className = `portal-toast portal-toast--${safeType} portal-toast--center`;
+    toast.innerHTML = message;
+    toast.hidden = false;
+    window.clearTimeout(showReportCardToast.hideHandle);
+    showReportCardToast.hideHandle = window.setTimeout(() => {
+      toast.hidden = true;
+    }, 4300);
+  }
+
+  function printReportCard(record = {}) {
+    if (record.status !== "released") {
+      showReportCardToast("info", "<strong>Report card is still a draft</strong><span>Release it before printing.</span>");
+      return;
+    }
+
+    const printWindow = window.open("", "_blank", "width=980,height=820");
+
+    if (!printWindow) {
+      showReportCardToast("info", "<strong>Printing was blocked</strong><span>Allow popups, then try again.</span>");
+      return;
+    }
+
+    printWindow.document.write(renderReportCardPrintDocument(record));
+    printWindow.document.close();
+  }
+
+  let reportCardPdfLibraryPromise = null;
+
+  function loadReportCardPdfLibrary() {
+    if (window.jspdf?.jsPDF) {
+      return Promise.resolve(window.jspdf.jsPDF);
+    }
+
+    if (reportCardPdfLibraryPromise) {
+      return reportCardPdfLibraryPromise;
+    }
+
+    reportCardPdfLibraryPromise = new Promise((resolve, reject) => {
+      const existing = document.querySelector('script[data-report-card-pdf-library="true"]');
+      const script = existing || document.createElement("script");
+
+      if (!existing) {
+        script.src = "https://cdn.jsdelivr.net/npm/jspdf@4.2.1/dist/jspdf.umd.min.js";
+        script.async = true;
+        script.dataset.reportCardPdfLibrary = "true";
+        document.head.appendChild(script);
+      }
+
+      script.addEventListener("load", () => {
+        if (window.jspdf?.jsPDF) {
+          resolve(window.jspdf.jsPDF);
+          return;
+        }
+        reject(new Error("PDF library did not load."));
+      });
+      script.addEventListener("error", () => reject(new Error("PDF library could not be loaded.")));
+    }).catch((error) => {
+      reportCardPdfLibraryPromise = null;
+      throw error;
+    });
+
+    return reportCardPdfLibraryPromise;
+  }
+
+  function getReportCardPdfFileName(record = {}) {
+    const card = getReportCardDisplayContext(record);
+    const base = `${card.studentName}-${card.termName}-${card.sessionName}-report-card`
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    return `${base || "report-card"}.pdf`;
+  }
+
+  async function downloadReportCardPdf(record = {}) {
+    if (record.status !== "released") {
+      showReportCardToast("info", "<strong>Report card is still a draft</strong><span>Release it before downloading.</span>");
+      return;
+    }
+
+    const JsPdf = await loadReportCardPdfLibrary();
+    const card = getReportCardDisplayContext(record);
+    const doc = new JsPdf({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 14;
+    const contentWidth = pageWidth - margin * 2;
+    const columns = [8, 64, 20, 20, 20, 16, 34];
+    const headers = ["#", "Subject / Course", "CA", "Exam", "Total", "Grade", "Remark"];
+    let y = 15;
+
+    const drawText = (text, x, textY, options = {}) => {
+      doc.text(String(text || ""), x, textY, options);
+    };
+    const drawTableHeader = () => {
+      let x = margin;
+      doc.setFillColor(23, 35, 58);
+      doc.rect(margin, y, contentWidth, 8, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7);
+      headers.forEach((header, index) => {
+        drawText(header, x + (index === 1 ? 2 : columns[index] / 2), y + 5, {
+          align: index === 1 ? "left" : "center",
+        });
+        x += columns[index];
+      });
+      y += 8;
+      doc.setTextColor(23, 35, 58);
+    };
+    const ensurePageSpace = (height, includeTableHeader = false) => {
+      if (y + height <= pageHeight - margin) {
+        return;
+      }
+      doc.addPage();
+      y = margin;
+      if (includeTableHeader) {
+        drawTableHeader();
+      }
+    };
+
+    doc.setTextColor(23, 35, 58);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    drawText(card.settings.schoolName || "School", margin, y);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(92, 105, 124);
+    y += 5;
+    drawText(card.settings.address || card.settings.campusDetails || "Official report card", margin, y);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(20, 128, 74);
+    drawText("RELEASED REPORT CARD", pageWidth - margin, 15, { align: "right" });
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(92, 105, 124);
+    doc.setFontSize(7);
+    drawText(card.releasedAt ? formatTimestamp(card.releasedAt) : "", pageWidth - margin, 20, { align: "right" });
+    y += 7;
+    doc.setDrawColor(23, 35, 58);
+    doc.setLineWidth(0.6);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 8;
+
+    const metadata = [
+      ["Student", card.studentName],
+      ["Admission No.", card.admissionNo],
+      ["Class / Level", card.classLevel],
+      ["Academic Session", card.sessionName],
+      ["Term / Semester", card.termName],
+      ["Position", card.position],
+    ];
+    metadata.forEach((item, index) => {
+      const column = index % 3;
+      const row = Math.floor(index / 3);
+      const boxWidth = (contentWidth - 6) / 3;
+      const x = margin + column * (boxWidth + 3);
+      const boxY = y + row * 15;
+      doc.setDrawColor(223, 231, 242);
+      doc.setLineWidth(0.25);
+      doc.rect(x, boxY, boxWidth, 12);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(6.5);
+      doc.setTextColor(102, 113, 136);
+      drawText(item[0].toUpperCase(), x + 2, boxY + 4);
+      doc.setFontSize(8);
+      doc.setTextColor(23, 35, 58);
+      const lines = doc.splitTextToSize(String(item[1] || ""), boxWidth - 4);
+      drawText(lines.slice(0, 2), x + 2, boxY + 8);
+    });
+    y += 34;
+
+    drawTableHeader();
+    card.subjects.forEach((subject, index) => {
+      const subjectLines = doc.splitTextToSize(
+        subject.code ? `${subject.name} (${subject.code})` : subject.name,
+        columns[1] - 4,
+      );
+      const remarkLines = doc.splitTextToSize(subject.remark || "", columns[6] - 4);
+      const rowHeight = Math.max(8, Math.max(subjectLines.length, remarkLines.length) * 3.6 + 3);
+      ensurePageSpace(rowHeight, true);
+      let x = margin;
+      doc.setDrawColor(216, 225, 238);
+      doc.setLineWidth(0.2);
+      columns.forEach((width) => {
+        doc.rect(x, y, width, rowHeight);
+        x += width;
+      });
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      doc.setTextColor(23, 35, 58);
+      x = margin;
+      const values = [
+        String(index + 1),
+        subjectLines,
+        formatReportCardScore(subject.caScore),
+        formatReportCardScore(subject.examScore),
+        formatReportCardScore(subject.totalScore),
+        subject.grade || "",
+        remarkLines,
+      ];
+      values.forEach((value, valueIndex) => {
+        const align = valueIndex === 1 || valueIndex === 6 ? "left" : "center";
+        drawText(value, x + (align === "left" ? 2 : columns[valueIndex] / 2), y + 5, { align });
+        x += columns[valueIndex];
+      });
+      y += rowHeight;
+    });
+
+    ensurePageSpace(32);
+    y += 7;
+    const summaryItems = [
+      ["Subjects", card.subjectCount],
+      ["Total Score", formatReportCardScore(card.totalScore)],
+      ["Average", `${formatReportCardScore(card.averageScore)}%`],
+      ["Overall Grade", card.overallGrade],
+    ];
+    summaryItems.forEach((item, index) => {
+      const boxWidth = (contentWidth - 9) / 4;
+      const x = margin + index * (boxWidth + 3);
+      doc.setDrawColor(223, 231, 242);
+      doc.rect(x, y, boxWidth, 13);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(6.5);
+      doc.setTextColor(102, 113, 136);
+      drawText(item[0].toUpperCase(), x + 2, y + 4);
+      doc.setFontSize(10);
+      doc.setTextColor(23, 35, 58);
+      drawText(String(item[1]), x + 2, y + 10);
+    });
+    y += 20;
+
+    const comments = [
+      ["Teacher's Comment", card.teacherComment || "No comment recorded."],
+      ["School Comment", card.schoolComment || card.overallRemark || "No comment recorded."],
+    ];
+    comments.forEach(([label, comment]) => {
+      const lines = doc.splitTextToSize(String(comment), contentWidth - 4);
+      const blockHeight = Math.max(14, lines.length * 4 + 8);
+      ensurePageSpace(blockHeight + 4);
+      doc.setDrawColor(223, 231, 242);
+      doc.rect(margin, y, contentWidth, blockHeight);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(6.5);
+      doc.setTextColor(102, 113, 136);
+      drawText(label.toUpperCase(), margin + 2, y + 4);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(23, 35, 58);
+      drawText(lines, margin + 2, y + 9);
+      y += blockHeight + 4;
+    });
+
+    ensurePageSpace(10);
+    doc.setDrawColor(216, 225, 238);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 5;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    doc.setTextColor(102, 113, 136);
+    drawText(`Released by ${card.releasedByName || "School administration"}`, margin, y);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(23, 35, 58);
+    drawText(card.overallRemark, pageWidth - margin, y, { align: "right" });
+
+    doc.save(getReportCardPdfFileName(card));
+  }
+
+  let activeReportCardModalRecord = null;
+
+  function ensureReportCardModal() {
+    let overlay = document.getElementById("portal-report-card-overlay");
+
+    if (overlay) {
+      return overlay;
+    }
+
+    const wrapper = document.createElement("div");
+    wrapper.innerHTML = `
+      <div id="portal-report-card-overlay" class="portal-overlay" hidden>
+        <button class="portal-overlay-backdrop" type="button" data-report-card-close aria-label="Close report card"></button>
+        <section class="portal-overlay-panel portal-report-card-modal-panel" role="dialog" aria-modal="true" aria-labelledby="portal-report-card-modal-title">
+          <header class="portal-overlay-head">
+            <div>
+              <span class="portal-overlay-kicker">Released report card</span>
+              <h3 id="portal-report-card-modal-title">Report card</h3>
+            </div>
+            <button class="portal-overlay-close" type="button" data-report-card-close aria-label="Close report card">&times;</button>
+          </header>
+          <div id="portal-report-card-modal-body" class="portal-report-card-modal-body"></div>
+          <footer class="portal-report-card-modal-actions">
+            <button class="portal-class-button" type="button" data-report-card-print>Print</button>
+            <button class="button button-primary" type="button" data-report-card-download>Download PDF</button>
+          </footer>
+        </section>
+      </div>
+    `;
+    document.body.appendChild(wrapper.firstElementChild);
+    overlay = document.getElementById("portal-report-card-overlay");
+
+    overlay.addEventListener("click", async (event) => {
+      if (event.target.closest("[data-report-card-close]")) {
+        overlay.hidden = true;
+        activeReportCardModalRecord = null;
+        document.body.classList.toggle("portal-overlay-open", Boolean(document.querySelector(".portal-overlay:not([hidden])")));
+        return;
+      }
+
+      if (event.target.closest("[data-report-card-print]") && activeReportCardModalRecord) {
+        printReportCard(activeReportCardModalRecord);
+        return;
+      }
+
+      const downloadButton = event.target.closest("[data-report-card-download]");
+      if (downloadButton && activeReportCardModalRecord) {
+        downloadButton.disabled = true;
+        downloadButton.textContent = "Preparing PDF...";
+        try {
+          await downloadReportCardPdf(activeReportCardModalRecord);
+          showReportCardToast("success", "<strong>PDF download ready</strong><span>The released report card has been downloaded.</span>");
+        } catch {
+          showReportCardToast("error", "<strong>Could not create PDF</strong><span>Check your network connection, then try again.</span>");
+        } finally {
+          downloadButton.disabled = false;
+          downloadButton.textContent = "Download PDF";
+        }
+      }
+    });
+
+    overlay.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        overlay.querySelector("[data-report-card-close]")?.click();
+      }
+    });
+
+    return overlay;
+  }
+
+  function openReportCardModal(record = {}) {
+    if (record.status !== "released") {
+      showReportCardToast("info", "<strong>Report card is still a draft</strong><span>Release it before opening the final document.</span>");
+      return;
+    }
+
+    const overlay = ensureReportCardModal();
+    const body = overlay.querySelector("#portal-report-card-modal-body");
+    const title = overlay.querySelector("#portal-report-card-modal-title");
+    const context = getReportCardDisplayContext(record);
+    activeReportCardModalRecord = record;
+
+    if (title) {
+      title.textContent = `${context.studentName} report card`;
+    }
+    if (body) {
+      body.innerHTML = renderReportCardDocument(record);
+    }
+    overlay.hidden = false;
+    document.body.classList.add("portal-overlay-open");
+    overlay.querySelector("[data-report-card-close]")?.focus();
+  }
+
+  function findReportCardRecordById(reportCardId) {
+    const manager = getReportCardManager();
+    const records = manager && typeof manager.getRecords === "function" ? manager.getRecords() : [];
+    return records.find((record) => record.id === String(reportCardId || "").trim()) || null;
+  }
+
+  function wireReportCardDocumentActions(target) {
+    if (!target || target.dataset.reportCardActionsWired === "true") {
+      return;
+    }
+
+    target.dataset.reportCardActionsWired = "true";
+    target.addEventListener("click", async (event) => {
+      const action = event.target.closest("[data-report-card-action]");
+      if (!action) {
+        return;
+      }
+
+      const record = findReportCardRecordById(action.dataset.reportCardId);
+      if (!record || record.status !== "released") {
+        showReportCardToast("info", "<strong>Report card unavailable</strong><span>This report card has not been released.</span>");
+        return;
+      }
+
+      const actionName = action.dataset.reportCardAction;
+      if (actionName === "view") {
+        openReportCardModal(record);
+        return;
+      }
+      if (actionName === "print") {
+        printReportCard(record);
+        return;
+      }
+      if (actionName === "download") {
+        action.disabled = true;
+        const originalLabel = action.textContent;
+        action.textContent = "Preparing...";
+        try {
+          await downloadReportCardPdf(record);
+          showReportCardToast("success", "<strong>PDF download ready</strong><span>The released report card has been downloaded.</span>");
+        } catch {
+          showReportCardToast("error", "<strong>Could not create PDF</strong><span>Check your network connection, then try again.</span>");
+        } finally {
+          action.disabled = false;
+          action.textContent = originalLabel;
+        }
+      }
+    });
+  }
+
   function getTeacherPortalNotifications(user = {}) {
     const workspaceId = normalizeWorkspaceId(user.workspaceId || getCurrentWorkspaceId());
     return filterNotificationsByRole(getNotifications(workspaceId), "Teacher");
@@ -22938,32 +23693,591 @@
     `;
   }
 
-  function buildStaffResultsSection(user) {
-    const assignedClasses = getTeacherAssignedClasses(user);
-    const { openSession, openTerm } = getStaffActiveTermContext();
+  function getReportCardSubjectOptionsForClass(classRecord = {}) {
+    const courseManager = getCourseManager();
+    const courses =
+      courseManager && typeof courseManager.getCourses === "function"
+        ? courseManager.getCourses().filter((course) => course.status !== "archived")
+        : [];
+    const classTokens = new Set(
+      [
+        normalizeLevelToken(classRecord.level),
+        normalizeLevelToken(classRecord.name),
+        normalizeLevelToken(getClassDisplayName(classRecord)),
+      ].filter(Boolean),
+    );
+    const options = [];
+    const seen = new Set();
+    const addOption = (name, code = "") => {
+      const normalizedName = String(name || "").trim();
+      const normalizedCode = String(code || "").trim().toUpperCase();
+      const key = `${normalizedName}:${normalizedCode}`.toLowerCase();
+
+      if (!normalizedName || seen.has(key)) {
+        return;
+      }
+      seen.add(key);
+      options.push({ name: normalizedName, code: normalizedCode });
+    };
+
+    (classRecord.subjects || []).forEach((subject) => addOption(subject));
+    (classRecord.teacherAssignments || []).forEach((assignment) => addOption(assignment.subject));
+    courses.forEach((course) => {
+      if (classTokens.has(normalizeLevelToken(course.level))) {
+        addOption(course.name || course.code, course.code);
+      }
+    });
+
+    return options.sort((left, right) => left.name.localeCompare(right.name, undefined, { numeric: true }));
+  }
+
+  function renderStaffReportSubjectRow(subject = {}, index = 0, locked = false) {
+    const caScore = normalizeReportCardScore(subject.caScore);
+    const examScore = normalizeReportCardScore(subject.examScore);
+    const totalScore = Math.min(100, Math.round((caScore + examScore) * 100) / 100);
+    const grading = getReportCardGradeInfo(totalScore);
+    const disabled = locked ? "disabled" : "";
 
     return `
-      <section class="staff-portal-section admin-surface-card">
+      <tr data-report-subject-row>
+        <td>${index + 1}</td>
+        <td>
+          <input type="text" name="subjectName" value="${escapeHtml(String(subject.name || ""))}" placeholder="Subject or course name" ${disabled} />
+          <input type="hidden" name="subjectCode" value="${escapeHtml(String(subject.code || ""))}" />
+        </td>
+        <td><input type="number" name="caScore" min="0" max="100" step="0.01" value="${escapeHtml(formatReportCardScore(caScore))}" ${disabled} /></td>
+        <td><input type="number" name="examScore" min="0" max="100" step="0.01" value="${escapeHtml(formatReportCardScore(examScore))}" ${disabled} /></td>
+        <td><strong data-report-row-total>${escapeHtml(formatReportCardScore(totalScore))}</strong></td>
+        <td><strong data-report-row-grade>${escapeHtml(grading.grade)}</strong></td>
+        <td>
+          ${
+            locked
+              ? `<span>${escapeHtml(grading.remark)}</span>`
+              : `<button class="portal-report-subject-remove" type="button" data-report-subject-remove aria-label="Remove subject">&times;</button>`
+          }
+        </td>
+      </tr>
+    `;
+  }
+
+  function collectStaffReportCardSubjects(form) {
+    const rows = Array.from(form.querySelectorAll("[data-report-subject-row]"));
+    const subjects = [];
+
+    for (const row of rows) {
+      const name = String(row.querySelector('[name="subjectName"]')?.value || "").trim();
+      const code = String(row.querySelector('[name="subjectCode"]')?.value || "").trim();
+      const caScore = Number.parseFloat(row.querySelector('[name="caScore"]')?.value || "0");
+      const examScore = Number.parseFloat(row.querySelector('[name="examScore"]')?.value || "0");
+
+      if (!name) {
+        return { error: "Enter a subject or course name for every score row.", subjects: [] };
+      }
+      if (!Number.isFinite(caScore) || caScore < 0 || caScore > 100) {
+        return { error: `${name}: CA score must be between 0 and 100.`, subjects: [] };
+      }
+      if (!Number.isFinite(examScore) || examScore < 0 || examScore > 100) {
+        return { error: `${name}: exam score must be between 0 and 100.`, subjects: [] };
+      }
+      if (caScore + examScore > 100) {
+        return { error: `${name}: CA and exam scores cannot total more than 100.`, subjects: [] };
+      }
+
+      subjects.push({ name, code, caScore, examScore });
+    }
+
+    if (!subjects.length) {
+      return { error: "Add at least one subject or course before saving the report card.", subjects: [] };
+    }
+
+    return { error: "", subjects };
+  }
+
+  function renderStaffResultsWorkspace(target, user) {
+    if (!target) {
+      return;
+    }
+
+    const reportManager = getReportCardManager();
+    const assignedClasses = getTeacherAssignedClasses(user);
+    const { cycleState, openSession, openTerm } = getStaffActiveTermContext();
+    const sessions = Array.isArray(cycleState.sessions) ? cycleState.sessions : [];
+    const allTerms = Array.isArray(cycleState.terms) ? cycleState.terms : [];
+    const selectedClass =
+      assignedClasses.find((classRecord) => classRecord.id === target.dataset.staffResultClassId) ||
+      assignedClasses[0] ||
+      null;
+    const roster = selectedClass ? getActiveStudentsForClass(selectedClass) : [];
+    const selectedStudent =
+      roster.find((student) => student.id === target.dataset.staffResultStudentId) || roster[0] || null;
+    const selectedSession =
+      sessions.find((session) => session.id === target.dataset.staffResultSessionId) ||
+      openSession ||
+      sessions[0] ||
+      null;
+    const termsForSession = selectedSession
+      ? allTerms.filter((term) => term.sessionId === selectedSession.id)
+      : [];
+    const selectedTerm =
+      termsForSession.find((term) => term.id === target.dataset.staffResultTermId) ||
+      (openTerm && openTerm.sessionId === selectedSession?.id ? openTerm : null) ||
+      termsForSession[0] ||
+      null;
+    const allReportCards =
+      reportManager && typeof reportManager.getRecords === "function" ? reportManager.getRecords() : [];
+    const currentCard =
+      selectedStudent && selectedSession && selectedTerm && typeof reportManager?.getForStudentPeriod === "function"
+        ? reportManager.getForStudentPeriod(selectedStudent.id, selectedSession.id, selectedTerm.id)
+        : allReportCards.find(
+            (record) =>
+              record.studentId === selectedStudent?.id &&
+              record.sessionId === selectedSession?.id &&
+              record.termId === selectedTerm?.id,
+          ) || null;
+    const subjectOptions = selectedClass ? getReportCardSubjectOptionsForClass(selectedClass) : [];
+    const editableSubjects = currentCard?.subjects?.length
+      ? currentCard.subjects
+      : subjectOptions.length
+        ? subjectOptions.map((subject) => ({ ...subject, caScore: 0, examScore: 0 }))
+        : [{ name: "", code: "", caScore: 0, examScore: 0 }];
+    const isReleased = currentCard?.status === "released";
+    const assignedClassIds = new Set(assignedClasses.map((classRecord) => classRecord.id));
+    const assignedLevelTokens = new Set(assignedClasses.map((classRecord) => normalizeLevelToken(classRecord.level)));
+    const releasedCards = allReportCards
+      .filter(
+        (record) =>
+          record.status === "released" &&
+          (assignedClassIds.has(record.classId) || assignedLevelTokens.has(normalizeLevelToken(record.classLevel))),
+      )
+      .slice(0, 20);
+
+    target.dataset.staffResultClassId = selectedClass?.id || "";
+    target.dataset.staffResultStudentId = selectedStudent?.id || "";
+    target.dataset.staffResultSessionId = selectedSession?.id || "";
+    target.dataset.staffResultTermId = selectedTerm?.id || "";
+    target.hidden = false;
+    target.innerHTML = `
+      <section class="staff-portal-section admin-surface-card staff-results-command">
         <div class="admin-surface-head">
           <div>
-            <h2>Results</h2>
-            <span>View, comment, and publish term results.</span>
+            <h2>Results and Report Cards</h2>
+            <span>Prepare a term result, review it, then release the final report card.</span>
           </div>
         </div>
         <div class="staff-portal-grid">
           <article class="staff-portal-tile">
             <span>Assigned classes</span>
             <strong>${assignedClasses.length}</strong>
-            <p>Result review follows assigned class and subject coverage.</p>
+            <p>Only your assigned classes are available.</p>
           </article>
           <article class="staff-portal-tile">
-            <span>Current period</span>
-            <strong>${escapeHtml(openTerm?.name || "Not set")}</strong>
-            <p>${escapeHtml(openSession?.name || "Session not set")}</p>
+            <span>Released report cards</span>
+            <strong>${releasedCards.length}</strong>
+            <p>Available to linked parents.</p>
           </article>
+          <article class="staff-portal-tile">
+            <span>Active period</span>
+            <strong>${escapeHtml(String(openTerm?.name || "Not set"))}</strong>
+            <p>${escapeHtml(String(openSession?.name || "Session not set"))}</p>
+          </article>
+        </div>
+
+        <form id="staff-result-context-form" class="portal-settings-form staff-result-context-form" novalidate>
+          <div class="portal-settings-grid staff-result-context-grid">
+            <label class="portal-field" for="staff-result-class">
+              <span>Class</span>
+              <select id="staff-result-class" name="classId" ${assignedClasses.length ? "" : "disabled"}>
+                ${
+                  assignedClasses.length
+                    ? assignedClasses
+                        .map(
+                          (classRecord) => `
+                            <option value="${escapeHtml(String(classRecord.id))}" ${
+                              classRecord.id === selectedClass?.id ? "selected" : ""
+                            }>${escapeHtml(getClassDisplayName(classRecord))}</option>
+                          `,
+                        )
+                        .join("")
+                    : `<option value="">No assigned classes</option>`
+                }
+              </select>
+            </label>
+            <label class="portal-field" for="staff-result-student">
+              <span>Student</span>
+              <select id="staff-result-student" name="studentId" ${roster.length ? "" : "disabled"}>
+                ${
+                  roster.length
+                    ? roster
+                        .map(
+                          (student) => `
+                            <option value="${escapeHtml(String(student.id))}" ${
+                              student.id === selectedStudent?.id ? "selected" : ""
+                            }>${escapeHtml(String(student.fullName))}${student.admissionNo ? ` • ${escapeHtml(String(student.admissionNo))}` : ""}</option>
+                          `,
+                        )
+                        .join("")
+                    : `<option value="">No students enrolled</option>`
+                }
+              </select>
+            </label>
+            <label class="portal-field" for="staff-result-session">
+              <span>Academic session</span>
+              <select id="staff-result-session" name="sessionId" ${sessions.length ? "" : "disabled"}>
+                ${
+                  sessions.length
+                    ? sessions
+                        .map(
+                          (session) => `
+                            <option value="${escapeHtml(String(session.id))}" ${
+                              session.id === selectedSession?.id ? "selected" : ""
+                            }>${escapeHtml(String(session.name))}</option>
+                          `,
+                        )
+                        .join("")
+                    : `<option value="">No sessions configured</option>`
+                }
+              </select>
+            </label>
+            <label class="portal-field" for="staff-result-term">
+              <span>Term / semester</span>
+              <select id="staff-result-term" name="termId" ${termsForSession.length ? "" : "disabled"}>
+                ${
+                  termsForSession.length
+                    ? termsForSession
+                        .map(
+                          (term) => `
+                            <option value="${escapeHtml(String(term.id))}" ${
+                              term.id === selectedTerm?.id ? "selected" : ""
+                            }>${escapeHtml(String(term.name))}</option>
+                          `,
+                        )
+                        .join("")
+                    : `<option value="">No terms or semesters configured</option>`
+                }
+              </select>
+            </label>
+          </div>
+        </form>
+      </section>
+
+      ${
+        !reportManager
+          ? `
+            <section class="staff-portal-section admin-surface-card">
+              <article class="portal-class-empty">
+                <strong>Report cards are unavailable</strong>
+                <p>The report-card data manager could not be loaded.</p>
+              </article>
+            </section>
+          `
+          : !selectedClass || !selectedStudent || !selectedSession || !selectedTerm
+            ? `
+              <section class="staff-portal-section admin-surface-card">
+                <article class="portal-class-empty">
+                  <strong>Choose a complete result context</strong>
+                  <p>Assign a class, enrol students, and configure an academic session with a term or semester.</p>
+                </article>
+              </section>
+            `
+            : `
+              <section class="staff-portal-section admin-surface-card staff-result-editor-card">
+                <div class="admin-surface-head">
+                  <div>
+                    <h2>${escapeHtml(String(selectedStudent.fullName))}</h2>
+                    <span>${escapeHtml(getClassDisplayName(selectedClass))} • ${escapeHtml(String(selectedSession.name))} • ${escapeHtml(String(selectedTerm.name))}</span>
+                  </div>
+                  <span class="portal-report-card-status ${isReleased ? "is-released" : "is-draft"}">${isReleased ? "Released" : "Draft"}</span>
+                </div>
+                <form id="staff-result-card-form" class="portal-settings-form staff-result-card-form" novalidate>
+                  <div id="staff-result-card-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+                  <div class="staff-result-table-wrap">
+                    <table class="staff-result-score-table">
+                      <thead>
+                        <tr><th>#</th><th>Subject / Course</th><th>CA</th><th>Exam</th><th>Total</th><th>Grade</th><th></th></tr>
+                      </thead>
+                      <tbody id="staff-result-subject-rows">
+                        ${editableSubjects
+                          .map((subject, index) => renderStaffReportSubjectRow(subject, index, isReleased))
+                          .join("")}
+                      </tbody>
+                    </table>
+                  </div>
+                  ${
+                    isReleased
+                      ? ""
+                      : `<button class="portal-class-button staff-result-add-subject" type="button" data-report-subject-add>Add subject</button>`
+                  }
+
+                  <div class="staff-result-live-summary">
+                    <article><span>Subjects</span><strong data-report-editor-summary="subjects">0</strong></article>
+                    <article><span>Total score</span><strong data-report-editor-summary="total">0</strong></article>
+                    <article><span>Average</span><strong data-report-editor-summary="average">0%</strong></article>
+                    <article><span>Overall grade</span><strong data-report-editor-summary="grade">F</strong></article>
+                  </div>
+
+                  <div class="portal-settings-grid staff-result-comment-grid">
+                    <label class="portal-field" for="staff-result-teacher-comment">
+                      <span>Teacher&apos;s comment</span>
+                      <textarea id="staff-result-teacher-comment" name="teacherComment" rows="4" placeholder="Summarize the student's performance." ${isReleased ? "disabled" : ""}>${escapeHtml(String(currentCard?.teacherComment || ""))}</textarea>
+                    </label>
+                    <label class="portal-field" for="staff-result-school-comment">
+                      <span>School comment</span>
+                      <textarea id="staff-result-school-comment" name="schoolComment" rows="4" placeholder="Add the final school comment." ${isReleased ? "disabled" : ""}>${escapeHtml(String(currentCard?.schoolComment || ""))}</textarea>
+                    </label>
+                  </div>
+
+                  <div class="utility-actions staff-result-actions">
+                    ${
+                      isReleased
+                        ? `
+                          <button class="portal-class-button" type="button" data-report-card-action="view" data-report-card-id="${escapeHtml(String(currentCard.id))}">View report card</button>
+                          <button class="portal-class-button is-archive" type="button" data-report-card-return-draft>Return to draft</button>
+                        `
+                        : `
+                          <button class="portal-class-button" type="submit">Save draft</button>
+                          <button class="button button-primary" type="button" data-report-card-release>Release report card</button>
+                        `
+                    }
+                  </div>
+                </form>
+              </section>
+            `
+      }
+
+      <section class="staff-portal-section admin-surface-card">
+        <div class="admin-surface-head">
+          <div>
+            <h2>Released Report Cards</h2>
+            <span>View, download, or print final report cards.</span>
+          </div>
+        </div>
+        <div class="staff-portal-list portal-report-card-list">
+          ${
+            releasedCards.length
+              ? releasedCards
+                  .map((record) => {
+                    const context = getReportCardDisplayContext(record);
+                    return `
+                      <article class="portal-report-card-list-row">
+                        <div>
+                          <strong>${escapeHtml(context.studentName)}</strong>
+                          <span>${escapeHtml(context.classLevel)} • ${escapeHtml(context.termName)} • ${escapeHtml(context.sessionName)}</span>
+                        </div>
+                        <div class="portal-report-card-list-score">
+                          <span>Average</span>
+                          <strong>${escapeHtml(formatReportCardScore(context.averageScore))}%</strong>
+                        </div>
+                        <div class="portal-report-card-list-actions">
+                          <button class="portal-class-button" type="button" data-report-card-action="view" data-report-card-id="${escapeHtml(String(record.id))}">View</button>
+                          <button class="portal-class-button" type="button" data-report-card-action="download" data-report-card-id="${escapeHtml(String(record.id))}">Download PDF</button>
+                          <button class="portal-class-button" type="button" data-report-card-action="print" data-report-card-id="${escapeHtml(String(record.id))}">Print</button>
+                        </div>
+                      </article>
+                    `;
+                  })
+                  .join("")
+              : `
+                <article class="portal-class-empty">
+                  <strong>No released report cards yet</strong>
+                  <p>Released cards will appear here and become visible to linked parents.</p>
+                </article>
+              `
+          }
         </div>
       </section>
     `;
+
+    const contextForm = target.querySelector("#staff-result-context-form");
+    const cardForm = target.querySelector("#staff-result-card-form");
+    const classSelect = contextForm?.querySelector("#staff-result-class");
+    const studentSelect = contextForm?.querySelector("#staff-result-student");
+    const sessionSelect = contextForm?.querySelector("#staff-result-session");
+    const termSelect = contextForm?.querySelector("#staff-result-term");
+
+    classSelect?.addEventListener("change", () => {
+      target.dataset.staffResultClassId = classSelect.value;
+      target.dataset.staffResultStudentId = "";
+      renderStaffResultsWorkspace(target, user);
+    });
+    studentSelect?.addEventListener("change", () => {
+      target.dataset.staffResultStudentId = studentSelect.value;
+      renderStaffResultsWorkspace(target, user);
+    });
+    sessionSelect?.addEventListener("change", () => {
+      target.dataset.staffResultSessionId = sessionSelect.value;
+      target.dataset.staffResultTermId = "";
+      renderStaffResultsWorkspace(target, user);
+    });
+    termSelect?.addEventListener("change", () => {
+      target.dataset.staffResultTermId = termSelect.value;
+      renderStaffResultsWorkspace(target, user);
+    });
+
+    wireReportCardDocumentActions(target);
+
+    if (!cardForm || !selectedClass || !selectedStudent || !selectedSession || !selectedTerm || !reportManager) {
+      return;
+    }
+
+    const statusTarget = cardForm.querySelector("#staff-result-card-status");
+    const rowsTarget = cardForm.querySelector("#staff-result-subject-rows");
+    const refreshEditorSummary = () => {
+      const subjects = Array.from(cardForm.querySelectorAll("[data-report-subject-row]")).map((row) => {
+        const caScore = normalizeReportCardScore(row.querySelector('[name="caScore"]')?.value);
+        const examScore = normalizeReportCardScore(row.querySelector('[name="examScore"]')?.value);
+        const totalScore = Math.min(100, Math.round((caScore + examScore) * 100) / 100);
+        const grading = getReportCardGradeInfo(totalScore);
+        const totalTarget = row.querySelector("[data-report-row-total]");
+        const gradeTarget = row.querySelector("[data-report-row-grade]");
+        if (totalTarget) totalTarget.textContent = formatReportCardScore(totalScore);
+        if (gradeTarget) gradeTarget.textContent = grading.grade;
+        return {
+          name: String(row.querySelector('[name="subjectName"]')?.value || "").trim() || "Subject",
+          caScore,
+          examScore,
+        };
+      });
+      const summary = summarizeReportCardSubjects(subjects);
+      const values = {
+        subjects: String(summary.subjectCount),
+        total: formatReportCardScore(summary.totalScore),
+        average: `${formatReportCardScore(summary.averageScore)}%`,
+        grade: summary.grade,
+      };
+      Object.entries(values).forEach(([key, value]) => {
+        const targetElement = cardForm.querySelector(`[data-report-editor-summary="${key}"]`);
+        if (targetElement) targetElement.textContent = value;
+      });
+    };
+    const buildReportCardPayload = (status = "draft") => {
+      const result = collectStaffReportCardSubjects(cardForm);
+      if (result.error) {
+        setStatus(statusTarget, "error", escapeHtml(result.error));
+        return null;
+      }
+
+      const timestamp = nowIso();
+      return {
+        id: currentCard?.id,
+        studentId: selectedStudent.id,
+        studentName: selectedStudent.fullName,
+        admissionNo: selectedStudent.admissionNo,
+        classId: selectedClass.id,
+        classLevel: getClassDisplayName(selectedClass),
+        sessionId: selectedSession.id,
+        sessionName: selectedSession.name,
+        termId: selectedTerm.id,
+        termName: selectedTerm.name,
+        subjects: result.subjects,
+        teacherComment: String(cardForm.elements.teacherComment?.value || "").trim(),
+        schoolComment: String(cardForm.elements.schoolComment?.value || "").trim(),
+        status,
+        createdById: currentCard?.createdById || user.id,
+        createdByName: currentCard?.createdByName || user.displayName || user.email,
+        releasedAt: status === "released" ? timestamp : null,
+        releasedById: status === "released" ? user.id : "",
+        releasedByName: status === "released" ? user.displayName || user.email : "",
+        createdAt: currentCard?.createdAt,
+      };
+    };
+
+    cardForm.addEventListener("input", (event) => {
+      if (event.target.closest("[data-report-subject-row]")) {
+        refreshEditorSummary();
+      }
+    });
+    cardForm.addEventListener("click", async (event) => {
+      if (event.target.closest("[data-report-subject-add]")) {
+        const rowIndex = rowsTarget.querySelectorAll("[data-report-subject-row]").length;
+        rowsTarget.insertAdjacentHTML("beforeend", renderStaffReportSubjectRow({}, rowIndex, false));
+        rowsTarget.querySelectorAll("[data-report-subject-row]")[rowIndex]?.querySelector('[name="subjectName"]')?.focus();
+        refreshEditorSummary();
+        return;
+      }
+
+      const removeButton = event.target.closest("[data-report-subject-remove]");
+      if (removeButton) {
+        removeButton.closest("[data-report-subject-row]")?.remove();
+        Array.from(rowsTarget.querySelectorAll("[data-report-subject-row]")).forEach((row, index) => {
+          const firstCell = row.querySelector("td");
+          if (firstCell) firstCell.textContent = String(index + 1);
+        });
+        refreshEditorSummary();
+        return;
+      }
+
+      if (event.target.closest("[data-report-card-release]")) {
+        const payload = buildReportCardPayload("released");
+        if (!payload) {
+          return;
+        }
+        const confirmed = await showAppConfirm({
+          title: "Release report card?",
+          message: `${selectedStudent.fullName}'s report card will become visible to linked parents.`,
+          details: `${selectedSession.name} • ${selectedTerm.name} • ${getClassDisplayName(selectedClass)}`,
+          confirmLabel: "Release report card",
+          variant: "success",
+        });
+        if (!confirmed) {
+          return;
+        }
+        reportManager.upsertRecord(payload);
+        recordAuditEvent({
+          action: "released",
+          entityType: "report-card",
+          entityId: selectedStudent.id,
+          title: "Report card released",
+          message: `${selectedStudent.fullName}'s ${selectedTerm.name} report card is now available.`,
+          summary: `Released report card for ${selectedStudent.fullName}`,
+          details: `${getClassDisplayName(selectedClass)} • ${selectedSession.name} • ${selectedTerm.name}`,
+          visibleToRoles: ["Admin", "Parent"],
+        });
+        showReportCardToast("success", "<strong>Report card released</strong><span>Linked parents can now view, download, and print it.</span>");
+        return;
+      }
+
+      if (event.target.closest("[data-report-card-return-draft]") && currentCard) {
+        const confirmed = await showAppConfirm({
+          title: "Return report card to draft?",
+          message: `${selectedStudent.fullName}'s report card will no longer be visible to linked parents.`,
+          details: `${selectedSession.name} • ${selectedTerm.name}`,
+          confirmLabel: "Return to draft",
+          variant: "danger",
+        });
+        if (!confirmed) {
+          return;
+        }
+        reportManager.setReleased(currentCard.id, false);
+        recordAuditEvent({
+          action: "updated",
+          entityType: "report-card",
+          entityId: selectedStudent.id,
+          summary: `Returned report card to draft for ${selectedStudent.fullName}`,
+          details: `${getClassDisplayName(selectedClass)} • ${selectedSession.name} • ${selectedTerm.name}`,
+          visibleToRoles: ["Admin"],
+        });
+        showReportCardToast("info", "<strong>Report card returned to draft</strong><span>It is hidden from linked parents until released again.</span>");
+      }
+    });
+    cardForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const payload = buildReportCardPayload("draft");
+      if (!payload) {
+        return;
+      }
+      reportManager.upsertRecord(payload);
+      recordAuditEvent({
+        action: currentCard ? "updated" : "created",
+        entityType: "report-card",
+        entityId: selectedStudent.id,
+        summary: `${currentCard ? "Updated" : "Created"} report card draft for ${selectedStudent.fullName}`,
+        details: `${getClassDisplayName(selectedClass)} • ${selectedSession.name} • ${selectedTerm.name}`,
+        visibleToRoles: ["Admin"],
+      });
+      showReportCardToast("success", "<strong>Draft saved</strong><span>The report card is ready for further review.</span>");
+    });
+
+    refreshEditorSummary();
   }
 
   function buildStaffLessonPlansSection(user) {
@@ -23067,11 +24381,15 @@
       return;
     }
 
+    if (page === "staff-results") {
+      renderStaffResultsWorkspace(target, user);
+      return;
+    }
+
     const contentByPage = {
       "staff-timetable": buildStaffTimetableSection(user),
       "staff-classes": buildStaffClassesSection(user),
       "staff-gradebook": buildStaffGradebookSection(user),
-      "staff-results": buildStaffResultsSection(user),
       "staff-lesson-plans": buildStaffLessonPlansSection(user),
       "staff-messages": buildStaffMessagesSection(user),
       "staff-leave": buildStaffLeaveSection(user),
@@ -24607,23 +25925,92 @@
       return;
     }
 
+    const reportManager = getReportCardManager();
+    const releasedCards =
+      reportManager && typeof reportManager.getRecords === "function"
+        ? reportManager
+            .getRecords()
+            .filter((record) => record.studentId === student.id && record.status === "released")
+        : [];
+    const latestCard = releasedCards[0] || null;
+    const latestContext = latestCard ? getReportCardDisplayContext(latestCard) : null;
+
     target.innerHTML = `
-      <article class="admin-surface-card">
+      <article class="admin-surface-card parent-report-card-command">
         <div class="admin-surface-head">
-          <h2>Reports: ${escapeHtml(student.fullName)}</h2>
-          <span>Only this child's report cards and summaries are visible.</span>
+          <div>
+            <h2>Reports: ${escapeHtml(String(student.fullName))}</h2>
+            <span>Only released report cards for this child are visible.</span>
+          </div>
         </div>
-        <div class="admin-event-list">
-          <article class="admin-event-row">
-            <div class="admin-event-time">Result</div>
-            <div class="admin-event-copy">
-              <strong>No published report yet</strong>
-              <span>When teachers publish results, they will appear here for this child only.</span>
-            </div>
+        <div class="staff-portal-grid parent-report-summary">
+          <article class="staff-portal-tile">
+            <span>Released report cards</span>
+            <strong>${releasedCards.length}</strong>
+            <p>Available to view, download, and print.</p>
+          </article>
+          <article class="staff-portal-tile">
+            <span>Latest average</span>
+            <strong>${latestContext ? `${escapeHtml(formatReportCardScore(latestContext.averageScore))}%` : "--"}</strong>
+            <p>${latestContext ? escapeHtml(latestContext.termName) : "No released report yet"}</p>
+          </article>
+          <article class="staff-portal-tile">
+            <span>Latest grade</span>
+            <strong>${latestContext ? escapeHtml(latestContext.overallGrade) : "--"}</strong>
+            <p>${latestContext ? escapeHtml(latestContext.overallRemark) : "Awaiting release"}</p>
           </article>
         </div>
       </article>
+
+      <article class="admin-surface-card">
+        <div class="admin-surface-head">
+          <div>
+            <h2>Released Report Cards</h2>
+            <span>${releasedCards.length} report card${releasedCards.length === 1 ? "" : "s"} available.</span>
+          </div>
+        </div>
+        <div class="portal-report-card-list">
+          ${
+            releasedCards.length
+              ? releasedCards
+                  .map((record) => {
+                    const context = getReportCardDisplayContext(record);
+                    return `
+                      <article class="portal-report-card-list-row parent-report-card-row">
+                        <button class="parent-report-card-main" type="button" data-report-card-action="view" data-report-card-id="${escapeHtml(String(record.id))}">
+                          <span>${escapeHtml(context.termName)}</span>
+                          <strong>${escapeHtml(context.sessionName)}</strong>
+                          <small>${escapeHtml(context.classLevel)} • Released ${escapeHtml(formatTimestamp(record.releasedAt || record.updatedAt))}</small>
+                        </button>
+                        <div class="portal-report-card-list-score">
+                          <span>Average</span>
+                          <strong>${escapeHtml(formatReportCardScore(context.averageScore))}%</strong>
+                        </div>
+                        <div class="portal-report-card-list-score">
+                          <span>Grade</span>
+                          <strong>${escapeHtml(context.overallGrade)}</strong>
+                        </div>
+                        <div class="portal-report-card-list-actions">
+                          <button class="portal-class-button" type="button" data-report-card-action="view" data-report-card-id="${escapeHtml(String(record.id))}">View</button>
+                          <button class="portal-class-button" type="button" data-report-card-action="download" data-report-card-id="${escapeHtml(String(record.id))}">Download PDF</button>
+                          <button class="portal-class-button" type="button" data-report-card-action="print" data-report-card-id="${escapeHtml(String(record.id))}">Print</button>
+                        </div>
+                      </article>
+                    `;
+                  })
+                  .join("")
+              : `
+                <article class="portal-class-empty">
+                  <strong>No released report card yet</strong>
+                  <p>When the school releases a report card, it will appear here for this child.</p>
+                </article>
+              `
+          }
+        </div>
+      </article>
     `;
+
+    wireReportCardDocumentActions(target);
   }
 
   function renderParentPermissionRestrictedPage(target, page) {
@@ -24742,6 +26129,12 @@
 
     if (page === "parent-reports") {
       renderParentReportsPage(contentHost, selectedChild);
+      const reportCardManager = getReportCardManager();
+      if (reportCardManager?.eventName) {
+        window.addEventListener(reportCardManager.eventName, () => {
+          renderParentReportsPage(contentHost, selectedChild);
+        });
+      }
     }
   }
 
@@ -26896,6 +28289,7 @@
       getStudentManager()?.eventName,
       getTimetableManager()?.eventName,
       getAttendanceManager()?.eventName,
+      getReportCardManager()?.eventName,
       NOTIFICATION_EVENT_NAME,
     ]
       .filter(Boolean)

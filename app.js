@@ -259,6 +259,9 @@ const SCHOOL_STUDENTS_EVENT = "schoolsphere:students-updated";
 const DEFAULT_ATTENDANCE_RECORDS = [];
 const SCHOOL_ATTENDANCE_STORAGE_KEY = "schoolsphere.attendance.v1";
 const SCHOOL_ATTENDANCE_EVENT = "schoolsphere:attendance-updated";
+const DEFAULT_REPORT_CARD_RECORDS = [];
+const SCHOOL_REPORT_CARDS_STORAGE_KEY = "schoolsphere.reportCards.v1";
+const SCHOOL_REPORT_CARDS_EVENT = "schoolsphere:report-cards-updated";
 const LEGACY_MOCK_CLASS_IDS = new Set([
   "class-nursery-2-tulip",
   "class-primary-3-coral",
@@ -367,6 +370,7 @@ function clearLegacySharedState() {
     SCHOOL_COURSES_STORAGE_KEY,
     SCHOOL_STUDENTS_STORAGE_KEY,
     SCHOOL_ATTENDANCE_STORAGE_KEY,
+    SCHOOL_REPORT_CARDS_STORAGE_KEY,
     AUDIT_TRAIL_STORAGE_KEY,
     FEATURE_TOGGLE_STORAGE_KEY,
     ROLE_PERMISSIONS_STORAGE_KEY,
@@ -3066,6 +3070,203 @@ function summarizeAttendanceRecords(options = {}) {
   };
 }
 
+function normalizeReportCardScore(value) {
+  const score = Number.parseFloat(value);
+
+  if (!Number.isFinite(score) || score < 0) {
+    return 0;
+  }
+
+  return Math.min(100, Math.round(score * 100) / 100);
+}
+
+function getReportCardGrade(score) {
+  const normalizedScore = normalizeReportCardScore(score);
+
+  if (normalizedScore >= 70) return { grade: "A", remark: "Excellent" };
+  if (normalizedScore >= 60) return { grade: "B", remark: "Very Good" };
+  if (normalizedScore >= 50) return { grade: "C", remark: "Good" };
+  if (normalizedScore >= 45) return { grade: "D", remark: "Fair" };
+  if (normalizedScore >= 40) return { grade: "E", remark: "Pass" };
+  return { grade: "F", remark: "Needs Improvement" };
+}
+
+function normalizeReportCardSubject(record = {}) {
+  const caScore = normalizeReportCardScore(record.caScore ?? record.ca_score);
+  const examScore = normalizeReportCardScore(record.examScore ?? record.exam_score);
+  const totalScore = Math.min(100, Math.round((caScore + examScore) * 100) / 100);
+  const grading = getReportCardGrade(totalScore);
+
+  return {
+    id: String(record.id || createStorageId("report-subject")),
+    name: String(record.name || record.subject || "").trim(),
+    code: String(record.code || "").trim().toUpperCase(),
+    caScore,
+    examScore,
+    totalScore,
+    grade: grading.grade,
+    remark: grading.remark,
+  };
+}
+
+function summarizeReportCardSubjects(subjects = []) {
+  const normalizedSubjects = Array.isArray(subjects)
+    ? subjects.map((subject) => normalizeReportCardSubject(subject)).filter((subject) => subject.name)
+    : [];
+  const totalScore = normalizedSubjects.reduce((sum, subject) => sum + subject.totalScore, 0);
+  const averageScore = normalizedSubjects.length
+    ? Math.round((totalScore / normalizedSubjects.length) * 100) / 100
+    : 0;
+  const grading = getReportCardGrade(averageScore);
+
+  return {
+    subjects: normalizedSubjects,
+    subjectCount: normalizedSubjects.length,
+    totalScore,
+    averageScore,
+    grade: grading.grade,
+    remark: grading.remark,
+  };
+}
+
+function normalizeReportCardRecord(record = {}) {
+  const timestamp = new Date().toISOString();
+  const status = record.status === "released" ? "released" : "draft";
+  const subjectSummary = summarizeReportCardSubjects(record.subjects);
+
+  return {
+    id: String(record.id || createStorageId("report-card")),
+    studentId: String(record.studentId || record.student_id || "").trim(),
+    studentName: String(record.studentName || record.student_name || "").trim(),
+    admissionNo: String(record.admissionNo || record.admission_no || "").trim(),
+    classId: String(record.classId || record.class_id || "").trim(),
+    classLevel: String(record.classLevel || record.class_level || "").trim(),
+    sessionId: String(record.sessionId || record.session_id || "").trim(),
+    sessionName: String(record.sessionName || record.session_name || "").trim(),
+    termId: String(record.termId || record.term_id || "").trim(),
+    termName: String(record.termName || record.term_name || "").trim(),
+    subjects: subjectSummary.subjects,
+    teacherComment: String(record.teacherComment || record.teacher_comment || "").trim(),
+    schoolComment: String(record.schoolComment || record.school_comment || "").trim(),
+    status,
+    createdById: String(record.createdById || record.created_by_id || "").trim(),
+    createdByName: String(record.createdByName || record.created_by_name || "").trim(),
+    releasedById: status === "released" ? String(record.releasedById || record.released_by_id || "").trim() : "",
+    releasedByName: status === "released" ? String(record.releasedByName || record.released_by_name || "").trim() : "",
+    releasedAt: status === "released" ? String(record.releasedAt || record.released_at || timestamp) : null,
+    createdAt: record.createdAt || record.created_at || timestamp,
+    updatedAt: record.updatedAt || record.updated_at || timestamp,
+  };
+}
+
+function compareReportCardRecords(left, right) {
+  const releaseComparison = String(right.releasedAt || right.updatedAt || "").localeCompare(
+    String(left.releasedAt || left.updatedAt || ""),
+  );
+
+  if (releaseComparison) {
+    return releaseComparison;
+  }
+
+  return String(left.studentName || "").localeCompare(String(right.studentName || ""), undefined, {
+    numeric: true,
+  });
+}
+
+function getReportCardRecords() {
+  const stored = readWorkspaceState(SCHOOL_REPORT_CARDS_STORAGE_KEY, DEFAULT_REPORT_CARD_RECORDS);
+  const source = Array.isArray(stored) ? stored : DEFAULT_REPORT_CARD_RECORDS;
+
+  return source.map((record) => normalizeReportCardRecord(record)).sort(compareReportCardRecords);
+}
+
+function emitReportCardsUpdate(records = getReportCardRecords()) {
+  window.dispatchEvent(
+    new CustomEvent(SCHOOL_REPORT_CARDS_EVENT, {
+      detail: { records },
+    }),
+  );
+}
+
+function saveReportCardRecords(records) {
+  const normalized = records
+    .map((record) => normalizeReportCardRecord(record))
+    .filter((record) => record.studentId && record.sessionId && record.termId)
+    .sort(compareReportCardRecords);
+  writeWorkspaceState(SCHOOL_REPORT_CARDS_STORAGE_KEY, normalized);
+  emitReportCardsUpdate(normalized);
+  return normalized;
+}
+
+function upsertReportCardRecord(record) {
+  const records = getReportCardRecords();
+  const timestamp = new Date().toISOString();
+  const incoming = normalizeReportCardRecord({
+    ...record,
+    updatedAt: timestamp,
+  });
+  const existingIndex = records.findIndex(
+    (entry) =>
+      entry.id === incoming.id ||
+      (entry.studentId === incoming.studentId &&
+        entry.sessionId === incoming.sessionId &&
+        entry.termId === incoming.termId),
+  );
+
+  if (existingIndex === -1) {
+    records.push({
+      ...incoming,
+      createdAt: incoming.createdAt || timestamp,
+    });
+  } else {
+    records[existingIndex] = {
+      ...records[existingIndex],
+      ...incoming,
+      id: records[existingIndex].id,
+      createdAt: records[existingIndex].createdAt,
+      updatedAt: timestamp,
+    };
+  }
+
+  return saveReportCardRecords(records);
+}
+
+function setReportCardReleased(reportCardId, released, releaseDetails = {}) {
+  const normalizedId = String(reportCardId || "").trim();
+  const timestamp = new Date().toISOString();
+  const records = getReportCardRecords().map((record) => {
+    if (record.id !== normalizedId) {
+      return record;
+    }
+
+    return {
+      ...record,
+      status: released ? "released" : "draft",
+      releasedAt: released ? releaseDetails.releasedAt || timestamp : null,
+      releasedById: released ? String(releaseDetails.releasedById || "").trim() : "",
+      releasedByName: released ? String(releaseDetails.releasedByName || "").trim() : "",
+      updatedAt: timestamp,
+    };
+  });
+
+  return saveReportCardRecords(records);
+}
+
+function getReportCardForStudentPeriod(studentId, sessionId, termId) {
+  const normalizedStudentId = String(studentId || "").trim();
+  const normalizedSessionId = String(sessionId || "").trim();
+  const normalizedTermId = String(termId || "").trim();
+
+  return (
+    getReportCardRecords().find(
+      (record) =>
+        record.studentId === normalizedStudentId &&
+        record.sessionId === normalizedSessionId &&
+        record.termId === normalizedTermId,
+    ) || null
+  );
+}
+
 function normalizeAuditTrailEntry(entry = {}) {
   return {
     id: String(entry.id || createStorageId("audit")),
@@ -3413,6 +3614,17 @@ window.SchoolSphereAttendance = {
   eventName: SCHOOL_ATTENDANCE_EVENT,
 };
 
+window.SchoolSphereReportCards = {
+  defaults: DEFAULT_REPORT_CARD_RECORDS,
+  getRecords: getReportCardRecords,
+  summarizeSubjects: summarizeReportCardSubjects,
+  saveRecords: saveReportCardRecords,
+  upsertRecord: upsertReportCardRecord,
+  setReleased: setReportCardReleased,
+  getForStudentPeriod: getReportCardForStudentPeriod,
+  eventName: SCHOOL_REPORT_CARDS_EVENT,
+};
+
 window.SchoolSphereAuditTrail = {
   getEntries: getAuditTrailEntries,
   saveEntries: saveAuditTrailEntries,
@@ -3464,6 +3676,10 @@ window.addEventListener("storage", (event) => {
 
   if (isWorkspaceScopedStorageEventKey(event.key, SCHOOL_ATTENDANCE_STORAGE_KEY)) {
     emitAttendanceUpdate(getAttendanceRecords());
+  }
+
+  if (isWorkspaceScopedStorageEventKey(event.key, SCHOOL_REPORT_CARDS_STORAGE_KEY)) {
+    emitReportCardsUpdate(getReportCardRecords());
   }
 
   if (isWorkspaceScopedStorageEventKey(event.key, AUDIT_TRAIL_STORAGE_KEY)) {
