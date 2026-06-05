@@ -4724,6 +4724,24 @@
       return "slow network";
     }
 
+    if (/networkerror|failed to fetch|fetch resource|load failed/i.test(message)) {
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        return "No network";
+      }
+
+      const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection || null;
+      const isSlowConnection =
+        connection &&
+        (connection.saveData === true ||
+          connection.effectiveType === "slow-2g" ||
+          connection.effectiveType === "2g" ||
+          connection.effectiveType === "3g");
+
+      return isSlowConnection
+        ? "slow network"
+        : "Network request failed. Check your connection, browser blockers, or Supabase function setup.";
+    }
+
     return message;
   }
 
