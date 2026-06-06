@@ -1,7 +1,8 @@
 const homeNavLinks = [
+  { label: "Home", href: "./index.html" },
   { label: "Products", href: "./products.html" },
   { label: "Explore", href: "./workflows.html" },
-  { label: "Contact", href: "#site-footer" },
+  { label: "Contact", href: "./contact.html" },
 ];
 
 const whyCards = [
@@ -3839,6 +3840,7 @@ function renderFooter() {
           <h4>Support</h4>
           <a href="./why-it-works.html">Why it works</a>
           <a href="./in-practice.html">In practice</a>
+          <a href="./contact.html">Contact us</a>
           <a href="./login.html">Login</a>
         </div>
         <div>

@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Contact | SchoolSphere</title>
+    <meta name="description" content="Get in touch with the SchoolSphere team for support, sales, partnerships, or general enquiries." />
+    <link rel="stylesheet" href="./styles.css" />
+    <style>
+      /* ── Contact page specific styles ── */
+      .contact-hero {
+        padding: 64px 48px 48px;
+        border-radius: var(--radius-xl);
+        background: linear-gradient(135deg, var(--sky-700) 0%, var(--sky-500) 100%);
+        color: #fff;
+        margin-bottom: 0;
+        border: none;
+      }
+
+      .contact-hero-kicker {
+        display: inline-block;
+        padding: 5px 14px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.15);
+        font-size: 0.8rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin-bottom: 18px;
+      }
+
+      .contact-hero h1 {
+        font-size: clamp(2rem, 4vw, 3rem);
+        font-weight: 800;
+        line-height: 1.15;
+        margin: 0 0 14px;
+        color: #fff;
+      }
+
+      .contact-hero p {
+        font-size: 1.05rem;
+        line-height: 1.6;
+        color: rgba(255,255,255,0.85);
+        max-width: 520px;
+        margin: 0;
+      }
+
+      .contact-hero-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 28px;
+      }
+
+      .contact-hero-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 7px 14px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.12);
+        border: 1px solid rgba(255,255,255,0.2);
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #fff;
+      }
+
+      .contact-hero-chip svg {
+        flex-shrink: 0;
+        opacity: 0.85;
+      }
+
+      /* ── Two-column layout ── */
+      .contact-main-grid {
+        display: grid;
+        grid-template-columns: 1fr 420px;
+        gap: 24px;
+        align-items: start;
+      }
+
+      @media (max-width: 900px) {
+        .contact-main-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      /* ── Contact form card ── */
+      .contact-form-card {
+        padding: 40px;
+      }
+
+      .contact-form-card h2 {
+        font-size: 1.4rem;
+        font-weight: 800;
+        color: var(--navy-900);
+        margin: 0 0 6px;
+      }
+
+      .contact-form-card > p {
+        color: var(--navy-500);
+        font-size: 0.92rem;
+        margin: 0 0 28px;
+        line-height: 1.5;
+      }
+
+      .contact-form {
+        display: grid;
+        gap: 18px;
+      }
+
+      .contact-form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+
+      @media (max-width: 600px) {
+        .contact-form-row {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .contact-field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .contact-field label {
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: var(--navy-700);
+        letter-spacing: 0.01em;
+      }
+
+      .contact-field label span.req {
+        color: #e53e3e;
+        margin-left: 2px;
+      }
+
+      .contact-field input,
+      .contact-field select,
+      .contact-field textarea {
+        width: 100%;
+        padding: 11px 14px;
+        border: 1.5px solid var(--line);
+        border-radius: var(--radius-sm);
+        background: var(--sky-050);
+        font-size: 0.93rem;
+        color: var(--navy-900);
+        transition: border-color 180ms ease, box-shadow 180ms ease;
+        outline: none;
+      }
+
+      .contact-field input:focus,
+      .contact-field select:focus,
+      .contact-field textarea:focus {
+        border-color: var(--sky-500);
+        box-shadow: 0 0 0 3px rgba(47,106,164,0.12);
+        background: #fff;
+      }
+
+      .contact-field textarea {
+        resize: vertical;
+        min-height: 110px;
+      }
+
+      .contact-submit-row {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+
+      .contact-submit {
+        min-height: 48px;
+        padding: 0 28px;
+        border: none;
+        border-radius: 999px;
+        background: linear-gradient(135deg, var(--sky-700), var(--sky-500));
+        color: #fff;
+        font-size: 0.95rem;
+        font-weight: 700;
+        cursor: pointer;
+        box-shadow: 0 8px 20px rgba(16,132,255,0.22);
+        transition: transform 180ms ease, box-shadow 180ms ease;
+      }
+
+      .contact-submit:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 12px 28px rgba(16,132,255,0.28);
+      }
+
+      .contact-submit:active {
+        transform: translateY(1px);
+      }
+
+      .contact-submit:disabled {
+        opacity: 0.65;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .contact-privacy-note {
+        font-size: 0.8rem;
+        color: var(--navy-500);
+        line-height: 1.5;
+      }
+
+      /* ── Status message ── */
+      .contact-status {
+        padding: 12px 16px;
+        border-radius: var(--radius-sm);
+        font-size: 0.88rem;
+        font-weight: 600;
+        display: none;
+      }
+
+      .contact-status.success {
+        display: block;
+        background: rgba(25,147,75,0.08);
+        border: 1px solid rgba(25,147,75,0.25);
+        color: #15693a;
+      }
+
+      .contact-status.error {
+        display: block;
+        background: rgba(229,62,62,0.07);
+        border: 1px solid rgba(229,62,62,0.22);
+        color: #c53030;
+      }
+
+      /* ── Sidebar info cards ── */
+      .contact-sidebar {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+
+      .contact-info-card {
+        padding: 28px 28px 24px;
+      }
+
+      .contact-info-card h3 {
+        font-size: 1rem;
+        font-weight: 800;
+        color: var(--navy-900);
+        margin: 0 0 16px;
+      }
+
+      .contact-info-list {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+
+      .contact-info-list li {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        font-size: 0.88rem;
+        color: var(--navy-700);
+        line-height: 1.5;
+      }
+
+      .contact-info-icon {
+        flex-shrink: 0;
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        background: var(--sky-100);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: 1px;
+      }
+
+      .contact-info-icon svg {
+        color: var(--sky-600);
+      }
+
+      .contact-info-label {
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: var(--navy-500);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        display: block;
+        margin-bottom: 2px;
+      }
+
+      .contact-info-value {
+        font-weight: 600;
+        color: var(--navy-900);
+      }
+
+      /* ── Reason cards ── */
+      .contact-reasons-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-top: 10px;
+      }
+
+      @media (max-width: 900px) {
+        .contact-reasons-grid {
+          grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        }
+      }
+
+      .contact-reason-card {
+        padding: 20px 18px;
+        border-radius: var(--radius-md);
+        border: 1.5px solid var(--line);
+        background: var(--sky-050);
+        transition: border-color 180ms ease, box-shadow 180ms ease;
+        cursor: default;
+      }
+
+      .contact-reason-card:hover {
+        border-color: rgba(47,106,164,0.28);
+        box-shadow: 0 6px 18px rgba(16,132,255,0.08);
+      }
+
+      .contact-reason-icon {
+        width: 38px;
+        height: 38px;
+        border-radius: 11px;
+        background: linear-gradient(135deg, var(--sky-700), var(--sky-500));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 12px;
+      }
+
+      .contact-reason-icon svg {
+        color: #fff;
+      }
+
+      .contact-reason-card h4 {
+        font-size: 0.88rem;
+        font-weight: 800;
+        color: var(--navy-900);
+        margin: 0 0 5px;
+      }
+
+      .contact-reason-card p {
+        font-size: 0.8rem;
+        color: var(--navy-500);
+        line-height: 1.5;
+        margin: 0;
+      }
+
+      /* ── FAQ ── */
+      .contact-faq-card {
+        padding: 36px 40px;
+      }
+
+      .contact-faq-card h2 {
+        font-size: 1.4rem;
+        font-weight: 800;
+        color: var(--navy-900);
+        margin: 0 0 24px;
+      }
+
+      .faq-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        border: 1.5px solid var(--line);
+        border-radius: var(--radius-md);
+        overflow: hidden;
+      }
+
+      .faq-item {
+        border-bottom: 1px solid var(--line);
+      }
+
+      .faq-item:last-child {
+        border-bottom: none;
+      }
+
+      .faq-question {
+        width: 100%;
+        padding: 18px 20px;
+        background: none;
+        border: none;
+        text-align: left;
+        font-size: 0.92rem;
+        font-weight: 700;
+        color: var(--navy-900);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        transition: background 180ms ease;
+      }
+
+      .faq-question:hover {
+        background: var(--sky-050);
+      }
+
+      .faq-question[aria-expanded="true"] {
+        background: var(--sky-100);
+        color: var(--sky-600);
+      }
+
+      .faq-arrow {
+        flex-shrink: 0;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: var(--sky-100);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 240ms ease, background 180ms ease;
+      }
+
+      .faq-question[aria-expanded="true"] .faq-arrow {
+        transform: rotate(180deg);
+        background: rgba(47,106,164,0.15);
+      }
+
+      .faq-answer {
+        padding: 0 20px;
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 280ms ease, padding 280ms ease;
+      }
+
+      .faq-answer.is-open {
+        padding: 0 20px 18px;
+        max-height: 300px;
+      }
+
+      .faq-answer p {
+        font-size: 0.88rem;
+        color: var(--navy-500);
+        line-height: 1.65;
+        margin: 0;
+      }
+
+      /* ── Response time bar ── */
+      .contact-response-card {
+        padding: 22px 26px;
+      }
+
+      .response-items {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .response-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 0.83rem;
+        gap: 12px;
+      }
+
+      .response-item-label {
+        color: var(--navy-700);
+        font-weight: 600;
+        flex: 1;
+      }
+
+      .response-badge {
+        padding: 3px 10px;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+
+      .response-badge.fast {
+        background: rgba(25,147,75,0.1);
+        color: #15693a;
+        border: 1px solid rgba(25,147,75,0.2);
+      }
+
+      .response-badge.medium {
+        background: rgba(214,130,12,0.1);
+        color: #8a5a00;
+        border: 1px solid rgba(214,130,12,0.2);
+      }
+
+      /* ── Section divider ── */
+      .contact-section-label {
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: var(--navy-500);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin: 0 0 14px;
+      }
+
+      /* ── CTA band ── */
+      .contact-cta {
+        padding: 48px;
+        background: linear-gradient(135deg, var(--sky-700) 0%, var(--sky-500) 100%);
+        border: none;
+        border-radius: var(--radius-xl);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 32px;
+        flex-wrap: wrap;
+        color: #fff;
+      }
+
+      .contact-cta h2 {
+        font-size: 1.5rem;
+        font-weight: 800;
+        margin: 0 0 8px;
+        color: #fff;
+      }
+
+      .contact-cta p {
+        font-size: 0.92rem;
+        color: rgba(255,255,255,0.82);
+        margin: 0;
+        max-width: 420px;
+        line-height: 1.55;
+      }
+
+      .contact-cta-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        flex-shrink: 0;
+      }
+
+      .btn-white {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 46px;
+        padding: 0 22px;
+        border-radius: 999px;
+        background: #fff;
+        color: var(--sky-700);
+        font-weight: 700;
+        font-size: 0.92rem;
+        border: none;
+        cursor: pointer;
+        text-decoration: none;
+        transition: transform 180ms ease, box-shadow 180ms ease;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.14);
+      }
+
+      .btn-white:hover {
+        transform: translateY(-1px);
+      }
+
+      .btn-white-outline {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 46px;
+        padding: 0 22px;
+        border-radius: 999px;
+        background: transparent;
+        color: #fff;
+        font-weight: 700;
+        font-size: 0.92rem;
+        border: 1.5px solid rgba(255,255,255,0.4);
+        cursor: pointer;
+        text-decoration: none;
+        transition: background 180ms ease;
+      }
+
+      .btn-white-outline:hover {
+        background: rgba(255,255,255,0.12);
+      }
+    </style>
+  </head>
+  <body data-page="contact">
+    <div class="site-bg" aria-hidden="true"></div>
+    <header id="site-header"></header>
+
+    <main class="page-shell" style="display:flex;flex-direction:column;gap:20px;">
+
+      <!-- Hero -->
+      <section class="contact-hero">
+        <span class="contact-hero-kicker">Get in touch</span>
+        <h1>We're here to help your school move forward.</h1>
+        <p>Whether you're evaluating SchoolSphere, setting up a new workspace, or need support for your existing institution — reach out and a real person will respond.</p>
+        <div class="contact-hero-chips">
+          <span class="contact-hero-chip">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/></svg>
+            hello@schoolsphere.app
+          </span>
+          <span class="contact-hero-chip">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.79 19.79 0 0 1 11.38 19a19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            +234 800 SPHERE
+          </span>
+          <span class="contact-hero-chip">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            Lagos &amp; Abuja, Nigeria
+          </span>
+          <span class="contact-hero-chip">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            Mon–Fri, 8am–6pm WAT
+          </span>
+        </div>
+      </section>
+
+      <!-- Reasons to contact -->
+      <section class="section" style="padding:32px 40px 28px;">
+        <p class="contact-section-label">How can we help?</p>
+        <div class="contact-reasons-grid">
+          <div class="contact-reason-card">
+            <div class="contact-reason-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <h4>Sales &amp; Onboarding</h4>
+            <p>Ready to set up your school? Talk to us about pricing, institution size, and getting started.</p>
+          </div>
+          <div class="contact-reason-card">
+            <div class="contact-reason-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+            </div>
+            <h4>Technical Support</h4>
+            <p>Something isn't working as expected? Describe the issue and our team will investigate.</p>
+          </div>
+          <div class="contact-reason-card">
+            <div class="contact-reason-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+            </div>
+            <h4>Feature Requests</h4>
+            <p>Have an idea for a feature? We actively build based on real school feedback.</p>
+          </div>
+          <div class="contact-reason-card">
+            <div class="contact-reason-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <h4>Partnerships</h4>
+            <p>Schools groups, EdTech distributors, and consultants — let's explore working together.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Main: Form + Sidebar -->
+      <div class="contact-main-grid">
+
+        <!-- Contact Form -->
+        <article class="section contact-form-card">
+          <h2>Send us a message</h2>
+          <p>Fill in the form and we'll respond within one business day. All fields marked <span style="color:#e53e3e">*</span> are required.</p>
+
+          <div id="contact-status" class="contact-status" role="alert" aria-live="polite"></div>
+
+          <form id="contact-form" class="contact-form" novalidate>
+            <div class="contact-form-row">
+              <div class="contact-field">
+                <label for="contact-first-name">First name <span class="req">*</span></label>
+                <input id="contact-first-name" name="firstName" type="text" placeholder="Chidi" autocomplete="given-name" required />
+              </div>
+              <div class="contact-field">
+                <label for="contact-last-name">Last name <span class="req">*</span></label>
+                <input id="contact-last-name" name="lastName" type="text" placeholder="Okafor" autocomplete="family-name" required />
+              </div>
+            </div>
+
+            <div class="contact-form-row">
+              <div class="contact-field">
+                <label for="contact-email">Email address <span class="req">*</span></label>
+                <input id="contact-email" name="email" type="email" placeholder="chidi@yourschool.edu.ng" autocomplete="email" required />
+              </div>
+              <div class="contact-field">
+                <label for="contact-phone">Phone number</label>
+                <input id="contact-phone" name="phone" type="tel" placeholder="+234 800 000 0000" autocomplete="tel" />
+              </div>
+            </div>
+
+            <div class="contact-form-row">
+              <div class="contact-field">
+                <label for="contact-school">School / Institution name</label>
+                <input id="contact-school" name="school" type="text" placeholder="Maitama Heights College" />
+              </div>
+              <div class="contact-field">
+                <label for="contact-role">Your role</label>
+                <select id="contact-role" name="role">
+                  <option value="">Select your role</option>
+                  <option value="proprietor">Proprietor / Owner</option>
+                  <option value="principal">Principal / Head Teacher</option>
+                  <option value="admin">Administrator / Registrar</option>
+                  <option value="bursar">Bursar / Finance Officer</option>
+                  <option value="ict">ICT Coordinator</option>
+                  <option value="teacher">Teacher</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="contact-field">
+              <label for="contact-subject">Subject <span class="req">*</span></label>
+              <select id="contact-subject" name="subject" required>
+                <option value="">What is this about?</option>
+                <option value="sales">Sales and pricing enquiry</option>
+                <option value="onboarding">Help with onboarding</option>
+                <option value="support">Technical support</option>
+                <option value="feature">Feature request</option>
+                <option value="partnership">Partnership or integration</option>
+                <option value="billing">Billing question</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+
+            <div class="contact-field">
+              <label for="contact-message">Message <span class="req">*</span></label>
+              <textarea id="contact-message" name="message" placeholder="Tell us about your school, what you need, or what problem you're trying to solve..." required></textarea>
+            </div>
+
+            <div class="contact-submit-row">
+              <button class="contact-submit" type="submit" id="contact-submit-btn">Send message</button>
+              <p class="contact-privacy-note">We respect your privacy. Your information is used only to respond to your enquiry and is never sold or shared.</p>
+            </div>
+          </form>
+        </article>
+
+        <!-- Sidebar -->
+        <div class="contact-sidebar">
+
+          <!-- Contact info -->
+          <article class="section contact-info-card">
+            <h3>Contact details</h3>
+            <ul class="contact-info-list">
+              <li>
+                <div class="contact-info-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/></svg>
+                </div>
+                <div>
+                  <span class="contact-info-label">Email</span>
+                  <a class="contact-info-value" href="mailto:hello@schoolsphere.app">hello@schoolsphere.app</a>
+                </div>
+              </li>
+              <li>
+                <div class="contact-info-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.88 12 19.79 19.79 0 0 1 1.88 3.4 2 2 0 0 1 3.86 1.22h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                </div>
+                <div>
+                  <span class="contact-info-label">Phone</span>
+                  <span class="contact-info-value">+234 800 SPHERE (774737)</span>
+                </div>
+              </li>
+              <li>
+                <div class="contact-info-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                </div>
+                <div>
+                  <span class="contact-info-label">Head office</span>
+                  <span class="contact-info-value">Abuja, FCT, Nigeria</span>
+                </div>
+              </li>
+              <li>
+                <div class="contact-info-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                </div>
+                <div>
+                  <span class="contact-info-label">Regional office</span>
+                  <span class="contact-info-value">Lagos Island, Lagos, Nigeria</span>
+                </div>
+              </li>
+              <li>
+                <div class="contact-info-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                </div>
+                <div>
+                  <span class="contact-info-label">Office hours</span>
+                  <span class="contact-info-value">Mon–Fri, 8:00am – 6:00pm WAT</span>
+                </div>
+              </li>
+            </ul>
+          </article>
+
+          <!-- Response times -->
+          <article class="section contact-response-card">
+            <h3 style="font-size:1rem;font-weight:800;color:var(--navy-900);margin:0 0 14px;">Typical response times</h3>
+            <div class="response-items">
+              <div class="response-item">
+                <span class="response-item-label">Sales enquiries</span>
+                <span class="response-badge fast">Within 4 hours</span>
+              </div>
+              <div class="response-item">
+                <span class="response-item-label">Technical support</span>
+                <span class="response-badge fast">Same business day</span>
+              </div>
+              <div class="response-item">
+                <span class="response-item-label">Feature requests</span>
+                <span class="response-badge medium">2–3 business days</span>
+              </div>
+              <div class="response-item">
+                <span class="response-item-label">Partnerships</span>
+                <span class="response-badge medium">3–5 business days</span>
+              </div>
+            </div>
+          </article>
+
+          <!-- Social / external links -->
+          <article class="section contact-info-card">
+            <h3>Find us online</h3>
+            <ul class="contact-info-list">
+              <li>
+                <div class="contact-info-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M23 3a10.9 10.9 0 0 1-3.14 1.53A4.48 4.48 0 0 0 22.43 1s-2 .92-3.14 1.15A4.48 4.48 0 0 0 11.83 8a12.7 12.7 0 0 1-9.22-4.67s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z"/></svg>
+                </div>
+                <div>
+                  <span class="contact-info-label">X (Twitter)</span>
+                  <a class="contact-info-value" href="https://twitter.com/schoolsphere" target="_blank" rel="noopener">@schoolsphere</a>
+                </div>
+              </li>
+              <li>
+                <div class="contact-info-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
+                </div>
+                <div>
+                  <span class="contact-info-label">LinkedIn</span>
+                  <a class="contact-info-value" href="https://linkedin.com/company/schoolsphere" target="_blank" rel="noopener">SchoolSphere</a>
+                </div>
+              </li>
+            </ul>
+          </article>
+
+        </div>
+      </div>
+
+      <!-- FAQ -->
+      <article class="section contact-faq-card">
+        <h2>Frequently asked questions</h2>
+        <div class="faq-list" id="faq-list">
+
+          <div class="faq-item">
+            <button class="faq-question" aria-expanded="false" data-faq>
+              How do I get started with SchoolSphere?
+              <span class="faq-arrow"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
+            </button>
+            <div class="faq-answer">
+              <p>Create a free account on the sign-up page, configure your school profile, then invite your staff. The setup wizard walks you through school type, academic sessions, classes, and modules in under 20 minutes.</p>
+            </div>
+          </div>
+
+          <div class="faq-item">
+            <button class="faq-question" aria-expanded="false" data-faq>
+              Is SchoolSphere suitable for higher institutions?
+              <span class="faq-arrow"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
+            </button>
+            <div class="faq-answer">
+              <p>Yes. SchoolSphere supports nursery, primary, secondary, and higher institutions including polytechnics, universities, and colleges of education. Faculty, department, and course-unit structures are all supported.</p>
+            </div>
+          </div>
+
+          <div class="faq-item">
+            <button class="faq-question" aria-expanded="false" data-faq>
+              Can parents access the platform?
+              <span class="faq-arrow"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
+            </button>
+            <div class="faq-answer">
+              <p>Yes. Parents have a dedicated portal where they can track fees, attendance, report cards, and school notices for their linked children. Admin provisions parent access directly from the dashboard.</p>
+            </div>
+          </div>
+
+          <div class="faq-item">
+            <button class="faq-question" aria-expanded="false" data-faq>
+              What does it cost?
+              <span class="faq-arrow"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
+            </button>
+            <div class="faq-answer">
+              <p>Pricing is based on your institution's size and the modules you need. Contact our sales team for a tailored quote. We offer flexible plans for small private schools through to large multi-campus institutions.</p>
+            </div>
+          </div>
+
+          <div class="faq-item">
+            <button class="faq-question" aria-expanded="false" data-faq>
+              Is my school's data safe and private?
+              <span class="faq-arrow"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
+            </button>
+            <div class="faq-answer">
+              <p>All data is stored securely on Supabase (PostgreSQL) infrastructure with row-level security. Your institution's data is isolated from other schools and is never shared with third parties. Each school workspace is fully private.</p>
+            </div>
+          </div>
+
+          <div class="faq-item">
+            <button class="faq-question" aria-expanded="false" data-faq>
+              Can I migrate data from our current system?
+              <span class="faq-arrow"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
+            </button>
+            <div class="faq-answer">
+              <p>Yes. Our onboarding team can assist with data migration from spreadsheets, legacy school management software, or other platforms. Contact us to discuss the format of your existing data and we'll outline the migration path.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+
+      <!-- CTA band -->
+      <section class="contact-cta">
+        <div>
+          <h2>Ready to see it in action?</h2>
+          <p>Create your free account today and have your school workspace configured in less than 30 minutes — no credit card required.</p>
+        </div>
+        <div class="contact-cta-actions">
+          <a class="btn-white" href="./signup.html">Get started free</a>
+          <a class="btn-white-outline" href="./products.html">View features</a>
+        </div>
+      </section>
+
+    </main>
+
+    <footer id="site-footer"></footer>
+
+    <script src="./app.js"></script>
+    <script>
+      // ── FAQ accordion ──
+      document.querySelectorAll('[data-faq]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          const isOpen = this.getAttribute('aria-expanded') === 'true';
+          // Close all
+          document.querySelectorAll('[data-faq]').forEach(function(b) {
+            b.setAttribute('aria-expanded', 'false');
+            b.nextElementSibling.classList.remove('is-open');
+          });
+          // Toggle clicked
+          if (!isOpen) {
+            this.setAttribute('aria-expanded', 'true');
+            this.nextElementSibling.classList.add('is-open');
+          }
+        });
+      });
+
+      // ── Contact form ──
+      document.getElementById('contact-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const btn = document.getElementById('contact-submit-btn');
+        const status = document.getElementById('contact-status');
+
+        // Basic validation
+        const firstName = this.firstName.value.trim();
+        const lastName = this.lastName.value.trim();
+        const email = this.email.value.trim();
+        const subject = this.subject.value;
+        const message = this.message.value.trim();
+
+        if (!firstName || !lastName || !email || !subject || !message) {
+          status.className = 'contact-status error';
+          status.textContent = 'Please fill in all required fields before submitting.';
+          status.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          return;
+        }
+
+        const emailRx = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRx.test(email)) {
+          status.className = 'contact-status error';
+          status.textContent = 'Please enter a valid email address.';
+          return;
+        }
+
+        // Simulate send
+        btn.disabled = true;
+        btn.textContent = 'Sending…';
+
+        setTimeout(function() {
+          status.className = 'contact-status success';
+          status.textContent = '✓ Message sent successfully! We'll get back to you within one business day.';
+          status.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          document.getElementById('contact-form').reset();
+          btn.disabled = false;
+          btn.textContent = 'Send message';
+        }, 1200);
+      });
+    </script>
+  </body>
+</html>
