@@ -11044,6 +11044,70 @@ body.admin-dashboard-page .portal-class-extended-item ul {
   line-height: 1.45;
 }
 
+body.admin-dashboard-page .portal-access-role-group {
+  overflow: hidden;
+  border: 1px solid #dce5f2;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 14px 32px rgba(38, 48, 72, 0.06);
+}
+
+body.admin-dashboard-page .portal-access-role-group + .portal-access-role-group {
+  margin-top: 12px;
+}
+
+body.admin-dashboard-page .portal-access-role-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  cursor: pointer;
+  list-style: none;
+}
+
+body.admin-dashboard-page .portal-access-role-summary::-webkit-details-marker {
+  display: none;
+}
+
+body.admin-dashboard-page .portal-access-role-summary strong {
+  display: block;
+  color: #17233a;
+  font-size: 1rem;
+}
+
+body.admin-dashboard-page .portal-access-role-summary span {
+  display: block;
+  margin-top: 4px;
+  color: #667188;
+  font-size: 0.82rem;
+}
+
+body.admin-dashboard-page .portal-access-role-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 38px;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #315d9b;
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+
+body.admin-dashboard-page .portal-access-role-list {
+  display: grid;
+  gap: 12px;
+  padding: 0 18px 18px;
+  border-top: 1px solid #edf2f8;
+}
+
+body.admin-dashboard-page .portal-access-role-empty {
+  margin-top: 14px;
+}
+
 body.admin-dashboard-page .portal-class-route-links,
 body.admin-dashboard-page .portal-class-actions {
   display: flex;

@@ -14749,6 +14749,19 @@
 
     const grants = getAccessGrants();
     const users = getUsers();
+    const groupedGrants = {
+      Teacher: [],
+      Parent: [],
+      Student: [],
+    };
+
+    grants.forEach((grant) => {
+      const roleLabel = normalizeRoleLabel(grant.role);
+      if (groupedGrants[roleLabel]) {
+        groupedGrants[roleLabel].push(grant);
+      }
+    });
+
     const activeCount = grants.filter((entry) => entry.status === "active").length;
     const revokedCount = grants.filter((entry) => entry.status === "revoked").length;
     const claimedCount = grants.filter((entry) => entry.claimedAt).length;
@@ -14772,8 +14785,7 @@
       return;
     }
 
-    listTarget.innerHTML = grants
-      .map((grant) => {
+    const renderGrantCard = (grant) => {
         const existingUser =
           users.find(
             (entry) =>
@@ -14837,8 +14849,36 @@
             </div>
           </article>
         `;
-      })
-      .join("");
+    };
+
+    const renderRoleSection = (roleLabel) => {
+      const roleGrants = groupedGrants[roleLabel] || [];
+      return `
+        <details class="portal-access-role-group" ${roleGrants.length === 1 ? "open" : ""}>
+          <summary class="portal-access-role-summary">
+            <div>
+              <strong>${escapeHtml(roleLabel)} access</strong>
+              <span>${roleGrants.length} ${roleGrants.length === 1 ? "user" : "users"}</span>
+            </div>
+            <span class="portal-access-role-count">${roleGrants.length}</span>
+          </summary>
+          <div class="portal-access-role-list">
+            ${
+              roleGrants.length
+                ? roleGrants.map((grant) => renderGrantCard(grant)).join("")
+                : `
+                  <article class="portal-class-empty portal-access-role-empty">
+                    <strong>No ${escapeHtml(roleLabel.toLowerCase())} access yet</strong>
+                    <p>Grant access for ${escapeHtml(roleLabel.toLowerCase())} users here.</p>
+                  </article>
+                `
+            }
+          </div>
+        </details>
+      `;
+    };
+
+    listTarget.innerHTML = ["Teacher", "Parent", "Student"].map(renderRoleSection).join("");
   }
 
   function initAccessProvisioningControls({
