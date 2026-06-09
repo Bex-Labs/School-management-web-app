@@ -27818,14 +27818,22 @@
           <button class="portal-class-button" type="button" data-parent-fee-invoice-view>View invoice</button>
           <button class="portal-class-button" type="button" data-parent-fee-invoice-download>Download invoice</button>
         </div>
-        <div class="portal-import-table-wrap parent-fee-invoice-lines">
-          <table class="portal-import-table">
-            <thead>
-              <tr><th>Category</th><th>Fee item</th><th>Note</th><th>Due date</th><th>Amount</th></tr>
-            </thead>
-            <tbody>${invoiceItemRows}</tbody>
-          </table>
-        </div>
+        <section class="portal-fee-line-item-card">
+          <div class="admin-surface-head">
+            <div>
+              <h2>Invoice Details</h2>
+              <span>Breakdown of the selected invoice</span>
+            </div>
+          </div>
+          <div class="portal-fee-line-item-table-wrap">
+            <table class="portal-fee-line-item-table">
+              <thead>
+                <tr><th>Category</th><th>Fee item</th><th>Note</th><th>Due date</th><th>Amount</th></tr>
+              </thead>
+              <tbody>${invoiceItemRows}</tbody>
+            </table>
+          </div>
+        </section>
         <section class="portal-fee-payment-history">
           <div class="admin-surface-head">
             <div>

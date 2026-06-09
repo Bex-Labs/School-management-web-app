@@ -7662,6 +7662,85 @@ body.admin-dashboard-page .portal-fee-payment-history-row span {
   overflow-wrap: anywhere;
 }
 
+body.admin-dashboard-page .portal-fee-line-item-card {
+  display: grid;
+  gap: 14px;
+  margin-top: 6px;
+  padding: 18px;
+  border: 1px solid #dce5f2;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top left, rgba(29, 78, 216, 0.06), transparent 28%),
+    #ffffff;
+}
+
+body.admin-dashboard-page .portal-fee-line-item-card .admin-surface-head {
+  margin: 0;
+}
+
+body.admin-dashboard-page .portal-fee-line-item-table-wrap {
+  overflow-x: auto;
+}
+
+body.admin-dashboard-page .portal-fee-line-item-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: separate;
+  border-spacing: 0 10px;
+}
+
+body.admin-dashboard-page .portal-fee-line-item-table thead th {
+  padding: 0 12px 4px;
+  color: #667188;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+body.admin-dashboard-page .portal-fee-line-item-table tbody tr {
+  background: #f8fbff;
+}
+
+body.admin-dashboard-page .portal-fee-line-item-table tbody tr td {
+  padding: 14px 12px;
+  border-top: 1px solid #e3eaf4;
+  border-bottom: 1px solid #e3eaf4;
+  color: #17233a;
+  font-size: 0.88rem;
+  vertical-align: top;
+}
+
+body.admin-dashboard-page .portal-fee-line-item-table tbody tr td:first-child {
+  border-left: 1px solid #e3eaf4;
+  border-top-left-radius: 14px;
+  border-bottom-left-radius: 14px;
+  font-weight: 800;
+}
+
+body.admin-dashboard-page .portal-fee-line-item-table tbody tr td:last-child {
+  border-right: 1px solid #e3eaf4;
+  border-top-right-radius: 14px;
+  border-bottom-right-radius: 14px;
+  text-align: right;
+  font-weight: 800;
+}
+
+body.admin-dashboard-page .portal-fee-line-item-table tbody td strong {
+  display: block;
+  color: #17233a;
+  font-size: 0.92rem;
+}
+
+body.admin-dashboard-page .portal-fee-line-item-table tbody td span {
+  display: block;
+  margin-top: 4px;
+  color: #667188;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
 body.admin-dashboard-page .parent-fee-invoice-lines {
   margin: 16px 0 4px;
 }
