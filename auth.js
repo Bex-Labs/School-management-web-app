@@ -27492,13 +27492,165 @@
         <head>
           <meta charset="utf-8" />
           <title>${escapeHtml(invoice.invoiceNo || "Fee invoice")}</title>
-          <link rel="stylesheet" href="./styles.css" />
           <style>
-            body { margin: 0; padding: 28px; background: #ffffff; }
-            .portal-fee-invoice-document { max-width: 920px; margin: 0 auto; }
+            :root {
+              color-scheme: light;
+              --page-bg: #eef3fa;
+              --panel: #ffffff;
+              --panel-alt: #f8fbff;
+              --border: #dce5f2;
+              --border-strong: #cfd9e8;
+              --text: #17233a;
+              --muted: #667188;
+              --accent: #1d4ed8;
+            }
+            * { box-sizing: border-box; }
+            body {
+              margin: 0;
+              padding: 28px;
+              color: var(--text);
+              font-family: Inter, "Segoe UI", Arial, sans-serif;
+              background:
+                radial-gradient(circle at top left, rgba(29, 78, 216, 0.08), transparent 34%),
+                linear-gradient(180deg, #f8fbff 0%, var(--page-bg) 100%);
+            }
+            .portal-fee-invoice-document {
+              display: grid;
+              gap: 18px;
+              max-width: 960px;
+              margin: 0 auto;
+              padding: 18px;
+              border: 1px solid var(--border);
+              border-radius: 20px;
+              background: var(--panel);
+              box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+            }
+            .portal-fee-invoice-doc-head {
+              display: flex;
+              align-items: flex-start;
+              justify-content: space-between;
+              gap: 18px;
+              padding-bottom: 16px;
+              border-bottom: 1px solid var(--border);
+            }
+            .portal-fee-invoice-doc-head span,
+            .portal-fee-invoice-doc-meta span,
+            .portal-fee-invoice-total-box span {
+              color: var(--muted);
+              font-size: 11px;
+              font-weight: 900;
+              letter-spacing: 0.08em;
+              text-transform: uppercase;
+            }
+            .portal-fee-invoice-doc-head h4 {
+              margin: 5px 0 6px;
+              font-size: 26px;
+              line-height: 1.08;
+            }
+            .portal-fee-invoice-doc-head p {
+              margin: 0;
+              color: #4c5a73;
+              line-height: 1.45;
+            }
+            .portal-fee-invoice-doc-head aside {
+              display: grid;
+              gap: 6px;
+              min-width: 190px;
+              text-align: right;
+            }
+            .portal-fee-invoice-doc-head aside strong {
+              font-size: 20px;
+              overflow-wrap: anywhere;
+            }
+            .portal-fee-invoice-doc-meta {
+              display: grid;
+              grid-template-columns: repeat(3, minmax(0, 1fr));
+              gap: 10px;
+            }
+            .portal-fee-invoice-doc-meta article {
+              min-width: 0;
+              min-height: 76px;
+              padding: 13px;
+              border: 1px solid var(--border);
+              border-radius: 14px;
+              background: var(--panel-alt);
+            }
+            .portal-fee-invoice-doc-meta strong {
+              display: block;
+              margin-top: 8px;
+              font-size: 14px;
+              line-height: 1.35;
+              overflow-wrap: anywhere;
+            }
+            .portal-fee-invoice-lines-wrap {
+              overflow-x: auto;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              min-width: 640px;
+            }
+            th,
+            td {
+              padding: 12px 10px;
+              border-bottom: 1px solid var(--border);
+              text-align: left;
+              vertical-align: top;
+            }
+            th {
+              color: var(--muted);
+              font-size: 11px;
+              font-weight: 900;
+              letter-spacing: 0.08em;
+              text-transform: uppercase;
+            }
+            td strong,
+            td span {
+              display: block;
+            }
+            td span {
+              margin-top: 4px;
+              color: var(--muted);
+              font-size: 12px;
+              line-height: 1.35;
+            }
+            th:last-child,
+            td:last-child {
+              text-align: right;
+            }
+            .portal-fee-invoice-total-box {
+              display: grid;
+              grid-template-columns: repeat(3, minmax(0, 1fr));
+              gap: 10px;
+              justify-self: end;
+              width: min(520px, 100%);
+            }
+            .portal-fee-invoice-total-box div {
+              padding: 13px;
+              border: 1px solid var(--border);
+              border-radius: 14px;
+              background: var(--panel-alt);
+            }
+            .portal-fee-invoice-total-box strong {
+              display: block;
+              margin-top: 7px;
+              font-size: 18px;
+            }
+            @media print {
+              body {
+                padding: 0;
+                background: #fff;
+              }
+              .portal-fee-invoice-document {
+                margin: 0;
+                border: 0;
+                border-radius: 0;
+                box-shadow: none;
+              }
+            }
           </style>
         </head>
-        <body class="admin-dashboard-page">
+        <body>
           ${renderParentFeeInvoiceDocument(invoice)}
         </body>
       </html>
@@ -27660,6 +27812,10 @@
             current.invoiceGeneratedAt ? formatTimestamp(current.invoiceGeneratedAt) : "Not generated",
           )}</strong></div>
         </div>
+        <div class="utility-actions parent-fee-invoice-actions">
+          <button class="portal-class-button" type="button" data-parent-fee-invoice-view>View invoice</button>
+          <button class="portal-class-button" type="button" data-parent-fee-invoice-download>Download invoice</button>
+        </div>
         <div class="portal-import-table-wrap parent-fee-invoice-lines">
           <table class="portal-import-table">
             <thead>
@@ -27687,6 +27843,19 @@
 
     const paymentForm = target.querySelector("#parent-fee-payment-form");
     const paymentStatus = target.querySelector("#parent-fee-payment-status");
+    const viewInvoiceButton = target.querySelector("[data-parent-fee-invoice-view]");
+    const downloadInvoiceButton = target.querySelector("[data-parent-fee-invoice-download]");
+
+    viewInvoiceButton?.addEventListener("click", () => {
+      openParentFeeInvoiceModal(current);
+    });
+
+    downloadInvoiceButton?.addEventListener("click", () => {
+      downloadParentFeeInvoice(current);
+      if (paymentStatus) {
+        setStatus(paymentStatus, "success", "Invoice download started.");
+      }
+    });
 
     if (!paymentForm || !paymentStatus) {
       return;
