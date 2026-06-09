@@ -295,6 +295,7 @@ const ROLE_PERMISSION_OPTIONS_BY_ROLE = {
     { key: "parent_attendance_view", label: "Attendance", description: "Child attendance summary" },
     { key: "parent_fees_view", label: "Fees and Balance", description: "Invoices, balances, and payments" },
     { key: "parent_reports_view", label: "Reports", description: "Released report cards and PDFs" },
+    { key: "parent_messages_view", label: "Messages", description: "Message school admin and teachers" },
   ],
   Student: [
     { key: "student_dashboard_view", label: "Dashboard", description: "Student home and school updates" },
@@ -333,6 +334,7 @@ const LEGACY_ROLE_PERMISSION_FALLBACKS = {
     parent_attendance_view: "attendance_manage",
     parent_fees_view: "fees_manage",
     parent_reports_view: "reports_view",
+    parent_messages_view: "dashboard_view",
   },
   Student: {
     student_dashboard_view: "dashboard_view",

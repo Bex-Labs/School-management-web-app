@@ -125,6 +125,7 @@
     "parent-attendance": "./parent-attendance.html",
     "parent-fees": "./parent-fees.html",
     "parent-reports": "./parent-reports.html",
+    "parent-messages": "./parent-messages.html",
   };
   const PARENT_PAGE_PERMISSION_KEYS = {
     "parent-portal": "parent_performance_view",
@@ -133,6 +134,7 @@
     "parent-attendance": "parent_attendance_view",
     "parent-fees": "parent_fees_view",
     "parent-reports": "parent_reports_view",
+    "parent-messages": "parent_messages_view",
   };
   const PARENT_PAGE_LABELS = {
     "parent-portal": "My child performance",
@@ -141,6 +143,7 @@
     "parent-attendance": "Attendance",
     "parent-fees": "Fees and balance",
     "parent-reports": "Reports",
+    "parent-messages": "Messages",
   };
   let supabaseClientPromise = null;
   let isSignOutInProgress = false;
@@ -1707,6 +1710,9 @@
       readAt: String(entry.readAt || "").trim(),
       workspaceId: normalizeWorkspaceId(workspaceId || entry.workspaceId || getCurrentWorkspaceId()),
       visibleToRoles,
+      metadata: entry.metadata && typeof entry.metadata === "object" && !Array.isArray(entry.metadata)
+        ? { ...entry.metadata }
+        : {},
     };
   }
 
@@ -24636,7 +24642,14 @@
 
   function getTeacherPortalNotifications(user = {}) {
     const workspaceId = normalizeWorkspaceId(user.workspaceId || getCurrentWorkspaceId());
-    return filterNotificationsByRole(getNotifications(workspaceId), "Teacher");
+    const session = getSession() || {};
+    return filterNotificationsForSession(getNotifications(workspaceId), {
+      ...session,
+      role: "Teacher",
+      userId: user.id || session.userId,
+      email: user.email || session.email,
+      workspaceId,
+    });
   }
 
   function renderStaffMetricCards(target, user) {
@@ -25632,6 +25645,25 @@
                         <div>
                           <strong>${escapeHtml(entry.title || "Message")}</strong>
                           <span>${escapeHtml(entry.message || entry.entityType || "School update")}</span>
+                          ${
+                            String(entry.entityType || "") === "parent-message"
+                              ? `
+                                <form class="portal-settings-form staff-message-reply-form" data-parent-message-reply-form data-message-id="${escapeHtml(
+                                  entry.id,
+                                )}" novalidate>
+                                  <div class="portal-settings-grid">
+                                    <label class="portal-field portal-field-span-2">
+                                      <span>Reply</span>
+                                      <textarea name="reply" rows="3" placeholder="Type a reply for the parent."></textarea>
+                                    </label>
+                                  </div>
+                                  <div class="utility-actions">
+                                    <button class="portal-class-button" type="submit">Send reply</button>
+                                  </div>
+                                </form>
+                              `
+                              : ""
+                          }
                         </div>
                         <small>${escapeHtml(formatTimestamp(entry.createdAt || nowIso()))}</small>
                       </article>
@@ -25648,6 +25680,44 @@
         </div>
       </section>
     `;
+  }
+
+  function wireStaffMessagesSection(target, user) {
+    if (!target || target.dataset.staffMessagesWired === "true") {
+      return;
+    }
+
+    target.dataset.staffMessagesWired = "true";
+    target.addEventListener("submit", (event) => {
+      const form = event.target.closest("[data-parent-message-reply-form]");
+      if (!form) {
+        return;
+      }
+
+      event.preventDefault();
+      const messageId = String(form.dataset.messageId || "").trim();
+      const reply = String(form.elements.reply?.value || "").trim();
+      const message = getNotifications(user.workspaceId || getCurrentWorkspaceId()).find((entry) => entry.id === messageId);
+
+      if (!reply) {
+        form.elements.reply?.focus();
+        return;
+      }
+      if (!message) {
+        return;
+      }
+
+      sendParentMessageReply(message, user, reply);
+      form.reset();
+      const button = form.querySelector("button[type='submit']");
+      if (button) {
+        button.textContent = "Reply sent";
+        button.disabled = true;
+      }
+      window.setTimeout(() => {
+        renderStaffStandaloneSection(target, "staff-messages", user);
+      }, 450);
+    });
   }
 
   function buildStaffLeaveSection() {
@@ -25711,6 +25781,10 @@
           <p class="auth-helper-text">This staff section could not be resolved.</p>
         </article>
       `;
+
+    if (page === "staff-messages") {
+      wireStaffMessagesSection(target, user);
+    }
   }
 
   function renderAdminMetricCards(target, snapshot) {
@@ -25894,6 +25968,10 @@
       return;
     }
 
+    const session = getSession();
+    const role = normalizeRoleLabel(session?.role || DEFAULT_AUTH_ROLE);
+    const canReplyToParent = role === "Admin" || role === "Teacher";
+
     if (!notifications.length) {
       target.innerHTML = `
         <article class="admin-notification-empty">
@@ -25914,6 +25992,21 @@
                 `${entry.entityType || "system"} • ${entry.action || "updated"}`.replaceAll("_", " "),
               )}</span>
               <p>${escapeHtml(entry.message || "Activity captured in the school system.")}</p>
+              ${
+                canReplyToParent && String(entry.entityType || "") === "parent-message"
+                  ? `
+                    <form class="portal-settings-form admin-notification-reply-form" data-notification-parent-reply-form data-message-id="${escapeHtml(
+                      entry.id,
+                    )}" novalidate>
+                      <label class="portal-field">
+                        <span>Reply to parent</span>
+                        <textarea name="reply" rows="3" placeholder="Type a reply."></textarea>
+                      </label>
+                      <button class="portal-class-button" type="submit">Send reply</button>
+                    </form>
+                  `
+                  : ""
+              }
             </div>
             <small>${escapeHtml(entry.actorName || "System")} • ${escapeHtml(
               formatTimestamp(entry.createdAt || nowIso()),
@@ -25922,6 +26015,48 @@
         `,
       )
       .join("");
+  }
+
+  function wireNotificationReplyForms(overlay, session, refresh) {
+    if (!overlay || overlay.dataset.notificationRepliesWired === "true") {
+      return;
+    }
+
+    overlay.dataset.notificationRepliesWired = "true";
+    overlay.addEventListener("submit", (event) => {
+      const form = event.target.closest("[data-notification-parent-reply-form]");
+      if (!form) {
+        return;
+      }
+
+      event.preventDefault();
+      const user = session?.userId ? getUsers().find((entry) => entry.id === session.userId) || null : null;
+      const workspaceId = normalizeWorkspaceId(session?.workspaceId || user?.workspaceId || getCurrentWorkspaceId());
+      const messageId = String(form.dataset.messageId || "").trim();
+      const message = getNotifications(workspaceId).find((entry) => entry.id === messageId);
+      const reply = String(form.elements.reply?.value || "").trim();
+
+      if (!reply) {
+        form.elements.reply?.focus();
+        return;
+      }
+      if (!message || !user) {
+        return;
+      }
+
+      sendParentMessageReply(message, user, reply);
+      form.reset();
+      const button = form.querySelector("button[type='submit']");
+      if (button) {
+        button.textContent = "Reply sent";
+        button.disabled = true;
+      }
+      window.setTimeout(() => {
+        if (typeof refresh === "function") {
+          refresh();
+        }
+      }, 350);
+    });
   }
 
   function ensureDashboardNotificationsOverlay() {
@@ -26358,6 +26493,8 @@
     };
 
     if (!alreadyBound) {
+      wireNotificationReplyForms(overlay, session, refresh);
+
       button.addEventListener("click", () => {
         refresh();
         setOverlayState(true);
@@ -26670,6 +26807,170 @@
     };
   }
 
+  function getPaystackPublicKey() {
+    return String(
+      window.SCHOOLSPHERE_PAYSTACK_PUBLIC_KEY ||
+        window.PAYSTACK_PUBLIC_KEY ||
+        window.SchoolSphereSupabaseConfig?.paystackPublicKey ||
+        "",
+    ).trim();
+  }
+
+  function loadPaystackInline() {
+    if (window.Paystack || window.PaystackPop) {
+      return Promise.resolve();
+    }
+
+    return new Promise((resolve, reject) => {
+      const existingScript = document.querySelector('script[src="https://js.paystack.co/v2/inline.js"]');
+      if (existingScript) {
+        existingScript.addEventListener("load", () => resolve(), { once: true });
+        existingScript.addEventListener("error", () => reject(new Error("paystack_load_failed")), { once: true });
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.src = "https://js.paystack.co/v2/inline.js";
+      script.async = true;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error("paystack_load_failed"));
+      document.head.appendChild(script);
+    });
+  }
+
+  function getPaystackPaymentEmail(user = {}, student = {}) {
+    return normalizeEmail(user.email || student.guardianEmail || student.studentEmail || student.email || "");
+  }
+
+  function isParentInvoiceOverdue(invoice = {}) {
+    const dueDate = String(invoice.dueDate || "").trim();
+    const balance = Number(invoice.balance || 0);
+
+    if (!dueDate || !/^\d{4}-\d{2}-\d{2}$/.test(dueDate) || !Number.isFinite(balance) || balance <= 0) {
+      return false;
+    }
+
+    return dueDate < getTodayDateValue();
+  }
+
+  function ensureParentOverdueFeeAlert({ user = {}, student = null, invoice = {}, workspaceId = null } = {}) {
+    if (!student || !isParentInvoiceOverdue(invoice)) {
+      return null;
+    }
+
+    const resolvedWorkspaceId = normalizeWorkspaceId(workspaceId || user.workspaceId || getCurrentWorkspaceId());
+    const parentEmail = normalizeEmail(user.email || "");
+    const alertId = `fee-overdue:${student.id}:${invoice.invoiceNo || invoice.invoiceKey || invoice.dueDate}`;
+    const existing = getNotifications(resolvedWorkspaceId).find((entry) => entry.id === alertId);
+
+    if (existing) {
+      return existing;
+    }
+
+    return pushNotification(
+      {
+        id: alertId,
+        title: "Overdue fee balance",
+        message: `${student.fullName}'s outstanding balance of ${formatCurrencyAmount(invoice.balance || 0)} was due on ${
+          invoice.dueDate
+        }.`,
+        entityType: "fee-overdue",
+        entityId: parentEmail,
+        action: "overdue",
+        actorName: "School Bursary",
+        visibleToRoles: ["Admin", "Parent"],
+        metadata: {
+          parentEmail,
+          studentId: student.id,
+          studentName: student.fullName,
+          invoiceNo: invoice.invoiceNo || "",
+          invoiceKey: invoice.invoiceKey || "",
+          balance: Number(invoice.balance || 0),
+          dueDate: invoice.dueDate || "",
+        },
+      },
+      resolvedWorkspaceId,
+    );
+  }
+
+  function getParentMessageThreadId(parentEmail = "", studentId = "") {
+    return `parent-thread:${normalizeEmail(parentEmail)}:${String(studentId || "school").trim()}`;
+  }
+
+  function getParentMessageNotifications(user = {}, student = null) {
+    const workspaceId = normalizeWorkspaceId(user.workspaceId || getCurrentWorkspaceId());
+    const parentEmail = normalizeEmail(user.email || "");
+    const studentId = String(student?.id || "").trim();
+    const threadId = getParentMessageThreadId(parentEmail, studentId);
+
+    return getNotifications(workspaceId)
+      .filter((entry) => ["parent-message", "parent-message-reply"].includes(String(entry.entityType || "").toLowerCase()))
+      .filter((entry) => {
+        const metadata = entry.metadata || {};
+        return (
+          normalizeEmail(metadata.parentEmail || "") === parentEmail &&
+          (!studentId || String(metadata.studentId || "") === studentId || String(metadata.threadId || "") === threadId)
+        );
+      })
+      .sort((left, right) => String(left.createdAt || "").localeCompare(String(right.createdAt || "")));
+  }
+
+  function getParentMessageRecipientOptions(student = null, children = []) {
+    const options = [{ value: "admin", label: "School Admin", role: "Admin", email: "", subject: "General school support" }];
+    const groups = getParentTeacherGroups(student ? [student] : children);
+    const seen = new Set(["admin"]);
+
+    groups.forEach((group) => {
+      group.teachers.forEach((teacher) => {
+        const email = normalizeEmail(teacher.email || "");
+        const key = email || `${teacher.role}:${teacher.name}:${teacher.subject}`.toLowerCase();
+        if (seen.has(key)) {
+          return;
+        }
+        seen.add(key);
+        options.push({
+          value: email || key,
+          label: `${teacher.name} - ${teacher.role}`,
+          role: "Teacher",
+          email,
+          subject: teacher.subject,
+        });
+      });
+    });
+
+    return options;
+  }
+
+  function sendParentMessageReply(message = {}, actorUser = {}, body = "") {
+    const metadata = message.metadata || {};
+    const parentEmail = normalizeEmail(metadata.parentEmail || "");
+    const replyText = String(body || "").trim();
+
+    if (!parentEmail || !replyText) {
+      return null;
+    }
+
+    return pushNotification(
+      {
+        title: `Reply from ${actorUser.displayName || actorUser.email || "School"}`,
+        message: replyText,
+        entityType: "parent-message-reply",
+        entityId: parentEmail,
+        action: "replied",
+        actorName: actorUser.displayName || actorUser.email || "School",
+        visibleToRoles: ["Admin", "Parent"],
+        metadata: {
+          ...metadata,
+          replyToId: message.id,
+          replyById: actorUser.id || "",
+          replyByEmail: actorUser.email || "",
+          replyByRole: normalizeRoleLabel(actorUser.role || getSession()?.role || DEFAULT_AUTH_ROLE),
+        },
+      },
+      message.workspaceId || actorUser.workspaceId || getCurrentWorkspaceId(),
+    );
+  }
+
   function deriveParentAttendanceSummary(student = null) {
     const cycleManager = getAcademicCycleManager();
     const cycleState = cycleManager && typeof cycleManager.getState === "function"
@@ -26805,7 +27106,10 @@
       if (normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE) !== "Teacher") {
         return lookup;
       }
-      lookup[normalizeEmail(user.email || "")] = user.displayName || user.email;
+      lookup[normalizeEmail(user.email || "")] = {
+        name: user.displayName || user.email,
+        email: user.email || "",
+      };
       return lookup;
     }, {});
 
@@ -26817,18 +27121,22 @@
 
       if (classRecord.classTeacher) {
         const normalized = normalizeEmail(classRecord.classTeacher);
+        const teacher = teacherByEmail[normalized] || null;
         teacherRows.push({
           role: "Class Teacher",
-          name: teacherByEmail[normalized] || classRecord.classTeacher,
+          name: teacher?.name || classRecord.classTeacher,
+          email: teacher?.email || (EMAIL_REGEX.test(classRecord.classTeacher) ? classRecord.classTeacher : ""),
           subject: "General class oversight",
         });
       }
 
       (classRecord.teacherAssignments || []).forEach((assignment) => {
         const normalized = normalizeEmail(assignment.teacher || "");
+        const teacher = teacherByEmail[normalized] || null;
         teacherRows.push({
           role: "Subject Teacher",
-          name: teacherByEmail[normalized] || assignment.teacher || "Assigned teacher",
+          name: teacher?.name || assignment.teacher || "Assigned teacher",
+          email: teacher?.email || (EMAIL_REGEX.test(assignment.teacher || "") ? assignment.teacher : ""),
           subject: assignment.subject || "Subject",
         });
       });
@@ -26878,7 +27186,7 @@
     return select;
   }
 
-  function renderParentPerformancePage(target, student, children) {
+  function renderParentPerformancePage(target, student, children, user = {}) {
     if (!target) {
       return;
     }
@@ -26912,8 +27220,11 @@
 
     const attendance = deriveParentAttendanceSummary(student);
     const courses = getParentCoursesForStudent(student);
-    const feesState = readParentFeesState();
-    const studentFee = feesState[student.id] || { totalDue: 0, balance: 0, dueDate: "Not set" };
+    const workspaceId = normalizeWorkspaceId(user?.workspaceId || getCurrentWorkspaceId());
+    const feesState = readParentFeesState(workspaceId);
+    const studentFee = feesState[student.id] || buildConfiguredParentFeeSnapshot(student) || { totalDue: 0, balance: 0, dueDate: "Not set" };
+    ensureParentOverdueFeeAlert({ user, student, invoice: studentFee, workspaceId });
+    const feeStatus = isParentInvoiceOverdue(studentFee) ? "Overdue" : "Outstanding Balance";
 
     target.innerHTML = `
       <section class="admin-metrics-grid">
@@ -26934,7 +27245,7 @@
         </article>
         <article class="admin-metric-card admin-metric-card-rose">
           <strong>${escapeHtml(String(studentFee.balance || 0))}</strong>
-          <h3>Outstanding Balance</h3>
+          <h3>${escapeHtml(feeStatus)}</h3>
           <p>Due: ${escapeHtml(studentFee.dueDate || "Not set")}</p>
         </article>
       </section>
@@ -27098,6 +27409,180 @@
     `;
   }
 
+  function getParentInvoiceSchoolSettings() {
+    const settingsManager = getSchoolSettingsManager();
+    return settingsManager && typeof settingsManager.getSettings === "function"
+      ? settingsManager.getSettings()
+      : getDefaultAdminSchoolSettings();
+  }
+
+  function renderParentFeeInvoiceDocument(invoice = {}) {
+    const settings = getParentInvoiceSchoolSettings();
+    const items = Array.isArray(invoice.invoiceItems) ? invoice.invoiceItems : [];
+    const totalDue = Number(invoice.totalDue || 0);
+    const balance = Number(invoice.balance || 0);
+    const paid = Math.max(0, totalDue - balance);
+    const lineRows = items.length
+      ? items
+          .map(
+            (item, index) => `
+              <tr>
+                <td>${index + 1}</td>
+                <td>
+                  <strong>${escapeHtml(item.name || "Fee item")}</strong>
+                  <span>${escapeHtml(
+                    [getFeeCategoryLabel(item.category || FEE_CATEGORY_FALLBACK), item.description || "No note"].filter(Boolean).join(" • "),
+                  )}</span>
+                </td>
+                <td>${escapeHtml(item.dueDate || invoice.dueDate || "Not set")}</td>
+                <td>${escapeHtml(formatCurrencyAmount(item.amount || 0))}</td>
+              </tr>
+            `,
+          )
+          .join("")
+      : `<tr><td colspan="4">No invoice line items found.</td></tr>`;
+
+    return `
+      <section class="portal-fee-invoice-document">
+        <header class="portal-fee-invoice-doc-head">
+          <div>
+            <span>Fee invoice</span>
+            <h4>${escapeHtml(settings.schoolName || "SchoolSphere")}</h4>
+            <p>${escapeHtml(settings.address || settings.campusDetails || "School account office")}</p>
+          </div>
+          <aside>
+            <strong>${escapeHtml(invoice.invoiceNo || "Configured fees")}</strong>
+            <span>${escapeHtml(invoice.invoiceGeneratedAt ? formatTimestamp(invoice.invoiceGeneratedAt) : formatTimestamp(invoice.updatedAt || nowIso()))}</span>
+          </aside>
+        </header>
+
+        <div class="portal-fee-invoice-doc-meta">
+          <article><span>Student</span><strong>${escapeHtml(invoice.studentName || "Student")}</strong></article>
+          <article><span>Admission No.</span><strong>${escapeHtml(invoice.admissionNo || "Not set")}</strong></article>
+          <article><span>Class</span><strong>${escapeHtml(invoice.classLevel || "Class")}</strong></article>
+          <article><span>Academic period</span><strong>${escapeHtml(
+            [invoice.sessionName, invoice.termName].filter(Boolean).join(" • ") || "Not selected",
+          )}</strong></article>
+          <article><span>Due date</span><strong>${escapeHtml(invoice.dueDate || "Not set")}</strong></article>
+          <article><span>Status</span><strong>${escapeHtml(invoice.invoiceStatus || "configured")}</strong></article>
+        </div>
+
+        <div class="portal-fee-invoice-lines-wrap">
+          <table class="portal-fee-invoice-lines-table">
+            <thead>
+              <tr><th>#</th><th>Fee item</th><th>Due date</th><th>Amount</th></tr>
+            </thead>
+            <tbody>${lineRows}</tbody>
+          </table>
+        </div>
+
+        <div class="portal-fee-invoice-total-box">
+          <div><span>Total due</span><strong>${escapeHtml(formatCurrencyAmount(totalDue))}</strong></div>
+          <div><span>Paid</span><strong>${escapeHtml(formatCurrencyAmount(paid))}</strong></div>
+          <div><span>Balance</span><strong>${escapeHtml(formatCurrencyAmount(balance))}</strong></div>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderParentFeeInvoiceDownloadDocument(invoice = {}) {
+    return `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>${escapeHtml(invoice.invoiceNo || "Fee invoice")}</title>
+          <link rel="stylesheet" href="./styles.css" />
+          <style>
+            body { margin: 0; padding: 28px; background: #ffffff; }
+            .portal-fee-invoice-document { max-width: 920px; margin: 0 auto; }
+          </style>
+        </head>
+        <body class="admin-dashboard-page">
+          ${renderParentFeeInvoiceDocument(invoice)}
+        </body>
+      </html>
+    `;
+  }
+
+  function downloadParentFeeInvoice(invoice = {}) {
+    const safeInvoiceNo = String(invoice.invoiceNo || `invoice-${invoice.studentName || "student"}`)
+      .trim()
+      .replace(/[^a-z0-9._-]+/gi, "-")
+      .replace(/^-+|-+$/g, "")
+      .toLowerCase() || "fee-invoice";
+    const blob = new Blob([renderParentFeeInvoiceDownloadDocument(invoice)], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${safeInvoiceNo}.html`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function ensureParentFeeInvoiceModal() {
+    let overlay = document.getElementById("parent-fee-invoice-overlay");
+
+    if (overlay) {
+      return overlay;
+    }
+
+    const wrapper = document.createElement("div");
+    wrapper.innerHTML = `
+      <div id="parent-fee-invoice-overlay" class="portal-overlay" hidden>
+        <button class="portal-overlay-backdrop" type="button" data-parent-fee-invoice-close aria-label="Close invoice preview"></button>
+        <section class="portal-overlay-panel portal-fee-invoice-modal" role="dialog" aria-modal="true" aria-labelledby="parent-fee-invoice-modal-title">
+          <header class="portal-overlay-head">
+            <div>
+              <span>Parent invoice</span>
+              <h3 id="parent-fee-invoice-modal-title">Fee invoice</h3>
+            </div>
+            <button class="portal-overlay-close" type="button" data-parent-fee-invoice-close aria-label="Close invoice preview">&times;</button>
+          </header>
+          <div id="parent-fee-invoice-modal-body" class="portal-fee-invoice-modal-body"></div>
+        </section>
+      </div>
+    `;
+    document.body.appendChild(wrapper.firstElementChild);
+    overlay = document.getElementById("parent-fee-invoice-overlay");
+
+    overlay.addEventListener("click", (event) => {
+      if (event.target.closest("[data-parent-fee-invoice-close]")) {
+        overlay.hidden = true;
+        document.body.classList.toggle("portal-overlay-open", Boolean(document.querySelector(".portal-overlay:not([hidden])")));
+      }
+    });
+
+    return overlay;
+  }
+
+  function openParentFeeInvoiceModal(invoice = {}) {
+    const overlay = ensureParentFeeInvoiceModal();
+    const title = overlay.querySelector("#parent-fee-invoice-modal-title");
+    const body = overlay.querySelector("#parent-fee-invoice-modal-body");
+
+    if (title) {
+      title.textContent = invoice.invoiceNo || "Fee invoice";
+    }
+    if (body) {
+      body.innerHTML = `
+        ${renderParentFeeInvoiceDocument(invoice)}
+        <div class="portal-fee-invoice-modal-actions">
+          <button class="button button-primary" type="button" data-parent-fee-invoice-download>Download invoice</button>
+        </div>
+      `;
+      body.querySelector("[data-parent-fee-invoice-download]")?.addEventListener("click", () => {
+        downloadParentFeeInvoice(invoice);
+      });
+    }
+
+    overlay.hidden = false;
+    document.body.classList.add("portal-overlay-open");
+    overlay.querySelector("[data-parent-fee-invoice-close]")?.focus();
+  }
+
   function renderParentFeesPage(target, student, user) {
     if (!target) {
       return;
@@ -27121,6 +27606,11 @@
           dueDate: "Not set by admin yet",
           updatedAt: nowIso(),
         };
+    ensureParentOverdueFeeAlert({ user, student, invoice: current, workspaceId });
+    const paystackPublicKey = getPaystackPublicKey();
+    const paymentEmail = getPaystackPaymentEmail(user, student);
+    const outstandingBalance = Number(current.balance || 0);
+    const isOverdue = isParentInvoiceOverdue(current);
     const invoiceItems = Array.isArray(current.invoiceItems) ? current.invoiceItems : [];
     const invoiceItemRows = invoiceItems.length
       ? invoiceItems
@@ -27144,6 +27634,18 @@
           <h2>Fees: ${escapeHtml(student.fullName)}</h2>
           <span>Fees are configured by school admin. Parents can pay and track balances here.</span>
         </div>
+        ${
+          isOverdue
+            ? `<div class="auth-status auth-status--error" role="alert">This invoice is overdue. Outstanding balance: <strong>${escapeHtml(
+                formatCurrencyAmount(outstandingBalance),
+              )}</strong>.</div>`
+            : ""
+        }
+        ${
+          !paystackPublicKey
+            ? `<div class="auth-status auth-status--info" role="status">Paystack is not configured yet. Add your Paystack public key in the app config to enable online payment.</div>`
+            : ""
+        }
         <div class="admin-session-grid">
           <div class="admin-session-card"><span>Invoice</span><strong>${escapeHtml(
             current.invoiceNo || (current.invoiceStatus === "configured" ? "Configured fees" : "Not generated"),
@@ -27171,11 +27673,13 @@
           <div class="portal-settings-grid">
             <label class="portal-field" for="parent-fee-payment-amount">
               <span>Amount to pay</span>
-              <input id="parent-fee-payment-amount" type="number" min="1" step="1" placeholder="e.g. 5000" />
+              <input id="parent-fee-payment-amount" type="number" min="1" max="${escapeHtml(String(outstandingBalance || 0))}" step="1" placeholder="e.g. 5000" ${
+                outstandingBalance > 0 ? "" : "disabled"
+              } />
             </label>
           </div>
           <div class="utility-actions">
-            <button class="button button-primary" type="submit">Pay fee</button>
+            <button class="button button-primary" type="submit" ${outstandingBalance > 0 ? "" : "disabled"}>Pay with Paystack</button>
           </div>
         </form>
       </article>
@@ -27197,29 +27701,264 @@
         setStatus(paymentStatus, "error", "Enter a valid amount.");
         return;
       }
+      if (amount > outstandingBalance) {
+        setStatus(paymentStatus, "error", "Amount cannot be higher than the outstanding balance.");
+        return;
+      }
+      if (!paymentEmail) {
+        setStatus(paymentStatus, "error", "A parent email is required before online payment can start.");
+        return;
+      }
+      if (!paystackPublicKey) {
+        setStatus(paymentStatus, "info", "Paystack is not configured yet. Add your Paystack public key in the app config.");
+        return;
+      }
 
-      const nextBalance = Math.max(0, Number(current.balance || 0) - amount);
-      const nextState = {
-        ...allFees,
-        [student.id]: {
-          ...current,
-          balance: nextBalance,
-          updatedAt: nowIso(),
-          lastPaymentAmount: amount,
-          lastPaymentAt: nowIso(),
-        },
+      const submitButton = paymentForm.querySelector("button[type='submit']");
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = "Opening Paystack...";
+      }
+      setStatus(paymentStatus, "info", "Opening Paystack checkout...");
+
+      const completePayment = (transaction = {}) => {
+        const nextBalance = Math.max(0, Number(current.balance || 0) - amount);
+        const paymentRecord = {
+          amount,
+          paidAt: nowIso(),
+          method: "paystack",
+          reference: transaction.reference || transaction.trxref || transaction.transaction || "",
+          status: transaction.status || "success",
+        };
+        const nextState = {
+          ...allFees,
+          [student.id]: {
+            ...current,
+            balance: nextBalance,
+            invoiceStatus: nextBalance === 0 ? "paid" : "part-paid",
+            updatedAt: nowIso(),
+            lastPaymentAmount: amount,
+            lastPaymentAt: paymentRecord.paidAt,
+            lastPaymentReference: paymentRecord.reference,
+            payments: [...(Array.isArray(current.payments) ? current.payments : []), paymentRecord],
+          },
+        };
+        saveParentFeesState(nextState, workspaceId);
+        pushNotification(
+          {
+            title: "Fee payment received",
+            message: `${student.fullName} paid ${formatCurrencyAmount(amount)} through Paystack. Balance: ${formatCurrencyAmount(nextBalance)}.`,
+            entityType: "fee-payment",
+            entityId: student.id,
+            action: "paid",
+            actorName: user.displayName || user.email || "Parent",
+            visibleToRoles: ["Admin", "Parent"],
+            metadata: {
+              parentEmail: normalizeEmail(user.email || ""),
+              studentId: student.id,
+              invoiceNo: current.invoiceNo || "",
+              reference: paymentRecord.reference,
+              amount,
+              balance: nextBalance,
+            },
+          },
+          workspaceId,
+        );
+        setStatus(
+          paymentStatus,
+          "success",
+          `Payment of <strong>${escapeHtml(formatCurrencyAmount(amount))}</strong> recorded. New balance: <strong>${escapeHtml(
+            formatCurrencyAmount(nextBalance),
+          )}</strong>.`,
+        );
+        window.setTimeout(() => {
+          renderParentFeesPage(target, student, user);
+        }, 350);
       };
-      saveParentFeesState(nextState, workspaceId);
-      setStatus(
-        paymentStatus,
-        "success",
-        `Payment of <strong>${escapeHtml(formatCurrencyAmount(amount))}</strong> recorded. New balance: <strong>${escapeHtml(
-          formatCurrencyAmount(nextBalance),
-        )}</strong>.`,
+
+      loadPaystackInline()
+        .then(() => {
+          const reference = `SSF-${Date.now()}-${String(student.admissionNo || student.id || "student")
+            .replace(/[^a-z0-9]/gi, "")
+            .slice(-8)}`;
+          const options = {
+            key: paystackPublicKey,
+            email: paymentEmail,
+            amount: Math.round(amount * 100),
+            currency: "NGN",
+            reference,
+            metadata: {
+              invoiceNo: current.invoiceNo || "",
+              studentId: student.id,
+              studentName: student.fullName,
+              classLevel: student.level || current.classLevel || "",
+              parentEmail: paymentEmail,
+            },
+            onSuccess: completePayment,
+            onCancel: () => {
+              setStatus(paymentStatus, "info", "Payment was cancelled.");
+            },
+            onError: () => {
+              setStatus(paymentStatus, "error", "Could not open Paystack checkout. Check your network and try again.");
+            },
+          };
+
+          if (window.Paystack) {
+            const popup = new window.Paystack();
+            popup.newTransaction(options);
+            return;
+          }
+
+          const handler = window.PaystackPop?.setup?.({
+            ...options,
+            callback: completePayment,
+            onClose: options.onCancel,
+          });
+          handler?.openIframe?.();
+        })
+        .catch(() => {
+          setStatus(paymentStatus, "error", "Could not load Paystack checkout. Check your network and try again.");
+        })
+        .finally(() => {
+          if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.textContent = "Pay with Paystack";
+          }
+        });
+    });
+  }
+
+  function renderParentMessagesPage(target, student, children, user) {
+    if (!target) {
+      return;
+    }
+
+    if (!student) {
+      target.innerHTML = `<article class="admin-surface-card"><div class="admin-surface-head"><h2>Messages</h2><span>No linked student selected.</span></div></article>`;
+      return;
+    }
+
+    const workspaceId = normalizeWorkspaceId(user?.workspaceId || getCurrentWorkspaceId());
+    const parentEmail = normalizeEmail(user?.email || "");
+    const recipients = getParentMessageRecipientOptions(student, children);
+    const messages = getParentMessageNotifications(user, student);
+    const threadRows = messages.length
+      ? messages
+          .map((entry) => {
+            const isReply = String(entry.entityType || "") === "parent-message-reply";
+            return `
+              <article class="staff-portal-row staff-portal-row-wide ${isReply ? "parent-message-reply-row" : ""}">
+                <div>
+                  <strong>${escapeHtml(isReply ? entry.title || "School reply" : entry.title || "Message sent")}</strong>
+                  <span>${escapeHtml(entry.message || "No message body.")}</span>
+                </div>
+                <small>${escapeHtml(isReply ? "School reply" : "Sent by you")} • ${escapeHtml(formatTimestamp(entry.createdAt))}</small>
+              </article>
+            `;
+          })
+          .join("")
+      : `
+        <article class="portal-class-empty">
+          <strong>No messages yet</strong>
+          <p>Send a message to the school or a teacher and replies will appear here.</p>
+        </article>
+      `;
+
+    target.innerHTML = `
+      <section class="staff-portal-section admin-surface-card">
+        <div class="admin-surface-head">
+          <div>
+            <h2>Message School</h2>
+            <span>${escapeHtml(student.fullName)} • ${escapeHtml(student.level || "Class not set")}</span>
+          </div>
+        </div>
+        <form id="parent-message-form" class="portal-settings-form" novalidate>
+          <div id="parent-message-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+          <div class="portal-settings-grid">
+            <label class="portal-field" for="parent-message-recipient">
+              <span>Send to</span>
+              <select id="parent-message-recipient" name="recipient">
+                ${recipients
+                  .map(
+                    (recipient) => `
+                      <option value="${escapeHtml(recipient.value)}">${escapeHtml(recipient.label)}${
+                        recipient.subject ? ` - ${escapeHtml(recipient.subject)}` : ""
+                      }</option>
+                    `,
+                  )
+                  .join("")}
+              </select>
+            </label>
+            <label class="portal-field" for="parent-message-subject">
+              <span>Subject</span>
+              <input id="parent-message-subject" name="subject" type="text" placeholder="Message subject" />
+            </label>
+            <label class="portal-field portal-field-span-2" for="parent-message-body">
+              <span>Message</span>
+              <textarea id="parent-message-body" name="message" rows="5" placeholder="Type your message to the school." required></textarea>
+            </label>
+          </div>
+          <div class="utility-actions">
+            <button class="button button-primary" type="submit">Send message</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="staff-portal-section admin-surface-card">
+        <div class="admin-surface-head">
+          <div>
+            <h2>Conversation</h2>
+            <span>${messages.length} message${messages.length === 1 ? "" : "s"} in this thread</span>
+          </div>
+        </div>
+        <div class="staff-portal-list">${threadRows}</div>
+      </section>
+    `;
+
+    const form = target.querySelector("#parent-message-form");
+    const status = target.querySelector("#parent-message-status");
+
+    form?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const recipientValue = String(form.elements.recipient?.value || "").trim();
+      const recipient = recipients.find((item) => item.value === recipientValue) || recipients[0];
+      const subject = String(form.elements.subject?.value || "").trim() || `Message about ${student.fullName}`;
+      const message = String(form.elements.message?.value || "").trim();
+
+      if (!message) {
+        setStatus(status, "error", "Type your message before sending.");
+        return;
+      }
+
+      const isTeacher = recipient?.role === "Teacher";
+      const entityId = isTeacher ? recipient.email || student.level || student.id : parentEmail;
+      pushNotification(
+        {
+          title: subject,
+          message,
+          entityType: "parent-message",
+          entityId,
+          action: "sent",
+          actorName: user.displayName || user.email || "Parent",
+          visibleToRoles: isTeacher ? ["Admin", "Teacher"] : ["Admin"],
+          metadata: {
+            threadId: getParentMessageThreadId(parentEmail, student.id),
+            parentEmail,
+            parentName: user.displayName || user.email || "Parent",
+            studentId: student.id,
+            studentName: student.fullName,
+            classLevel: student.level || "",
+            recipientRole: recipient?.role || "Admin",
+            recipientEmail: recipient?.email || "",
+            recipientName: recipient?.label || "School Admin",
+          },
+        },
+        workspaceId,
       );
-      window.setTimeout(() => {
-        renderParentFeesPage(target, student, user);
-      }, 350);
+
+      form.reset();
+      setStatus(status, "success", `Message sent to ${escapeHtml(recipient?.label || "School Admin")}.`);
+      window.setTimeout(() => renderParentMessagesPage(target, student, children, user), 350);
     });
   }
 
@@ -27411,7 +28150,7 @@
     }
 
     if (page === "parent-portal") {
-      renderParentPerformancePage(contentHost, selectedChild, children);
+      renderParentPerformancePage(contentHost, selectedChild, children, user);
       return;
     }
 
@@ -27432,6 +28171,14 @@
 
     if (page === "parent-fees") {
       renderParentFeesPage(contentHost, selectedChild, user);
+      return;
+    }
+
+    if (page === "parent-messages") {
+      renderParentMessagesPage(contentHost, selectedChild, children, user);
+      window.addEventListener(NOTIFICATION_EVENT_NAME, () => {
+        renderParentMessagesPage(contentHost, selectedChild, children, user);
+      });
       return;
     }
 
