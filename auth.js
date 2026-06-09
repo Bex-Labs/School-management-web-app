@@ -118,6 +118,7 @@
     Student: "./portal.html",
     Parent: "./parent-portal.html",
   };
+  const PARENT_SETTINGS_PAGE = "./parent-settings.html";
   const PARENT_PAGE_ROUTES = {
     "parent-portal": "./parent-portal.html",
     "parent-teachers": "./parent-teachers.html",
@@ -27764,6 +27765,7 @@
     const outstandingBalance = Number(current.balance || 0);
     const isOverdue = isParentInvoiceOverdue(current);
     const invoiceItems = Array.isArray(current.invoiceItems) ? current.invoiceItems : [];
+    const paymentHistory = Array.isArray(current.payments) ? [...current.payments] : [];
     const invoiceItemRows = invoiceItems.length
       ? invoiceItems
           .map(
@@ -27824,6 +27826,45 @@
             <tbody>${invoiceItemRows}</tbody>
           </table>
         </div>
+        <section class="portal-fee-payment-history">
+          <div class="admin-surface-head">
+            <div>
+              <h2>Payment History</h2>
+              <span>${paymentHistory.length} payment${paymentHistory.length === 1 ? "" : "s"} recorded</span>
+            </div>
+          </div>
+          ${
+            paymentHistory.length
+              ? `
+                <div class="portal-fee-payment-history-list">
+                  ${paymentHistory
+                    .slice()
+                    .reverse()
+                    .map(
+                      (payment) => `
+                        <article class="portal-fee-payment-history-row">
+                          <div>
+                            <strong>${escapeHtml(formatCurrencyAmount(payment.amount || 0))}</strong>
+                            <span>${escapeHtml(payment.method || "payment")} • ${escapeHtml(payment.status || "success")}</span>
+                          </div>
+                          <div>
+                            <strong>${escapeHtml(formatTimestamp(payment.paidAt || payment.createdAt || nowIso()))}</strong>
+                            <span>${escapeHtml(payment.reference || "No reference")}</span>
+                          </div>
+                        </article>
+                      `,
+                    )
+                    .join("")}
+                </div>
+              `
+              : `
+                <article class="portal-class-empty">
+                  <strong>No payment history yet</strong>
+                  <p>Any payments made through Paystack will appear here.</p>
+                </article>
+              `
+          }
+        </section>
         <form id="parent-fee-payment-form" class="portal-settings-form" novalidate>
           <div id="parent-fee-payment-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
           <div class="portal-settings-grid">
@@ -28290,7 +28331,7 @@
     }
     if (gate) {
       gate.innerHTML = `
-        <a class="admin-signout-button" href="./user-settings.html">My settings</a>
+        <a class="admin-signout-button" href="./parent-settings.html">My settings</a>
         <button class="admin-signout-button" type="button" data-signout>Log out</button>
       `;
       wireSignOutButton(gate);
@@ -30085,8 +30126,9 @@
   function initUserSettingsPage() {
     const page = getPage();
     const isStaffSettingsPage = page === "staff-settings";
+    const isParentSettingsPage = page === "parent-settings";
 
-    if (page !== "user-settings" && !isStaffSettingsPage) {
+    if (page !== "user-settings" && !isStaffSettingsPage && !isParentSettingsPage) {
       return;
     }
 
@@ -30132,7 +30174,7 @@
     }
 
     if (!session || !user) {
-      if (isStaffSettingsPage) {
+      if (isStaffSettingsPage || isParentSettingsPage) {
         window.location.assign("./login.html");
         return;
       }
@@ -30150,14 +30192,22 @@
       window.location.assign(getRoleHomeRoute(normalizedRole));
       return;
     }
+    if (isParentSettingsPage && normalizedRole !== "Parent") {
+      window.location.assign(getRoleHomeRoute(normalizedRole));
+      return;
+    }
 
     applyAdminBranding(brandMark, brandName, brandSubtitle, getSchoolSettingsManager());
     if (heading && isStaffSettingsPage) {
       heading.textContent = "Settings";
+    } else if (heading && isParentSettingsPage) {
+      heading.textContent = "Parent Settings";
     } else if (heading && normalizedRole === "Student") {
       heading.textContent = "My Profile";
     }
     if (copy && isStaffSettingsPage) {
+      copy.textContent = "Account info, password, and profile picture.";
+    } else if (copy && isParentSettingsPage) {
       copy.textContent = "Account info, password, and profile picture.";
     } else if (copy && normalizedRole === "Student") {
       copy.textContent = "Account info and password.";
@@ -30170,7 +30220,9 @@
     }
     if (gate) {
       gate.innerHTML = `
-        <a class="admin-signout-button" href="${isStaffSettingsPage ? "./staff-settings.html" : "./user-settings.html"}">My settings</a>
+        <a class="admin-signout-button" href="${
+          isStaffSettingsPage ? "./staff-settings.html" : isParentSettingsPage ? PARENT_SETTINGS_PAGE : "./user-settings.html"
+        }">My settings</a>
         <button class="admin-signout-button" type="button" data-signout>Log out</button>
       `;
       wireSignOutButton(gate);

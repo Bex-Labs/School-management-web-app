@@ -7614,6 +7614,54 @@ body.admin-dashboard-page .portal-fee-invoice-modal-actions {
   gap: 10px;
 }
 
+body.admin-dashboard-page .portal-fee-payment-history {
+  display: grid;
+  gap: 14px;
+  margin-top: 6px;
+  padding: 18px;
+  border: 1px solid #dce5f2;
+  border-radius: 18px;
+  background: #f8fbff;
+}
+
+body.admin-dashboard-page .portal-fee-payment-history .admin-surface-head {
+  margin: 0;
+}
+
+body.admin-dashboard-page .portal-fee-payment-history-list {
+  display: grid;
+  gap: 10px;
+}
+
+body.admin-dashboard-page .portal-fee-payment-history-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 0.8fr);
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid #e3eaf4;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+body.admin-dashboard-page .portal-fee-payment-history-row div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+body.admin-dashboard-page .portal-fee-payment-history-row strong {
+  color: #17233a;
+  font-size: 0.94rem;
+  overflow-wrap: anywhere;
+}
+
+body.admin-dashboard-page .portal-fee-payment-history-row span {
+  color: #667188;
+  font-size: 0.78rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
 body.admin-dashboard-page .parent-fee-invoice-lines {
   margin: 16px 0 4px;
 }
