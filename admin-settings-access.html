@@ -158,6 +158,11 @@
             <div id="portal-access-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
             <input type="hidden" name="accessId" />
             <div class="portal-settings-grid">
+              <label class="portal-field" for="access-username">
+                <span>Username</span>
+                <input id="access-username" name="username" type="text" placeholder="User name" />
+                <p class="portal-field-error" data-access-error-for="username"></p>
+              </label>
               <label class="portal-field" for="access-email">
                 <span>User email</span>
                 <input id="access-email" name="email" type="email" placeholder="user@example.com" />

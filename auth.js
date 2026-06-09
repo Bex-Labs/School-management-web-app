@@ -14555,6 +14555,9 @@
     if (form.elements.accessId) {
       form.elements.accessId.value = "";
     }
+    if (form.elements.username) {
+      form.elements.username.value = "";
+    }
 
     if (form.elements.role) {
       form.elements.role.value = "Teacher";
@@ -14592,6 +14595,14 @@
     }
 
     form.elements.accessId.value = grant.id;
+    if (form.elements.username) {
+      form.elements.username.value =
+        grant.username ||
+        grant.displayName ||
+        grant.name ||
+        [grant.firstName, grant.lastName].filter(Boolean).join(" ").trim() ||
+        "";
+    }
     form.elements.email.value = grant.email;
     form.elements.role.value = normalizeRoleLabel(grant.role);
     form.elements.authMethod.value = normalizeAccessMethod(grant.authMethod);
@@ -14874,6 +14885,7 @@
       const accessId = form.elements.accessId.value || "";
       const payload = {
         id: accessId || undefined,
+        username: String(form.elements.username?.value || "").trim(),
         email: form.elements.email.value.trim(),
         role: normalizeRoleLabel(form.elements.role.value),
         authMethod: normalizeAccessMethod(form.elements.authMethod.value),
@@ -14881,6 +14893,11 @@
       };
 
       let hasError = false;
+
+      if (!payload.username) {
+        setPortalAccessError(form, "username", "Enter a username for this user.");
+        hasError = true;
+      }
 
       if (!payload.email) {
         setPortalAccessError(form, "email", "Enter a valid email to grant access.");
@@ -14923,12 +14940,14 @@
         entityType: "user-access",
         entityId: payload.email,
         summary: currentGrant
-          ? `Updated access for ${payload.email}`
-          : `Granted ${payload.role} access to ${payload.email}`,
+          ? `Updated access for ${payload.username} (${payload.email})`
+          : `Granted ${payload.role} access to ${payload.username} (${payload.email})`,
         details: `Method: ${payload.authMethod} • Status: ${payload.status}`,
       });
       const linkedUser = updateUserByEmail(payload.email, (currentUser) => ({
         ...currentUser,
+        name: payload.username || currentUser.name,
+        username: payload.username || currentUser.username,
         role: payload.role,
         status: payload.status === "revoked" ? "deactivated" : "active",
       }));
@@ -14949,9 +14968,7 @@
       setStatus(
         status,
         "success",
-        `Access saved for <strong>${escapeHtml(payload.email)}</strong> as <strong>${escapeHtml(
-          payload.role,
-        )}</strong>.`,
+        `Access saved for <strong>${escapeHtml(payload.username)}</strong> (<strong>${escapeHtml(payload.email)}</strong>) as <strong>${escapeHtml(payload.role)}</strong>.`,
       );
     });
 
@@ -14978,6 +14995,8 @@
       if (action === "edit") {
         clearPortalAccessErrors(form);
         populatePortalAccessForm(form, grant, isAdmin);
+        form.scrollIntoView({ behavior: "smooth", block: "start" });
+        form.elements.email?.focus?.();
         setStatus(
           status,
           "info",
