@@ -14615,6 +14615,122 @@
     });
   }
 
+  let accessGrantModalElement = null;
+  let accessGrantModalBody = null;
+  let accessGrantModalTitle = null;
+
+  function ensureAccessGrantModal() {
+    if (accessGrantModalElement) {
+      return accessGrantModalElement;
+    }
+
+    const wrapper = document.createElement("div");
+    wrapper.innerHTML = `
+      <div id="portal-access-grant-modal" class="portal-overlay portal-access-grant-modal" hidden>
+        <button class="portal-overlay-backdrop" type="button" data-access-grant-close aria-label="Close user details"></button>
+        <section class="portal-overlay-panel portal-access-grant-modal-panel" role="dialog" aria-modal="true" aria-labelledby="portal-access-grant-modal-title">
+          <header class="portal-overlay-head">
+            <div>
+              <h3 id="portal-access-grant-modal-title">User details</h3>
+              <span>Access record and linked account information.</span>
+            </div>
+            <button class="portal-overlay-close" type="button" data-access-grant-close aria-label="Close user details">&times;</button>
+          </header>
+          <div id="portal-access-grant-modal-body" class="portal-access-grant-modal-body"></div>
+          <div class="utility-actions portal-access-grant-modal-actions">
+            <button class="button button-outline" type="button" data-access-grant-close>Close</button>
+          </div>
+        </section>
+      </div>
+    `;
+
+    document.body.appendChild(wrapper.firstElementChild);
+    accessGrantModalElement = document.getElementById("portal-access-grant-modal");
+    accessGrantModalBody = document.getElementById("portal-access-grant-modal-body");
+    accessGrantModalTitle = document.getElementById("portal-access-grant-modal-title");
+    accessGrantModalElement.addEventListener("click", (event) => {
+      if (event.target.closest("[data-access-grant-close]")) {
+        accessGrantModalElement.hidden = true;
+        document.body.classList.remove("portal-overlay-open");
+      }
+    });
+    return accessGrantModalElement;
+  }
+
+  function setAccessGrantModalOpen(visible) {
+    const modal = ensureAccessGrantModal();
+    modal.hidden = !visible;
+    document.body.classList.toggle("portal-overlay-open", visible);
+    if (visible) {
+      const closeButton = modal.querySelector("[data-access-grant-close]");
+      closeButton?.focus?.();
+    }
+  }
+
+  function renderAccessGrantModalContent(grant) {
+    const users = getUsers();
+    const existingUser =
+      users.find(
+        (entry) =>
+          entry.normalizedEmail === grant.normalizedEmail &&
+          normalizeWorkspaceId(entry.workspaceId || "public") === normalizeWorkspaceId(grant.workspaceId || "public"),
+      ) || null;
+    const fullName = existingUser
+      ? [existingUser.firstName, existingUser.lastName].filter(Boolean).join(" ").trim() ||
+        existingUser.name ||
+        existingUser.fullName ||
+        "Unnamed user"
+      : "Pending user";
+    const accountStatus = existingUser ? normalizeUserStatus(existingUser.status) : "Not created yet";
+    const claimLabel = grant.claimedAt ? formatTimestamp(grant.claimedAt) : "Not claimed yet";
+
+    return `
+      <div class="portal-access-grant-summary">
+        <div class="portal-access-grant-identity">
+          <strong>${escapeHtml(fullName)}</strong>
+          <span>${escapeHtml(grant.email)}</span>
+        </div>
+        <div class="portal-access-grant-grid">
+          <div class="portal-access-grant-item">
+            <span>Role</span>
+            <strong>${escapeHtml(grant.role)}</strong>
+          </div>
+          <div class="portal-access-grant-item">
+            <span>Status</span>
+            <strong>${escapeHtml(grant.status === "active" ? "Active" : "Revoked")}</strong>
+          </div>
+          <div class="portal-access-grant-item">
+            <span>Auth method</span>
+            <strong>${escapeHtml(grant.authMethod)}</strong>
+          </div>
+          <div class="portal-access-grant-item">
+            <span>Claimed</span>
+            <strong>${escapeHtml(claimLabel)}</strong>
+          </div>
+          <div class="portal-access-grant-item portal-access-grant-item-span">
+            <span>Account record</span>
+            <strong>${escapeHtml(accountStatus)}${existingUser ? ` • ${escapeHtml(existingUser.provider || "password")}` : ""}</strong>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function openAccessGrantModal(grant) {
+    if (!grant) {
+      return;
+    }
+
+    ensureAccessGrantModal();
+    if (accessGrantModalTitle) {
+      accessGrantModalTitle.textContent = `${grant.role} access`;
+    }
+    if (accessGrantModalBody) {
+      accessGrantModalBody.innerHTML = renderAccessGrantModalContent(grant);
+    }
+    setAccessGrantModalOpen(true);
+  }
+
   function renderPortalAccessProvisioningSection({ isAdmin, summaryTarget, listTarget }) {
     if (!summaryTarget || !listTarget) {
       return;
@@ -14653,48 +14769,37 @@
               entry.normalizedEmail === grant.normalizedEmail &&
               normalizeWorkspaceId(entry.workspaceId || "public") === normalizeWorkspaceId(grant.workspaceId || "public"),
           ) || null;
-        const claimLabel = grant.claimedAt
-          ? `Claimed ${escapeHtml(formatTimestamp(grant.claimedAt))}`
-          : "Not claimed yet";
-        const statusLabel = grant.status === "active" ? "Active" : "Revoked";
+        const displayName = existingUser
+          ? [existingUser.firstName, existingUser.lastName].filter(Boolean).join(" ").trim() ||
+            existingUser.name ||
+            existingUser.fullName ||
+            "Unnamed user"
+          : "Pending user";
 
         return `
-          <article class="portal-class-card">
+          <article class="portal-class-card portal-access-grant-card" data-access-id="${grant.id}" role="button" tabindex="0" aria-label="View details for ${escapeHtml(displayName)}">
+            <div class="portal-access-grant-card-head">
+              <div>
+                <span class="portal-access-grant-card-kicker">${escapeHtml(grant.role)} access</span>
+                <h3>${escapeHtml(displayName)}</h3>
+              </div>
+            </div>
             <div class="portal-class-meta">
+              <div class="portal-class-meta-item">
+                <span>Username</span>
+                <strong>${escapeHtml(displayName)}</strong>
+              </div>
               <div class="portal-class-meta-item">
                 <span>Email</span>
                 <strong>${escapeHtml(grant.email)}</strong>
               </div>
-              <div class="portal-class-meta-item">
-                <span>Role</span>
-                <strong>${escapeHtml(grant.role)}</strong>
-              </div>
-              <div class="portal-class-meta-item">
-                <span>Method</span>
-                <strong>${escapeHtml(grant.authMethod)}</strong>
-              </div>
-              <div class="portal-class-meta-item">
-                <span>Status</span>
-                <strong>${escapeHtml(statusLabel)}</strong>
-              </div>
-            </div>
-            <div class="portal-class-extended">
-              <div class="portal-class-extended-item">
-                <span>Grant state</span>
-                <strong>${escapeHtml(claimLabel)}</strong>
-              </div>
-              <div class="portal-class-extended-item">
-                <span>Account record</span>
-                <strong>${
-                  existingUser
-                    ? `${escapeHtml(normalizeRoleLabel(existingUser.role))} (${escapeHtml(
-                        existingUser.provider || "password",
-                      )})`
-                    : "No account yet"
-                }</strong>
-              </div>
             </div>
             <div class="portal-class-actions">
+              <button class="portal-class-button" type="button" data-access-action="view" data-access-id="${grant.id}" ${
+          isAdmin ? "" : "disabled"
+        }>
+                View details
+              </button>
               <button class="portal-class-button" type="button" data-access-action="edit" data-access-id="${grant.id}" ${
           isAdmin ? "" : "disabled"
         }>
@@ -14865,6 +14970,11 @@
         return;
       }
 
+      if (action === "view") {
+        openAccessGrantModal(grant);
+        return;
+      }
+
       if (action === "edit") {
         clearPortalAccessErrors(form);
         populatePortalAccessForm(form, grant, isAdmin);
@@ -14933,6 +15043,36 @@
         refreshAccessProvisioning();
         resetPortalAccessForm(form, isAdmin);
         setStatus(status, "success", `Deleted access grant for <strong>${escapeHtml(grant.email)}</strong>.`);
+      }
+    });
+
+    listTarget.addEventListener("click", (event) => {
+      const card = event.target.closest("[data-access-id]");
+
+      if (!card || event.target.closest("[data-access-action]") || !isAdmin) {
+        return;
+      }
+
+      const grant = getAccessGrants().find((entry) => entry.id === card.dataset.accessId);
+      if (grant) {
+        openAccessGrantModal(grant);
+      }
+    });
+
+    listTarget.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+
+      const card = event.target.closest("[data-access-id]");
+      if (!card || event.target.closest("[data-access-action]") || !isAdmin) {
+        return;
+      }
+
+      event.preventDefault();
+      const grant = getAccessGrants().find((entry) => entry.id === card.dataset.accessId);
+      if (grant) {
+        openAccessGrantModal(grant);
       }
     });
 
