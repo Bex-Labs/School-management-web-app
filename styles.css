@@ -5381,7 +5381,8 @@ body.admin-dashboard-page .admin-notification-backdrop {
 body.admin-dashboard-page .admin-notification-panel {
   position: relative;
   z-index: 1;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   width: min(680px, 100%);
   max-height: min(84vh, 760px);
   overflow: hidden;
@@ -5434,9 +5435,13 @@ body.admin-dashboard-page .admin-notification-close {
 
 body.admin-dashboard-page .admin-notification-list {
   display: grid;
+  flex: 1 1 auto;
   gap: 12px;
   overflow: auto;
+  min-height: 0;
   padding: 16px;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 body.admin-dashboard-page .admin-notification-item,
@@ -6289,6 +6294,69 @@ body.admin-dashboard-page .admin-report-area a {
   text-decoration: none;
 }
 
+body.admin-dashboard-page .admin-report-parent-messages {
+  display: grid;
+  gap: 12px;
+}
+
+body.admin-dashboard-page .admin-report-parent-message {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #e2e7f0;
+  border-radius: 16px;
+  background: #fbfcff;
+}
+
+body.admin-dashboard-page .admin-report-parent-message header,
+body.admin-dashboard-page .admin-report-parent-message footer {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+body.admin-dashboard-page .admin-report-parent-message header div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+body.admin-dashboard-page .admin-report-parent-message header span,
+body.admin-dashboard-page .admin-report-parent-message footer span {
+  color: #667188;
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+body.admin-dashboard-page .admin-report-parent-message header strong {
+  color: #17233a;
+  font-size: 0.98rem;
+  line-height: 1.35;
+}
+
+body.admin-dashboard-page .admin-report-parent-message header small {
+  color: #7c879a;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-align: right;
+  white-space: nowrap;
+}
+
+body.admin-dashboard-page .admin-report-parent-message p {
+  margin: 0;
+  color: #34435a;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+body.admin-dashboard-page .admin-report-parent-reply-form {
+  padding-top: 12px;
+  border-top: 1px solid #e6edf6;
+}
+
 body.admin-dashboard-page .admin-report-check {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -7128,6 +7196,21 @@ body.admin-dashboard-page .portal-timetable-print-empty {
   font-weight: 700;
 }
 
+body.admin-dashboard-page .student-timetable-grid-view {
+  overflow-x: auto;
+  margin-top: 12px;
+  padding-bottom: 4px;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+body.admin-dashboard-page .student-timetable-grid-view .portal-timetable-print-sheet {
+  min-width: 900px;
+  background:
+    radial-gradient(circle at top right, rgba(47, 111, 237, 0.06), transparent 30%),
+    #ffffff;
+}
+
 body.admin-dashboard-page .portal-class-form-shell {
   display: grid;
   gap: 12px;
@@ -7676,6 +7759,14 @@ body.admin-dashboard-page .portal-fee-line-item-card {
 
 body.admin-dashboard-page .portal-fee-line-item-card .admin-surface-head {
   margin: 0;
+}
+
+body.admin-dashboard-page .student-fee-line-item-card {
+  margin-top: 18px;
+  border-color: #dbe8f7;
+  background:
+    radial-gradient(circle at top right, rgba(20, 128, 74, 0.07), transparent 30%),
+    #ffffff;
 }
 
 body.admin-dashboard-page .portal-fee-line-item-table-wrap {
@@ -9157,13 +9248,19 @@ body.admin-dashboard-page .portal-overlay-head .portal-overlay-kicker {
 body.admin-dashboard-page .portal-staff-view-content {
   display: grid;
   gap: 16px;
+  min-height: 0;
+  max-height: min(72vh, 680px);
+  overflow: auto;
   padding: 20px;
   background: #f7fbff;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 body.admin-dashboard-page .portal-staff-view-grid {
   display: grid;
   gap: 14px;
+  min-height: 0;
 }
 
 body.admin-dashboard-page .portal-staff-profile-hero {

@@ -24574,6 +24574,28 @@
     }
 
     const entries = getStudentPortalTimetableEntries(student);
+    const manager = getTimetableManager();
+    const summary = manager && typeof manager.summarize === "function" ? manager.summarize() : null;
+    const days = manager?.schoolDays || ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+    const { cycleState, openSession, openTerm } = getStaffActiveTermContext();
+    const sessionId = entries.find((entry) => entry.sessionId)?.sessionId || openSession?.id || "";
+    const termId = entries.find((entry) => entry.termId)?.termId || openTerm?.id || "";
+    const settings = getConfiguredSchoolSettings();
+    const classLabel =
+      getStudentPortalClassRecords(student)[0]
+        ? getClassDisplayName(getStudentPortalClassRecords(student)[0])
+        : student.level || "Class";
+    const timetableGrid = renderPortalTimetablePrintSheet({
+      schoolName: settings.schoolName || "School",
+      classLevel: classLabel,
+      sessionName: sessionId ? getSessionLabelFromCycle(cycleState, sessionId) : "",
+      termName: termId ? getTermLabelFromCycle(cycleState, termId) : "",
+      weekType: "all",
+      days,
+      slotRows: getPortalTimetableSlotRows(summary?.activePeriods || [], days),
+      entries,
+    });
+
     target.innerHTML = `
       <section class="staff-portal-section admin-surface-card">
         <div class="admin-surface-head">
@@ -24582,26 +24604,10 @@
             <span>${escapeHtml(student.level || "Class")} weekly class schedule</span>
           </div>
         </div>
-        <div class="staff-portal-list">
+        <div class="student-timetable-grid-view">
           ${
             entries.length
-              ? entries
-                  .map(
-                    (entry) => `
-                      <article class="staff-portal-row">
-                        <div class="staff-portal-row-time">
-                          <strong>${escapeHtml(entry.day || "Day")}</strong>
-                          <span>${escapeHtml(`${entry.startTime || "--:--"}-${entry.endTime || "--:--"}`)}</span>
-                        </div>
-                        <div>
-                          <strong>${escapeHtml(entry.subject || "Lesson")}</strong>
-                          <span>${escapeHtml(entry.teacher || "Teacher not assigned")}</span>
-                        </div>
-                        <small>${escapeHtml(entry.weekType && entry.weekType !== "all" ? entry.weekType : "All weeks")}</small>
-                      </article>
-                    `,
-                  )
-                  .join("")
+              ? timetableGrid
               : `
                 <article class="portal-class-empty">
                   <strong>No timetable entries yet</strong>
@@ -24751,6 +24757,25 @@
       updatedAt: nowIso(),
     };
     const invoiceItems = Array.isArray(current.invoiceItems) ? current.invoiceItems : [];
+    const invoiceItemRows = invoiceItems.length
+      ? invoiceItems
+          .map(
+            (item) => `
+              <tr>
+                <td>${escapeHtml(getFeeCategoryLabel(item.category || FEE_CATEGORY_FALLBACK))}</td>
+                <td>
+                  <strong>${escapeHtml(item.name || "Fee item")}</strong>
+                  <span>${escapeHtml(current.invoiceNo || "Assigned fee")}</span>
+                </td>
+                <td>${escapeHtml(item.description || "No note")}</td>
+                <td>${escapeHtml(item.dueDate || current.dueDate || "Not set")}</td>
+                <td>${escapeHtml(formatCurrencyAmount(item.amount || 0))}</td>
+              </tr>
+            `,
+          )
+          .join("")
+      : `<tr><td colspan="5">No fee items have been assigned to your class yet.</td></tr>`;
+
     target.innerHTML = `
       <section class="staff-portal-section admin-surface-card">
         <div class="admin-surface-head">
@@ -24767,32 +24792,22 @@
             [current.sessionName, current.termName].filter(Boolean).join(" • ") || "Not selected",
           )}</strong></div>
         </div>
-        <div class="portal-import-table-wrap parent-fee-invoice-lines">
-          <table class="portal-import-table">
-            <thead>
-              <tr><th>Category</th><th>Fee item</th><th>Note</th><th>Due date</th><th>Amount</th></tr>
-            </thead>
-            <tbody>
-              ${
-                invoiceItems.length
-                  ? invoiceItems
-                      .map(
-                        (item) => `
-                          <tr>
-                            <td>${escapeHtml(getFeeCategoryLabel(item.category || FEE_CATEGORY_FALLBACK))}</td>
-                            <td>${escapeHtml(item.name || "Fee item")}</td>
-                            <td>${escapeHtml(item.description || "No note")}</td>
-                            <td>${escapeHtml(item.dueDate || current.dueDate || "Not set")}</td>
-                            <td>${escapeHtml(formatCurrencyAmount(item.amount || 0))}</td>
-                          </tr>
-                        `,
-                      )
-                      .join("")
-                  : `<tr><td colspan="5">No fee items have been assigned to your class yet.</td></tr>`
-              }
-            </tbody>
-          </table>
-        </div>
+        <section class="portal-fee-line-item-card student-fee-line-item-card">
+          <div class="admin-surface-head">
+            <div>
+              <h2>Fee Breakdown</h2>
+              <span>Assigned items for ${escapeHtml(student.level || "your class")}</span>
+            </div>
+          </div>
+          <div class="portal-fee-line-item-table-wrap">
+            <table class="portal-fee-line-item-table">
+              <thead>
+                <tr><th>Category</th><th>Fee item</th><th>Note</th><th>Due date</th><th>Amount</th></tr>
+              </thead>
+              <tbody>${invoiceItemRows}</tbody>
+            </table>
+          </div>
+        </section>
       </section>
     `;
   }
@@ -27313,37 +27328,104 @@
       return lookup;
     }, {});
 
-    const levelSet = new Set(students.map((student) => String(student.level || "").trim()).filter(Boolean));
-    const filteredClasses = classes.filter((item) => levelSet.has(String(item.level || "").trim()));
+    const resolveClassForStudent = (student = {}) => {
+      const classId = String(student.classId || student.classRecordId || "").trim();
+      if (classId) {
+        const byId = classes.find((item) => String(item.id || "").trim() === classId);
+        if (byId) {
+          return byId;
+        }
+      }
 
-    return filteredClasses.map((classRecord) => {
+      const studentLevelToken = normalizeLevelToken(student.level);
+      if (!studentLevelToken) {
+        return null;
+      }
+
+      const exactDisplayMatch = classes.find((item) => normalizeLevelToken(getClassDisplayName(item)) === studentLevelToken);
+      if (exactDisplayMatch) {
+        return exactDisplayMatch;
+      }
+
+      const levelMatches = classes.filter((item) => normalizeLevelToken(item.level) === studentLevelToken);
+      if (levelMatches.length === 1) {
+        return levelMatches[0];
+      }
+
+      return (
+        levelMatches.find((item) => String(item.classTeacher || "").trim()) ||
+        levelMatches.find((item) => (item.teacherAssignments || []).length) ||
+        levelMatches[0] ||
+        null
+      );
+    };
+
+    const getTeacherInfo = (value = "") => {
+      const raw = String(value || "").trim();
+      const normalized = normalizeEmail(raw);
+      const teacher = teacherByEmail[normalized] || null;
+      return {
+        name: teacher?.name || raw || "Assigned teacher",
+        email: teacher?.email || (EMAIL_REGEX.test(raw) ? raw : ""),
+      };
+    };
+
+    const addTeacherRow = (rows, seen, row = {}) => {
+      const key = normalizeEmail(row.email || "") || `${row.role}:${row.name}:${row.subject}`.toLowerCase();
+      if (!row.name || seen.has(key)) {
+        return;
+      }
+      seen.add(key);
+      rows.push(row);
+    };
+
+    const resolvedGroups = students
+      .map((student) => {
+        const classRecord = resolveClassForStudent(student);
+        return classRecord ? { student, classRecord } : null;
+      })
+      .filter(Boolean);
+
+    return resolvedGroups.map(({ student, classRecord }) => {
       const teacherRows = [];
+      const seenTeachers = new Set();
 
       if (classRecord.classTeacher) {
-        const normalized = normalizeEmail(classRecord.classTeacher);
-        const teacher = teacherByEmail[normalized] || null;
-        teacherRows.push({
+        const teacher = getTeacherInfo(classRecord.classTeacher);
+        addTeacherRow(teacherRows, seenTeachers, {
           role: "Class Teacher",
-          name: teacher?.name || classRecord.classTeacher,
-          email: teacher?.email || (EMAIL_REGEX.test(classRecord.classTeacher) ? classRecord.classTeacher : ""),
+          name: teacher.name,
+          email: teacher.email,
           subject: "General class oversight",
         });
       }
 
       (classRecord.teacherAssignments || []).forEach((assignment) => {
-        const normalized = normalizeEmail(assignment.teacher || "");
-        const teacher = teacherByEmail[normalized] || null;
-        teacherRows.push({
+        const teacher = getTeacherInfo(assignment.teacher || "");
+        addTeacherRow(teacherRows, seenTeachers, {
           role: "Subject Teacher",
-          name: teacher?.name || assignment.teacher || "Assigned teacher",
-          email: teacher?.email || (EMAIL_REGEX.test(assignment.teacher || "") ? assignment.teacher : ""),
+          name: teacher.name,
+          email: teacher.email,
           subject: assignment.subject || "Subject",
+        });
+      });
+
+      getParentCoursesForStudent(student).forEach((course) => {
+        (course.teacherAssignments || []).forEach((teacherValue) => {
+          const teacher = getTeacherInfo(teacherValue);
+          addTeacherRow(teacherRows, seenTeachers, {
+            role: course.creditUnit ? "Course Teacher" : "Subject Teacher",
+            name: teacher.name,
+            email: teacher.email,
+            subject: course.name || course.code || "Subject",
+          });
         });
       });
 
       return {
         id: classRecord.id,
-        className: `${classRecord.level || ""} ${classRecord.name || ""}`.trim() || classRecord.level || classRecord.name,
+        className: getClassDisplayName(classRecord),
+        studentName: student.fullName || "",
         teachers: teacherRows,
       };
     });
@@ -28347,17 +28429,21 @@
         return;
       }
 
-      const isTeacher = recipient?.role === "Teacher";
-      const entityId = isTeacher ? recipient.email || student.level || student.id : parentEmail;
+      const recipientRole = recipient?.role || "Admin";
+      const selectedTeacherEmail = normalizeEmail(recipient?.email || "");
+      const targetEntityId =
+        recipientRole === "Teacher"
+          ? selectedTeacherEmail || recipient?.email || student.level || student.id
+          : student.level || student.id || parentEmail;
       pushNotification(
         {
           title: subject,
           message,
           entityType: "parent-message",
-          entityId,
+          entityId: targetEntityId,
           action: "sent",
           actorName: user.displayName || user.email || "Parent",
-          visibleToRoles: isTeacher ? ["Admin", "Teacher"] : ["Admin"],
+          visibleToRoles: recipientRole === "Teacher" ? ["Teacher"] : ["Admin"],
           metadata: {
             threadId: getParentMessageThreadId(parentEmail, student.id),
             parentEmail,
@@ -28365,9 +28451,10 @@
             studentId: student.id,
             studentName: student.fullName,
             classLevel: student.level || "",
-            recipientRole: recipient?.role || "Admin",
-            recipientEmail: recipient?.email || "",
+            recipientRole,
+            recipientEmail: recipientRole === "Teacher" ? selectedTeacherEmail || recipient?.email || "" : "",
             recipientName: recipient?.label || "School Admin",
+            recipientScope: recipientRole === "Teacher" ? "teacher" : "admin",
           },
         },
         workspaceId,
@@ -28572,7 +28659,7 @@
     }
 
     if (page === "parent-teachers") {
-      renderParentTeachersPage(contentHost, children);
+      renderParentTeachersPage(contentHost, selectedChild ? [selectedChild] : []);
       return;
     }
 
@@ -29839,6 +29926,111 @@
     return "At risk";
   }
 
+  function getAdminParentMessagesForReports(workspaceId = null) {
+    const targetWorkspaceId = normalizeWorkspaceId(workspaceId || getCurrentWorkspaceId());
+    return getNotifications(targetWorkspaceId)
+      .filter((entry) => String(entry.entityType || "").toLowerCase() === "parent-message")
+      .filter((entry) => {
+        const metadata = entry.metadata || {};
+        const recipientRole = normalizeRoleLabel(metadata.recipientRole || "");
+        const recipientScope = String(metadata.recipientScope || "").trim().toLowerCase();
+        return recipientRole === "Admin" || recipientScope === "admin";
+      })
+      .sort((left, right) => String(right.createdAt || "").localeCompare(String(left.createdAt || "")));
+  }
+
+  function renderAdminReportParentMessages(target) {
+    if (!target) {
+      return;
+    }
+
+    const messages = getAdminParentMessagesForReports().slice(0, 20);
+
+    if (!messages.length) {
+      target.innerHTML = `
+        <article class="portal-class-empty">
+          <strong>No parent messages yet</strong>
+          <p>Messages sent by parents to School Admin will appear here.</p>
+        </article>
+      `;
+      return;
+    }
+
+    target.innerHTML = messages
+      .map((entry) => {
+        const metadata = entry.metadata || {};
+        const parentName = metadata.parentName || entry.actorName || "Parent";
+        const studentName = metadata.studentName || "Student not linked";
+        const classLevel = metadata.classLevel || "Class not set";
+        return `
+          <article class="admin-report-parent-message">
+            <header>
+              <div>
+                <span>${escapeHtml(parentName)} - ${escapeHtml(studentName)}</span>
+                <strong>${escapeHtml(entry.title || "Parent message")}</strong>
+              </div>
+              <small>${escapeHtml(formatTimestamp(entry.createdAt || nowIso()))}</small>
+            </header>
+            <p>${escapeHtml(entry.message || "No message body.")}</p>
+            <footer>
+              <span>${escapeHtml(classLevel)}</span>
+              <span>To School Admin</span>
+            </footer>
+            <form class="portal-settings-form admin-report-parent-reply-form" data-admin-report-parent-reply-form data-message-id="${escapeHtml(entry.id)}" novalidate>
+              <label class="portal-field">
+                <span>Reply to parent</span>
+                <textarea name="reply" rows="3" placeholder="Type a reply to the parent."></textarea>
+              </label>
+              <div class="utility-actions">
+                <button class="portal-class-button" type="submit">Send reply</button>
+              </div>
+            </form>
+          </article>
+        `;
+      })
+      .join("");
+  }
+
+  function wireAdminReportParentMessages(target) {
+    if (!target || target.dataset.adminParentMessagesWired === "true") {
+      return;
+    }
+
+    target.dataset.adminParentMessagesWired = "true";
+    target.addEventListener("submit", (event) => {
+      const form = event.target.closest("[data-admin-report-parent-reply-form]");
+      if (!form) {
+        return;
+      }
+
+      event.preventDefault();
+      const session = getSession();
+      const user = session?.userId ? getUsers().find((entry) => entry.id === session.userId) || null : null;
+      const workspaceId = normalizeWorkspaceId(session?.workspaceId || user?.workspaceId || getCurrentWorkspaceId());
+      const messageId = String(form.dataset.messageId || "").trim();
+      const message = getNotifications(workspaceId).find((entry) => entry.id === messageId);
+      const reply = String(form.elements.reply?.value || "").trim();
+
+      if (!reply) {
+        form.elements.reply?.focus();
+        return;
+      }
+
+      if (!message) {
+        return;
+      }
+
+      sendParentMessageReply(message, user || { role: "Admin", workspaceId }, reply);
+      form.reset();
+      const button = form.querySelector("button[type='submit']");
+      if (button) {
+        button.textContent = "Reply sent";
+        button.disabled = true;
+      }
+      window.setTimeout(() => renderAdminReportParentMessages(target), 450);
+    });
+  }
+
   function buildAdminReportSnapshot() {
     const workspaceId = normalizeWorkspaceId(getCurrentWorkspaceId());
     const users = getUsers().filter((user) => normalizeWorkspaceId(user.workspaceId) === workspaceId);
@@ -29928,6 +30120,7 @@
     const insightsTarget = document.getElementById("admin-report-insights");
     const healthTarget = document.getElementById("admin-report-health");
     const areasTarget = document.getElementById("admin-report-areas");
+    const parentMessagesTarget = document.getElementById("admin-report-parent-messages");
     const checklistTarget = document.getElementById("admin-report-checklist");
 
     if (!kpiTarget || !insightsTarget || !healthTarget || !areasTarget || !checklistTarget) {
@@ -30147,6 +30340,9 @@
       )
       .join("");
 
+    renderAdminReportParentMessages(parentMessagesTarget);
+    wireAdminReportParentMessages(parentMessagesTarget);
+
     const checklist = [
       {
         label: "Students are entered",
@@ -30225,6 +30421,7 @@
       getAdmissionConfigManager()?.eventName,
       ADMISSIONS_EVENT_NAME,
       PARENT_FEES_EVENT_NAME,
+      NOTIFICATION_EVENT_NAME,
     ]
       .filter(Boolean)
       .forEach((eventName) => {
