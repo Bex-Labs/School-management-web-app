@@ -298,7 +298,7 @@
       label: "Messages",
       href: "./staff-messages.html",
       permissionKey: "staff_messages_view",
-      description: "Inbox from admin, parents, and colleagues",
+      description: "Message admin, linked parents, and assigned students",
     },
     {
       key: "leave",
@@ -355,7 +355,7 @@
     "staff-messages": {
       key: "messages",
       heading: "Messages",
-      copy: "Inbox from admin, parents, and colleagues.",
+      copy: "Message school admin, linked parents, and students in your assigned classes.",
     },
     "staff-leave": {
       key: "leave",
@@ -413,6 +413,13 @@
       href: "./portal.html#reports",
       permissionKey: "student_reports_view",
       description: "Released results and PDFs",
+    },
+    {
+      key: "messages",
+      label: "Messages",
+      href: "./portal.html#messages",
+      permissionKey: "student_messages_view",
+      description: "School admin and connected teachers",
     },
     {
       key: "profile",
@@ -1702,10 +1709,14 @@
     const roleFiltered = filterNotificationsByRole(notifications, scope.role);
 
     if (scope.role === "Admin") {
-      return roleFiltered;
+      return roleFiltered.filter((entry) => !isNotificationHiddenForViewer(entry, scope.user || session, scope.role));
     }
 
-    return roleFiltered.filter((entry) => notificationMatchesUserScope(entry, scope));
+    return roleFiltered.filter(
+      (entry) =>
+        notificationMatchesUserScope(entry, scope) &&
+        !isNotificationHiddenForViewer(entry, scope.user || session, scope.role),
+    );
   }
 
   function normalizeNotificationEntry(entry = {}, workspaceId = null) {
@@ -1770,6 +1781,198 @@
 
   function isNotificationUnread(entry = {}) {
     return !String(entry.readAt || "").trim();
+  }
+
+  function getNotificationViewer(userOrSession = {}, roleOverride = "") {
+    const session = getSession() || {};
+    const role = normalizeRoleLabel(roleOverride || userOrSession.role || session.role || DEFAULT_AUTH_ROLE);
+    const email = normalizeEmail(userOrSession.email || session.email || "");
+    const id = String(userOrSession.id || userOrSession.userId || session.userId || "").trim().toLowerCase();
+    const identity = email || id || "anonymous";
+
+    return {
+      role,
+      email,
+      id,
+      key: `${role.toLowerCase()}:${identity}`,
+    };
+  }
+
+  function getNotificationViewerList(entry = {}, field = "") {
+    const values = entry.metadata?.[field];
+    return Array.isArray(values)
+      ? values.map((value) => String(value || "").trim().toLowerCase()).filter(Boolean)
+      : [];
+  }
+
+  function isNotificationAuthoredByViewer(entry = {}, viewer = {}) {
+    const metadata = entry.metadata || {};
+    const entityType = String(entry.entityType || "").trim().toLowerCase();
+
+    if (entityType === "school-message") {
+      const senderEmail = normalizeEmail(metadata.senderEmail || "");
+      const senderRole = normalizeRoleLabel(metadata.senderRole || "");
+      return senderEmail ? senderEmail === viewer.email : senderRole === viewer.role;
+    }
+
+    if (viewer.role === "Parent" && entityType === "parent-message") {
+      return Boolean(viewer.email && normalizeEmail(metadata.parentEmail || "") === viewer.email);
+    }
+
+    if ((viewer.role === "Teacher" || viewer.role === "Admin") && entityType === "parent-message-reply") {
+      const replyEmail = normalizeEmail(metadata.replyByEmail || "");
+      const replyRole = normalizeRoleLabel(metadata.replyByRole || "");
+      return replyEmail ? replyEmail === viewer.email : replyRole === viewer.role;
+    }
+
+    return false;
+  }
+
+  function isNotificationHiddenForViewer(entry = {}, userOrSession = {}, roleOverride = "") {
+    const viewer = getNotificationViewer(userOrSession, roleOverride);
+    return getNotificationViewerList(entry, "hiddenFor").includes(viewer.key);
+  }
+
+  function isNotificationUnreadForViewer(entry = {}, userOrSession = {}, roleOverride = "") {
+    const viewer = getNotificationViewer(userOrSession, roleOverride);
+
+    if (
+      isNotificationAuthoredByViewer(entry, viewer) ||
+      getNotificationViewerList(entry, "hiddenFor").includes(viewer.key) ||
+      getNotificationViewerList(entry, "readBy").includes(viewer.key)
+    ) {
+      return false;
+    }
+
+    return isNotificationUnread(entry);
+  }
+
+  function updateNotificationsForViewer(
+    notificationIds = [],
+    userOrSession = {},
+    roleOverride = "",
+    field = "readBy",
+    workspaceId = null,
+  ) {
+    const normalizedWorkspaceId = normalizeWorkspaceId(
+      workspaceId || userOrSession.workspaceId || getCurrentWorkspaceId(),
+    );
+    const viewer = getNotificationViewer(userOrSession, roleOverride);
+    const idSet = new Set(notificationIds.map((id) => String(id || "").trim()).filter(Boolean));
+
+    if (!idSet.size || !viewer.key) {
+      return false;
+    }
+
+    let changed = false;
+    const nextNotifications = getNotifications(normalizedWorkspaceId).map((entry) => {
+      if (!idSet.has(entry.id)) {
+        return entry;
+      }
+
+      const currentValues = getNotificationViewerList(entry, field);
+      if (currentValues.includes(viewer.key)) {
+        return entry;
+      }
+
+      changed = true;
+      return {
+        ...entry,
+        metadata: {
+          ...(entry.metadata || {}),
+          [field]: [...currentValues, viewer.key],
+        },
+      };
+    });
+
+    if (!changed) {
+      return false;
+    }
+
+    saveNotifications(nextNotifications, normalizedWorkspaceId);
+    window.dispatchEvent(
+      new CustomEvent(NOTIFICATION_EVENT_NAME, {
+        detail: {
+          workspaceId: normalizedWorkspaceId,
+        },
+      }),
+    );
+    return true;
+  }
+
+  function markNotificationsReadForViewer(notificationIds = [], userOrSession = {}, roleOverride = "", workspaceId = null) {
+    return updateNotificationsForViewer(notificationIds, userOrSession, roleOverride, "readBy", workspaceId);
+  }
+
+  function hideNotificationsForViewer(notificationIds = [], userOrSession = {}, roleOverride = "", workspaceId = null) {
+    return updateNotificationsForViewer(notificationIds, userOrSession, roleOverride, "hiddenFor", workspaceId);
+  }
+
+  function isPortalMessageEntry(entry = {}) {
+    return ["parent-message", "parent-message-reply", "school-message"].includes(
+      String(entry.entityType || "").trim().toLowerCase(),
+    );
+  }
+
+  function isPortalMessageOutgoingForViewer(entry = {}, userOrSession = {}, roleOverride = "") {
+    const entityType = String(entry.entityType || "").trim().toLowerCase();
+    if (entityType === "school-message") {
+      return isNotificationAuthoredByViewer(entry, getNotificationViewer(userOrSession, roleOverride));
+    }
+
+    const role = normalizeRoleLabel(roleOverride || userOrSession.role || DEFAULT_AUTH_ROLE);
+    const isReply = entityType === "parent-message-reply";
+    return role === "Parent" ? !isReply : isReply;
+  }
+
+  function getSchoolMessageConversationId(role = "", email = "") {
+    return `school-contact:${normalizeRoleLabel(role).toLowerCase()}:${normalizeEmail(email)}`;
+  }
+
+  function sendSchoolDirectMessage({
+    sender = {},
+    recipient = {},
+    message = "",
+    subject = "",
+    workspaceId = null,
+    metadata = {},
+  } = {}) {
+    const body = String(message || "").trim();
+    const recipientEmail = normalizeEmail(recipient.email || "");
+    const recipientRole = normalizeRoleLabel(recipient.role || DEFAULT_AUTH_ROLE);
+    const senderRole = normalizeRoleLabel(sender.role || DEFAULT_AUTH_ROLE);
+    const senderEmail = normalizeEmail(sender.email || "");
+
+    if (!body || !recipientEmail || !["Admin", "Parent", "Teacher", "Student"].includes(recipientRole)) {
+      return null;
+    }
+
+    return pushNotification(
+      {
+        title: String(subject || `Message from ${sender.displayName || sender.email || senderRole}`).trim(),
+        message: body,
+        entityType: "school-message",
+        entityId: recipientEmail,
+        action: "sent",
+        actorName: sender.displayName || sender.email || senderRole,
+        visibleToRoles: [recipientRole],
+        metadata: {
+          ...metadata,
+          conversationId:
+            String(metadata.conversationId || "").trim() ||
+            getSchoolMessageConversationId(recipientRole, recipientEmail),
+          senderId: sender.id || "",
+          senderEmail,
+          senderName: sender.displayName || sender.email || senderRole,
+          senderRole,
+          recipientId: recipient.id || "",
+          recipientEmail,
+          recipientName: recipient.displayName || recipient.name || recipient.email || recipientRole,
+          recipientRole,
+        },
+      },
+      workspaceId || sender.workspaceId || recipient.workspaceId || getCurrentWorkspaceId(),
+    );
   }
 
   function markNotificationsRead(notificationIds = [], workspaceId = null) {
@@ -24835,6 +25038,159 @@
     target.querySelector(".parent-report-card-command .admin-surface-head span")?.replaceChildren(document.createTextNode("Released results and PDFs."));
   }
 
+  function buildStudentMessageThreads(user = {}, student = null) {
+    const workspaceId = normalizeWorkspaceId(user.workspaceId || getCurrentWorkspaceId());
+    const studentEmail = normalizeEmail(user.email || student?.studentEmail || student?.email || "");
+    const threadMap = new Map();
+    const addContact = (contact = {}) => {
+      const role = normalizeRoleLabel(contact.role || "");
+      const email = normalizeEmail(contact.email || "");
+      if (!email || !["Admin", "Teacher"].includes(role)) {
+        return;
+      }
+      const key = `${role.toLowerCase()}:${email}`;
+      if (threadMap.has(key)) {
+        return;
+      }
+      threadMap.set(key, {
+        key,
+        name: contact.displayName || email,
+        detail: contact.detail || (role === "Admin" ? "School administration" : "Class teacher"),
+        emptyLabel: `Start a conversation with ${contact.displayName || email}.`,
+        contact: {
+          ...contact,
+          role,
+          email,
+        },
+        searchText: [
+          contact.displayName,
+          contact.id,
+          contact.email,
+          contact.subject,
+          contact.classLevel,
+          role,
+        ]
+          .filter(Boolean)
+          .join(" "),
+        messages: [],
+        unreadIds: [],
+        lastAt: "",
+      });
+    };
+
+    getUsers()
+      .filter((entry) => normalizeWorkspaceId(entry.workspaceId || "") === workspaceId)
+      .filter((entry) => normalizeUserStatus(entry.status) === "active")
+      .filter((entry) => normalizeRoleLabel(entry.role || "") === "Admin")
+      .forEach((admin) => {
+        addContact({
+          id: admin.id || "",
+          role: "Admin",
+          email: admin.email || "",
+          displayName: admin.displayName || admin.email || "School Admin",
+          detail: "School administration",
+        });
+      });
+
+    getParentMessageRecipientOptions(student, student ? [student] : [])
+      .filter((recipient) => normalizeRoleLabel(recipient.role || "") === "Teacher")
+      .forEach((recipient) => {
+        addContact({
+          id: recipient.id || "",
+          role: "Teacher",
+          email: recipient.email || "",
+          displayName: recipient.label || recipient.email || "Teacher",
+          detail: [recipient.subject, student?.level].filter(Boolean).join(" - ") || "Connected teacher",
+          subject: recipient.subject || "",
+          classLevel: student?.level || "",
+        });
+      });
+
+    getNotifications(workspaceId)
+      .filter((entry) => String(entry.entityType || "").trim().toLowerCase() === "school-message")
+      .filter((entry) => !isNotificationHiddenForViewer(entry, user, "Student"))
+      .filter((entry) => {
+        const metadata = entry.metadata || {};
+        return (
+          normalizeEmail(metadata.senderEmail || "") === studentEmail ||
+          normalizeEmail(metadata.recipientEmail || "") === studentEmail
+        );
+      })
+      .sort((left, right) => String(left.createdAt || "").localeCompare(String(right.createdAt || "")))
+      .forEach((entry) => {
+        const metadata = entry.metadata || {};
+        const studentIsSender = normalizeEmail(metadata.senderEmail || "") === studentEmail;
+        const contactRole = normalizeRoleLabel(
+          studentIsSender ? metadata.recipientRole || "" : metadata.senderRole || "",
+        );
+        const contactEmail = normalizeEmail(
+          studentIsSender ? metadata.recipientEmail || "" : metadata.senderEmail || "",
+        );
+        const key = `${contactRole.toLowerCase()}:${contactEmail}`;
+        if (!threadMap.has(key)) {
+          addContact({
+            id: studentIsSender ? metadata.recipientId || "" : metadata.senderId || "",
+            role: contactRole,
+            email: contactEmail,
+            displayName:
+              (studentIsSender ? metadata.recipientName : metadata.senderName) ||
+              contactEmail ||
+              "School contact",
+            detail: `${contactRole} conversation`,
+          });
+        }
+        const thread = threadMap.get(key);
+        if (!thread) {
+          return;
+        }
+        thread.messages.push(entry);
+        thread.lastAt = entry.createdAt || thread.lastAt;
+        if (isNotificationUnreadForViewer(entry, user, "Student")) {
+          thread.unreadIds.push(entry.id);
+        }
+      });
+
+    return Array.from(threadMap.values()).sort((left, right) => {
+      if (left.lastAt && right.lastAt) {
+        return String(right.lastAt).localeCompare(String(left.lastAt));
+      }
+      if (left.lastAt) return -1;
+      if (right.lastAt) return 1;
+      return left.name.localeCompare(right.name);
+    });
+  }
+
+  function renderStudentMessagesSection(target, user = {}, student = null) {
+    const threads = buildStudentMessageThreads(user, student);
+    renderPortalMessageInbox(target, {
+      threads,
+      user,
+      role: "Student",
+      heading: "Conversations",
+      emptyMessage: "School Admin and connected teachers will appear here.",
+      recipientPlaceholder: "Search School Admin or a connected teacher",
+      composerPlaceholder: "Type your message",
+      onRefresh: () => renderStudentMessagesSection(target, user, student),
+      onSend: (thread, payload) => {
+        if (!thread?.contact) {
+          return;
+        }
+        sendSchoolDirectMessage({
+          sender: user,
+          recipient: thread.contact,
+          message: payload.message,
+          workspaceId: user.workspaceId,
+          metadata: {
+            conversationId: getSchoolMessageConversationId(thread.contact.role, thread.contact.email),
+            studentId: student?.id || user.studentRecordId || "",
+            studentName: student?.fullName || user.displayName || "",
+            classLevel: student?.level || "",
+          },
+        });
+      },
+    });
+  }
+
   function renderStudentPortalWorkspace(target, user = {}) {
     if (!target) {
       return;
@@ -24862,6 +25218,8 @@
       renderStudentFeesSection(target, student, user);
     } else if (sectionKey === "reports") {
       renderStudentReportsSection(target, student);
+    } else if (sectionKey === "messages") {
+      renderStudentMessagesSection(target, user, student);
     } else {
       renderStudentDashboardSection(target, user, student);
     }
@@ -24896,7 +25254,9 @@
           : null;
       return !record;
     }).length;
-    const unreadMessages = getTeacherPortalNotifications(user).filter((entry) => isNotificationUnread(entry)).length;
+    const unreadMessages = getTeacherPortalNotifications(user).filter((entry) =>
+      isNotificationUnreadForViewer(entry, user, "Teacher"),
+    ).length;
 
     const cards = [
       {
@@ -25033,7 +25393,7 @@
           </a>
           <a class="staff-portal-tile staff-portal-link-tile" href="./staff-messages.html">
             <span>Unread messages</span>
-            <strong>${notifications.filter((entry) => isNotificationUnread(entry)).length}</strong>
+            <strong>${notifications.filter((entry) => isNotificationUnreadForViewer(entry, user, "Teacher")).length}</strong>
             <p>Admin, parent, and colleague updates.</p>
           </a>
         </div>
@@ -25851,102 +26211,668 @@
     `;
   }
 
-  function buildStaffMessagesSection(user) {
-    const notifications = getTeacherPortalNotifications(user)
-      .filter((entry) => ["parent-message", "parent-message-reply"].includes(String(entry.entityType || "").toLowerCase()))
-      .slice(0, 20);
-
-    return `
-      <section class="staff-portal-section admin-surface-card">
-        <div class="admin-surface-head">
-          <div>
-            <h2>Messages</h2>
-            <span>${notifications.length} parent message${notifications.length === 1 ? "" : "s"}</span>
-          </div>
-        </div>
-        <div class="portal-message-thread portal-message-thread-staff">
-          ${
-            notifications.length
-              ? notifications
-                  .map(
-                    (entry) => {
-                      const isReply = String(entry.entityType || "") === "parent-message-reply";
-                      const metadata = entry.metadata || {};
-                      return `
-                      <article class="portal-message-bubble ${isReply ? "is-outgoing" : "is-incoming"}">
-                        <div class="portal-message-bubble-meta">
-                          <strong>${escapeHtml(isReply ? "You" : metadata.parentName || entry.actorName || "Parent")}</strong>
-                          <span>${escapeHtml(formatTimestamp(entry.createdAt || nowIso()))}</span>
-                        </div>
-                        <p>${escapeHtml(entry.message || entry.entityType || "School update")}</p>
-                        <small>${escapeHtml(isReply ? entry.title || "Reply sent" : entry.title || "Parent message")}</small>
-                        ${
-                          !isReply
-                            ? `
-                              <form class="portal-message-inline-reply" data-parent-message-reply-form data-message-id="${escapeHtml(entry.id)}" novalidate>
-                                <label class="portal-field">
-                                  <span>Reply</span>
-                                  <textarea name="reply" rows="2" placeholder="Type a reply for the parent."></textarea>
-                                </label>
-                                <div class="utility-actions">
-                                  <button class="portal-class-button" type="submit">Send reply</button>
-                                </div>
-                              </form>
-                            `
-                            : ""
-                        }
-                      </article>
-                    `;
-                    },
-                  )
-                  .join("")
-              : `
-                <article class="portal-class-empty">
-                  <strong>No messages yet</strong>
-                  <p>Admin notices and school updates will appear here.</p>
-                </article>
-              `
-          }
-        </div>
-      </section>
-    `;
+  function getPortalMessageInitials(value = "") {
+    return String(value || "?")
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part.charAt(0).toUpperCase())
+      .join("");
   }
 
-  function wireStaffMessagesSection(target, user) {
-    if (!target || target.dataset.staffMessagesWired === "true") {
+  function getParentRecipientConversationKey(recipient = {}) {
+    const role = normalizeRoleLabel(recipient.role || recipient.recipientRole || "Admin");
+    if (role === "Teacher") {
+      return `teacher:${normalizeEmail(recipient.email || recipient.recipientEmail || "") || String(
+        recipient.value || recipient.recipientName || "teacher",
+      ).toLowerCase()}`;
+    }
+    return "admin";
+  }
+
+  function getMessageConversationKey(entry = {}, viewerRole = "Parent") {
+    const metadata = entry.metadata || {};
+    const entityType = String(entry.entityType || "").trim().toLowerCase();
+    if (entityType === "school-message") {
+      const role = normalizeRoleLabel(viewerRole);
+      const senderRole = normalizeRoleLabel(metadata.senderRole || "");
+      const recipientRole = normalizeRoleLabel(metadata.recipientRole || "");
+      const viewerIsSender = senderRole === role;
+      const contactRole = viewerIsSender ? recipientRole : senderRole;
+      const contactEmail = normalizeEmail(
+        viewerIsSender ? metadata.recipientEmail || "" : metadata.senderEmail || "",
+      );
+
+      if (role === "Parent") {
+        return contactRole === "Teacher" ? `teacher:${contactEmail}` : "admin";
+      }
+
+      if (role === "Teacher") {
+        if (contactRole === "Admin") {
+          return `admin:${contactEmail || "school"}`;
+        }
+        if (contactRole === "Parent") {
+          return getParentMessageThreadId(contactEmail, String(metadata.studentId || "student").trim());
+        }
+        return `${contactRole.toLowerCase()}:${contactEmail}`;
+      }
+
+      return `${contactRole.toLowerCase()}:${contactEmail}`;
+    }
+
+    if (normalizeRoleLabel(viewerRole) === "Parent") {
+      return getParentRecipientConversationKey({
+        role: metadata.recipientRole,
+        email: metadata.recipientEmail,
+        recipientName: metadata.recipientName,
+      });
+    }
+    return (
+      String(metadata.threadId || "").trim() ||
+      `parent:${normalizeEmail(metadata.parentEmail || "")}:${String(metadata.studentId || "student").trim()}`
+    );
+  }
+
+  function renderPortalMessageInbox(target, options = {}) {
+    if (!target) {
       return;
     }
 
-    target.dataset.staffMessagesWired = "true";
-    target.addEventListener("submit", (event) => {
-      const form = event.target.closest("[data-parent-message-reply-form]");
-      if (!form) {
+    const threads = Array.isArray(options.threads) ? options.threads : [];
+    const user = options.user || {};
+    const role = normalizeRoleLabel(options.role || user.role || DEFAULT_AUTH_ROLE);
+    const workspaceId = normalizeWorkspaceId(user.workspaceId || getCurrentWorkspaceId());
+    const savedActiveKey = String(target.dataset.activeMessageThread || "").trim();
+    const activeThread = threads.find((thread) => thread.key === savedActiveKey) || null;
+
+    if (activeThread) {
+      target.dataset.activeMessageThread = activeThread.key;
+    } else if (savedActiveKey) {
+      delete target.dataset.activeMessageThread;
+    }
+
+    const recipientGroups = threads.reduce((groups, thread) => {
+      const groupRole = normalizeRoleLabel(
+        thread.contact?.role || thread.recipient?.role || thread.role || "Parent",
+      );
+      if (!groups.has(groupRole)) {
+        groups.set(groupRole, []);
+      }
+      groups.get(groupRole).push(thread);
+      return groups;
+    }, new Map());
+    const groupOrder =
+      role === "Parent"
+        ? ["Admin", "Teacher"]
+        : role === "Teacher"
+          ? ["Admin", "Parent", "Student"]
+          : role === "Student"
+            ? ["Admin", "Teacher"]
+            : ["Parent", "Teacher", "Student"];
+    const recipientDirectory = groupOrder
+      .filter((groupRole) => recipientGroups.has(groupRole))
+      .map((groupRole) => {
+        const label = groupRole === "Teacher" ? "Staff" : `${groupRole}s`;
+        const recipientRows = recipientGroups
+          .get(groupRole)
+          .map(
+            (thread) => `
+              <button
+                class="portal-recipient-result"
+                type="button"
+                data-message-recipient-key="${escapeHtml(thread.key)}"
+                data-message-recipient-search="${escapeHtml(
+                  [
+                    thread.name,
+                    thread.detail,
+                    thread.contact?.id,
+                    thread.contact?.email,
+                    thread.contact?.studentId,
+                    thread.contact?.studentName,
+                    thread.contact?.classLevel,
+                    thread.contact?.admissionNo,
+                    thread.contact?.searchText,
+                    thread.recipient?.email,
+                    thread.recipient?.subject,
+                    thread.searchText,
+                    groupRole,
+                  ]
+                    .filter(Boolean)
+                    .join(" ")
+                    .toLowerCase(),
+                )}"
+              >
+                <span class="portal-inbox-avatar">${escapeHtml(getPortalMessageInitials(thread.name))}</span>
+                <span>
+                  <strong>${escapeHtml(thread.name)}</strong>
+                  <small>${escapeHtml(thread.detail || groupRole)}</small>
+                </span>
+                <em>${escapeHtml(groupRole === "Teacher" ? "Staff" : groupRole)}</em>
+              </button>
+            `,
+          )
+          .join("");
+        return `
+          <section class="portal-recipient-group" data-message-recipient-group>
+            <h3>${escapeHtml(label)}</h3>
+            <div>${recipientRows}</div>
+          </section>
+        `;
+      })
+      .join("");
+    const recipientPlaceholder =
+      options.recipientPlaceholder ||
+      (role === "Parent"
+        ? "Select School Admin or staff"
+        : role === "Teacher"
+          ? "Search School Admin, parents or students"
+          : role === "Student"
+            ? "Search School Admin or connected teachers"
+            : "Search parents, teachers or students");
+    const totalUnread = threads.reduce((count, thread) => count + thread.unreadIds.length, 0);
+    const conversationThreads = threads.filter((thread) => thread.messages.length > 0);
+    const conversationRows = activeThread
+      ? conversationThreads
+          .map((thread) => {
+            const latestMessage = thread.messages[thread.messages.length - 1] || null;
+            const threadRole = normalizeRoleLabel(
+              thread.contact?.role || thread.recipient?.role || thread.role || "Parent",
+            );
+            const preview = latestMessage?.message || thread.detail || "No messages yet";
+            return `
+              <button
+                class="portal-inbox-thread ${thread.key === activeThread.key ? "is-active" : ""}"
+                type="button"
+                data-message-thread="${escapeHtml(thread.key)}"
+                aria-pressed="${thread.key === activeThread.key ? "true" : "false"}"
+              >
+                <span class="portal-inbox-avatar ${thread.unreadIds.length ? "is-unread" : ""}">
+                  ${escapeHtml(getPortalMessageInitials(thread.name))}
+                </span>
+                <span class="portal-inbox-thread-copy">
+                  <span class="portal-inbox-thread-head">
+                    <strong>${escapeHtml(thread.name)}</strong>
+                    ${
+                      latestMessage?.createdAt
+                        ? `<time>${escapeHtml(formatTimestamp(latestMessage.createdAt))}</time>`
+                        : `<span class="portal-inbox-role">${escapeHtml(threadRole === "Teacher" ? "Staff" : threadRole)}</span>`
+                    }
+                  </span>
+                  <span class="portal-inbox-thread-preview ${thread.unreadIds.length ? "is-unread" : ""}">
+                    ${escapeHtml(preview)}
+                  </span>
+                </span>
+              </button>
+            `;
+          })
+          .join("")
+      : "";
+
+    const messageRows = activeThread?.messages.length
+      ? activeThread.messages
+          .map((entry) => {
+            const isOutgoing = isPortalMessageOutgoingForViewer(entry, user, role);
+            const metadata = entry.metadata || {};
+            const sender = isOutgoing
+              ? "You"
+              : role === "Parent"
+                ? metadata.senderName || entry.actorName || metadata.replyByRole || "School"
+                : metadata.senderName || metadata.parentName || entry.actorName || "Parent";
+            return `
+              <article class="portal-chat-bubble ${isOutgoing ? "is-outgoing" : "is-incoming"}">
+                <div class="portal-chat-bubble-copy">${escapeHtml(entry.message || "No message body.")}</div>
+                <footer>
+                  <strong>${escapeHtml(sender)}</strong>
+                  <time>${escapeHtml(formatTimestamp(entry.createdAt || nowIso()))}</time>
+                </footer>
+              </article>
+            `;
+          })
+          .join("")
+      : `
+        <div class="portal-chat-empty">
+          <strong>No messages in this conversation</strong>
+          <span>${escapeHtml(activeThread?.emptyLabel || "Write a message below to begin.")}</span>
+        </div>
+      `;
+
+    target.hidden = false;
+    target.innerHTML = `
+      <section class="portal-conversation-inbox" aria-label="${escapeHtml(options.heading || "Messages")}">
+        <header class="portal-recipient-toolbar">
+          <div>
+            <h2>${escapeHtml(options.heading || "Messages")}</h2>
+            <span>${threads.length} available contact${threads.length === 1 ? "" : "s"}</span>
+          </div>
+          <button class="portal-recipient-open" type="button" data-message-recipient-open ${threads.length ? "" : "disabled"}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"></path>
+            </svg>
+            <span>New message</span>
+            <i class="portal-recipient-unread-dot" ${totalUnread ? "" : "hidden"} aria-hidden="true"></i>
+          </button>
+        </header>
+        <section class="portal-recipient-picker" data-message-recipient-picker hidden>
+          <header>
+            <div>
+              <strong>Choose recipient</strong>
+              <span>${escapeHtml(recipientPlaceholder)}</span>
+            </div>
+            <button type="button" data-message-recipient-close aria-label="Close recipient search">&times;</button>
+          </header>
+          <label class="portal-recipient-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path>
+            </svg>
+            <input type="search" data-message-recipient-search placeholder="Search name, ID or class" autocomplete="off" />
+          </label>
+          <div class="portal-recipient-directory">
+            ${recipientDirectory || `<div class="portal-recipient-empty">${escapeHtml(options.emptyMessage || "No contacts available")}</div>`}
+            <div class="portal-recipient-empty" data-message-recipient-empty hidden>No matching recipients found.</div>
+          </div>
+        </section>
+        <div class="portal-conversation-body ${activeThread ? "has-active-thread" : ""} ${
+          conversationThreads.length ? "has-conversation-list" : ""
+        }">
+          ${
+            activeThread && conversationThreads.length
+              ? `
+                <aside class="portal-inbox-sidebar" aria-label="Conversation list">
+                  <header>
+                    <div>
+                      <h2>Conversations</h2>
+                      <span>${conversationThreads.length}</span>
+                    </div>
+                  </header>
+                  <div class="portal-inbox-list">${conversationRows}</div>
+                </aside>
+              `
+              : ""
+          }
+          <section class="portal-chat-panel">
+            ${
+              activeThread
+                ? `
+                <header class="portal-chat-header">
+                  <span class="portal-inbox-avatar">${escapeHtml(getPortalMessageInitials(activeThread.name))}</span>
+                  <div>
+                    <strong>${escapeHtml(activeThread.name)}</strong>
+                    <span>${escapeHtml(activeThread.detail || "School conversation")}</span>
+                  </div>
+                  <button
+                    class="portal-chat-delete"
+                    type="button"
+                    data-message-delete-thread="${escapeHtml(activeThread.key)}"
+                    aria-label="Delete conversation with ${escapeHtml(activeThread.name)}"
+                    title="Delete conversation"
+                    ${activeThread.messages.length ? "" : "disabled"}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="m19 6-1 14H6L5 6"></path><path d="M10 11v5"></path><path d="M14 11v5"></path>
+                    </svg>
+                  </button>
+                </header>
+                <div class="portal-chat-history" data-message-history>${messageRows}</div>
+                <form class="portal-chat-composer" data-message-composer novalidate>
+                  <div class="auth-status" data-message-status role="alert" aria-live="polite" hidden></div>
+                  ${
+                    options.showSubject
+                      ? `<input name="subject" type="text" placeholder="Message subject" aria-label="Message subject" />`
+                      : ""
+                  }
+                  <div class="portal-chat-compose-row">
+                    <textarea name="message" rows="1" placeholder="${escapeHtml(
+                      options.composerPlaceholder || `Reply to ${activeThread.name}`,
+                    )}" aria-label="Message" required></textarea>
+                    <button class="portal-chat-send" type="submit" aria-label="Send message" title="Send message">
+                      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z"></path></svg>
+                    </button>
+                  </div>
+                </form>
+              `
+                : `
+                <div class="portal-chat-placeholder">
+                  <strong>Select who you want to message</strong>
+                  <span>Choose a recipient above to view the conversation history or start a new message.</span>
+                </div>
+              `
+            }
+          </section>
+        </div>
+      </section>
+    `;
+
+    const history = target.querySelector("[data-message-history]");
+    if (history) {
+      history.scrollTop = history.scrollHeight;
+    }
+
+    const recipientPicker = target.querySelector("[data-message-recipient-picker]");
+    const recipientSearch = target.querySelector("[data-message-recipient-search]");
+    const setRecipientPickerOpen = (isOpen) => {
+      if (!recipientPicker) {
         return;
       }
+      recipientPicker.hidden = !isOpen;
+      target.querySelector("[data-message-recipient-open]")?.setAttribute("aria-expanded", String(isOpen));
+      if (isOpen) {
+        window.setTimeout(() => recipientSearch?.focus(), 0);
+      }
+    };
 
+    target.querySelector("[data-message-recipient-open]")?.addEventListener("click", () => {
+      setRecipientPickerOpen(recipientPicker?.hidden !== false);
+    });
+    target.querySelector("[data-message-recipient-close]")?.addEventListener("click", () => {
+      setRecipientPickerOpen(false);
+    });
+    recipientSearch?.addEventListener("input", () => {
+      const query = String(recipientSearch.value || "").trim().toLowerCase();
+      let visibleCount = 0;
+      target.querySelectorAll("[data-message-recipient-key]").forEach((button) => {
+        const matches = !query || String(button.dataset.messageRecipientSearch || "").includes(query);
+        button.hidden = !matches;
+        if (matches) {
+          visibleCount += 1;
+        }
+      });
+      target.querySelectorAll("[data-message-recipient-group]").forEach((group) => {
+        group.hidden = !group.querySelector("[data-message-recipient-key]:not([hidden])");
+      });
+      const emptyResult = target.querySelector("[data-message-recipient-empty]");
+      if (emptyResult) {
+        emptyResult.hidden = visibleCount > 0;
+      }
+    });
+    target.querySelectorAll("[data-message-recipient-key]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const threadKey = String(button.dataset.messageRecipientKey || "").trim();
+        const thread = threads.find((entry) => entry.key === threadKey);
+        if (!thread) {
+          return;
+        }
+        target.dataset.activeMessageThread = threadKey;
+        setRecipientPickerOpen(false);
+        markNotificationsReadForViewer(thread.unreadIds || [], user, role, workspaceId);
+        options.onRefresh?.();
+      });
+    });
+
+    target.querySelectorAll("[data-message-thread]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const threadKey = String(button.dataset.messageThread || "").trim();
+        if (!threadKey || threadKey === activeThread?.key) {
+          return;
+        }
+        const thread = threads.find((entry) => entry.key === threadKey);
+        target.dataset.activeMessageThread = threadKey;
+        markNotificationsReadForViewer(thread?.unreadIds || [], user, role, workspaceId);
+        options.onRefresh?.();
+      });
+    });
+
+    target.querySelector("[data-message-delete-thread]")?.addEventListener("click", async () => {
+      if (!activeThread?.messages.length) {
+        return;
+      }
+      const confirmed = await showAppConfirm({
+        title: "Delete conversation?",
+        message: `Remove your conversation history with ${activeThread.name}?`,
+        details: "This only removes the conversation from your inbox. It does not delete it for the other participant.",
+        confirmLabel: "Delete conversation",
+        variant: "danger",
+      });
+      if (!confirmed) {
+        return;
+      }
+      delete target.dataset.activeMessageThread;
+      hideNotificationsForViewer(
+        activeThread.messages.map((entry) => entry.id),
+        user,
+        role,
+        workspaceId,
+      );
+      options.onRefresh?.();
+    });
+
+    target.querySelector("[data-message-composer]")?.addEventListener("submit", (event) => {
       event.preventDefault();
-      const messageId = String(form.dataset.messageId || "").trim();
-      const reply = String(form.elements.reply?.value || "").trim();
-      const message = getNotifications(user.workspaceId || getCurrentWorkspaceId()).find((entry) => entry.id === messageId);
-
-      if (!reply) {
-        form.elements.reply?.focus();
-        return;
-      }
+      const form = event.currentTarget;
+      const message = String(form.elements.message?.value || "").trim();
+      const status = form.querySelector("[data-message-status]");
       if (!message) {
+        setStatus(status, "error", "Type a message before sending.");
+        form.elements.message?.focus();
         return;
       }
-
-      sendParentMessageReply(message, user, reply);
-      form.reset();
-      const button = form.querySelector("button[type='submit']");
-      if (button) {
-        button.textContent = "Reply sent";
-        button.disabled = true;
+      if (typeof options.onSend === "function") {
+        options.onSend(activeThread, {
+          message,
+          subject: String(form.elements.subject?.value || "").trim(),
+        });
       }
-      window.setTimeout(() => {
-        renderStaffStandaloneSection(target, "staff-messages", user);
-      }, 450);
+      form.reset();
+      options.onRefresh?.();
+    });
+
+  }
+
+  function buildStaffMessageThreads(user = {}) {
+    const workspaceId = normalizeWorkspaceId(user.workspaceId || getCurrentWorkspaceId());
+    const teacherEmail = normalizeEmail(user.email || "");
+    const threadMap = new Map();
+    const users = getUsers().filter(
+      (entry) => normalizeWorkspaceId(entry.workspaceId || "") === workspaceId,
+    );
+    const addThreadContact = (thread = {}) => {
+      if (!thread.key || threadMap.has(thread.key)) {
+        return;
+      }
+      threadMap.set(thread.key, {
+        ...thread,
+        messages: [],
+        unreadIds: [],
+        lastAt: "",
+      });
+    };
+
+    users
+      .filter((entry) => normalizeRoleLabel(entry.role || "") === "Admin")
+      .filter((entry) => normalizeUserStatus(entry.status) === "active")
+      .forEach((admin) => {
+        addThreadContact({
+          key: `admin:${normalizeEmail(admin.email || "") || "school"}`,
+          name: admin.displayName || admin.email || "School Admin",
+          detail: "School administration",
+          emptyLabel: `Start a conversation with ${admin.displayName || "School Admin"}.`,
+          contact: {
+            id: admin.id || "",
+            role: "Admin",
+            email: normalizeEmail(admin.email || ""),
+            displayName: admin.displayName || admin.email || "School Admin",
+          },
+        });
+      });
+
+    getTeacherAssignedClasses(user).forEach((classRecord) => {
+      getActiveStudentsForClass(classRecord).forEach((student) => {
+        (student.guardians || []).forEach((guardian) => {
+          const parentEmail = normalizeEmail(guardian.email || "");
+          if (!parentEmail) {
+            return;
+          }
+          const parentUser = users.find(
+            (entry) =>
+              normalizeRoleLabel(entry.role || "") === "Parent" &&
+              normalizeEmail(entry.email || "") === parentEmail,
+          );
+          const parentName = parentUser?.displayName || guardian.name || parentEmail;
+          const parentLabel = `${parentName} - ${student.fullName || student.admissionNo || "Student"}`;
+          addThreadContact({
+            key: getParentMessageThreadId(parentEmail, student.id),
+            name: parentLabel,
+            detail: `${student.fullName || "Student"} - ${getClassDisplayName(classRecord)}`,
+            emptyLabel: `Start a conversation with ${parentLabel}.`,
+            contact: {
+              id: parentUser?.id || "",
+              role: "Parent",
+              email: parentEmail,
+              displayName: parentLabel,
+              studentId: student.id,
+              studentName: student.fullName || "",
+              classLevel: student.level || getClassDisplayName(classRecord),
+            },
+            searchText: `${parentName} ${student.fullName || ""} ${student.admissionNo || ""} ${
+              student.level || getClassDisplayName(classRecord)
+            }`,
+          });
+        });
+
+        const studentEmail = normalizeEmail(student.studentEmail || student.email || "");
+        const studentUser = users.find(
+          (entry) =>
+            normalizeRoleLabel(entry.role || "") === "Student" &&
+            (String(entry.studentRecordId || "") === String(student.id || "") ||
+              String(entry.admissionNo || "").toLowerCase() === String(student.admissionNo || "").toLowerCase() ||
+              normalizeEmail(entry.email || "") === studentEmail),
+        );
+        const recipientEmail = normalizeEmail(studentUser?.email || studentEmail);
+        if (recipientEmail) {
+          addThreadContact({
+            key: `student:${recipientEmail}`,
+            name: student.fullName || studentUser?.displayName || recipientEmail,
+            detail: `${student.admissionNo || "Student"} - ${student.level || getClassDisplayName(classRecord)}`,
+            emptyLabel: `Start a conversation with ${student.fullName || "this student"}.`,
+            contact: {
+              id: studentUser?.id || student.id || "",
+              role: "Student",
+              email: recipientEmail,
+              displayName: student.fullName || studentUser?.displayName || recipientEmail,
+              studentId: student.id || "",
+              studentName: student.fullName || "",
+              classLevel: student.level || getClassDisplayName(classRecord),
+            },
+            searchText: `${student.fullName || ""} ${student.admissionNo || ""} ${
+              student.level || getClassDisplayName(classRecord)
+            } ${recipientEmail}`,
+          });
+        }
+      });
+    });
+
+    const scopedMessages = getTeacherPortalNotifications(user).filter((entry) => isPortalMessageEntry(entry));
+    const directMessages = getNotifications(workspaceId).filter((entry) => {
+      if (String(entry.entityType || "").trim().toLowerCase() !== "school-message") {
+        return false;
+      }
+      const metadata = entry.metadata || {};
+      return (
+        normalizeEmail(metadata.senderEmail || "") === teacherEmail ||
+        normalizeEmail(metadata.recipientEmail || "") === teacherEmail
+      );
+    });
+    const messageMap = new Map(
+      [...scopedMessages, ...directMessages]
+        .filter((entry) => !isNotificationHiddenForViewer(entry, user, "Teacher"))
+        .map((entry) => [entry.id, entry]),
+    );
+    const messages = Array.from(messageMap.values())
+      .sort((left, right) => String(left.createdAt || "").localeCompare(String(right.createdAt || "")));
+
+    messages.forEach((entry) => {
+      const metadata = entry.metadata || {};
+      const key = getMessageConversationKey(entry, "Teacher");
+      const isDirectMessage = String(entry.entityType || "").trim().toLowerCase() === "school-message";
+      const teacherIsSender = normalizeEmail(metadata.senderEmail || "") === teacherEmail;
+      const contactName = isDirectMessage
+        ? teacherIsSender
+          ? metadata.recipientName || metadata.recipientEmail || "School Admin"
+          : metadata.senderName || entry.actorName || "School Admin"
+        : metadata.parentName || entry.actorName || "Parent";
+      const contactRole = isDirectMessage
+        ? normalizeRoleLabel(teacherIsSender ? metadata.recipientRole : metadata.senderRole)
+        : "Parent";
+      const contactEmail = isDirectMessage
+        ? normalizeEmail(teacherIsSender ? metadata.recipientEmail : metadata.senderEmail)
+        : normalizeEmail(metadata.parentEmail || "");
+      if (!threadMap.has(key)) {
+        threadMap.set(key, {
+          key,
+          name: contactName,
+          detail: isDirectMessage
+            ? `${contactRole} conversation`
+            : [metadata.studentName, metadata.classLevel].filter(Boolean).join(" - ") || "Parent conversation",
+          contact: {
+            role: contactRole,
+            email: contactEmail,
+            displayName: contactName,
+            studentId: metadata.studentId || "",
+            studentName: metadata.studentName || "",
+            classLevel: metadata.classLevel || "",
+          },
+          messages: [],
+          unreadIds: [],
+          lastAt: "",
+        });
+      }
+      const thread = threadMap.get(key);
+      thread.messages.push(entry);
+      thread.lastAt = entry.createdAt || thread.lastAt;
+      if (isNotificationUnreadForViewer(entry, user, "Teacher")) {
+        thread.unreadIds.push(entry.id);
+      }
+    });
+
+    return Array.from(threadMap.values()).sort((left, right) =>
+      String(right.lastAt || "").localeCompare(String(left.lastAt || "")),
+    );
+  }
+
+  function renderStaffMessagesInbox(target, user) {
+    const threads = buildStaffMessageThreads(user);
+    renderPortalMessageInbox(target, {
+      threads,
+      user,
+      role: "Teacher",
+      heading: "Conversations",
+      emptyMessage: "Messages from parents will appear here.",
+      composerPlaceholder: "Type your reply",
+      onRefresh: () => renderStaffMessagesInbox(target, user),
+      onSend: (thread, payload) => {
+        if (thread?.contact?.role === "Admin") {
+          sendSchoolDirectMessage({
+            sender: user,
+            recipient: thread.contact,
+            message: payload.message,
+            workspaceId: user.workspaceId,
+            metadata: {
+              conversationId: getSchoolMessageConversationId("Teacher", user.email),
+            },
+          });
+          return;
+        }
+        const anchor = thread?.messages.find(
+          (entry) => String(entry.entityType || "").toLowerCase() === "parent-message",
+        );
+        if (anchor) {
+          sendParentMessageReply(anchor, user, payload.message);
+          return;
+        }
+        if (["Parent", "Student"].includes(thread?.contact?.role)) {
+          sendSchoolDirectMessage({
+            sender: user,
+            recipient: thread.contact,
+            message: payload.message,
+            workspaceId: user.workspaceId,
+            metadata: {
+              conversationId: thread.key,
+              studentId: thread.contact.studentId || "",
+              studentName: thread.contact.studentName || "",
+              classLevel: thread.contact.classLevel || "",
+            },
+          });
+        }
+      },
     });
   }
 
@@ -25990,12 +26916,16 @@
       return;
     }
 
+    if (page === "staff-messages") {
+      renderStaffMessagesInbox(target, user);
+      return;
+    }
+
     const contentByPage = {
       "staff-timetable": buildStaffTimetableSection(user),
       "staff-classes": buildStaffClassesSection(user),
       "staff-gradebook": buildStaffGradebookSection(user),
       "staff-lesson-plans": buildStaffLessonPlansSection(user),
-      "staff-messages": buildStaffMessagesSection(user),
       "staff-leave": buildStaffLeaveSection(user),
     };
 
@@ -26012,9 +26942,6 @@
         </article>
       `;
 
-    if (page === "staff-messages") {
-      wireStaffMessagesSection(target, user);
-    }
   }
 
   function renderAdminMetricCards(target, snapshot) {
@@ -26713,7 +27640,9 @@
 
       const dot = document.getElementById("admin-notification-dot");
       if (dot) {
-        const unreadCount = scopedNotifications.filter((entry) => isNotificationUnread(entry)).length;
+        const unreadCount = scopedNotifications.filter((entry) =>
+          isNotificationUnreadForViewer(entry, session, session?.role),
+        ).length;
         dot.hidden = unreadCount === 0;
         button.setAttribute(
           "aria-label",
@@ -26729,9 +27658,9 @@
         refresh();
         setOverlayState(true);
         const unreadIds = filterNotificationsForSession(getNotifications(workspaceId), session)
-          .filter((entry) => isNotificationUnread(entry))
+          .filter((entry) => isNotificationUnreadForViewer(entry, session, session?.role))
           .map((entry) => entry.id);
-        markNotificationsRead(unreadIds, workspaceId);
+        markNotificationsReadForViewer(unreadIds, session, session?.role, workspaceId);
       });
 
       overlay.querySelectorAll("[data-notification-close]").forEach((node) => {
@@ -27123,6 +28052,23 @@
     );
   }
 
+  function ensureParentOverdueFeeAlerts(user = {}, students = []) {
+    const workspaceId = normalizeWorkspaceId(user.workspaceId || getCurrentWorkspaceId());
+    const feesState = readParentFeesState(workspaceId);
+
+    (Array.isArray(students) ? students : []).forEach((student) => {
+      const storedFeeRecord = feesState[student.id] || null;
+      const configuredFeeRecord = buildConfiguredParentFeeSnapshot(student);
+      const invoice = storedFeeRecord?.invoiceNo || storedFeeRecord?.invoiceItems?.length
+        ? storedFeeRecord
+        : configuredFeeRecord;
+
+      if (invoice) {
+        ensureParentOverdueFeeAlert({ user, student, invoice, workspaceId });
+      }
+    });
+  }
+
   function getParentMessageThreadId(parentEmail = "", studentId = "") {
     return `parent-thread:${normalizeEmail(parentEmail)}:${String(studentId || "school").trim()}`;
   }
@@ -27134,9 +28080,20 @@
     const threadId = getParentMessageThreadId(parentEmail, studentId);
 
     return getNotifications(workspaceId)
-      .filter((entry) => ["parent-message", "parent-message-reply"].includes(String(entry.entityType || "").toLowerCase()))
+      .filter((entry) => isPortalMessageEntry(entry))
+      .filter((entry) => !isNotificationHiddenForViewer(entry, user, "Parent"))
       .filter((entry) => {
         const metadata = entry.metadata || {};
+        if (String(entry.entityType || "").trim().toLowerCase() === "school-message") {
+          const isParticipant =
+            normalizeEmail(metadata.senderEmail || "") === parentEmail ||
+            normalizeEmail(metadata.recipientEmail || "") === parentEmail;
+          const matchesStudent =
+            !studentId ||
+            !String(metadata.studentId || "").trim() ||
+            String(metadata.studentId || "").trim() === studentId;
+          return isParticipant && matchesStudent;
+        }
         return (
           normalizeEmail(metadata.parentEmail || "") === parentEmail &&
           (!studentId || String(metadata.studentId || "") === studentId || String(metadata.threadId || "") === threadId)
@@ -27288,9 +28245,13 @@
     const courses = courseManager && typeof courseManager.getCourses === "function"
       ? courseManager.getCourses().filter((item) => item.status !== "archived")
       : [];
-    const classMatch = classes.find((item) => String(item.level || "").trim() === String(student.level || "").trim()) || null;
+    const studentLevelToken = normalizeLevelToken(student.level);
+    const classMatch =
+      classes.find((item) => normalizeLevelToken(getClassDisplayName(item)) === studentLevelToken) ||
+      classes.find((item) => normalizeLevelToken(item.level) === studentLevelToken) ||
+      null;
     const subjectsFromClass = classMatch?.subjects || [];
-    const matchedByLevel = courses.filter((course) => String(course.level || "").trim() === String(student.level || "").trim());
+    const matchedByLevel = courses.filter((course) => normalizeLevelToken(course.level) === studentLevelToken);
 
     const merged = [];
     const seen = new Set();
@@ -27301,9 +28262,11 @@
       }
       seen.add(key);
       merged.push({
+        ...course,
         name: course.name,
         code: course.code,
         level: course.level,
+        teacherAssignments: Array.isArray(course.teacherAssignments) ? [...course.teacherAssignments] : [],
       });
     });
 
@@ -27321,6 +28284,7 @@
         name: subjectName,
         code: "",
         level: student.level || "",
+        teacherAssignments: [],
       });
     });
 
@@ -28361,6 +29325,81 @@
     });
   }
 
+  function buildParentMessageThreads(student, children, user) {
+    const recipients = getParentMessageRecipientOptions(student, children);
+    const messages = getParentMessageNotifications(user, student);
+    const threadMap = new Map();
+
+    recipients.forEach((recipient) => {
+      const key = getParentRecipientConversationKey(recipient);
+      threadMap.set(key, {
+        key,
+        name: recipient.label || "School Admin",
+        detail:
+          recipient.subject ||
+          (recipient.role === "Teacher"
+            ? [student?.fullName, student?.level].filter(Boolean).join(" - ") || "Teacher"
+            : "School administration"),
+        emptyLabel: `Send a message to ${recipient.label || "School Admin"}.`,
+        recipient,
+        searchText: [
+          recipient.label,
+          recipient.email,
+          recipient.subject,
+          student?.fullName,
+          student?.admissionNo,
+          student?.level,
+        ]
+          .filter(Boolean)
+          .join(" "),
+        messages: [],
+        unreadIds: [],
+        lastAt: "",
+      });
+    });
+
+    messages.forEach((entry) => {
+      const metadata = entry.metadata || {};
+      const key = getMessageConversationKey(entry, "Parent");
+      if (!threadMap.has(key)) {
+        threadMap.set(key, {
+          key,
+          name: metadata.recipientName || entry.actorName || metadata.replyByRole || "School",
+          detail: metadata.recipientRole || "School conversation",
+          emptyLabel: "Continue this conversation.",
+          recipient: {
+            role: metadata.recipientRole || "Admin",
+            email: metadata.recipientEmail || "",
+            label: metadata.recipientName || "School Admin",
+            value: metadata.recipientEmail || key,
+          },
+          messages: [],
+          unreadIds: [],
+          lastAt: "",
+        });
+      }
+      const thread = threadMap.get(key);
+      thread.messages.push(entry);
+      thread.lastAt = entry.createdAt || thread.lastAt;
+      if (isNotificationUnreadForViewer(entry, user, "Parent")) {
+        thread.unreadIds.push(entry.id);
+      }
+    });
+
+    return Array.from(threadMap.values()).sort((left, right) => {
+      if (left.lastAt && right.lastAt) {
+        return String(right.lastAt).localeCompare(String(left.lastAt));
+      }
+      if (left.lastAt) {
+        return -1;
+      }
+      if (right.lastAt) {
+        return 1;
+      }
+      return left.name.localeCompare(right.name);
+    });
+  }
+
   function renderParentMessagesPage(target, student, children, user) {
     if (!target) {
       return;
@@ -28373,123 +29412,51 @@
 
     const workspaceId = normalizeWorkspaceId(user?.workspaceId || getCurrentWorkspaceId());
     const parentEmail = normalizeEmail(user?.email || "");
-    const recipients = getParentMessageRecipientOptions(student, children);
-    const messages = getParentMessageNotifications(user, student);
-    const threadRows = messages.length
-      ? messages
-          .map((entry) => {
-            const isReply = String(entry.entityType || "") === "parent-message-reply";
-            const metadata = entry.metadata || {};
-            return `
-              <article class="portal-message-bubble ${isReply ? "is-incoming" : "is-outgoing"}">
-                <div class="portal-message-bubble-meta">
-                  <strong>${escapeHtml(isReply ? entry.actorName || metadata.replyByRole || "School" : "You")}</strong>
-                  <span>${escapeHtml(formatTimestamp(entry.createdAt))}</span>
-                </div>
-                <p>${escapeHtml(entry.message || "No message body.")}</p>
-                <small>${escapeHtml(isReply ? entry.title || "School reply" : entry.title || "Message sent")}</small>
-              </article>
-            `;
-          })
-          .join("")
-      : `
-        <article class="portal-class-empty">
-          <strong>No messages yet</strong>
-          <p>Send a message to the school or a teacher and replies will appear here.</p>
-        </article>
-      `;
+    const threads = buildParentMessageThreads(student, children, user);
 
-    target.innerHTML = `
-      <section class="staff-portal-section admin-surface-card">
-        <div class="admin-surface-head">
-          <div>
-            <h2>Messages</h2>
-            <span>${escapeHtml(student.fullName)} • ${escapeHtml(student.level || "Class not set")}</span>
-          </div>
-        </div>
-        <div class="portal-message-thread">${threadRows}</div>
-        <form id="parent-message-form" class="portal-message-composer" novalidate>
-          <div id="parent-message-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
-          <div class="portal-message-composer-grid">
-            <label class="portal-field" for="parent-message-recipient">
-              <span>Send to</span>
-              <select id="parent-message-recipient" name="recipient">
-                ${recipients
-                  .map(
-                    (recipient) => `
-                      <option value="${escapeHtml(recipient.value)}">${escapeHtml(recipient.label)}${
-                        recipient.subject ? ` - ${escapeHtml(recipient.subject)}` : ""
-                      }</option>
-                    `,
-                  )
-                  .join("")}
-              </select>
-            </label>
-            <label class="portal-field" for="parent-message-subject">
-              <span>Subject</span>
-              <input id="parent-message-subject" name="subject" type="text" placeholder="Message subject" />
-            </label>
-            <label class="portal-field portal-message-composer-body" for="parent-message-body">
-              <span>Message</span>
-              <textarea id="parent-message-body" name="message" rows="3" placeholder="Type your message." required></textarea>
-            </label>
-          </div>
-          <div class="utility-actions portal-message-composer-actions">
-            <button class="button button-primary" type="submit">Send message</button>
-          </div>
-        </form>
-      </section>
-    `;
+    renderPortalMessageInbox(target, {
+      threads,
+      user,
+      role: "Parent",
+      heading: "Conversations",
+      showSubject: true,
+      emptyMessage: "School Admin and linked teachers will appear here.",
+      composerPlaceholder: "Type your message",
+      onRefresh: () => renderParentMessagesPage(target, student, children, user),
+      onSend: (thread, payload) => {
+        const recipient = thread?.recipient || { role: "Admin", label: "School Admin" };
+        const recipientRole = normalizeRoleLabel(recipient.role || "Admin");
+        const selectedTeacherEmail = normalizeEmail(recipient.email || "");
+        const targetEntityId =
+          recipientRole === "Teacher"
+            ? selectedTeacherEmail || recipient.email || student.level || student.id
+            : student.level || student.id || parentEmail;
 
-    const form = target.querySelector("#parent-message-form");
-    const status = target.querySelector("#parent-message-status");
-
-    form?.addEventListener("submit", (event) => {
-      event.preventDefault();
-      const recipientValue = String(form.elements.recipient?.value || "").trim();
-      const recipient = recipients.find((item) => item.value === recipientValue) || recipients[0];
-      const subject = String(form.elements.subject?.value || "").trim() || `Message about ${student.fullName}`;
-      const message = String(form.elements.message?.value || "").trim();
-
-      if (!message) {
-        setStatus(status, "error", "Type your message before sending.");
-        return;
-      }
-
-      const recipientRole = recipient?.role || "Admin";
-      const selectedTeacherEmail = normalizeEmail(recipient?.email || "");
-      const targetEntityId =
-        recipientRole === "Teacher"
-          ? selectedTeacherEmail || recipient?.email || student.level || student.id
-          : student.level || student.id || parentEmail;
-      pushNotification(
-        {
-          title: subject,
-          message,
-          entityType: "parent-message",
-          entityId: targetEntityId,
-          action: "sent",
-          actorName: user.displayName || user.email || "Parent",
-          visibleToRoles: recipientRole === "Teacher" ? ["Teacher"] : ["Admin"],
-          metadata: {
-            threadId: getParentMessageThreadId(parentEmail, student.id),
-            parentEmail,
-            parentName: user.displayName || user.email || "Parent",
-            studentId: student.id,
-            studentName: student.fullName,
-            classLevel: student.level || "",
-            recipientRole,
-            recipientEmail: recipientRole === "Teacher" ? selectedTeacherEmail || recipient?.email || "" : "",
-            recipientName: recipient?.label || "School Admin",
-            recipientScope: recipientRole === "Teacher" ? "teacher" : "admin",
+        pushNotification(
+          {
+            title: payload.subject || `Message about ${student.fullName}`,
+            message: payload.message,
+            entityType: "parent-message",
+            entityId: targetEntityId,
+            action: "sent",
+            actorName: user.displayName || user.email || "Parent",
+            visibleToRoles: recipientRole === "Teacher" ? ["Teacher"] : ["Admin"],
+            metadata: {
+              threadId: getParentMessageThreadId(parentEmail, student.id),
+              parentEmail,
+              parentName: user.displayName || user.email || "Parent",
+              studentId: student.id,
+              studentName: student.fullName,
+              classLevel: student.level || "",
+              recipientRole,
+              recipientEmail: recipientRole === "Teacher" ? selectedTeacherEmail || recipient.email || "" : "",
+              recipientName: recipient.label || "School Admin",
+              recipientScope: recipientRole === "Teacher" ? "teacher" : "admin",
+            },
           },
-        },
-        workspaceId,
-      );
-
-      form.reset();
-      setStatus(status, "success", `Message sent to ${escapeHtml(recipient?.label || "School Admin")}.`);
-      window.setTimeout(() => renderParentMessagesPage(target, student, children, user), 350);
+          workspaceId,
+        );
+      },
     });
   }
 
@@ -28659,6 +29626,7 @@
     }
 
     const children = getParentLinkedStudents(user.email, getStudentManager());
+    ensureParentOverdueFeeAlerts(user, children);
     const savedChildId = readParentSelectedChildId(user);
     const selectedChild = children.find((child) => child.id === savedChildId) || children[0] || null;
 
@@ -28707,9 +29675,6 @@
 
     if (page === "parent-messages") {
       renderParentMessagesPage(contentHost, selectedChild, children, user);
-      window.addEventListener(NOTIFICATION_EVENT_NAME, () => {
-        renderParentMessagesPage(contentHost, selectedChild, children, user);
-      });
       return;
     }
 
@@ -30062,6 +31027,254 @@
     });
   }
 
+  function getAdminMessageDirectory(workspaceId = null) {
+    const targetWorkspaceId = normalizeWorkspaceId(workspaceId || getCurrentWorkspaceId());
+    const contacts = new Map();
+    const addContact = (contact = {}) => {
+      const role = normalizeRoleLabel(contact.role || "");
+      const email = normalizeEmail(contact.email || "");
+      if (!email || !["Parent", "Teacher", "Student"].includes(role)) {
+        return;
+      }
+      const key = `${role.toLowerCase()}:${email}`;
+      const existing = contacts.get(key);
+      const studentNames = Array.from(
+        new Set([...(existing?.studentNames || []), ...(contact.studentNames || [])].filter(Boolean)),
+      );
+      const baseDisplayName =
+        contact.baseDisplayName ||
+        existing?.baseDisplayName ||
+        contact.displayName ||
+        existing?.displayName ||
+        email;
+      contacts.set(key, {
+        id: contact.id || existing?.id || "",
+        key,
+        role,
+        email,
+        baseDisplayName,
+        displayName:
+          role === "Parent" && studentNames.length
+            ? `${baseDisplayName} - ${studentNames.join(", ")}`
+            : baseDisplayName,
+        studentNames,
+        studentId: contact.studentId || existing?.studentId || "",
+        admissionNo: contact.admissionNo || existing?.admissionNo || "",
+        classLevel: contact.classLevel || existing?.classLevel || "",
+        detail:
+          role === "Parent"
+            ? studentNames.length
+              ? `Parent of ${studentNames.join(", ")}`
+              : "Parent account"
+            : role === "Student"
+              ? [contact.admissionNo, contact.classLevel].filter(Boolean).join(" - ") || "Student account"
+              : "Teacher account",
+        searchText: [
+          contact.displayName,
+          email,
+          contact.id,
+          contact.studentId,
+          contact.admissionNo,
+          contact.classLevel,
+          studentNames.join(" "),
+        ]
+          .filter(Boolean)
+          .join(" "),
+      });
+    };
+
+    getUsers()
+      .filter((user) => normalizeWorkspaceId(user.workspaceId || "") === targetWorkspaceId)
+      .filter((user) => normalizeUserStatus(user.status) === "active")
+      .forEach((user) => {
+        const role = normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE);
+        if (role === "Parent" || role === "Teacher" || role === "Student") {
+          addContact({
+            id: user.id,
+            role,
+            email: user.email,
+            displayName: user.displayName || user.email,
+            studentId: user.studentRecordId || "",
+            admissionNo: user.admissionNo || "",
+          });
+        }
+      });
+
+    const studentManager = getStudentManager();
+    const students =
+      studentManager && typeof studentManager.getStudents === "function"
+        ? studentManager.getStudents().filter((student) => student.status === "active")
+        : [];
+    students.forEach((student) => {
+      (student.guardians || []).forEach((guardian) => {
+        addContact({
+          role: "Parent",
+          email: guardian.email,
+          displayName: guardian.name || guardian.email,
+          studentNames: [student.fullName || student.admissionNo || "Student"],
+        });
+      });
+
+      const studentEmail = normalizeEmail(student.studentEmail || student.email || "");
+      const studentUser = getUsers().find(
+        (entry) =>
+          normalizeWorkspaceId(entry.workspaceId || "") === targetWorkspaceId &&
+          normalizeRoleLabel(entry.role || "") === "Student" &&
+          (String(entry.studentRecordId || "") === String(student.id || "") ||
+            String(entry.admissionNo || "").toLowerCase() === String(student.admissionNo || "").toLowerCase() ||
+            normalizeEmail(entry.email || "") === studentEmail),
+      );
+      addContact({
+        id: studentUser?.id || student.id,
+        role: "Student",
+        email: studentUser?.email || studentEmail,
+        displayName: student.fullName || studentUser?.displayName || studentEmail,
+        studentId: student.id,
+        admissionNo: student.admissionNo,
+        classLevel: student.level,
+      });
+    });
+
+    return Array.from(contacts.values()).sort((left, right) => {
+      const roleComparison = left.role.localeCompare(right.role);
+      return roleComparison || left.displayName.localeCompare(right.displayName);
+    });
+  }
+
+  function buildAdminMessageThreads(user = {}) {
+    const workspaceId = normalizeWorkspaceId(user.workspaceId || getCurrentWorkspaceId());
+    const adminEmail = normalizeEmail(user.email || "");
+    const threadMap = new Map();
+
+    getAdminMessageDirectory(workspaceId).forEach((contact) => {
+      threadMap.set(contact.key, {
+        key: contact.key,
+        name: contact.displayName,
+        detail: contact.detail,
+        emptyLabel: `Start a conversation with ${contact.displayName}.`,
+        contact,
+        messages: [],
+        unreadIds: [],
+        lastAt: "",
+      });
+    });
+
+    getNotifications(workspaceId)
+      .filter((entry) => isPortalMessageEntry(entry))
+      .filter((entry) => !isNotificationHiddenForViewer(entry, user, "Admin"))
+      .sort((left, right) => String(left.createdAt || "").localeCompare(String(right.createdAt || "")))
+      .forEach((entry) => {
+        const metadata = entry.metadata || {};
+        const entityType = String(entry.entityType || "").trim().toLowerCase();
+        let contact = null;
+
+        if (entityType === "school-message") {
+          const senderRole = normalizeRoleLabel(metadata.senderRole || "");
+          const recipientRole = normalizeRoleLabel(metadata.recipientRole || "");
+          const adminIsSender =
+            senderRole === "Admin" &&
+            (!normalizeEmail(metadata.senderEmail || "") ||
+              !adminEmail ||
+              normalizeEmail(metadata.senderEmail || "") === adminEmail);
+          const adminIsRecipient =
+            recipientRole === "Admin" &&
+            (!normalizeEmail(metadata.recipientEmail || "") ||
+              !adminEmail ||
+              normalizeEmail(metadata.recipientEmail || "") === adminEmail);
+          if (!adminIsSender && !adminIsRecipient) {
+            return;
+          }
+          contact = {
+            id: adminIsSender ? metadata.recipientId || "" : metadata.senderId || "",
+            role: adminIsSender ? recipientRole : senderRole,
+            email: normalizeEmail(adminIsSender ? metadata.recipientEmail : metadata.senderEmail),
+            displayName:
+              (adminIsSender ? metadata.recipientName : metadata.senderName) ||
+              (adminIsSender ? metadata.recipientEmail : metadata.senderEmail) ||
+              "School contact",
+            detail: `${adminIsSender ? recipientRole : senderRole} account`,
+          };
+        } else {
+          const recipientRole = normalizeRoleLabel(metadata.recipientRole || "");
+          const recipientScope = String(metadata.recipientScope || "").trim().toLowerCase();
+          if (recipientRole !== "Admin" && recipientScope !== "admin") {
+            return;
+          }
+          contact = {
+            role: "Parent",
+            email: normalizeEmail(metadata.parentEmail || ""),
+            displayName: metadata.parentName || entry.actorName || metadata.parentEmail || "Parent",
+            detail: [metadata.studentName, metadata.classLevel].filter(Boolean).join(" - ") || "Parent account",
+            studentNames: [metadata.studentName].filter(Boolean),
+          };
+        }
+
+        if (!contact?.email || !["Parent", "Teacher", "Student"].includes(normalizeRoleLabel(contact.role))) {
+          return;
+        }
+
+        contact.role = normalizeRoleLabel(contact.role);
+        contact.key = `${contact.role.toLowerCase()}:${contact.email}`;
+        if (!threadMap.has(contact.key)) {
+          threadMap.set(contact.key, {
+            key: contact.key,
+            name: contact.displayName,
+            detail: contact.detail,
+            emptyLabel: `Start a conversation with ${contact.displayName}.`,
+            contact,
+            messages: [],
+            unreadIds: [],
+            lastAt: "",
+          });
+        }
+
+        const thread = threadMap.get(contact.key);
+        thread.messages.push(entry);
+        thread.lastAt = entry.createdAt || thread.lastAt;
+        if (isNotificationUnreadForViewer(entry, user, "Admin")) {
+          thread.unreadIds.push(entry.id);
+        }
+      });
+
+    return Array.from(threadMap.values()).sort((left, right) => {
+      if (left.lastAt && right.lastAt) {
+        return String(right.lastAt).localeCompare(String(left.lastAt));
+      }
+      if (left.lastAt) return -1;
+      if (right.lastAt) return 1;
+      const roleComparison = left.contact.role.localeCompare(right.contact.role);
+      return roleComparison || left.name.localeCompare(right.name);
+    });
+  }
+
+  function renderAdminMessageInbox(target, user) {
+    const threads = buildAdminMessageThreads(user);
+    renderPortalMessageInbox(target, {
+      threads,
+      user,
+      role: "Admin",
+      heading: "Conversations",
+      emptyMessage: "Parent and teacher contacts will appear here.",
+      composerPlaceholder: "Type your message",
+      onRefresh: () => renderAdminMessageInbox(target, user),
+      onSend: (thread, payload) => {
+        if (!thread?.contact) {
+          return;
+        }
+        sendSchoolDirectMessage({
+          sender: user,
+          recipient: thread.contact,
+          message: payload.message,
+          workspaceId: user.workspaceId,
+          metadata: {
+            conversationId: getSchoolMessageConversationId(thread.contact.role, thread.contact.email),
+            studentName: thread.contact.studentNames?.[0] || "",
+          },
+        });
+      },
+    });
+  }
+
   function buildAdminReportSnapshot() {
     const workspaceId = normalizeWorkspaceId(getCurrentWorkspaceId());
     const users = getUsers().filter((user) => normalizeWorkspaceId(user.workspaceId) === workspaceId);
@@ -30461,7 +31674,7 @@
       return;
     }
 
-    const { isAdmin, roleLabel } = getAdminAccessContext();
+    const { isAdmin, roleLabel, user } = getAdminAccessContext();
     const canViewReports = isAdmin && canAccessPermission(roleLabel, PAGE_PERMISSION_KEYS["admin-report-messages"]);
     const messagesTarget = document.getElementById("admin-report-parent-messages");
     const workspace = document.querySelector(".admin-report-workspace");
@@ -30476,13 +31689,12 @@
       return;
     }
 
-    const refresh = () => {
-      renderAdminReportParentMessages(messagesTarget);
-      wireAdminReportParentMessages(messagesTarget);
-    };
+    const refresh = () => renderAdminMessageInbox(messagesTarget, user);
 
     refresh();
-    window.addEventListener(NOTIFICATION_EVENT_NAME, refresh);
+    getStudentManager()?.eventName &&
+      window.addEventListener(getStudentManager().eventName, refresh);
+    window.addEventListener(ACCESS_GRANTS_EVENT_NAME, refresh);
   }
 
   function initAdminFeatureModulesPage() {
@@ -31069,7 +32281,7 @@
       getTimetableManager()?.eventName,
       getAttendanceManager()?.eventName,
       getReportCardManager()?.eventName,
-      NOTIFICATION_EVENT_NAME,
+      page === "staff-messages" ? null : NOTIFICATION_EVENT_NAME,
     ]
       .filter(Boolean)
       .forEach((eventName) => {

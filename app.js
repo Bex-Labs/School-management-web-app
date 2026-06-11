@@ -284,7 +284,7 @@ const ROLE_PERMISSION_OPTIONS_BY_ROLE = {
     { key: "staff_gradebook_manage", label: "Gradebook", description: "Score entry per subject and assessment" },
     { key: "staff_results_manage", label: "Results", description: "View, comment, and publish term results" },
     { key: "staff_lesson_plans_manage", label: "Lesson Plans", description: "Create and submit weekly plans" },
-    { key: "staff_messages_view", label: "Messages", description: "Inbox from admin, parents, and colleagues" },
+    { key: "staff_messages_view", label: "Messages", description: "Message admin, linked parents, and assigned students" },
     { key: "staff_leave_manage", label: "Leave Requests", description: "Apply for leave and view approval status" },
     { key: "staff_profile_manage", label: "My Profile", description: "Account info, password, notification prefs" },
   ],
@@ -305,6 +305,7 @@ const ROLE_PERMISSION_OPTIONS_BY_ROLE = {
     { key: "student_attendance_view", label: "Attendance", description: "Personal attendance record" },
     { key: "student_fees_view", label: "Fees", description: "Assigned fee items and balance" },
     { key: "student_reports_view", label: "Results and Report Cards", description: "Released results and PDFs" },
+    { key: "student_messages_view", label: "Messages", description: "Message school admin and connected teachers" },
     { key: "student_profile_manage", label: "My Profile", description: "Account info and password" },
   ],
 };
@@ -344,6 +345,7 @@ const LEGACY_ROLE_PERMISSION_FALLBACKS = {
     student_attendance_view: "attendance_manage",
     student_fees_view: "fees_manage",
     student_reports_view: "reports_view",
+    student_messages_view: "dashboard_view",
     student_profile_manage: "dashboard_view",
   },
 };
