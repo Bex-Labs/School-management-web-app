@@ -538,6 +538,7 @@
   ]);
   const SUPABASE_STATE_KEY_FEATURE_MODULES = "schoolsphere.featureModules.v1";
   const SUPABASE_STATE_KEY_ROLE_PERMISSIONS = "schoolsphere.rolePermissions.v1";
+  const STUDENT_MESSAGES_PERMISSION_MIGRATION_ROW = "__student_messages_default_v1";
   const SUPABASE_STATE_KEY_SCHOOL_SETTINGS = "schoolsphere.schoolSettings.v1";
   const SUPABASE_STATE_KEY_CLASSES = "schoolsphere.classes.v1";
   const SUPABASE_STATE_KEY_COURSES = "schoolsphere.courses.v1";
@@ -6090,6 +6091,14 @@
 
     if (!permissionSnapshot) {
       return false;
+    }
+
+    if (
+      normalizedRole === "Student" &&
+      permissionKey === "student_messages_view" &&
+      typeof permissionSnapshot[permissionKey] !== "boolean"
+    ) {
+      return true;
     }
 
     return Boolean(permissionSnapshot[permissionKey]);
@@ -13143,11 +13152,45 @@
     if (isAdmin && isSupabaseConfigured()) {
       isHydratingSupabase = true;
       loadWorkspaceStatePayloadFromSupabase(SUPABASE_STATE_KEY_ROLE_PERMISSIONS)
-        .then(({ payload, synced }) => {
+        .then(async ({ payload, synced }) => {
           if (synced && payload && typeof payload === "object") {
-            manager.savePermissions(payload);
+            const studentPermissions =
+              payload.Student && typeof payload.Student === "object" ? payload.Student : {};
+            const needsStudentMessagesMigration =
+              studentPermissions[STUDENT_MESSAGES_PERMISSION_MIGRATION_ROW] !== true;
+            const migratedPayload = needsStudentMessagesMigration
+              ? {
+                  ...payload,
+                  Student: {
+                    ...studentPermissions,
+                    student_messages_view: true,
+                    [STUDENT_MESSAGES_PERMISSION_MIGRATION_ROW]: true,
+                  },
+                }
+              : payload;
+
+            manager.savePermissions(migratedPayload);
+            if (needsStudentMessagesMigration) {
+              const normalizedPermissions = manager.getPermissions();
+              await saveWorkspaceStatePayloadToSupabase(
+                SUPABASE_STATE_KEY_ROLE_PERMISSIONS,
+                {
+                  ...normalizedPermissions,
+                  Student: {
+                    ...normalizedPermissions.Student,
+                    [STUDENT_MESSAGES_PERMISSION_MIGRATION_ROW]: true,
+                  },
+                },
+              );
+            }
             if (statusTarget) {
-              setStatus(statusTarget, "info", "Role permissions loaded from online storage.");
+              setStatus(
+                statusTarget,
+                "info",
+                needsStudentMessagesMigration
+                  ? "Role permissions updated. Student Messages is enabled."
+                  : "Role permissions loaded from online storage.",
+              );
             }
           } else if (statusTarget) {
             setStatus(statusTarget, "info", "Using local role permissions until first online sync.");
@@ -26625,7 +26668,12 @@
       if (!confirmed) {
         return;
       }
-      delete target.dataset.activeMessageThread;
+      const nextThread = conversationThreads.find((thread) => thread.key !== activeThread.key) || null;
+      if (nextThread) {
+        target.dataset.activeMessageThread = nextThread.key;
+      } else {
+        delete target.dataset.activeMessageThread;
+      }
       hideNotificationsForViewer(
         activeThread.messages.map((entry) => entry.id),
         user,

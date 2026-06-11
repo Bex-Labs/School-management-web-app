@@ -274,6 +274,8 @@ const AUDIT_TRAIL_EVENT = "schoolsphere:audit-trail-updated";
 const MAX_AUDIT_TRAIL_ENTRIES = 300;
 const ROLE_PERMISSIONS_STORAGE_KEY = "schoolsphere.rolePermissions.v1";
 const ROLE_PERMISSIONS_EVENT = "schoolsphere:role-permissions-updated";
+const STUDENT_MESSAGES_PERMISSION_MIGRATION_KEY =
+  "schoolsphere.rolePermissions.studentMessagesDefault.v1";
 const ROLE_PERMISSION_ROLES = ["Teacher", "Parent", "Student"];
 const ROLE_PERMISSION_OPTIONS_BY_ROLE = {
   Teacher: [
@@ -345,7 +347,6 @@ const LEGACY_ROLE_PERMISSION_FALLBACKS = {
     student_attendance_view: "attendance_manage",
     student_fees_view: "fees_manage",
     student_reports_view: "reports_view",
-    student_messages_view: "dashboard_view",
     student_profile_manage: "dashboard_view",
   },
 };
@@ -3437,7 +3438,26 @@ function normalizeRolePermissions(raw = {}) {
   }, {});
 }
 
+function migrateStudentMessagesPermissionDefault() {
+  const markerKey = `${STUDENT_MESSAGES_PERMISSION_MIGRATION_KEY}::${getActiveWorkspaceStorageId()}`;
+  if (localStorage.getItem(markerKey) === "1") {
+    return;
+  }
+
+  const stored = readWorkspaceState(ROLE_PERMISSIONS_STORAGE_KEY, {});
+  const migrated = {
+    ...stored,
+    Student: {
+      ...(stored.Student && typeof stored.Student === "object" ? stored.Student : {}),
+      student_messages_view: true,
+    },
+  };
+  writeWorkspaceState(ROLE_PERMISSIONS_STORAGE_KEY, normalizeRolePermissions(migrated));
+  localStorage.setItem(markerKey, "1");
+}
+
 function getRolePermissions() {
+  migrateStudentMessagesPermissionDefault();
   const stored = readWorkspaceState(ROLE_PERMISSIONS_STORAGE_KEY, {});
   return normalizeRolePermissions(stored);
 }
