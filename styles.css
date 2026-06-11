@@ -7769,6 +7769,186 @@ body.admin-dashboard-page .student-fee-line-item-card {
     #ffffff;
 }
 
+body.admin-dashboard-page .portal-attendance-history-card {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid #dce5f2;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top right, rgba(47, 111, 237, 0.06), transparent 30%),
+    #ffffff;
+}
+
+body.admin-dashboard-page .portal-attendance-history-card .admin-surface-head {
+  margin: 0;
+}
+
+body.admin-dashboard-page .portal-attendance-history-list {
+  display: grid;
+  gap: 10px;
+}
+
+body.admin-dashboard-page .portal-attendance-history-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 1.1fr) minmax(150px, 1.1fr) minmax(96px, 0.55fr) minmax(96px, 0.55fr);
+  gap: 10px;
+  align-items: stretch;
+  padding: 12px;
+  border: 1px solid #e3eaf4;
+  border-radius: 16px;
+  background: #f8fbff;
+}
+
+body.admin-dashboard-page .portal-attendance-history-row > div {
+  display: grid;
+  align-content: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+body.admin-dashboard-page .portal-attendance-history-row span {
+  color: #667188;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+body.admin-dashboard-page .portal-attendance-history-row strong {
+  color: #17233a;
+  font-size: 0.94rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+body.admin-dashboard-page .portal-attendance-history-count {
+  text-align: center;
+}
+
+body.admin-dashboard-page .portal-attendance-history-count strong {
+  font-size: 1.18rem;
+}
+
+body.admin-dashboard-page .portal-attendance-history-count.is-present {
+  background: #edfdf4;
+}
+
+body.admin-dashboard-page .portal-attendance-history-count.is-present strong {
+  color: #14804a;
+}
+
+body.admin-dashboard-page .portal-attendance-history-count.is-absent {
+  background: #fff1f2;
+}
+
+body.admin-dashboard-page .portal-attendance-history-count.is-absent strong {
+  color: #b4233c;
+}
+
+body.admin-dashboard-page .portal-message-thread {
+  display: grid;
+  gap: 12px;
+  max-height: min(58vh, 620px);
+  overflow: auto;
+  padding: 16px;
+  border: 1px solid #e2eaf5;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top left, rgba(47, 111, 237, 0.06), transparent 30%),
+    #f8fbff;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+body.admin-dashboard-page .portal-message-thread-staff {
+  max-height: none;
+}
+
+body.admin-dashboard-page .portal-message-bubble {
+  display: grid;
+  gap: 8px;
+  width: min(680px, 88%);
+  padding: 14px 16px;
+  border: 1px solid #dfe7f2;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 12px 26px rgba(38, 48, 72, 0.06);
+}
+
+body.admin-dashboard-page .portal-message-bubble.is-outgoing {
+  justify-self: end;
+  border-color: #cfe0ff;
+  background: #eef5ff;
+}
+
+body.admin-dashboard-page .portal-message-bubble.is-incoming {
+  justify-self: start;
+}
+
+body.admin-dashboard-page .portal-message-bubble-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+body.admin-dashboard-page .portal-message-bubble-meta strong {
+  color: #17233a;
+  font-size: 0.9rem;
+}
+
+body.admin-dashboard-page .portal-message-bubble-meta span,
+body.admin-dashboard-page .portal-message-bubble small {
+  color: #667188;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+body.admin-dashboard-page .portal-message-bubble p {
+  margin: 0;
+  color: #34435a;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+body.admin-dashboard-page .portal-message-composer,
+body.admin-dashboard-page .portal-message-inline-reply {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid #dce5f2;
+  border-radius: 18px;
+  background: #ffffff;
+}
+
+body.admin-dashboard-page .portal-message-composer-grid {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(180px, 1fr);
+  gap: 12px;
+}
+
+body.admin-dashboard-page .portal-message-composer-body {
+  grid-column: 1 / -1;
+}
+
+body.admin-dashboard-page .portal-message-composer-actions {
+  justify-content: flex-end;
+  margin: 0;
+}
+
+body.admin-dashboard-page .portal-message-inline-reply {
+  margin-top: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
 body.admin-dashboard-page .portal-fee-line-item-table-wrap {
   overflow-x: auto;
 }
@@ -11421,9 +11601,15 @@ body.admin-dashboard-page .portal-class-empty p {
   body.admin-dashboard-page .staff-portal-row,
   body.admin-dashboard-page .portal-staff-row,
   body.admin-dashboard-page .portal-class-summary,
+  body.admin-dashboard-page .portal-attendance-history-row,
+  body.admin-dashboard-page .portal-message-composer-grid,
   body.admin-dashboard-page .portal-class-meta,
   body.admin-dashboard-page .portal-class-extended {
     grid-template-columns: 1fr;
+  }
+
+  body.admin-dashboard-page .portal-message-bubble {
+    width: 100%;
   }
 
   body.admin-dashboard-page .user-profile-editor {

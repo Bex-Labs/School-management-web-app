@@ -223,6 +223,7 @@
     "admin-fees": "fees_manage",
     "admin-attendance": "attendance_manage",
     "admin-reports": "reports_view",
+    "admin-report-messages": "reports_view",
     "admin-feature-modules": "settings_manage",
     "admin-settings": "settings_manage",
     "admin-settings-school": "settings_manage",
@@ -602,6 +603,7 @@
     initAdminFeesPage();
     initAdminAttendancePage();
     initAdminReportsPage();
+    initAdminReportMessagesPage();
     initAdminFeatureModulesPage();
     initAdminSettingsPage();
     initUserSettingsPage();
@@ -1666,6 +1668,16 @@
     const role = normalizeRoleLabel(scope.role || DEFAULT_AUTH_ROLE);
 
     if (role === "Admin") {
+      return true;
+    }
+
+    const metadata = entry.metadata || {};
+    if (
+      role === "Teacher" &&
+      String(entry.entityType || "").toLowerCase() === "parent-message-reply" &&
+      normalizeEmail(metadata.replyByEmail || "") &&
+      scope.ids?.has(normalizeEmail(metadata.replyByEmail || ""))
+    ) {
       return true;
     }
 
@@ -25840,49 +25852,52 @@
   }
 
   function buildStaffMessagesSection(user) {
-    const notifications = getTeacherPortalNotifications(user).slice(0, 20);
+    const notifications = getTeacherPortalNotifications(user)
+      .filter((entry) => ["parent-message", "parent-message-reply"].includes(String(entry.entityType || "").toLowerCase()))
+      .slice(0, 20);
 
     return `
       <section class="staff-portal-section admin-surface-card">
         <div class="admin-surface-head">
           <div>
             <h2>Messages</h2>
-            <span>${notifications.length} recent notification${notifications.length === 1 ? "" : "s"}</span>
+            <span>${notifications.length} parent message${notifications.length === 1 ? "" : "s"}</span>
           </div>
         </div>
-        <div class="staff-portal-list">
+        <div class="portal-message-thread portal-message-thread-staff">
           ${
             notifications.length
               ? notifications
                   .map(
-                    (entry) => `
-                      <article class="staff-portal-row staff-portal-row-wide">
-                        <div>
-                          <strong>${escapeHtml(entry.title || "Message")}</strong>
-                          <span>${escapeHtml(entry.message || entry.entityType || "School update")}</span>
-                          ${
-                            String(entry.entityType || "") === "parent-message"
-                              ? `
-                                <form class="portal-settings-form staff-message-reply-form" data-parent-message-reply-form data-message-id="${escapeHtml(
-                                  entry.id,
-                                )}" novalidate>
-                                  <div class="portal-settings-grid">
-                                    <label class="portal-field portal-field-span-2">
-                                      <span>Reply</span>
-                                      <textarea name="reply" rows="3" placeholder="Type a reply for the parent."></textarea>
-                                    </label>
-                                  </div>
-                                  <div class="utility-actions">
-                                    <button class="portal-class-button" type="submit">Send reply</button>
-                                  </div>
-                                </form>
-                              `
-                              : ""
-                          }
+                    (entry) => {
+                      const isReply = String(entry.entityType || "") === "parent-message-reply";
+                      const metadata = entry.metadata || {};
+                      return `
+                      <article class="portal-message-bubble ${isReply ? "is-outgoing" : "is-incoming"}">
+                        <div class="portal-message-bubble-meta">
+                          <strong>${escapeHtml(isReply ? "You" : metadata.parentName || entry.actorName || "Parent")}</strong>
+                          <span>${escapeHtml(formatTimestamp(entry.createdAt || nowIso()))}</span>
                         </div>
-                        <small>${escapeHtml(formatTimestamp(entry.createdAt || nowIso()))}</small>
+                        <p>${escapeHtml(entry.message || entry.entityType || "School update")}</p>
+                        <small>${escapeHtml(isReply ? entry.title || "Reply sent" : entry.title || "Parent message")}</small>
+                        ${
+                          !isReply
+                            ? `
+                              <form class="portal-message-inline-reply" data-parent-message-reply-form data-message-id="${escapeHtml(entry.id)}" novalidate>
+                                <label class="portal-field">
+                                  <span>Reply</span>
+                                  <textarea name="reply" rows="2" placeholder="Type a reply for the parent."></textarea>
+                                </label>
+                                <div class="utility-actions">
+                                  <button class="portal-class-button" type="submit">Send reply</button>
+                                </div>
+                              </form>
+                            `
+                            : ""
+                        }
                       </article>
-                    `,
+                    `;
+                    },
                   )
                   .join("")
               : `
@@ -27160,6 +27175,7 @@
     const metadata = message.metadata || {};
     const parentEmail = normalizeEmail(metadata.parentEmail || "");
     const replyText = String(body || "").trim();
+    const replyByRole = normalizeRoleLabel(actorUser.role || getSession()?.role || DEFAULT_AUTH_ROLE);
 
     if (!parentEmail || !replyText) {
       return null;
@@ -27173,13 +27189,13 @@
         entityId: parentEmail,
         action: "replied",
         actorName: actorUser.displayName || actorUser.email || "School",
-        visibleToRoles: ["Admin", "Parent"],
+        visibleToRoles: Array.from(new Set(["Admin", "Parent", replyByRole])),
         metadata: {
           ...metadata,
           replyToId: message.id,
           replyById: actorUser.id || "",
           replyByEmail: actorUser.email || "",
-          replyByRole: normalizeRoleLabel(actorUser.role || getSession()?.role || DEFAULT_AUTH_ROLE),
+          replyByRole,
         },
       },
       message.workspaceId || actorUser.workspaceId || getCurrentWorkspaceId(),
@@ -27652,16 +27668,33 @@
       ? attendance.history
           .map(
             (row) => `
-              <tr>
-                <td>${escapeHtml(row.session)}</td>
-                <td>${escapeHtml(row.term)}</td>
-                <td>${escapeHtml(String(row.present))}</td>
-                <td>${escapeHtml(String(row.absent))}</td>
-              </tr>
+              <article class="portal-attendance-history-row">
+                <div>
+                  <span>Session</span>
+                  <strong>${escapeHtml(row.session)}</strong>
+                </div>
+                <div>
+                  <span>Term</span>
+                  <strong>${escapeHtml(row.term)}</strong>
+                </div>
+                <div class="portal-attendance-history-count is-present">
+                  <span>Present</span>
+                  <strong>${escapeHtml(String(row.present))}</strong>
+                </div>
+                <div class="portal-attendance-history-count is-absent">
+                  <span>Absent</span>
+                  <strong>${escapeHtml(String(row.absent))}</strong>
+                </div>
+              </article>
             `,
           )
           .join("")
-      : `<tr><td colspan="4">No previous term attendance published yet.</td></tr>`;
+      : `
+        <article class="portal-class-empty">
+          <strong>No previous term attendance yet</strong>
+          <p>Attendance history will appear after registers are submitted.</p>
+        </article>
+      `;
 
     target.innerHTML = `
       <article class="admin-surface-card">
@@ -27679,13 +27712,14 @@
             <strong>${escapeHtml(String(attendance.absent))}</strong>
           </div>
         </div>
-        <div class="portal-import-table-wrap">
-          <table class="portal-import-table">
-            <thead>
-              <tr><th>Session</th><th>Term</th><th>Present</th><th>Absent</th></tr>
-            </thead>
-            <tbody>${historyRows}</tbody>
-          </table>
+        <div class="portal-attendance-history-card">
+          <div class="admin-surface-head">
+            <div>
+              <h2>Attendance History</h2>
+              <span>Session and term summary</span>
+            </div>
+          </div>
+          <div class="portal-attendance-history-list">${historyRows}</div>
         </div>
       </article>
     `;
@@ -28345,13 +28379,15 @@
       ? messages
           .map((entry) => {
             const isReply = String(entry.entityType || "") === "parent-message-reply";
+            const metadata = entry.metadata || {};
             return `
-              <article class="staff-portal-row staff-portal-row-wide ${isReply ? "parent-message-reply-row" : ""}">
-                <div>
-                  <strong>${escapeHtml(isReply ? entry.title || "School reply" : entry.title || "Message sent")}</strong>
-                  <span>${escapeHtml(entry.message || "No message body.")}</span>
+              <article class="portal-message-bubble ${isReply ? "is-incoming" : "is-outgoing"}">
+                <div class="portal-message-bubble-meta">
+                  <strong>${escapeHtml(isReply ? entry.actorName || metadata.replyByRole || "School" : "You")}</strong>
+                  <span>${escapeHtml(formatTimestamp(entry.createdAt))}</span>
                 </div>
-                <small>${escapeHtml(isReply ? "School reply" : "Sent by you")} • ${escapeHtml(formatTimestamp(entry.createdAt))}</small>
+                <p>${escapeHtml(entry.message || "No message body.")}</p>
+                <small>${escapeHtml(isReply ? entry.title || "School reply" : entry.title || "Message sent")}</small>
               </article>
             `;
           })
@@ -28367,13 +28403,14 @@
       <section class="staff-portal-section admin-surface-card">
         <div class="admin-surface-head">
           <div>
-            <h2>Message School</h2>
+            <h2>Messages</h2>
             <span>${escapeHtml(student.fullName)} • ${escapeHtml(student.level || "Class not set")}</span>
           </div>
         </div>
-        <form id="parent-message-form" class="portal-settings-form" novalidate>
+        <div class="portal-message-thread">${threadRows}</div>
+        <form id="parent-message-form" class="portal-message-composer" novalidate>
           <div id="parent-message-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
-          <div class="portal-settings-grid">
+          <div class="portal-message-composer-grid">
             <label class="portal-field" for="parent-message-recipient">
               <span>Send to</span>
               <select id="parent-message-recipient" name="recipient">
@@ -28392,25 +28429,15 @@
               <span>Subject</span>
               <input id="parent-message-subject" name="subject" type="text" placeholder="Message subject" />
             </label>
-            <label class="portal-field portal-field-span-2" for="parent-message-body">
+            <label class="portal-field portal-message-composer-body" for="parent-message-body">
               <span>Message</span>
-              <textarea id="parent-message-body" name="message" rows="5" placeholder="Type your message to the school." required></textarea>
+              <textarea id="parent-message-body" name="message" rows="3" placeholder="Type your message." required></textarea>
             </label>
           </div>
-          <div class="utility-actions">
+          <div class="utility-actions portal-message-composer-actions">
             <button class="button button-primary" type="submit">Send message</button>
           </div>
         </form>
-      </section>
-
-      <section class="staff-portal-section admin-surface-card">
-        <div class="admin-surface-head">
-          <div>
-            <h2>Conversation</h2>
-            <span>${messages.length} message${messages.length === 1 ? "" : "s"} in this thread</span>
-          </div>
-        </div>
-        <div class="staff-portal-list">${threadRows}</div>
       </section>
     `;
 
@@ -29929,14 +29956,14 @@
   function getAdminParentMessagesForReports(workspaceId = null) {
     const targetWorkspaceId = normalizeWorkspaceId(workspaceId || getCurrentWorkspaceId());
     return getNotifications(targetWorkspaceId)
-      .filter((entry) => String(entry.entityType || "").toLowerCase() === "parent-message")
+      .filter((entry) => ["parent-message", "parent-message-reply"].includes(String(entry.entityType || "").toLowerCase()))
       .filter((entry) => {
         const metadata = entry.metadata || {};
         const recipientRole = normalizeRoleLabel(metadata.recipientRole || "");
         const recipientScope = String(metadata.recipientScope || "").trim().toLowerCase();
         return recipientRole === "Admin" || recipientScope === "admin";
       })
-      .sort((left, right) => String(right.createdAt || "").localeCompare(String(left.createdAt || "")));
+      .sort((left, right) => String(left.createdAt || "").localeCompare(String(right.createdAt || "")));
   }
 
   function renderAdminReportParentMessages(target) {
@@ -29959,32 +29986,36 @@
     target.innerHTML = messages
       .map((entry) => {
         const metadata = entry.metadata || {};
+        const isReply = String(entry.entityType || "").toLowerCase() === "parent-message-reply";
         const parentName = metadata.parentName || entry.actorName || "Parent";
         const studentName = metadata.studentName || "Student not linked";
         const classLevel = metadata.classLevel || "Class not set";
         return `
-          <article class="admin-report-parent-message">
-            <header>
-              <div>
-                <span>${escapeHtml(parentName)} - ${escapeHtml(studentName)}</span>
-                <strong>${escapeHtml(entry.title || "Parent message")}</strong>
-              </div>
-              <small>${escapeHtml(formatTimestamp(entry.createdAt || nowIso()))}</small>
-            </header>
+          <article class="admin-report-parent-message portal-message-bubble ${isReply ? "is-outgoing" : "is-incoming"}">
+            <div class="portal-message-bubble-meta">
+              <strong>${escapeHtml(isReply ? "You" : parentName)}</strong>
+              <span>${escapeHtml(formatTimestamp(entry.createdAt || nowIso()))}</span>
+            </div>
             <p>${escapeHtml(entry.message || "No message body.")}</p>
             <footer>
-              <span>${escapeHtml(classLevel)}</span>
-              <span>To School Admin</span>
+              <span>${escapeHtml(studentName)} - ${escapeHtml(classLevel)}</span>
+              <span>${escapeHtml(isReply ? entry.title || "Reply sent" : entry.title || "Parent message")}</span>
             </footer>
-            <form class="portal-settings-form admin-report-parent-reply-form" data-admin-report-parent-reply-form data-message-id="${escapeHtml(entry.id)}" novalidate>
-              <label class="portal-field">
-                <span>Reply to parent</span>
-                <textarea name="reply" rows="3" placeholder="Type a reply to the parent."></textarea>
-              </label>
-              <div class="utility-actions">
-                <button class="portal-class-button" type="submit">Send reply</button>
-              </div>
-            </form>
+            ${
+              !isReply
+                ? `
+                  <form class="portal-message-inline-reply admin-report-parent-reply-form" data-admin-report-parent-reply-form data-message-id="${escapeHtml(entry.id)}" novalidate>
+                    <label class="portal-field">
+                      <span>Reply to parent</span>
+                      <textarea name="reply" rows="2" placeholder="Type a reply to the parent."></textarea>
+                    </label>
+                    <div class="utility-actions">
+                      <button class="portal-class-button" type="submit">Send reply</button>
+                    </div>
+                  </form>
+                `
+                : ""
+            }
           </article>
         `;
       })
@@ -30120,7 +30151,6 @@
     const insightsTarget = document.getElementById("admin-report-insights");
     const healthTarget = document.getElementById("admin-report-health");
     const areasTarget = document.getElementById("admin-report-areas");
-    const parentMessagesTarget = document.getElementById("admin-report-parent-messages");
     const checklistTarget = document.getElementById("admin-report-checklist");
 
     if (!kpiTarget || !insightsTarget || !healthTarget || !areasTarget || !checklistTarget) {
@@ -30340,9 +30370,6 @@
       )
       .join("");
 
-    renderAdminReportParentMessages(parentMessagesTarget);
-    wireAdminReportParentMessages(parentMessagesTarget);
-
     const checklist = [
       {
         label: "Students are entered",
@@ -30427,6 +30454,35 @@
       .forEach((eventName) => {
         window.addEventListener(eventName, refresh);
       });
+  }
+
+  function initAdminReportMessagesPage() {
+    if (getPage() !== "admin-report-messages") {
+      return;
+    }
+
+    const { isAdmin, roleLabel } = getAdminAccessContext();
+    const canViewReports = isAdmin && canAccessPermission(roleLabel, PAGE_PERMISSION_KEYS["admin-report-messages"]);
+    const messagesTarget = document.getElementById("admin-report-parent-messages");
+    const workspace = document.querySelector(".admin-report-workspace");
+
+    if (!canViewReports && workspace) {
+      workspace.innerHTML = `
+        <article class="admin-surface-card">
+          <div class="admin-surface-head"><h2>Messages unavailable</h2><span>Permission required</span></div>
+          <p class="auth-helper-text">Your account does not currently have permission to view report messages.</p>
+        </article>
+      `;
+      return;
+    }
+
+    const refresh = () => {
+      renderAdminReportParentMessages(messagesTarget);
+      wireAdminReportParentMessages(messagesTarget);
+    };
+
+    refresh();
+    window.addEventListener(NOTIFICATION_EVENT_NAME, refresh);
   }
 
   function initAdminFeatureModulesPage() {

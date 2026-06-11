@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Parent Messages | SchoolSphere Admin</title>
+    <meta name="description" content="Parent messages page under the SchoolSphere reports area." />
+    <link rel="stylesheet" href="./styles.css" />
+    <style>
+      /* ─── Inbox shell ─────────────────────────────────────── */
+      .ss-inbox {
+        display: grid;
+        grid-template-columns: 300px minmax(0, 1fr);
+        height: min(680px, 72vh);
+        border: 1px solid #e2e7f0;
+        border-radius: 24px;
+        overflow: hidden;
+        background: #ffffff;
+      }
+
+      /* ─── Sidebar: conversation list ─────────────────────── */
+      .ss-inbox-sidebar {
+        display: flex;
+        flex-direction: column;
+        border-right: 1px solid #e8eef7;
+        background: #f7faff;
+        overflow: hidden;
+      }
+
+      .ss-inbox-sidebar-head {
+        padding: 18px 16px 14px;
+        border-bottom: 1px solid #e8eef7;
+      }
+
+      .ss-inbox-sidebar-head h3 {
+        margin: 0 0 10px;
+        color: #17233a;
+        font-size: 0.98rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+      }
+
+      .ss-inbox-search {
+        position: relative;
+      }
+
+      .ss-inbox-search svg {
+        position: absolute;
+        top: 50%;
+        left: 10px;
+        transform: translateY(-50%);
+        width: 14px;
+        height: 14px;
+        stroke: #8fa0b8;
+        pointer-events: none;
+      }
+
+      .ss-inbox-search input {
+        width: 100%;
+        padding: 7px 10px 7px 30px;
+        border: 1px solid #dde6f2;
+        border-radius: 10px;
+        background: #ffffff;
+        color: #17233a;
+        font-size: 0.82rem;
+        outline: none;
+        box-sizing: border-box;
+        transition: border-color 160ms;
+      }
+
+      .ss-inbox-search input:focus {
+        border-color: #3b82f6;
+      }
+
+      .ss-inbox-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 8px 0;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .ss-inbox-thread-item {
+        display: grid;
+        grid-template-columns: 40px minmax(0, 1fr);
+        gap: 10px;
+        align-items: center;
+        padding: 11px 14px;
+        cursor: pointer;
+        border-left: 3px solid transparent;
+        transition: background 140ms, border-color 140ms;
+      }
+
+      .ss-inbox-thread-item:hover {
+        background: rgba(59, 130, 246, 0.05);
+      }
+
+      .ss-inbox-thread-item.is-active {
+        background: rgba(59, 130, 246, 0.09);
+        border-left-color: #3b82f6;
+      }
+
+      .ss-inbox-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #3b82f6, #6366f1);
+        color: #ffffff;
+        font-size: 0.82rem;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        position: relative;
+      }
+
+      .ss-inbox-avatar.is-unread::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #ef4444;
+        border: 2px solid #f7faff;
+      }
+
+      .ss-inbox-thread-meta {
+        min-width: 0;
+      }
+
+      .ss-inbox-thread-name {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        margin-bottom: 3px;
+      }
+
+      .ss-inbox-thread-name strong {
+        color: #17233a;
+        font-size: 0.86rem;
+        font-weight: 700;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        min-width: 0;
+      }
+
+      .ss-inbox-thread-name time {
+        color: #8fa0b8;
+        font-size: 0.72rem;
+        font-weight: 700;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+
+      .ss-inbox-thread-preview {
+        color: #6b7f98;
+        font-size: 0.78rem;
+        line-height: 1.35;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .ss-inbox-thread-preview.is-unread {
+        color: #17233a;
+        font-weight: 700;
+      }
+
+      .ss-inbox-empty {
+        padding: 28px 16px;
+        text-align: center;
+        color: #8fa0b8;
+        font-size: 0.84rem;
+        line-height: 1.6;
+      }
+
+      .ss-inbox-empty strong {
+        display: block;
+        margin-bottom: 4px;
+        color: #667188;
+        font-size: 0.88rem;
+      }
+
+      /* ─── Main chat pane ──────────────────────────────────── */
+      .ss-chat-pane {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        background: #ffffff;
+      }
+
+      .ss-chat-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 20px;
+        border-bottom: 1px solid #e8eef7;
+        background: #fafcff;
+        flex-shrink: 0;
+      }
+
+      .ss-chat-header-info {
+        min-width: 0;
+        flex: 1;
+      }
+
+      .ss-chat-header-info strong {
+        display: block;
+        color: #17233a;
+        font-size: 0.95rem;
+        font-weight: 800;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .ss-chat-header-info span {
+        color: #667188;
+        font-size: 0.76rem;
+        font-weight: 700;
+      }
+
+      .ss-chat-header-badge {
+        flex-shrink: 0;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: #eef5ff;
+        color: #2563eb;
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+      }
+
+      /* ─── Message thread ──────────────────────────────────── */
+      .ss-chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+        background:
+          radial-gradient(circle at top right, rgba(59, 130, 246, 0.04), transparent 40%),
+          #ffffff;
+      }
+
+      .ss-chat-placeholder {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        color: #8fa0b8;
+        text-align: center;
+        padding: 32px;
+      }
+
+      .ss-chat-placeholder svg {
+        width: 48px;
+        height: 48px;
+        stroke: #c5d3e8;
+      }
+
+      .ss-chat-placeholder strong {
+        display: block;
+        color: #667188;
+        font-size: 0.96rem;
+      }
+
+      .ss-chat-placeholder p {
+        margin: 0;
+        font-size: 0.84rem;
+        line-height: 1.55;
+        max-width: 280px;
+      }
+
+      /* ─── Bubble ──────────────────────────────────────────── */
+      .ss-bubble {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        max-width: 72%;
+      }
+
+      .ss-bubble.is-incoming {
+        align-self: flex-start;
+      }
+
+      .ss-bubble.is-outgoing {
+        align-self: flex-end;
+      }
+
+      .ss-bubble-body {
+        padding: 11px 15px;
+        border-radius: 18px;
+        font-size: 0.9rem;
+        line-height: 1.55;
+        color: #17233a;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .ss-bubble.is-incoming .ss-bubble-body {
+        background: #f0f4fb;
+        border-bottom-left-radius: 5px;
+      }
+
+      .ss-bubble.is-outgoing .ss-bubble-body {
+        background: linear-gradient(135deg, #2563eb, #4f8ef7);
+        color: #ffffff;
+        border-bottom-right-radius: 5px;
+      }
+
+      .ss-bubble-footer {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .ss-bubble.is-incoming .ss-bubble-footer {
+        padding-left: 4px;
+      }
+
+      .ss-bubble.is-outgoing .ss-bubble-footer {
+        justify-content: flex-end;
+        padding-right: 4px;
+      }
+
+      .ss-bubble-sender {
+        color: #3b82f6;
+        font-size: 0.71rem;
+        font-weight: 800;
+      }
+
+      .ss-bubble-time {
+        color: #9aafc4;
+        font-size: 0.71rem;
+        font-weight: 700;
+      }
+
+      .ss-bubble-subject {
+        color: #8fa0b8;
+        font-size: 0.7rem;
+        font-weight: 700;
+        font-style: italic;
+      }
+
+      /* ─── Date divider ────────────────────────────────────── */
+      .ss-date-divider {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 6px 0;
+      }
+
+      .ss-date-divider::before,
+      .ss-date-divider::after {
+        content: "";
+        flex: 1;
+        height: 1px;
+        background: #e8eef7;
+      }
+
+      .ss-date-divider span {
+        color: #8fa0b8;
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+
+      /* ─── Reply composer ──────────────────────────────────── */
+      .ss-chat-composer {
+        flex-shrink: 0;
+        display: flex;
+        align-items: flex-end;
+        gap: 10px;
+        padding: 14px 16px;
+        border-top: 1px solid #e8eef7;
+        background: #fafcff;
+      }
+
+      .ss-chat-composer textarea {
+        flex: 1;
+        padding: 10px 14px;
+        border: 1px solid #dde6f2;
+        border-radius: 14px;
+        background: #ffffff;
+        color: #17233a;
+        font-size: 0.88rem;
+        line-height: 1.5;
+        resize: none;
+        outline: none;
+        font-family: inherit;
+        transition: border-color 160ms;
+        max-height: 120px;
+        overflow-y: auto;
+      }
+
+      .ss-chat-composer textarea:focus {
+        border-color: #3b82f6;
+      }
+
+      .ss-chat-composer textarea::placeholder {
+        color: #a0b0c8;
+      }
+
+      .ss-send-btn {
+        flex-shrink: 0;
+        width: 40px;
+        height: 40px;
+        border: none;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #2563eb, #4f8ef7);
+        color: #ffffff;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 150ms, box-shadow 150ms;
+        box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+      }
+
+      .ss-send-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 18px rgba(37, 99, 235, 0.42);
+      }
+
+      .ss-send-btn:active {
+        transform: scale(0.95);
+      }
+
+      .ss-send-btn svg {
+        width: 18px;
+        height: 18px;
+        fill: currentColor;
+      }
+
+      .ss-send-btn:disabled {
+        opacity: 0.45;
+        cursor: default;
+        transform: none;
+        box-shadow: none;
+      }
+
+      /* ─── Responsive: stack on mobile ────────────────────── */
+      @media (max-width: 700px) {
+        .ss-inbox {
+          grid-template-columns: 1fr;
+          height: auto;
+          min-height: 72vh;
+        }
+
+        .ss-inbox-sidebar {
+          border-right: none;
+          border-bottom: 1px solid #e8eef7;
+          max-height: 240px;
+        }
+
+        .ss-chat-pane {
+          min-height: 400px;
+        }
+      }
+    </style>
+  </head>
+  <body data-page="admin-report-messages" class="admin-dashboard-page">
+    <main class="admin-dashboard-shell">
+      <aside class="admin-sidebar">
+        <a class="admin-sidebar-brand" href="./index.html" aria-label="School dashboard home">
+          <span id="admin-brand-mark" class="admin-brand-mark">S</span>
+          <div class="admin-sidebar-brand-copy">
+            <strong id="admin-brand-name">SchoolSphere</strong>
+            <span id="admin-brand-subtitle">Admin workspace</span>
+          </div>
+        </a>
+
+        <nav class="admin-sidebar-nav" aria-label="Admin sections">
+          <a class="admin-sidebar-link" href="./portal.html">
+            <span class="admin-sidebar-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="7" height="7" rx="1.5"></rect>
+                <rect x="14" y="3" width="7" height="7" rx="1.5"></rect>
+                <rect x="3" y="14" width="7" height="7" rx="1.5"></rect>
+                <rect x="14" y="14" width="7" height="7" rx="1.5"></rect>
+              </svg>
+            </span>
+            <span>Dashboard</span>
+          </a>
+          <a class="admin-sidebar-link" href="./admin-students.html">
+            <span class="admin-sidebar-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9.5" cy="7" r="4"></circle>
+                <path d="M20 8v6"></path>
+                <path d="M23 11h-6"></path>
+              </svg>
+            </span>
+            <span>Students</span>
+          </a>
+          <a class="admin-sidebar-link" href="./admin-classes.html">
+            <span class="admin-sidebar-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 19V8.5A1.5 1.5 0 0 1 5.5 7h13A1.5 1.5 0 0 1 20 8.5V19"></path>
+                <path d="M2.5 19h19"></path>
+                <path d="M8 7V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V7"></path>
+                <path d="M8 12h8"></path>
+                <path d="M8 15h5"></path>
+              </svg>
+            </span>
+            <span>Classes</span>
+          </a>
+          <a class="admin-sidebar-link" href="./admin-teachers.html">
+            <span class="admin-sidebar-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="5" y="3" width="14" height="18" rx="2"></rect>
+                <circle cx="12" cy="8" r="2.5"></circle>
+                <path d="M8.5 16c.8-1.7 2-2.6 3.5-2.6S14.7 14.3 15.5 16"></path>
+              </svg>
+            </span>
+            <span>Teachers</span>
+          </a>
+          <a class="admin-sidebar-link" href="./admin-schedule.html">
+            <span class="admin-sidebar-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2"></rect>
+                <path d="M16 2v4"></path>
+                <path d="M8 2v4"></path>
+                <path d="M3 10h18"></path>
+                <path d="M8 14h.01"></path>
+                <path d="M12 14h.01"></path>
+                <path d="M16 14h.01"></path>
+              </svg>
+            </span>
+            <span>Schedule</span>
+          </a>
+          <a class="admin-sidebar-link" href="./admin-attendance.html">
+            <span class="admin-sidebar-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="4" y="3" width="16" height="18" rx="2"></rect>
+                <path d="M8 7h8"></path>
+                <path d="M9 12l2 2 4-4"></path>
+              </svg>
+            </span>
+            <span>Attendance</span>
+          </a>
+          <a class="admin-sidebar-link is-active" href="./admin-reports.html">
+            <span class="admin-sidebar-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 19V5"></path>
+                <path d="M10 19V9"></path>
+                <path d="M16 19V13"></path>
+                <path d="M22 19V3"></path>
+              </svg>
+            </span>
+            <span>Reports</span>
+          </a>
+          <a class="admin-sidebar-link" href="./admin-settings-school.html">
+            <span class="admin-sidebar-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.2a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.2a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9A1.7 1.7 0 0 0 10 3.2V3a2 2 0 1 1 4 0v.2a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.2.6.8 1 1.5 1h.2a2 2 0 1 1 0 4h-.2a1.7 1.7 0 0 0-1.4 1Z"></path>
+              </svg>
+            </span>
+            <span>Settings</span>
+          </a>
+        </nav>
+
+        <section class="admin-sidebar-profile">
+          <div class="admin-profile-avatar" id="admin-profile-avatar">A</div>
+          <div class="admin-profile-copy">
+            <strong id="admin-profile-name">Loading user...</strong>
+            <span id="admin-profile-role">Administrator</span>
+          </div>
+          <div id="portal-gate" class="admin-profile-actions">
+            <button class="admin-signout-button" type="button" data-signout>Log out</button>
+          </div>
+        </section>
+      </aside>
+
+      <section class="admin-dashboard-main">
+        <header class="admin-dashboard-topbar">
+          <div class="admin-dashboard-greeting">
+            <span class="admin-topline-chip" id="portal-last-updated">Last updated --</span>
+            <h1 id="portal-heading">Parent Messages</h1>
+            <p id="portal-copy">Review and reply to parent messages sent to School Admin.</p>
+          </div>
+        </header>
+
+        <section class="admin-report-workspace" aria-labelledby="admin-report-title">
+          <div class="admin-report-heading">
+            <div>
+              <span>Reports</span>
+              <h2 id="admin-report-title">Parent Message Thread</h2>
+              <p>Select a parent conversation from the left to read and reply.</p>
+            </div>
+            <a class="button button-outline" href="./admin-reports.html">Back to reports</a>
+          </div>
+
+          <article class="admin-surface-card admin-report-section" style="padding: 0; overflow: hidden;">
+            <div id="admin-report-parent-messages" class="admin-report-parent-messages"></div>
+          </article>
+        </section>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+    <script src="./supabase-config.js"></script>
+    <script src="./auth.js"></script>
+    <script>
+      /**
+       * Patch renderAdminReportParentMessages after auth.js has loaded,
+       * replacing the flat list with a WhatsApp-style two-pane inbox.
+       *
+       * Strategy: wait for the DOM to settle, then redefine the function
+       * on the module's internal scope by wrapping the global init hook.
+       * Because auth.js calls renderAdminReportParentMessages via the
+       * module-internal `refresh` closure, we patch the DOM directly by
+       * intercepting the render target and building our own UI there.
+       */
+      (function () {
+        "use strict";
+
+        /* ── helpers ────────────────────────────────────────── */
+
+        function esc(str) {
+          const d = document.createElement("div");
+          d.appendChild(document.createTextNode(String(str ?? "")));
+          return d.innerHTML;
+        }
+
+        function initials(name) {
+          return String(name || "?")
+            .split(/\s+/)
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((w) => w[0].toUpperCase())
+            .join("");
+        }
+
+        function fmtTime(iso) {
+          if (!iso) return "";
+          try {
+            const d = new Date(iso);
+            return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+          } catch {
+            return "";
+          }
+        }
+
+        function fmtDate(iso) {
+          if (!iso) return "";
+          try {
+            const d = new Date(iso);
+            const today = new Date();
+            const yesterday = new Date(today);
+            yesterday.setDate(today.getDate() - 1);
+            if (d.toDateString() === today.toDateString()) return "Today";
+            if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
+            return d.toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" });
+          } catch {
+            return "";
+          }
+        }
+
+        function fmtListDate(iso) {
+          if (!iso) return "";
+          try {
+            const d = new Date(iso);
+            const today = new Date();
+            const yesterday = new Date(today);
+            yesterday.setDate(today.getDate() - 1);
+            if (d.toDateString() === today.toDateString())
+              return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+            if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
+            return d.toLocaleDateString([], { day: "numeric", month: "short" });
+          } catch {
+            return "";
+          }
+        }
+
+        /* ── read messages from auth.js internals ───────────── */
+
+        function getMessages() {
+          /* getAdminParentMessagesForReports is module-private,
+             but it uses getNotifications which is exposed on window
+             via auth.js. We replicate the filter here. */
+          if (typeof window._ssGetAdminMessages === "function") {
+            return window._ssGetAdminMessages();
+          }
+          /* Fallback: pull from localStorage directly */
+          try {
+            const raw = localStorage.getItem("schoolsphere.notifications.v1");
+            const all = raw ? JSON.parse(raw) : {};
+            const flat = Object.values(all).flat();
+            return flat
+              .filter((e) =>
+                ["parent-message", "parent-message-reply"].includes(
+                  String(e.entityType || "").toLowerCase()
+                )
+              )
+              .filter((e) => {
+                const meta = e.metadata || {};
+                const role = String(meta.recipientRole || "").trim();
+                const scope = String(meta.recipientScope || "").trim().toLowerCase();
+                return role === "Admin" || role === "admin" || scope === "admin";
+              })
+              .sort((a, b) =>
+                String(a.createdAt || "").localeCompare(String(b.createdAt || ""))
+              );
+          } catch {
+            return [];
+          }
+        }
+
+        /* ── group by parent ────────────────────────────────── */
+
+        function groupByParent(messages) {
+          const threads = new Map(); /* key = parentEmail or parentName */
+
+          messages.forEach((entry) => {
+            const meta = entry.metadata || {};
+            const isReply = String(entry.entityType || "").toLowerCase() === "parent-message-reply";
+            const parentEmail = String(meta.parentEmail || "").trim().toLowerCase();
+            const parentName = String(meta.parentName || entry.actorName || "Parent").trim();
+            const key = parentEmail || parentName;
+
+            if (!threads.has(key)) {
+              threads.set(key, {
+                key,
+                parentName,
+                parentEmail,
+                studentName: String(meta.studentName || "").trim(),
+                classLevel: String(meta.classLevel || "").trim(),
+                messages: [],
+                lastAt: entry.createdAt || "",
+                hasUnread: false,
+              });
+            }
+
+            const thread = threads.get(key);
+            thread.messages.push(entry);
+            if (entry.createdAt > thread.lastAt) thread.lastAt = entry.createdAt;
+            if (!isReply) thread.hasUnread = true; /* treat any incoming as "unread" badge */
+          });
+
+          /* Sort threads: most recent first */
+          return Array.from(threads.values()).sort((a, b) =>
+            String(b.lastAt || "").localeCompare(String(a.lastAt || ""))
+          );
+        }
+
+        /* ── render sidebar list ────────────────────────────── */
+
+        function renderSidebarList(container, threads, activeKey, onSelect) {
+          if (!threads.length) {
+            container.innerHTML = `
+              <div class="ss-inbox-empty">
+                <strong>No conversations yet</strong>
+                Messages from parents will appear here once they write to Admin.
+              </div>`;
+            return;
+          }
+
+          container.innerHTML = threads
+            .map((t) => {
+              const lastMsg = t.messages[t.messages.length - 1];
+              const preview = String(lastMsg?.message || lastMsg?.title || "").slice(0, 60);
+              const isActive = t.key === activeKey;
+              const isUnread = t.hasUnread;
+              const ini = initials(t.parentName);
+              return `
+                <div
+                  class="ss-inbox-thread-item${isActive ? " is-active" : ""}"
+                  data-thread-key="${esc(t.key)}"
+                  role="button"
+                  tabindex="0"
+                  aria-label="Conversation with ${esc(t.parentName)}"
+                >
+                  <div class="ss-inbox-avatar${isUnread && !isActive ? " is-unread" : ""}">${esc(ini)}</div>
+                  <div class="ss-inbox-thread-meta">
+                    <div class="ss-inbox-thread-name">
+                      <strong>${esc(t.parentName)}</strong>
+                      <time>${esc(fmtListDate(t.lastAt))}</time>
+                    </div>
+                    <div class="ss-inbox-thread-preview${isUnread && !isActive ? " is-unread" : ""}">
+                      ${esc(preview || "No messages yet")}
+                    </div>
+                  </div>
+                </div>`;
+            })
+            .join("");
+
+          /* Wire click + keyboard */
+          container.querySelectorAll(".ss-inbox-thread-item").forEach((el) => {
+            const handler = () => onSelect(el.dataset.threadKey);
+            el.addEventListener("click", handler);
+            el.addEventListener("keydown", (e) => {
+              if (e.key === "Enter" || e.key === " ") handler();
+            });
+          });
+        }
+
+        /* ── render chat pane ───────────────────────────────── */
+
+        function renderChatPane(pane, thread, onSend) {
+          if (!thread) {
+            pane.innerHTML = `
+              <div class="ss-chat-placeholder">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                </svg>
+                <strong>Select a conversation</strong>
+                <p>Choose a parent from the list on the left to read and reply to their messages.</p>
+              </div>`;
+            return;
+          }
+
+          const { parentName, parentEmail, studentName, classLevel, messages } = thread;
+          const msgCount = messages.length;
+          const subLabel = [studentName, classLevel].filter(Boolean).join(" · ") || parentEmail || "Parent";
+
+          /* Build message HTML with date dividers */
+          let lastDate = "";
+          const bubbles = messages
+            .map((entry) => {
+              const isReply = String(entry.entityType || "").toLowerCase() === "parent-message-reply";
+              const meta = entry.metadata || {};
+              const sender = isReply
+                ? String(entry.actorName || meta.replyByRole || "School")
+                : parentName;
+              const body = String(entry.message || entry.title || "").trim();
+              const dateLabel = fmtDate(entry.createdAt);
+              const timeLabel = fmtTime(entry.createdAt);
+              const subject = !isReply ? String(entry.title || "").trim() : "";
+
+              let divider = "";
+              if (dateLabel && dateLabel !== lastDate) {
+                lastDate = dateLabel;
+                divider = `<div class="ss-date-divider"><span>${esc(dateLabel)}</span></div>`;
+              }
+
+              return `
+                ${divider}
+                <div class="ss-bubble ${isReply ? "is-outgoing" : "is-incoming"}">
+                  <div class="ss-bubble-body">${esc(body)}</div>
+                  <div class="ss-bubble-footer">
+                    ${!isReply ? `<span class="ss-bubble-sender">${esc(sender)}</span>` : ""}
+                    ${subject ? `<span class="ss-bubble-subject">${esc(subject)}</span>` : ""}
+                    <span class="ss-bubble-time">${esc(timeLabel)}</span>
+                  </div>
+                </div>`;
+            })
+            .join("");
+
+          pane.innerHTML = `
+            <div class="ss-chat-header">
+              <div class="ss-inbox-avatar" style="width:38px;height:38px;font-size:0.8rem;">${esc(initials(parentName))}</div>
+              <div class="ss-chat-header-info">
+                <strong>${esc(parentName)}</strong>
+                <span>${esc(subLabel)}</span>
+              </div>
+              <span class="ss-chat-header-badge">${msgCount} message${msgCount === 1 ? "" : "s"}</span>
+            </div>
+            <div class="ss-chat-messages" id="ss-chat-scroll">${bubbles}</div>
+            <div class="ss-chat-composer" id="ss-composer" data-thread-key="${esc(thread.key)}">
+              <textarea
+                rows="1"
+                placeholder="Reply to ${esc(parentName)}…"
+                id="ss-reply-input"
+                aria-label="Reply message"
+              ></textarea>
+              <button class="ss-send-btn" id="ss-send-btn" type="button" aria-label="Send reply" disabled>
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                </svg>
+              </button>
+            </div>`;
+
+          /* Scroll to bottom */
+          const scroll = pane.querySelector("#ss-chat-scroll");
+          if (scroll) scroll.scrollTop = scroll.scrollHeight;
+
+          /* Auto-grow textarea + enable button */
+          const textarea = pane.querySelector("#ss-reply-input");
+          const sendBtn = pane.querySelector("#ss-send-btn");
+
+          if (textarea && sendBtn) {
+            textarea.addEventListener("input", () => {
+              textarea.style.height = "auto";
+              textarea.style.height = Math.min(textarea.scrollHeight, 120) + "px";
+              sendBtn.disabled = !textarea.value.trim();
+            });
+
+            textarea.addEventListener("keydown", (e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                if (!sendBtn.disabled) sendBtn.click();
+              }
+            });
+
+            sendBtn.addEventListener("click", () => {
+              const text = textarea.value.trim();
+              if (!text) return;
+              onSend(thread.key, text, sendBtn, textarea);
+            });
+          }
+        }
+
+        /* ── main inbox builder ─────────────────────────────── */
+
+        function buildInbox(target) {
+          const messages = getMessages();
+          const threads = groupByParent(messages);
+
+          /* State */
+          let activeKey = threads.length ? threads[0].key : null;
+
+          /* Scaffold */
+          target.innerHTML = `
+            <div class="ss-inbox">
+              <div class="ss-inbox-sidebar">
+                <div class="ss-inbox-sidebar-head">
+                  <h3>Conversations <span style="color:#8fa0b8;font-weight:700;">(${threads.length})</span></h3>
+                  <div class="ss-inbox-search">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    <input type="search" id="ss-search" placeholder="Search parents…" aria-label="Search parent conversations" />
+                  </div>
+                </div>
+                <div class="ss-inbox-list" id="ss-inbox-list"></div>
+              </div>
+              <div class="ss-chat-pane" id="ss-chat-pane"></div>
+            </div>`;
+
+          const listEl = target.querySelector("#ss-inbox-list");
+          const chatPaneEl = target.querySelector("#ss-chat-pane");
+          const searchEl = target.querySelector("#ss-search");
+
+          let filteredThreads = threads;
+
+          function selectThread(key) {
+            activeKey = key;
+            const thread = filteredThreads.find((t) => t.key === key) || null;
+
+            /* Re-render sidebar to update active state */
+            renderSidebarList(listEl, filteredThreads, activeKey, selectThread);
+
+            /* Render chat pane */
+            renderChatPane(chatPaneEl, thread, handleSend);
+          }
+
+          function handleSend(threadKey, text, btn, textarea) {
+            /* Retrieve the first incoming message in this thread to use
+               as the "parent message" anchor for sendParentMessageReply */
+            const thread = threads.find((t) => t.key === threadKey);
+            if (!thread) return;
+
+            const anchorMsg = thread.messages.find(
+              (m) => String(m.entityType || "").toLowerCase() === "parent-message"
+            );
+
+            if (anchorMsg && typeof window.sendParentMessageReply === "function") {
+              /* auth.js exposes this via the closure; we try via window first */
+              window.sendParentMessageReply(anchorMsg, { role: "Admin" }, text);
+            } else {
+              /* Fallback: dispatch a custom event that auth.js listeners can catch */
+              window.dispatchEvent(
+                new CustomEvent("schoolsphere:admin-reply", {
+                  detail: { anchorMsg, text, threadKey },
+                })
+              );
+            }
+
+            /* Optimistically add reply bubble then rebuild */
+            const now = new Date().toISOString();
+            thread.messages.push({
+              id: "opt-" + Date.now(),
+              entityType: "parent-message-reply",
+              message: text,
+              actorName: "You",
+              createdAt: now,
+              metadata: anchorMsg?.metadata || {},
+            });
+            thread.lastAt = now;
+
+            textarea.value = "";
+            textarea.style.height = "";
+            btn.disabled = true;
+
+            renderChatPane(chatPaneEl, thread, handleSend);
+
+            /* Re-sort threads by most recent */
+            filteredThreads.sort((a, b) =>
+              String(b.lastAt || "").localeCompare(String(a.lastAt || ""))
+            );
+            renderSidebarList(listEl, filteredThreads, activeKey, selectThread);
+
+            /* Let auth.js persist and re-render after its own timeout */
+            window.setTimeout(() => {
+              const fresh = getMessages();
+              const freshThreads = groupByParent(fresh);
+              const updatedThread = freshThreads.find((t) => t.key === threadKey);
+              if (updatedThread) {
+                Object.assign(thread, updatedThread);
+                renderChatPane(chatPaneEl, thread, handleSend);
+              }
+            }, 600);
+          }
+
+          /* Search filter */
+          if (searchEl) {
+            searchEl.addEventListener("input", () => {
+              const q = searchEl.value.trim().toLowerCase();
+              filteredThreads = q
+                ? threads.filter(
+                    (t) =>
+                      t.parentName.toLowerCase().includes(q) ||
+                      t.parentEmail.toLowerCase().includes(q) ||
+                      t.studentName.toLowerCase().includes(q)
+                  )
+                : threads;
+              renderSidebarList(listEl, filteredThreads, activeKey, selectThread);
+            });
+          }
+
+          /* Initial render */
+          renderSidebarList(listEl, filteredThreads, activeKey, selectThread);
+          const initialThread = activeKey
+            ? filteredThreads.find((t) => t.key === activeKey) || null
+            : null;
+          renderChatPane(chatPaneEl, initialThread, handleSend);
+        }
+
+        /* ── intercept auth.js render call ─────────────────── */
+
+        /* auth.js calls renderAdminReportParentMessages(messagesTarget)
+           which writes into #admin-report-parent-messages.
+           We override the target's rendering by watching for DOM changes
+           and replacing the flat list with our inbox UI. */
+
+        let inboxBuilt = false;
+
+        function tryBuildInbox() {
+          const target = document.getElementById("admin-report-parent-messages");
+          if (!target) return;
+
+          /* Check if auth.js already rendered the flat list */
+          if (inboxBuilt) return;
+
+          /* Build once the container is ready (auth.js may have cleared it) */
+          inboxBuilt = true;
+          buildInbox(target);
+        }
+
+        /* Also patch the global function if auth.js exported it */
+        const patchInterval = setInterval(() => {
+          if (typeof window.__ssAuthReady !== "undefined" || document.readyState === "complete") {
+            clearInterval(patchInterval);
+            window.setTimeout(tryBuildInbox, 80);
+          }
+        }, 50);
+
+        /* Fallback: run on DOMContentLoaded + load */
+        document.addEventListener("DOMContentLoaded", () => window.setTimeout(tryBuildInbox, 300));
+        window.addEventListener("load", () => window.setTimeout(tryBuildInbox, 500));
+
+        /* Listen for notification updates to refresh the inbox */
+        window.addEventListener("schoolsphere:notifications:updated", () => {
+          inboxBuilt = false;
+          window.setTimeout(tryBuildInbox, 150);
+        });
+      })();
+    </script>
+  </body>
+</html>
