@@ -4608,6 +4608,49 @@
     };
   }
 
+  async function deleteSupabaseManagedUser(email) {
+    if (!isSupabaseConfigured()) {
+      return { status: "skipped", message: "" };
+    }
+
+    const client = await getSupabaseClient();
+    const functionName = getSupabaseProvisionFunctionName();
+    let data;
+    let error;
+
+    try {
+      ({ data, error } = await withNetworkTimeout(
+        client.functions.invoke(functionName, {
+          body: {
+            action: "delete",
+            email,
+          },
+        }),
+      ));
+    } catch (requestError) {
+      return {
+        status: "error",
+        message: formatSupabaseAuthError(requestError, "Could not delete this login account online."),
+      };
+    }
+
+    const payload = data && typeof data === "object" ? data : null;
+    if (error || !payload || payload.ok === false) {
+      return {
+        status: "error",
+        message: formatSupabaseAuthError(
+          error || payload,
+          "Could not delete this login account online.",
+        ),
+      };
+    }
+
+    return {
+      status: String(payload.status || "deleted").trim().toLowerCase(),
+      message: String(payload.message || "").trim(),
+    };
+  }
+
   async function submitPublicAdmissionToSupabase({
     workspaceId,
     institutionId = "",
@@ -15642,6 +15685,7 @@
                 <div class="portal-staff-view-actions">
                   <button class="button button-primary" type="button" data-staff-view-edit>Edit profile</button>
                   <button class="portal-class-button is-archive" type="button" data-staff-view-status>Deactivate</button>
+                  <button class="portal-class-button is-danger" type="button" data-staff-view-delete>Delete account</button>
                   <button class="button button-outline" type="button" data-staff-view-close>Close</button>
                 </div>
               </div>
@@ -15769,6 +15813,7 @@
       const overlay = ensureStaffViewOverlay();
       const editButton = overlay.querySelector("[data-staff-view-edit]");
       const statusButton = overlay.querySelector("[data-staff-view-status]");
+      const deleteButton = overlay.querySelector("[data-staff-view-delete]");
       if (editButton) {
         editButton.disabled = !isAdmin;
       }
@@ -15778,6 +15823,9 @@
         statusButton.classList.toggle("is-archive", isActive);
         statusButton.classList.toggle("is-restore", !isActive);
         statusButton.textContent = isActive ? "Deactivate account" : "Activate account";
+      }
+      if (deleteButton) {
+        deleteButton.disabled = !isAdmin;
       }
     };
 
@@ -15818,6 +15866,74 @@
         status,
         "success",
         `Staff account <strong>${escapeHtml(user.email)}</strong> is now <strong>${escapeHtml(nextStatus)}</strong>.`,
+      );
+    };
+
+    const deleteStaffAccount = async (user) => {
+      const confirmed = await showAppConfirm({
+        title: "Delete staff account?",
+        message: `Permanently delete ${user.displayName || user.email}?`,
+        details:
+          "Their login account and access grant will be removed. Existing attendance, results, timetable, and class history will remain.",
+        confirmLabel: "Delete account",
+        variant: "danger",
+      });
+
+      if (!confirmed) {
+        return;
+      }
+
+      const overlay = ensureStaffViewOverlay();
+      const deleteButton = overlay?.querySelector("[data-staff-view-delete]");
+      if (deleteButton) {
+        deleteButton.disabled = true;
+        deleteButton.textContent = "Deleting...";
+      }
+
+      const onlineResult = await deleteSupabaseManagedUser(user.email);
+      if (onlineResult.status === "error") {
+        if (deleteButton) {
+          deleteButton.disabled = false;
+          deleteButton.textContent = "Delete account";
+        }
+        setStatus(
+          status,
+          "error",
+          escapeHtml(onlineResult.message || "Could not delete this login account."),
+        );
+        return;
+      }
+
+      const workspaceId = getCurrentWorkspaceId();
+      const matchingGrants = getAccessGrants({ workspaceId }).filter(
+        (grant) => grant.normalizedEmail === normalizeEmail(user.email),
+      );
+      matchingGrants.forEach((grant) => removeAccessGrant(grant.id, workspaceId));
+      const removed = removeUser(user.id, workspaceId);
+
+      if (!removed) {
+        if (deleteButton) {
+          deleteButton.disabled = false;
+          deleteButton.textContent = "Delete account";
+        }
+        setStatus(status, "error", "Could not remove this staff account.");
+        return;
+      }
+
+      recordAuditEvent({
+        action: "deleted",
+        entityType: "staff-account",
+        entityId: user.email,
+        summary: `Deleted staff account ${user.email}`,
+        details: `Role: ${normalizeRoleLabel(user.role)} • Access grant removed`,
+      });
+      setOverlayState(false);
+      resetPortalStaffForm(form, isAdmin);
+      refreshStaff();
+      setStatus(
+        status,
+        "success",
+        `Staff account <strong>${escapeHtml(user.email)}</strong> was permanently deleted.`,
       );
     };
 
@@ -16065,7 +16181,7 @@
 
     const overlay = ensureStaffViewOverlay();
     if (overlay) {
-      overlay.addEventListener("click", (event) => {
+      overlay.addEventListener("click", async (event) => {
         const closeButton = event.target.closest("[data-staff-view-close]");
         if (closeButton) {
           setOverlayState(false);
@@ -16109,6 +16225,20 @@
           } else {
             setOverlayState(false);
           }
+          return;
+        }
+
+        const deleteButton = event.target.closest("[data-staff-view-delete]");
+        if (deleteButton) {
+          if (!isAdmin || !selectedStaffId) {
+            return;
+          }
+          const user = getStaffById(selectedStaffId);
+          if (!user) {
+            setOverlayState(false);
+            return;
+          }
+          await deleteStaffAccount(user);
         }
       });
 
@@ -17636,7 +17766,7 @@
                     .filter((item) => item.status !== "archived")
                     .reduce((sum, item) => sum + item.amount, 0);
                   return `
-                  <details class="portal-class-level-group portal-fee-class-details" open>
+                  <details class="portal-class-level-group portal-fee-class-details">
                     <summary>
                       <div>
                         <strong>${escapeHtml(classGroup.label)}</strong>
@@ -21110,6 +21240,25 @@
     users[index] = updatedUser;
     saveUsers(users);
     return updatedUser;
+  }
+
+  function removeUser(userId, workspaceId = null) {
+    const targetWorkspaceId = normalizeWorkspaceId(workspaceId || getCurrentWorkspaceId());
+    const users = getUsers();
+    const nextUsers = users.filter(
+      (user) =>
+        !(
+          user.id === userId &&
+          normalizeWorkspaceId(user.workspaceId || "public") === targetWorkspaceId
+        ),
+    );
+
+    if (nextUsers.length === users.length) {
+      return false;
+    }
+
+    saveUsers(nextUsers);
+    return true;
   }
 
   function updateUserByEmail(email, updater, workspaceId = null) {

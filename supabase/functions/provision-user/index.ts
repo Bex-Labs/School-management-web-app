@@ -170,6 +170,7 @@ Deno.serve(async (request) => {
 
   const email = String(payload.email || "").trim();
   const normalizedEmail = email.toLowerCase();
+  const action = String(payload.action || "provision").trim().toLowerCase();
   const displayName = String(payload.displayName || "").trim() || email.split("@")[0] || "School User";
   const password = String(payload.password || "");
   const requestedRole = normalizeRole(payload.role);
@@ -178,6 +179,53 @@ Deno.serve(async (request) => {
 
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return jsonResponse(400, { ok: false, message: "A valid email address is required." });
+  }
+
+  if (action === "delete") {
+    const authUser = await findAuthUserByEmail(serviceClient, normalizedEmail);
+
+    if (!authUser) {
+      return jsonResponse(200, { ok: true, status: "not_found" });
+    }
+
+    const { data: targetProfile, error: targetProfileError } = await serviceClient
+      .from("profiles")
+      .select("id, role, institution_id")
+      .eq("id", authUser.id)
+      .maybeSingle();
+
+    if (targetProfileError) {
+      return jsonResponse(500, {
+        ok: false,
+        message: targetProfileError.message || "Could not verify this account.",
+      });
+    }
+
+    if (!targetProfile) {
+      return jsonResponse(404, { ok: false, message: "This staff account could not be verified." });
+    }
+
+    if (String(targetProfile.institution_id || "") !== String(callerProfile.institution_id || "")) {
+      return jsonResponse(403, { ok: false, message: "This account belongs to another institution." });
+    }
+
+    if (normalizeRole(targetProfile.role || "Teacher") === "Admin") {
+      return jsonResponse(400, { ok: false, message: "The school administrator account cannot be deleted here." });
+    }
+
+    const { error: deleteError } = await serviceClient.auth.admin.deleteUser(authUser.id);
+    if (deleteError) {
+      return jsonResponse(500, {
+        ok: false,
+        message: deleteError.message || "Could not delete this login account.",
+      });
+    }
+
+    return jsonResponse(200, {
+      ok: true,
+      status: "deleted",
+      userId: authUser.id,
+    });
   }
 
   if (!password || password.length < 8) {
