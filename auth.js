@@ -30465,16 +30465,27 @@
             const level = entry.academicClassApplyingFor || entry.classApplyingFor || entry.level || "Class not set";
             const guardian = entry.guardianFullName || entry.guardianName || "Guardian not set";
             return `
-              <button class="portal-admission-name-item" type="button" data-admission-open="${escapeHtml(entry.id)}">
-                <span class="portal-admission-name-copy">
-                  <strong>${escapeHtml(entry.fullName)}</strong>
-                  <small>${escapeHtml(level)} • ${escapeHtml(guardian)}</small>
-                </span>
-                <span class="portal-admission-name-meta">
-                  <span class="portal-class-status is-${status === "approved" || status === "shortlisted" ? "active" : status === "rejected" ? "archived" : "pending"}">${escapeHtml(statusLabelForAdmission(status))}</span>
-                  <small>${escapeHtml(formatTimestamp(entry.createdAt))}</small>
-                </span>
-              </button>
+              <article class="portal-admission-name-row">
+                <button class="portal-admission-name-item" type="button" data-admission-open="${escapeHtml(entry.id)}">
+                  <span class="portal-admission-name-copy">
+                    <strong>${escapeHtml(entry.fullName)}</strong>
+                    <small>${escapeHtml(level)} • ${escapeHtml(guardian)}</small>
+                  </span>
+                  <span class="portal-admission-name-meta">
+                    <span class="portal-class-status is-${status === "approved" || status === "shortlisted" ? "active" : status === "rejected" ? "archived" : "pending"}">${escapeHtml(statusLabelForAdmission(status))}</span>
+                    <small>${escapeHtml(formatTimestamp(entry.createdAt))}</small>
+                  </span>
+                </button>
+                ${
+                  isAdmin
+                    ? `<button class="portal-admission-delete-button" type="button" data-admission-delete="${escapeHtml(
+                        entry.id,
+                      )}" data-admission-delete-scope="application" aria-label="Delete application for ${escapeHtml(
+                        entry.fullName,
+                      )}" title="Delete application">&times;</button>`
+                    : ""
+                }
+              </article>
             `;
           })
           .join("")}
@@ -30482,7 +30493,7 @@
     `;
   }
 
-  function renderAdmissionsHistory(target, admissions = []) {
+  function renderAdmissionsHistory(target, admissions = [], isAdmin = false) {
     if (!target) {
       return;
     }
@@ -30506,18 +30517,29 @@
             const sourceLabel = sourceLabelForAdmission(entry.source);
             const decisionDate = entry.convertedAt || entry.reviewedAt || entry.updatedAt || entry.createdAt;
             return `
-              <button class="portal-admission-name-item portal-admission-history-item" type="button" data-admission-open="${escapeHtml(entry.id)}">
-                <span class="portal-admission-name-copy">
-                  <strong>${escapeHtml(entry.fullName)}</strong>
-                  <small>${escapeHtml(level)}</small>
-                  <small>Date: ${escapeHtml(formatTimestamp(entry.createdAt))}</small>
-                </span>
-                <span class="portal-admission-name-meta">
-                  <span class="portal-class-status is-${status === "approved" || status === "shortlisted" ? "active" : status === "rejected" ? "archived" : "pending"}">${escapeHtml(statusLabelForAdmission(status))}</span>
-                  ${sourceLabel ? `<span class="portal-admission-source-pill">${escapeHtml(sourceLabel)}</span>` : ""}
-                  <small>Updated: ${escapeHtml(formatTimestamp(decisionDate))}</small>
-                </span>
-              </button>
+              <article class="portal-admission-name-row">
+                <button class="portal-admission-name-item portal-admission-history-item" type="button" data-admission-open="${escapeHtml(entry.id)}">
+                  <span class="portal-admission-name-copy">
+                    <strong>${escapeHtml(entry.fullName)}</strong>
+                    <small>${escapeHtml(level)}</small>
+                    <small>Date: ${escapeHtml(formatTimestamp(entry.createdAt))}</small>
+                  </span>
+                  <span class="portal-admission-name-meta">
+                    <span class="portal-class-status is-${status === "approved" || status === "shortlisted" ? "active" : status === "rejected" ? "archived" : "pending"}">${escapeHtml(statusLabelForAdmission(status))}</span>
+                    ${sourceLabel ? `<span class="portal-admission-source-pill">${escapeHtml(sourceLabel)}</span>` : ""}
+                    <small>Updated: ${escapeHtml(formatTimestamp(decisionDate))}</small>
+                  </span>
+                </button>
+                ${
+                  isAdmin
+                    ? `<button class="portal-admission-delete-button" type="button" data-admission-delete="${escapeHtml(
+                        entry.id,
+                      )}" data-admission-delete-scope="history" aria-label="Delete admission history for ${escapeHtml(
+                        entry.fullName,
+                      )}" title="Delete history entry">&times;</button>`
+                    : ""
+                }
+              </article>
             `;
           })
           .join("")}
@@ -30648,7 +30670,15 @@
       );
       renderAdmissionsSummary(summaryTarget, admissions);
       renderAdmissionsList(listTarget, admissions, isAdmin);
-      renderAdmissionsHistory(historyTarget, allAdmissions);
+      renderAdmissionsHistory(historyTarget, allAdmissions, isAdmin);
+      const deleteApplicationsButton = document.querySelector('[data-admission-delete-all="applications"]');
+      const deleteHistoryButton = document.querySelector('[data-admission-delete-all="history"]');
+      if (deleteApplicationsButton) {
+        deleteApplicationsButton.disabled = !isAdmin || admissions.length === 0;
+      }
+      if (deleteHistoryButton) {
+        deleteHistoryButton.disabled = !isAdmin || allAdmissions.length === 0;
+      }
       refreshApplicationLevelOptions();
     };
 
@@ -30870,6 +30900,7 @@
           <button class="portal-class-button" type="button" data-admission-action="shortlisted" data-admission-id="${escapeHtml(admission.id)}" ${isAdmin ? "" : "disabled"}>Shortlist</button>
           <button class="portal-class-button is-archive" type="button" data-admission-action="rejected" data-admission-id="${escapeHtml(admission.id)}" ${isAdmin ? "" : "disabled"}>Decline</button>
           <button class="portal-class-button is-restore" type="button" data-admission-action="approved" data-admission-id="${escapeHtml(admission.id)}" ${isAdmin ? "" : "disabled"}>Accept</button>
+          <button class="portal-class-button is-danger" type="button" data-admission-action="delete" data-admission-id="${escapeHtml(admission.id)}" ${isAdmin ? "" : "disabled"}>Delete</button>
         </div>
       `;
     };
@@ -31158,7 +31189,80 @@
         return persistedStudent;
     };
 
+    const deleteAdmissionRecords = async (admissionIds = [], scope = "application", forceBulk = false) => {
+      if (!isAdmin) {
+        return false;
+      }
+
+      const idSet = new Set(admissionIds.map((id) => String(id || "").trim()).filter(Boolean));
+      const admissions = getAdmissions(workspaceId);
+      const records = admissions.filter((entry) => idSet.has(entry.id));
+      if (!records.length) {
+        setStatus(status, "info", "No admission records were found to delete.");
+        return false;
+      }
+
+      const isBulk = forceBulk || records.length > 1;
+      const isHistory = scope === "history";
+      const confirmed = await showAppConfirm({
+        title: isBulk
+          ? isHistory
+            ? "Delete all admission history?"
+            : "Delete all applications?"
+          : isHistory
+            ? "Delete admission history?"
+            : "Delete application?",
+        message: isBulk
+          ? `Permanently delete ${records.length} admission record${records.length === 1 ? "" : "s"}?`
+          : `Permanently delete ${records[0].fullName || "this admission record"}?`,
+        details: isHistory
+          ? "This removes the admission record and uploaded application documents. Student profiles already created from approved admissions will remain."
+          : "This removes the application and its uploaded documents. This action cannot be undone.",
+        confirmLabel: isBulk ? "Delete all" : "Delete",
+        variant: "danger",
+      });
+
+      if (!confirmed) {
+        return false;
+      }
+
+      saveAdmissions(
+        admissions.filter((entry) => !idSet.has(entry.id)),
+        workspaceId,
+      );
+      if (editingAdmissionId && idSet.has(editingAdmissionId)) {
+        stopAdmissionEdit();
+      }
+      if (activeAdmissionId && idSet.has(activeAdmissionId)) {
+        activeAdmissionId = "";
+        setModalOpen(false);
+      }
+      recordAuditEvent({
+        action: isBulk ? "bulk-deleted" : "deleted",
+        entityType: "admission-application",
+        entityId: isBulk ? scope : records[0].id,
+        summary: isBulk
+          ? `Deleted ${records.length} ${isHistory ? "admission history records" : "applications"}`
+          : `Deleted admission record for ${records[0].fullName}`,
+        details: isHistory ? "Admission history" : "Application",
+        workspaceId,
+      });
+      refresh();
+      const successMessage = isBulk
+        ? `${records.length} ${isHistory ? "admission history record" : "application"}${records.length === 1 ? "" : "s"} deleted.`
+        : `${isHistory ? "Admission history" : "Application"} for <strong>${escapeHtml(records[0].fullName)}</strong> deleted.`;
+      setStatus(status, "success", successMessage);
+      showAdmissionApprovalToast(`<strong>Deleted</strong><span>${successMessage}</span>`);
+      return true;
+    };
+
     const handleAdmissionAction = async (admissionId, action) => {
+      if (action === "delete") {
+        const admission = getAdmissions(workspaceId).find((entry) => entry.id === admissionId);
+        await deleteAdmissionRecords([admissionId], admission?.convertedAt ? "history" : "application");
+        return;
+      }
+
       if (action === "convert") {
         const admission = getAdmissions(workspaceId).find((entry) => entry.id === admissionId);
         if (!admission) {
@@ -31262,6 +31366,16 @@
     };
 
     const handleAdmissionOpenClick = (event) => {
+      const deleteButton = event.target.closest("[data-admission-delete]");
+      if (deleteButton) {
+        const admissionId = String(deleteButton.dataset.admissionDelete || "").trim();
+        const scope = String(deleteButton.dataset.admissionDeleteScope || "application").trim();
+        if (admissionId) {
+          deleteAdmissionRecords([admissionId], scope);
+        }
+        return;
+      }
+
       const entryButton = event.target.closest("[data-admission-open]");
       if (!entryButton) {
         return;
@@ -31277,6 +31391,31 @@
     if (historyTarget) {
       historyTarget.addEventListener("click", handleAdmissionOpenClick);
     }
+
+    document.querySelectorAll("[data-admission-delete-all]").forEach((button) => {
+      button.disabled = !isAdmin;
+      button.addEventListener("click", async () => {
+        const scope = String(button.dataset.admissionDeleteAll || "applications").trim();
+        const admissions = getAdmissions(workspaceId);
+        const records =
+          scope === "history"
+            ? admissions
+            : admissions.filter((entry) => !String(entry.convertedAt || "").trim());
+        if (!records.length) {
+          setStatus(
+            status,
+            "info",
+            scope === "history" ? "There is no admission history to delete." : "There are no applications to delete.",
+          );
+          return;
+        }
+        await deleteAdmissionRecords(
+          records.map((entry) => entry.id),
+          scope === "history" ? "history" : "application",
+          true,
+        );
+      });
+    });
 
     window.addEventListener(ADMISSIONS_EVENT_NAME, (event) => {
       const eventWorkspaceId = normalizeWorkspaceId(event?.detail?.workspaceId || workspaceId);

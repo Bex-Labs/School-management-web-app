@@ -11145,6 +11145,11 @@ body.admin-dashboard-page .portal-admission-name-list {
   gap: 10px;
 }
 
+body.admin-dashboard-page .portal-admission-name-row {
+  position: relative;
+  min-width: 0;
+}
+
 body.admin-dashboard-page .portal-admission-name-item {
   display: flex;
   align-items: center;
@@ -11159,6 +11164,37 @@ body.admin-dashboard-page .portal-admission-name-item {
   text-align: left;
   box-shadow: 0 10px 22px rgba(15, 43, 74, 0.05);
   transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+body.admin-dashboard-page .portal-admission-name-row .portal-admission-name-item {
+  padding-right: 58px;
+}
+
+body.admin-dashboard-page .portal-admission-delete-button {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid #f0c7cc;
+  border-radius: 8px;
+  background: #fff7f8;
+  color: #b42332;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  transform: translateY(-50%);
+}
+
+body.admin-dashboard-page .portal-admission-delete-button:hover,
+body.admin-dashboard-page .portal-admission-delete-button:focus-visible {
+  border-color: #d84a5a;
+  background: #fff0f2;
+  outline: none;
 }
 
 body.admin-dashboard-page .portal-admission-name-item:hover {
@@ -11235,6 +11271,26 @@ body.admin-dashboard-page .portal-admission-history-shell[open] summary::after {
 body.admin-dashboard-page .portal-admission-applications-shell .portal-class-list,
 body.admin-dashboard-page .portal-admission-history {
   margin-top: 2px;
+}
+
+body.admin-dashboard-page .portal-admission-list-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 2px;
+}
+
+body.admin-dashboard-page .portal-admission-list-toolbar > span {
+  color: #667a95;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+body.admin-dashboard-page .portal-admission-list-toolbar .portal-class-button {
+  min-height: 34px;
+  padding: 0 11px;
+  font-size: 0.76rem;
 }
 
 body.admin-dashboard-page .portal-admission-history-item {
