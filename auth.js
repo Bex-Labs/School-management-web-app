@@ -2038,6 +2038,14 @@
   function normalizeAdmissionStatus(value) {
     const normalized = String(value || "").trim().toLowerCase();
 
+    if (normalized === "accepted" || normalized === "admitted") {
+      return "approved";
+    }
+
+    if (normalized === "declined" || normalized === "denied") {
+      return "rejected";
+    }
+
     if (
       normalized === "review" ||
       normalized === "shortlisted" ||
@@ -2181,6 +2189,7 @@
     const fields = options.includeLegacy === false
       ? ADMISSION_FILE_FIELDS
       : [...ADMISSION_FILE_FIELDS, ...ADMISSION_LEGACY_FILE_FIELDS];
+    const seen = new Set();
 
     return fields
       .map((field) => {
@@ -2201,7 +2210,17 @@
           nameKey: field.nameKey,
         };
       })
-      .filter(Boolean);
+      .filter((entry) => {
+        if (!entry) {
+          return false;
+        }
+        const key = [entry.label, entry.name, entry.dataUrl].join("|");
+        if (seen.has(key)) {
+          return false;
+        }
+        seen.add(key);
+        return true;
+      });
   }
 
   function normalizeAdmissionRecord(record = {}, workspaceId = null) {
@@ -18501,6 +18520,8 @@
                           ? "Transferred"
                           : "Active";
                       const documentCount = Array.isArray(record.documents) ? record.documents.length : 0;
+                      const profilePhotoUrl = String(record.profilePhotoUrl || "").trim();
+                      const studentInitials = getInitials(record.fullName || "Student").slice(0, 2) || "ST";
                       const manageDocsAction = `
                         <button
                           class="portal-class-button"
@@ -18600,6 +18621,13 @@
                           data-student-action="view"
                           data-student-id="${record.id}"
                         >
+                          <span class="portal-student-row-avatar">
+                            ${
+                              profilePhotoUrl
+                                ? `<img src="${escapeHtml(profilePhotoUrl)}" alt="" />`
+                                : escapeHtml(studentInitials)
+                            }
+                          </span>
                           <div class="portal-student-row-copy">
                             <strong>${escapeHtml(record.fullName)}</strong>
                             <span>Admission ${escapeHtml(record.admissionNo)} • ${escapeHtml(
@@ -20830,6 +20858,7 @@
         const documents = Array.isArray(record.documents) ? record.documents : [];
         const profileName = record.fullName || "Unnamed student";
         const initials = getInitials(profileName).slice(0, 2) || "ST";
+        const profilePhotoUrl = String(record.profilePhotoUrl || "").trim();
         const admissionLabel = record.admissionNo ? `Admission No. ${record.admissionNo}` : "No admission number";
         const levelLabel = getStudentLevelDisplayLabel(record.level) || "No class assigned";
         const progressionLabel =
@@ -20893,7 +20922,28 @@
         if (viewContent) {
           viewContent.innerHTML = `
             <section class="portal-student-profile-hero">
-              <span class="portal-student-profile-avatar">${escapeHtml(initials)}</span>
+              <div class="portal-student-profile-photo">
+                <span class="portal-student-profile-avatar portal-student-profile-photo-media">
+                  ${
+                    profilePhotoUrl
+                      ? `<img src="${escapeHtml(profilePhotoUrl)}" alt="${escapeHtml(profileName)} profile picture" />`
+                      : escapeHtml(initials)
+                  }
+                </span>
+                ${
+                  isAdmin
+                    ? `<div class="portal-student-profile-photo-actions">
+                        <button class="portal-class-button" type="button" data-student-photo-action="replace" data-student-id="${escapeHtml(record.id)}">
+                          ${profilePhotoUrl ? "Replace" : "Add photo"}
+                        </button>
+                        <button class="portal-class-button is-danger" type="button" data-student-photo-action="remove" data-student-id="${escapeHtml(record.id)}" ${profilePhotoUrl ? "" : "hidden"}>
+                          Remove
+                        </button>
+                        <input type="file" accept=".jpg,.jpeg,.png,.webp" data-student-photo-input data-student-id="${escapeHtml(record.id)}" hidden />
+                      </div>`
+                    : ""
+                }
+              </div>
               <div class="portal-student-profile-copy">
                 <span>${escapeHtml(levelLabel)}</span>
                 <h4>${escapeHtml(profileName)}</h4>
@@ -21325,6 +21375,117 @@
           summary: `Quick-added student record for ${payload.fullName}`,
           details: `${payload.level} • 1 guardian contact`,
         });
+      });
+    }
+
+    if (viewContent) {
+      viewContent.addEventListener("click", async (event) => {
+        const button = event.target.closest("[data-student-photo-action]");
+        if (!button || !isAdmin) {
+          return;
+        }
+
+        const studentId = String(button.dataset.studentId || "").trim();
+        const record = manager.getStudents().find((item) => item.id === studentId);
+        if (!record) {
+          return;
+        }
+
+        const action = String(button.dataset.studentPhotoAction || "").trim();
+        if (action === "replace") {
+          viewContent.querySelector("[data-student-photo-input]")?.click();
+          return;
+        }
+
+        if (action !== "remove" || !record.profilePhotoUrl) {
+          return;
+        }
+
+        const confirmed = await showAppConfirm({
+          title: "Remove profile picture?",
+          message: `Remove the profile picture for ${record.fullName || "this student"}?`,
+          details: "The profile will return to showing the student's initials. Another picture can be added later.",
+          confirmLabel: "Remove picture",
+          variant: "danger",
+        });
+        if (!confirmed) {
+          return;
+        }
+
+        manager.updateStudentProgression(studentId, (current) => ({
+          ...current,
+          profilePhotoUrl: "",
+          profilePhotoName: "",
+          profilePhotoMimeType: "",
+          profilePhotoSizeBytes: 0,
+          profilePhotoRemoved: true,
+        }));
+        const media = viewContent.querySelector(".portal-student-profile-photo-media");
+        if (media) {
+          media.textContent = getInitials(record.fullName || "Student").slice(0, 2) || "ST";
+        }
+        button.hidden = true;
+        const replaceButton = viewContent.querySelector('[data-student-photo-action="replace"]');
+        if (replaceButton) {
+          replaceButton.textContent = "Add photo";
+        }
+        refreshStudentSection();
+      });
+
+      viewContent.addEventListener("change", async (event) => {
+        const input = event.target.closest("[data-student-photo-input]");
+        if (!input || !isAdmin) {
+          return;
+        }
+
+        const studentId = String(input.dataset.studentId || "").trim();
+        const record = manager.getStudents().find((item) => item.id === studentId);
+        const file = input.files?.[0] || null;
+        input.value = "";
+
+        if (!record || !file) {
+          return;
+        }
+        if (!String(file.type || "").startsWith("image/")) {
+          setStatus(status, "error", "Choose a JPG, PNG, or WebP image for the student profile.");
+          return;
+        }
+        if (file.size > 2 * 1024 * 1024) {
+          setStatus(status, "error", "Profile picture is too large. Maximum size is 2MB.");
+          return;
+        }
+
+        let profilePhotoUrl = "";
+        try {
+          profilePhotoUrl = await readFileAsDataUrl(file);
+        } catch {
+          setStatus(status, "error", "Could not read the selected profile picture.");
+          return;
+        }
+
+        manager.updateStudentProgression(studentId, (current) => ({
+          ...current,
+          profilePhotoUrl,
+          profilePhotoName: String(file.name || "Profile picture"),
+          profilePhotoMimeType: String(file.type || ""),
+          profilePhotoSizeBytes: Number(file.size) || 0,
+          profilePhotoRemoved: false,
+        }));
+        const media = viewContent.querySelector(".portal-student-profile-photo-media");
+        if (media) {
+          media.innerHTML = `<img src="${escapeHtml(profilePhotoUrl)}" alt="${escapeHtml(
+            record.fullName || "Student",
+          )} profile picture" />`;
+        }
+        const removeButton = viewContent.querySelector('[data-student-photo-action="remove"]');
+        if (removeButton) {
+          removeButton.hidden = false;
+        }
+        const replaceButton = viewContent.querySelector('[data-student-photo-action="replace"]');
+        if (replaceButton) {
+          replaceButton.textContent = "Replace";
+        }
+        refreshStudentSection();
       });
     }
 
@@ -30652,6 +30813,11 @@
           fullName: fullName || [firstName, lastName].join(" ").trim(),
           admissionNo,
           studentEmail,
+          profilePhotoUrl: String(entry.passportPhotoFile?.dataUrl || "").trim(),
+          profilePhotoName: String(entry.passportPhotoFile?.name || entry.passportPhotoName || "").trim(),
+          profilePhotoMimeType: String(entry.passportPhotoFile?.type || "").trim(),
+          profilePhotoSizeBytes: Number(entry.passportPhotoFile?.size || 0),
+          profilePhotoRemoved: false,
           level,
           dateOfBirth: String(entry.dateOfBirth || "").trim(),
           gender: String(entry.gender || "").trim(),
@@ -30665,10 +30831,29 @@
 
     const refresh = () => {
       const allAdmissions = getAdmissions(workspaceId);
+      allAdmissions.forEach((admission) => {
+        const photo = admission.passportPhotoFile;
+        const convertedStudentId = String(admission.convertedStudentId || "").trim();
+        if (!convertedStudentId || !photo?.dataUrl || !studentManager?.updateStudentProgression) {
+          return;
+        }
+        const student = studentManager.getStudents?.().find((entry) => entry.id === convertedStudentId);
+        if (!student || student.profilePhotoUrl || student.profilePhotoRemoved) {
+          return;
+        }
+        studentManager.updateStudentProgression(convertedStudentId, (current) => ({
+          ...current,
+          profilePhotoUrl: photo.dataUrl,
+          profilePhotoName: photo.name || admission.passportPhotoName || "",
+          profilePhotoMimeType: photo.type || "",
+          profilePhotoSizeBytes: Number(photo.size || 0),
+          profilePhotoRemoved: false,
+        }));
+      });
       const admissions = allAdmissions.filter(
         (entry) => !String(entry.convertedAt || "").trim(),
       );
-      renderAdmissionsSummary(summaryTarget, admissions);
+      renderAdmissionsSummary(summaryTarget, allAdmissions);
       renderAdmissionsList(listTarget, admissions, isAdmin);
       renderAdmissionsHistory(historyTarget, allAdmissions, isAdmin);
       const deleteApplicationsButton = document.querySelector('[data-admission-delete-all="applications"]');
@@ -30689,6 +30874,20 @@
     let editingAdmissionId = "";
     const submitButton = document.getElementById("portal-admission-submit-button") || form.querySelector('button[type="submit"]');
     const cancelEditButton = document.getElementById("portal-admission-cancel-edit");
+    const formOverlay = document.getElementById("portal-admission-form-overlay");
+    const formTitle = document.getElementById("portal-admission-form-title");
+    const formOpenButton = document.querySelector("[data-admission-form-open]");
+
+    const setAdmissionFormOpen = (isOpen) => {
+      if (!formOverlay) {
+        return;
+      }
+      formOverlay.hidden = !isOpen;
+      document.body.classList.toggle("portal-overlay-open", isOpen);
+      if (isOpen) {
+        window.setTimeout(() => form.elements.fullName?.focus?.(), 0);
+      }
+    };
 
     const clearAdmissionFileInputs = () => {
       ADMISSION_FILE_FIELDS.forEach((field) => {
@@ -30704,8 +30903,11 @@
       if (submitButton) {
         submitButton.textContent = isEditing ? "Save application" : "Add application";
       }
+      if (formTitle) {
+        formTitle.textContent = isEditing ? "Edit application" : "Add application";
+      }
       if (cancelEditButton) {
-        cancelEditButton.hidden = !isEditing;
+        cancelEditButton.textContent = "Cancel";
       }
     };
 
@@ -30751,15 +30953,33 @@
       setAdmissionFormMode("edit");
       setModalOpen(false);
       setStatus(status, "info", `Editing application for <strong>${escapeHtml(admission.fullName)}</strong>. Upload new files only when replacing existing documents.`);
-      form.scrollIntoView({ behavior: "smooth", block: "start" });
+      setAdmissionFormOpen(true);
     };
 
     if (cancelEditButton) {
       cancelEditButton.addEventListener("click", () => {
         stopAdmissionEdit();
         setStatus(status, "", "");
+        setAdmissionFormOpen(false);
       });
     }
+
+    if (formOpenButton) {
+      formOpenButton.disabled = !isAdmin;
+      formOpenButton.addEventListener("click", () => {
+        stopAdmissionEdit();
+        setStatus(status, "", "");
+        setAdmissionFormOpen(true);
+      });
+    }
+
+    document.querySelectorAll("[data-admission-form-close]").forEach((button) => {
+      button.addEventListener("click", () => {
+        stopAdmissionEdit();
+        setStatus(status, "", "");
+        setAdmissionFormOpen(false);
+      });
+    });
 
     const showAdmissionApprovalToast = (message) => {
       if (!message) {
@@ -30874,7 +31094,16 @@
     const renderModalBody = (admission) => {
       if (!modalBody || !admission) return;
 
+      const passportPhotoUrl = String(admission.passportPhotoFile?.dataUrl || "").trim();
       modalBody.innerHTML = `
+        ${
+          passportPhotoUrl
+            ? `<figure class="portal-admission-passport-preview">
+                <img src="${escapeHtml(passportPhotoUrl)}" alt="${escapeHtml(admission.fullName)} passport photograph" />
+                <figcaption>Applicant photograph</figcaption>
+              </figure>`
+            : ""
+        }
         <div class="portal-admission-modal-grid">
           <div class="portal-admission-modal-item"><span>Applicant</span><strong>${escapeHtml(admission.fullName)}</strong></div>
           <div class="portal-admission-modal-item"><span>Class Applying For</span><strong>${escapeHtml(admission.classApplyingFor || admission.academicClassApplyingFor || admission.level || "—")}</strong></div>
@@ -31077,11 +31306,16 @@
       stopAdmissionEdit({ reset: false });
       refreshApplicationLevelOptions();
       refresh();
+      setAdmissionFormOpen(false);
       setStatus(
         status,
         "success",
         `Application for <strong>${escapeHtml(payload.fullName)}</strong> ${isEditingAdmission ? "updated" : "added"}.`,
       );
+      showAdmissionApprovalToast(`
+        <strong>${isEditingAdmission ? "Application updated" : "Application added"}</strong>
+        <span>${escapeHtml(payload.fullName)} is now in the admission workflow.</span>
+      `);
     });
 
     const convertAdmissionToStudent = async (admission) => {

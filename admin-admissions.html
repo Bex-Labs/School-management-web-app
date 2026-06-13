@@ -149,7 +149,10 @@
                 <h2>Application Workflow</h2>
                 <span>Receive applications from students/guardians and make admission decisions quickly.</span>
               </div>
-              <a id="portal-admission-apply-link" class="button button-outline" href="./admissions-apply.html">Open/Share Application Form</a>
+              <div class="utility-actions">
+                <button class="button button-primary" type="button" data-admission-form-open>Add application</button>
+                <a id="portal-admission-apply-link" class="button button-outline" href="./admissions-apply.html">Open/Share Application Form</a>
+              </div>
             </div>
 
             <div class="portal-admission-share">
@@ -171,8 +174,17 @@
             <div id="portal-admission-summary" class="portal-class-summary"></div>
 
             <div class="portal-class-layout portal-class-layout-wide">
-              <div class="portal-class-form-shell">
-                <form id="portal-admission-form" class="portal-class-form" novalidate>
+              <div id="portal-admission-form-overlay" class="portal-overlay" hidden>
+                <button class="portal-overlay-backdrop" type="button" data-admission-form-close aria-label="Close application form"></button>
+                <section class="portal-overlay-panel portal-admission-form-panel" role="dialog" aria-modal="true" aria-labelledby="portal-admission-form-title">
+                  <header class="portal-overlay-head">
+                    <div>
+                      <span class="portal-overlay-kicker">Admissions</span>
+                      <h3 id="portal-admission-form-title">Add application</h3>
+                    </div>
+                    <button class="portal-overlay-close" type="button" data-admission-form-close aria-label="Close application form">&times;</button>
+                  </header>
+                  <form id="portal-admission-form" class="portal-class-form" novalidate>
                   <div id="portal-admission-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
 
                   <div class="portal-settings-grid">
@@ -247,9 +259,10 @@
 
                   <div class="utility-actions">
                     <button id="portal-admission-submit-button" class="button button-primary" type="submit">Add application</button>
-                    <button id="portal-admission-cancel-edit" class="button button-outline" type="button" hidden>Cancel edit</button>
+                    <button id="portal-admission-cancel-edit" class="button button-outline" type="button">Cancel</button>
                   </div>
-                </form>
+                  </form>
+                </section>
               </div>
 
               <details class="portal-admission-applications-shell" open>
