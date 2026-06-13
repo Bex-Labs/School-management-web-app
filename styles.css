@@ -7476,14 +7476,147 @@ body.admin-dashboard-page .portal-fee-invoice-panel {
   background: #f8fbff;
 }
 
+body.admin-dashboard-page .portal-fee-invoice-form-modal {
+  width: min(820px, 100%);
+}
+
+body.admin-dashboard-page .portal-fee-invoice-form-body {
+  display: grid;
+  gap: 20px;
+  padding: 22px;
+  background: #f8fbff;
+}
+
 body.admin-dashboard-page .portal-fee-invoice-list {
   display: grid;
   gap: 10px;
 }
 
+body.admin-dashboard-page .portal-fee-invoice-class-list {
+  display: grid;
+  gap: 12px;
+}
+
+body.admin-dashboard-page .portal-fee-invoice-class-group {
+  overflow: hidden;
+  border: 1px solid #dce5f2;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+body.admin-dashboard-page .portal-fee-invoice-class-group > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px;
+  cursor: pointer;
+  list-style: none;
+}
+
+body.admin-dashboard-page .portal-fee-invoice-class-group > summary::-webkit-details-marker {
+  display: none;
+}
+
+body.admin-dashboard-page .portal-fee-invoice-class-group > summary::after {
+  content: "›";
+  flex: 0 0 auto;
+  color: #63708a;
+  font-size: 1.25rem;
+  line-height: 1;
+  transform: rotate(0deg);
+  transition: transform 160ms ease;
+}
+
+body.admin-dashboard-page .portal-fee-invoice-class-group[open] > summary::after {
+  transform: rotate(90deg);
+}
+
+body.admin-dashboard-page .portal-fee-invoice-class-title {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+body.admin-dashboard-page .portal-fee-invoice-class-title > span,
+body.admin-dashboard-page .portal-fee-invoice-class-title > small,
+body.admin-dashboard-page .portal-fee-invoice-class-totals small {
+  color: #667188;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+body.admin-dashboard-page .portal-fee-invoice-class-title > span,
+body.admin-dashboard-page .portal-fee-invoice-class-totals small {
+  text-transform: uppercase;
+}
+
+body.admin-dashboard-page .portal-fee-invoice-class-title > strong {
+  color: #17233a;
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+
+body.admin-dashboard-page .portal-fee-invoice-class-totals {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-left: auto;
+}
+
+body.admin-dashboard-page .portal-fee-invoice-class-totals > span {
+  display: grid;
+  gap: 3px;
+  min-width: 110px;
+}
+
+body.admin-dashboard-page .portal-fee-invoice-class-totals strong {
+  color: #17233a;
+  font-size: 0.9rem;
+}
+
+body.admin-dashboard-page .portal-fee-invoice-class-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 0 14px 10px;
+  padding: 12px 14px;
+  border: 1px solid #e3eaf4;
+  border-radius: 10px;
+  background: #f8fbff;
+}
+
+body.admin-dashboard-page .portal-fee-invoice-class-toolbar > div {
+  display: grid;
+  gap: 3px;
+}
+
+body.admin-dashboard-page .portal-fee-invoice-class-toolbar strong {
+  color: #17233a;
+  font-size: 0.86rem;
+}
+
+body.admin-dashboard-page .portal-fee-invoice-class-toolbar span {
+  color: #667188;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+body.admin-dashboard-page .portal-fee-invoice-class-toolbar .button {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 0 14px;
+}
+
+body.admin-dashboard-page .portal-fee-invoice-class-empty {
+  margin: 0;
+}
+
 body.admin-dashboard-page .portal-fee-invoice-table {
   display: grid;
   gap: 10px;
+  padding: 0 14px 14px;
 }
 
 body.admin-dashboard-page .portal-fee-invoice-row {
@@ -7671,10 +7804,9 @@ body.admin-dashboard-page .portal-fee-invoice-lines-table td span {
 
 body.admin-dashboard-page .portal-fee-invoice-total-box {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
-  justify-self: end;
-  width: min(520px, 100%);
+  width: 100%;
 }
 
 body.admin-dashboard-page .portal-fee-invoice-total-box div {
@@ -7691,8 +7823,75 @@ body.admin-dashboard-page .portal-fee-invoice-total-box strong {
   font-size: 1rem;
 }
 
+body.admin-dashboard-page .portal-fee-invoice-total-box small {
+  display: block;
+  margin-top: 5px;
+  color: #667188;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+body.admin-dashboard-page .portal-fee-transaction-history {
+  display: grid;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+body.admin-dashboard-page .portal-fee-transaction-history > header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+body.admin-dashboard-page .portal-fee-transaction-history > header div {
+  display: grid;
+  gap: 4px;
+}
+
+body.admin-dashboard-page .portal-fee-transaction-history > header span,
+body.admin-dashboard-page .portal-fee-transaction-history > header small {
+  color: #667188;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+body.admin-dashboard-page .portal-fee-transaction-history > header strong {
+  color: #17233a;
+  font-size: 1rem;
+}
+
+body.admin-dashboard-page .portal-fee-transaction-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+}
+
+body.admin-dashboard-page .portal-fee-transaction-table th,
+body.admin-dashboard-page .portal-fee-transaction-table td {
+  padding: 11px 9px;
+  border-bottom: 1px solid #e3eaf4;
+  color: #17233a;
+  font-size: 0.8rem;
+  text-align: left;
+}
+
+body.admin-dashboard-page .portal-fee-transaction-table th {
+  color: #667188;
+  font-size: 0.7rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+body.admin-dashboard-page .portal-fee-transaction-table th:last-child,
+body.admin-dashboard-page .portal-fee-transaction-table td:last-child {
+  text-align: right;
+}
+
 body.admin-dashboard-page .portal-fee-invoice-modal-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 10px;
 }
@@ -8701,6 +8900,30 @@ body.admin-dashboard-page .parent-fee-invoice-lines {
 
   body.admin-dashboard-page .portal-fee-invoice-row {
     grid-template-columns: 1fr;
+  }
+
+  body.admin-dashboard-page .portal-fee-invoice-class-group > summary {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  body.admin-dashboard-page .portal-fee-invoice-class-totals {
+    order: 3;
+    width: 100%;
+    margin-left: 0;
+  }
+
+  body.admin-dashboard-page .portal-fee-invoice-class-totals > span {
+    min-width: 0;
+  }
+
+  body.admin-dashboard-page .portal-fee-invoice-class-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  body.admin-dashboard-page .portal-fee-invoice-class-toolbar .button {
+    width: 100%;
   }
 
   body.admin-dashboard-page .portal-fee-invoice-row-actions {

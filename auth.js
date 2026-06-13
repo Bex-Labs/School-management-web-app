@@ -11671,6 +11671,8 @@
     const studentManager = getStudentManager();
     const invoiceStatus = document.getElementById("portal-fee-invoice-status");
     const invoiceListTarget = document.getElementById("portal-fee-invoice-list");
+    const invoiceFormOpenButton = document.querySelector("[data-fee-invoice-form-open]");
+    const invoiceFormOverlay = document.getElementById("portal-fee-invoice-form-overlay");
     const invoiceControls = {
       session: document.getElementById("fee-invoice-session"),
       term: document.getElementById("fee-invoice-term"),
@@ -11678,7 +11680,6 @@
       student: document.getElementById("fee-invoice-student"),
       dueDate: document.getElementById("fee-invoice-due-date"),
       singleButton: document.querySelector("[data-fee-invoice-generate-single]"),
-      bulkButton: document.querySelector("[data-fee-invoice-generate-bulk]"),
     };
     const invoiceOverlay = document.getElementById("portal-fee-invoice-overlay");
     const invoiceModalBody = document.getElementById("portal-fee-invoice-modal-body");
@@ -11688,6 +11689,7 @@
     const formModalTitle = document.getElementById("portal-fee-form-modal-title");
     const feeState = {
       category: FEE_CATEGORY_FALLBACK,
+      expandedInvoiceClasses: new Set(),
     };
     let feeToastTimer = null;
 
@@ -11850,12 +11852,12 @@
         .join("");
     };
 
-    const getSelectedInvoiceContext = () => {
+    const getSelectedInvoiceContext = (overrides = {}) => {
       const cycleState = getCycleState();
       const sessionId = String(invoiceControls.session?.value || "").trim();
       const termId = String(invoiceControls.term?.value || "").trim();
-      const classLevel = String(invoiceControls.classLevel?.value || "").trim();
-      const studentId = String(invoiceControls.student?.value || "").trim();
+      const classLevel = String(overrides.classLevel || invoiceControls.classLevel?.value || "").trim();
+      const studentId = String(overrides.studentId || invoiceControls.student?.value || "").trim();
       const session = (cycleState.sessions || []).find((item) => item.id === sessionId) || null;
       const term = (cycleState.terms || []).find((item) => item.id === termId) || null;
       const students = getActiveStudentsForFeeClass(classLevel);
@@ -11941,12 +11943,71 @@
       return invoice && invoice.invoiceNo ? invoice : null;
     };
 
+    const getInvoicePaymentSummary = (invoice = {}) => {
+      const payments = (Array.isArray(invoice.payments) ? invoice.payments : [])
+        .filter((payment) => payment && Number(payment.amount || 0) > 0)
+        .sort((left, right) =>
+          String(right.paidAt || right.createdAt || "").localeCompare(
+            String(left.paidAt || left.createdAt || ""),
+          ),
+        );
+      const totalDue = Number(invoice.totalDue || 0);
+      const balance = Number(invoice.balance || 0);
+      const totalPaid = Math.max(0, totalDue - balance);
+
+      return {
+        payments,
+        totalPaid,
+        latestPayment: payments[0] || null,
+      };
+    };
+
+    const renderFeeTransactionHistory = (invoice = {}) => {
+      const { payments } = getInvoicePaymentSummary(invoice);
+      const rows = payments.length
+        ? payments
+            .map(
+              (payment, index) => `
+                <tr>
+                  <td>${index + 1}</td>
+                  <td>${escapeHtml(formatTimestamp(payment.paidAt || payment.createdAt || nowIso()))}</td>
+                  <td>${escapeHtml(payment.reference || "No reference")}</td>
+                  <td>${escapeHtml(payment.method || "Payment")}</td>
+                  <td>${escapeHtml(payment.status || "success")}</td>
+                  <td>${escapeHtml(formatCurrencyAmount(payment.amount || 0))}</td>
+                </tr>
+              `,
+            )
+            .join("")
+        : `<tr><td colspan="6">No transactions have been recorded for this invoice.</td></tr>`;
+
+      return `
+        <section class="portal-fee-transaction-history">
+          <header>
+            <div>
+              <span>Transactions</span>
+              <strong>Payment history</strong>
+            </div>
+            <small>${payments.length} transaction${payments.length === 1 ? "" : "s"}</small>
+          </header>
+          <div class="portal-fee-invoice-lines-wrap">
+            <table class="portal-fee-transaction-table">
+              <thead>
+                <tr><th>#</th><th>Date</th><th>Reference</th><th>Method</th><th>Status</th><th>Amount</th></tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        </section>
+      `;
+    };
+
     const renderFeeInvoiceDocument = (invoice) => {
       const settings = getInvoiceSchoolSettings();
       const items = Array.isArray(invoice.invoiceItems) ? invoice.invoiceItems : [];
       const totalDue = Number(invoice.totalDue || 0);
       const balance = Number(invoice.balance || 0);
-      const paid = Math.max(0, totalDue - balance);
+      const { totalPaid, latestPayment } = getInvoicePaymentSummary(invoice);
       const lineRows = items.length
         ? items
             .map(
@@ -12003,9 +12064,20 @@
 
           <div class="portal-fee-invoice-total-box">
             <div><span>Total due</span><strong>${escapeHtml(formatCurrencyAmount(totalDue))}</strong></div>
-            <div><span>Paid</span><strong>${escapeHtml(formatCurrencyAmount(paid))}</strong></div>
+            <div><span>Total paid</span><strong>${escapeHtml(formatCurrencyAmount(totalPaid))}</strong></div>
+            <div>
+              <span>Paid (latest)</span>
+              <strong>${escapeHtml(formatCurrencyAmount(latestPayment?.amount || 0))}</strong>
+              <small>${escapeHtml(
+                latestPayment
+                  ? formatTimestamp(latestPayment.paidAt || latestPayment.createdAt || nowIso())
+                  : "No payment yet",
+              )}</small>
+            </div>
             <div><span>Balance</span><strong>${escapeHtml(formatCurrencyAmount(balance))}</strong></div>
           </div>
+
+          ${renderFeeTransactionHistory(invoice)}
         </section>
       `;
     };
@@ -12035,9 +12107,16 @@
             td strong, td span { display: block; }
             td span { margin-top: 4px; color: #667188; font-size: 12px; }
             th:last-child, td:last-child { text-align: right; }
-            .portal-fee-invoice-total-box { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-left: auto; width: min(520px, 100%); }
+            .portal-fee-invoice-total-box { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; width: 100%; }
             .portal-fee-invoice-total-box div { padding: 14px; border: 1px solid #dfe7f2; border-radius: 10px; background: #f8fbff; }
             .portal-fee-invoice-total-box strong { display: block; margin-top: 8px; font-size: 18px; }
+            .portal-fee-invoice-total-box small { display: block; margin-top: 5px; color: #667188; font-size: 10px; }
+            .portal-fee-transaction-history { display: grid; gap: 12px; margin-top: 4px; }
+            .portal-fee-transaction-history header { display: flex; align-items: end; justify-content: space-between; gap: 14px; }
+            .portal-fee-transaction-history header div { display: grid; gap: 4px; }
+            .portal-fee-transaction-history header span, .portal-fee-transaction-history header small { color: #667188; font-size: 11px; font-weight: 800; text-transform: uppercase; }
+            .portal-fee-transaction-history header strong { font-size: 16px; }
+            .portal-fee-transaction-table { min-width: 760px; }
             @media print { body { padding: 0; } }
           </style>
         </head>
@@ -12055,6 +12134,19 @@
 
     const syncInvoiceOverlayState = () => {
       syncOpenOverlayState();
+    };
+
+    const setInvoiceFormVisibility = (visible) => {
+      if (!invoiceFormOverlay) {
+        return;
+      }
+      invoiceFormOverlay.hidden = !visible;
+      invoiceFormOpenButton?.setAttribute("aria-expanded", String(visible));
+      syncInvoiceOverlayState();
+      if (visible) {
+        applyInvoiceContextOptions();
+        invoiceControls.session?.focus();
+      }
     };
 
     const closeInvoiceModal = () => {
@@ -12076,6 +12168,12 @@
       invoiceModalBody.innerHTML = `
         ${renderFeeInvoiceDocument(invoice)}
         <div class="portal-fee-invoice-modal-actions">
+          <button class="button button-outline" type="button" data-fee-invoice-download-history data-invoice-student-id="${escapeHtml(
+            invoice.studentId || "",
+          )}">Download history PDF</button>
+          <button class="button button-outline" type="button" data-fee-invoice-print-history data-invoice-student-id="${escapeHtml(
+            invoice.studentId || "",
+          )}">Print history</button>
           <button class="button button-primary" type="button" data-fee-invoice-print-current data-invoice-student-id="${escapeHtml(
             invoice.studentId || "",
           )}">Print invoice</button>
@@ -12098,6 +12196,166 @@
       printWindow.document.close();
     };
 
+    const renderFeeTransactionPrintDocument = (invoice = {}) => {
+      const settings = getInvoiceSchoolSettings();
+      const { payments, totalPaid, latestPayment } = getInvoicePaymentSummary(invoice);
+      return `
+        <!doctype html>
+        <html>
+          <head>
+            <meta charset="utf-8" />
+            <title>${escapeHtml(invoice.invoiceNo || "Invoice")} transaction history</title>
+            <style>
+              * { box-sizing: border-box; }
+              body { margin: 0; padding: 28px; color: #17233a; font-family: Inter, Arial, sans-serif; }
+              main { display: grid; gap: 20px; max-width: 920px; margin: 0 auto; }
+              main > header { display: flex; justify-content: space-between; gap: 20px; padding-bottom: 16px; border-bottom: 2px solid #17233a; }
+              h1 { margin: 5px 0; font-size: 24px; }
+              p { margin: 0; color: #667188; }
+              main > header aside { text-align: right; }
+              main > header aside strong, main > header aside span { display: block; }
+              .summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+              .summary article { padding: 12px; border: 1px solid #dfe7f2; border-radius: 10px; }
+              .summary span { color: #667188; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+              .summary strong { display: block; margin-top: 7px; font-size: 15px; }
+              .portal-fee-transaction-history { display: grid; gap: 10px; }
+              .portal-fee-transaction-history > header { display: flex; justify-content: space-between; gap: 14px; }
+              .portal-fee-transaction-history > header div { display: grid; gap: 3px; }
+              .portal-fee-transaction-history > header span, .portal-fee-transaction-history > header small { color: #667188; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+              .portal-fee-transaction-history > header strong { font-size: 16px; }
+              table { width: 100%; border-collapse: collapse; }
+              th, td { padding: 11px 9px; border-bottom: 1px solid #dfe7f2; text-align: left; font-size: 12px; }
+              th { color: #667188; font-size: 10px; text-transform: uppercase; }
+              th:last-child, td:last-child { text-align: right; }
+              @media print { body { padding: 0; } }
+            </style>
+          </head>
+          <body>
+            <main>
+              <header>
+                <div>
+                  <span>Transaction history</span>
+                  <h1>${escapeHtml(settings.schoolName || "School")}</h1>
+                  <p>${escapeHtml(invoice.studentName || "Student")} • ${escapeHtml(invoice.classLevel || "Class")}</p>
+                </div>
+                <aside>
+                  <strong>${escapeHtml(invoice.invoiceNo || "Invoice")}</strong>
+                  <span>${escapeHtml(invoice.admissionNo || "No admission number")}</span>
+                </aside>
+              </header>
+              <section class="summary">
+                <article><span>Transactions</span><strong>${payments.length}</strong></article>
+                <article><span>Total paid</span><strong>${escapeHtml(formatCurrencyAmount(totalPaid))}</strong></article>
+                <article><span>Latest payment</span><strong>${escapeHtml(formatCurrencyAmount(latestPayment?.amount || 0))}</strong></article>
+                <article><span>Balance</span><strong>${escapeHtml(formatCurrencyAmount(invoice.balance || 0))}</strong></article>
+              </section>
+              ${renderFeeTransactionHistory(invoice)}
+            </main>
+            <script>
+              window.addEventListener("load", function () {
+                window.focus();
+                window.print();
+              });
+            </script>
+          </body>
+        </html>
+      `;
+    };
+
+    const printFeeTransactionHistory = (invoice = {}) => {
+      const printWindow = window.open("", "_blank", "width=920,height=760");
+      if (!printWindow) {
+        setStatus(invoiceStatus || status, "error", "Allow pop-ups for this page so the transaction history can open.");
+        return;
+      }
+      printWindow.document.open();
+      printWindow.document.write(renderFeeTransactionPrintDocument(invoice));
+      printWindow.document.close();
+    };
+
+    const downloadFeeTransactionHistoryPdf = async (invoice = {}) => {
+      const JsPdf = await loadReportCardPdfLibrary();
+      const settings = getInvoiceSchoolSettings();
+      const { payments, totalPaid, latestPayment } = getInvoicePaymentSummary(invoice);
+      const formatPdfCurrency = (value) => formatCurrencyAmount(value).replace("₦", "NGN ");
+      const doc = new JsPdf({ orientation: "landscape", unit: "mm", format: "a4" });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const margin = 14;
+      let y = 15;
+
+      doc.setTextColor(23, 35, 58);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(18);
+      doc.text(settings.schoolName || "School", margin, y);
+      doc.setFontSize(10);
+      doc.text("TRANSACTION HISTORY", pageWidth - margin, y, { align: "right" });
+      y += 7;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.text(`${invoice.studentName || "Student"} | ${invoice.admissionNo || "No admission number"} | ${invoice.classLevel || "Class"}`, margin, y);
+      doc.text(invoice.invoiceNo || "Invoice", pageWidth - margin, y, { align: "right" });
+      y += 9;
+
+      const summary = [
+        `Transactions: ${payments.length}`,
+        `Total paid: ${formatPdfCurrency(totalPaid)}`,
+        `Latest payment: ${formatPdfCurrency(latestPayment?.amount || 0)}`,
+        `Balance: ${formatPdfCurrency(invoice.balance || 0)}`,
+      ];
+      doc.setFont("helvetica", "bold");
+      summary.forEach((line, index) => doc.text(line, margin + index * 68, y));
+      y += 10;
+
+      const columns = [10, 45, 62, 42, 35, 45];
+      const headers = ["#", "Date", "Reference", "Method", "Status", "Amount"];
+      let x = margin;
+      doc.setFillColor(23, 35, 58);
+      doc.rect(margin, y, columns.reduce((sum, width) => sum + width, 0), 8, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(8);
+      headers.forEach((header, index) => {
+        doc.text(header, x + 2, y + 5);
+        x += columns[index];
+      });
+      y += 8;
+
+      doc.setTextColor(23, 35, 58);
+      doc.setFont("helvetica", "normal");
+      payments.forEach((payment, index) => {
+        if (y > 190) {
+          doc.addPage();
+          y = 15;
+        }
+        const row = [
+          String(index + 1),
+          formatTimestamp(payment.paidAt || payment.createdAt || nowIso()),
+          payment.reference || "No reference",
+          payment.method || "Payment",
+          payment.status || "success",
+          formatPdfCurrency(payment.amount || 0),
+        ];
+        let rowX = margin;
+        row.forEach((value, columnIndex) => {
+          const clipped = doc.splitTextToSize(String(value), columns[columnIndex] - 4)[0] || "";
+          doc.text(clipped, rowX + 2, y + 5);
+          rowX += columns[columnIndex];
+        });
+        doc.setDrawColor(220, 229, 242);
+        doc.line(margin, y + 8, pageWidth - margin, y + 8);
+        y += 8;
+      });
+
+      if (!payments.length) {
+        doc.text("No transactions have been recorded for this invoice.", margin + 2, y + 6);
+      }
+
+      const fileName = `${String(invoice.invoiceNo || invoice.studentName || "invoice")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "") || "invoice"}-transaction-history.pdf`;
+      doc.save(fileName);
+    };
+
     const renderInvoiceList = () => {
       if (!invoiceListTarget) {
         return;
@@ -12106,52 +12364,144 @@
       const workspaceId = normalizeWorkspaceId(getCurrentWorkspaceId());
       const invoices = Object.values(readParentFeesState(workspaceId) || {})
         .filter((entry) => entry && entry.invoiceNo)
-        .sort((left, right) => String(right.updatedAt || "").localeCompare(String(left.updatedAt || "")))
-        .slice(0, 12);
+        .sort((left, right) => String(right.updatedAt || "").localeCompare(String(left.updatedAt || "")));
+      const activeClassGroups = getActiveClassGroups();
 
-      if (!invoices.length) {
+      if (!invoices.length && !activeClassGroups.length) {
         invoiceListTarget.innerHTML = `
           <article class="portal-class-empty portal-fee-invoice-empty">
-            <strong>No invoices generated yet</strong>
-            <p>Select a session, term, class, and student to generate the first invoice.</p>
+            <strong>No classes available for invoicing</strong>
+            <p>Create classes and enroll students before generating invoices.</p>
           </article>
         `;
         return;
       }
 
+      const invoicesByClass = invoices.reduce((groups, invoice) => {
+        const classLevel = String(invoice.classLevel || "Unassigned class").trim() || "Unassigned class";
+        if (!groups.has(classLevel)) {
+          groups.set(classLevel, []);
+        }
+        groups.get(classLevel).push(invoice);
+        return groups;
+      }, new Map());
+      activeClassGroups.forEach((group) => {
+        if (!invoicesByClass.has(group.level)) {
+          invoicesByClass.set(group.level, []);
+        }
+      });
+
       invoiceListTarget.innerHTML = `
-        <div class="portal-fee-invoice-table">
-          ${invoices
-            .map(
-              (invoice) => `
-                <article class="portal-fee-invoice-row">
-                  <div>
-                    <strong>${escapeHtml(invoice.invoiceNo)}</strong>
-                    <span>${escapeHtml(invoice.studentName || "Student")} • ${escapeHtml(invoice.admissionNo || "No admission no.")}</span>
+        <div class="portal-fee-invoice-class-list">
+          ${Array.from(invoicesByClass.entries())
+            .sort(([leftClass], [rightClass]) => leftClass.localeCompare(rightClass, undefined, { numeric: true }))
+            .map(([classLevel, classInvoices]) => {
+              const sortedInvoices = [...classInvoices].sort((left, right) =>
+                String(left.studentName || "").localeCompare(String(right.studentName || ""), undefined, { numeric: true }),
+              );
+              const invoicedTotal = classInvoices.reduce((sum, invoice) => sum + Number(invoice.totalDue || 0), 0);
+              const outstandingTotal = classInvoices.reduce((sum, invoice) => sum + Number(invoice.balance || 0), 0);
+              const classStudents = getActiveStudentsForFeeClass(classLevel);
+              const studentCount = classStudents.length;
+              const classContext = getSelectedInvoiceContext({ classLevel });
+              const canGenerateClass =
+                isAdmin &&
+                Boolean(
+                  classContext.sessionId &&
+                    classContext.termId &&
+                    classStudents.length &&
+                    classContext.feeItems.length,
+                );
+              const classToken = normalizeLevelToken(classLevel);
+              const isExpanded = feeState.expandedInvoiceClasses.has(classToken);
+
+              return `
+                <details class="portal-fee-invoice-class-group" data-invoice-class-token="${escapeHtml(classToken)}" ${
+                  isExpanded ? "open" : ""
+                }>
+                  <summary>
+                    <div class="portal-fee-invoice-class-title">
+                      <span>Class</span>
+                      <strong>${escapeHtml(classLevel)}</strong>
+                      <small>${studentCount} student${studentCount === 1 ? "" : "s"} • ${classInvoices.length} invoice${
+                        classInvoices.length === 1 ? "" : "s"
+                      }</small>
+                    </div>
+                    <div class="portal-fee-invoice-class-totals">
+                      <span>
+                        <small>Invoiced</small>
+                        <strong>${escapeHtml(formatCurrencyAmount(invoicedTotal))}</strong>
+                      </span>
+                      <span>
+                        <small>Outstanding</small>
+                        <strong>${escapeHtml(formatCurrencyAmount(outstandingTotal))}</strong>
+                      </span>
+                    </div>
+                  </summary>
+                  <div class="portal-fee-invoice-class-toolbar">
+                    <div>
+                      <strong>${studentCount} enrolled student${studentCount === 1 ? "" : "s"}</strong>
+                      <span>${
+                        classContext.feeItems.length
+                          ? `${classContext.feeItems.length} active fee item${classContext.feeItems.length === 1 ? "" : "s"} selected`
+                          : "No active fee items for the selected period"
+                      }</span>
+                    </div>
+                    <button class="button button-outline" type="button" data-fee-invoice-generate-class="${escapeHtml(
+                      classLevel,
+                    )}" ${canGenerateClass ? "" : "disabled"}>Generate for class</button>
                   </div>
-                  <div>
-                    <span>${escapeHtml(invoice.classLevel || "Class")}</span>
-                    <small>${escapeHtml(invoice.termName || "Period")} • ${escapeHtml(invoice.sessionName || "Session")}</small>
+                  <div class="portal-fee-invoice-table">
+                    ${
+                      sortedInvoices.length
+                        ? sortedInvoices
+                            .map(
+                              (invoice) => `
+                          <article class="portal-fee-invoice-row">
+                            <div>
+                              <strong>${escapeHtml(invoice.studentName || "Student")}</strong>
+                              <span>${escapeHtml(invoice.admissionNo || "No admission no.")} • ${escapeHtml(invoice.invoiceNo)}</span>
+                            </div>
+                            <div>
+                              <span>${escapeHtml(invoice.termName || "Period")}</span>
+                              <small>${escapeHtml(invoice.sessionName || "Session")}</small>
+                            </div>
+                            <div>
+                              <strong>${escapeHtml(formatCurrencyAmount(invoice.totalDue || 0))}</strong>
+                              <span>Balance ${escapeHtml(formatCurrencyAmount(invoice.balance || 0))}</span>
+                            </div>
+                            <div>
+                              <span>Due ${escapeHtml(invoice.dueDate || "Not set")}</span>
+                              <small>${(invoice.invoiceItems || []).length} item${
+                                (invoice.invoiceItems || []).length === 1 ? "" : "s"
+                              }</small>
+                            </div>
+                            <div class="portal-fee-invoice-row-actions">
+                              <button class="portal-class-button" type="button" data-fee-invoice-action="view" data-invoice-student-id="${escapeHtml(
+                                invoice.studentId || "",
+                              )}">View</button>
+                              <button class="portal-class-button" type="button" data-fee-invoice-action="history" data-invoice-student-id="${escapeHtml(
+                                invoice.studentId || "",
+                              )}">Transactions</button>
+                              <button class="portal-class-button" type="button" data-fee-invoice-action="print" data-invoice-student-id="${escapeHtml(
+                                invoice.studentId || "",
+                              )}">Print</button>
+                            </div>
+                          </article>
+                        `,
+                            )
+                            .join("")
+                        : `
+                          <article class="portal-class-empty portal-fee-invoice-class-empty">
+                            <strong>No invoices for this class yet</strong>
+                            <p>Use Generate for class to create invoices for enrolled students.</p>
+                          </article>
+                        `
+                    }
                   </div>
-                  <div>
-                    <strong>${escapeHtml(formatCurrencyAmount(invoice.totalDue || 0))}</strong>
-                    <span>Balance ${escapeHtml(formatCurrencyAmount(invoice.balance || 0))}</span>
-                  </div>
-                  <div>
-                    <span>Due ${escapeHtml(invoice.dueDate || "Not set")}</span>
-                    <small>${(invoice.invoiceItems || []).length} item${(invoice.invoiceItems || []).length === 1 ? "" : "s"}</small>
-                  </div>
-                  <div class="portal-fee-invoice-row-actions">
-                    <button class="portal-class-button" type="button" data-fee-invoice-action="view" data-invoice-student-id="${escapeHtml(
-                      invoice.studentId || "",
-                    )}">View</button>
-                    <button class="portal-class-button" type="button" data-fee-invoice-action="print" data-invoice-student-id="${escapeHtml(
-                      invoice.studentId || "",
-                    )}">Print</button>
-                  </div>
-                </article>
-              `,
-            )
+                </details>
+              `;
+            })
             .join("")}
         </div>
       `;
@@ -12229,18 +12579,15 @@
       if (invoiceControls.singleButton) {
         invoiceControls.singleButton.disabled = !canGenerate || !studentId;
       }
-      if (invoiceControls.bulkButton) {
-        invoiceControls.bulkButton.disabled = !canGenerate;
-      }
     };
 
-    const generateInvoices = (studentsToInvoice) => {
+    const generateInvoices = (studentsToInvoice, invoiceContext = null) => {
       if (!isAdmin) {
         setStatus(invoiceStatus || status, "info", "Only administrators can generate invoices.");
         return;
       }
 
-      const context = getSelectedInvoiceContext();
+      const context = invoiceContext || getSelectedInvoiceContext();
       if (!context.sessionId || !context.termId || !context.classLevel) {
         setStatus(invoiceStatus || status, "error", "Select session, term or semester, and class group.");
         return;
@@ -12254,7 +12601,7 @@
       const studentsForInvoice = studentsToInvoice.filter(Boolean);
       if (!studentsForInvoice.length) {
         setStatus(invoiceStatus || status, "error", "No active students found for this invoice.");
-        return;
+        return false;
       }
 
       const workspaceId = normalizeWorkspaceId(getCurrentWorkspaceId());
@@ -12299,6 +12646,12 @@
           context.classLevel,
         )}</strong>.`,
       );
+      showFeeToast(
+        `Generated <strong>${studentsForInvoice.length}</strong> invoice${studentsForInvoice.length === 1 ? "" : "s"} for <strong>${escapeHtml(
+          context.classLevel,
+        )}</strong>.`,
+      );
+      return true;
     };
 
     const applyContextOptions = () => {
@@ -12488,15 +12841,32 @@
 
     invoiceControls.singleButton?.addEventListener("click", () => {
       const context = getSelectedInvoiceContext();
-      generateInvoices(context.student ? [context.student] : []);
+      if (generateInvoices(context.student ? [context.student] : [])) {
+        setInvoiceFormVisibility(false);
+      }
     });
 
-    invoiceControls.bulkButton?.addEventListener("click", () => {
-      const context = getSelectedInvoiceContext();
-      generateInvoices(context.students);
+    invoiceFormOpenButton?.addEventListener("click", () => {
+      setStatus(invoiceStatus || status, "", "");
+      setInvoiceFormVisibility(true);
+    });
+
+    invoiceFormOverlay?.addEventListener("click", (event) => {
+      if (event.target.closest("[data-fee-invoice-form-close]")) {
+        setInvoiceFormVisibility(false);
+      }
     });
 
     invoiceListTarget?.addEventListener("click", (event) => {
+      const generateClassButton = event.target.closest("[data-fee-invoice-generate-class]");
+      if (generateClassButton) {
+        const classLevel = String(generateClassButton.dataset.feeInvoiceGenerateClass || "").trim();
+        const context = getSelectedInvoiceContext({ classLevel });
+        feeState.expandedInvoiceClasses.add(normalizeLevelToken(classLevel));
+        generateInvoices(context.students, context);
+        return;
+      }
+
       const actionButton = event.target.closest("[data-fee-invoice-action]");
       if (!actionButton) {
         return;
@@ -12516,6 +12886,28 @@
       openInvoiceModal(invoice);
     });
 
+    invoiceListTarget?.addEventListener(
+      "toggle",
+      (event) => {
+        const classGroup = event.target.closest("details[data-invoice-class-token]");
+        if (!classGroup) {
+          return;
+        }
+
+        const classToken = String(classGroup.dataset.invoiceClassToken || "").trim();
+        if (!classToken) {
+          return;
+        }
+
+        if (classGroup.open) {
+          feeState.expandedInvoiceClasses.add(classToken);
+        } else {
+          feeState.expandedInvoiceClasses.delete(classToken);
+        }
+      },
+      true,
+    );
+
     invoiceOverlay?.addEventListener("click", (event) => {
       if (event.target.closest("[data-fee-invoice-close]")) {
         closeInvoiceModal();
@@ -12523,13 +12915,42 @@
       }
 
       const printButton = event.target.closest("[data-fee-invoice-print-current]");
-      if (!printButton) {
+      if (printButton) {
+        const invoice = getFeeInvoiceByStudentId(String(printButton.dataset.invoiceStudentId || "").trim());
+        if (invoice) {
+          printFeeInvoice(invoice);
+        }
         return;
       }
 
-      const invoice = getFeeInvoiceByStudentId(String(printButton.dataset.invoiceStudentId || "").trim());
-      if (invoice) {
-        printFeeInvoice(invoice);
+      const printHistoryButton = event.target.closest("[data-fee-invoice-print-history]");
+      if (printHistoryButton) {
+        const invoice = getFeeInvoiceByStudentId(String(printHistoryButton.dataset.invoiceStudentId || "").trim());
+        if (invoice) {
+          printFeeTransactionHistory(invoice);
+        }
+        return;
+      }
+
+      const downloadHistoryButton = event.target.closest("[data-fee-invoice-download-history]");
+      if (downloadHistoryButton) {
+        const invoice = getFeeInvoiceByStudentId(String(downloadHistoryButton.dataset.invoiceStudentId || "").trim());
+        if (!invoice) {
+          return;
+        }
+        downloadHistoryButton.disabled = true;
+        downloadHistoryButton.textContent = "Preparing PDF...";
+        downloadFeeTransactionHistoryPdf(invoice)
+          .then(() => {
+            showFeeToast("Transaction history PDF downloaded.");
+          })
+          .catch(() => {
+            setStatus(invoiceStatus || status, "error", "Could not prepare the transaction history PDF. Check your network and try again.");
+          })
+          .finally(() => {
+            downloadHistoryButton.disabled = false;
+            downloadHistoryButton.textContent = "Download history PDF";
+          });
       }
     });
 
@@ -12541,6 +12962,10 @@
         closeFeeForm();
         return;
       }
+      if (invoiceFormOverlay && !invoiceFormOverlay.hidden) {
+        setInvoiceFormVisibility(false);
+        return;
+      }
       if (invoiceOverlay && !invoiceOverlay.hidden) {
         closeInvoiceModal();
       }
@@ -12549,6 +12974,11 @@
     if (formToggleButton) {
       formToggleButton.disabled = !isAdmin || !manager;
       formToggleButton.addEventListener("click", toggleVisibility);
+    }
+
+    if (invoiceFormOpenButton) {
+      invoiceFormOpenButton.disabled = !isAdmin;
+      invoiceFormOpenButton.setAttribute("aria-expanded", "false");
     }
 
     categoryOptionsTarget?.addEventListener("click", (event) => {
