@@ -28,16 +28,14 @@ window.SchoolSphereSupabaseConfig = {
   //   1. Go to: Authentication → URL Configuration → Redirect URLs
   //   2. Click "Add URL" and add ALL of the following:
   //
-  //        http://localhost:8080/reset-password.html
-  //        http://127.0.0.1:8080/reset-password.html
-  //        http://localhost:5500/reset-password.html   (Live Server default)
-  //        http://127.0.0.1:5500/reset-password.html
-  //        https://yourdomain.com/reset-password.html  (your production URL)
+  //        http://localhost:5500/School-management-web-app/reset-password.html
+  //        http://127.0.0.1:5500/School-management-web-app/reset-password.html
+  //        https://yourdomain.com/School-management-web-app/reset-password.html
   //
   //   3. Save, then test the flow again.
   //
-  // Note: Use the exact URL your browser shows when you open forgot-password.html,
-  // but replace the filename with "reset-password.html".
+  // Use the exact URL shown in your browser, including the project folder,
+  // and replace "forgot-password.html" with "reset-password.html".
   //
   // ─────────────────────────────────────────────────────────────────────────
 };

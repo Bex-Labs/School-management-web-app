@@ -12,6 +12,7 @@
   const AUTH_PERSIST_LOCAL_KEY = "schoolsphere.auth.persistence.local.v1";
   const AUTH_PERSIST_SESSION_KEY = "schoolsphere.auth.persistence.session.v1";
   const AUTH_PENDING_ROLE_KEY = "schoolsphere.auth.pending.role.v1";
+  const AUTH_PASSWORD_RECOVERY_KEY = "schoolsphere.auth.password-recovery.v1";
   const ACCESS_GRANTS_STORAGE_KEY = "schoolsphere.access.grants.v1";
   const ACCESS_GUARD_NOTICE_KEY = "schoolsphere.access.guard.notice.v1";
   const ACCESS_GRANTS_EVENT_NAME = "schoolsphere:access-grants:updated";
@@ -1268,112 +1269,6 @@
       mustChangePassword: Boolean(record.mustChangePassword),
       workspaceId: deriveWorkspaceIdFromRecord(record),
     };
-  }
-
-  function maskEmailAddress(value) {
-    const email = normalizeEmail(value || "");
-    const [localPart, domain = ""] = email.split("@");
-    if (!localPart || !domain) {
-      return "";
-    }
-    const localVisible =
-      localPart.length <= 2 ? `${localPart.charAt(0)}*` : `${localPart.slice(0, 2)}${"*".repeat(Math.max(1, localPart.length - 2))}`;
-    const domainParts = domain.split(".");
-    const domainName = domainParts.shift() || "";
-    const domainTld = domainParts.join(".");
-    const domainVisible =
-      domainName.length <= 2 ? `${domainName.charAt(0)}*` : `${domainName.slice(0, 2)}${"*".repeat(Math.max(1, domainName.length - 2))}`;
-    return `${localVisible}@${domainVisible}${domainTld ? `.${domainTld}` : ""}`;
-  }
-
-  function maskPhoneNumber(value) {
-    const raw = String(value || "").trim();
-    const digits = raw.replace(/\D/g, "");
-    if (!digits) {
-      return "";
-    }
-    const suffix = digits.slice(-4);
-    return `${"*".repeat(Math.max(2, digits.length - 4))}${suffix}`;
-  }
-
-  function normalizeRecoveryContactValue(value) {
-    const raw = String(value || "").trim();
-    return raw.includes("@") ? normalizeEmail(raw) : raw.replace(/\D/g, "");
-  }
-
-  function getStudentRecordForUser(user = {}) {
-    const students = getStudentManager()?.getStudents?.() || [];
-    const normalizedEmail = normalizeEmail(user.email || "");
-    const studentRecordId = String(user.studentRecordId || "").trim();
-    const admissionNo = String(user.admissionNo || "").trim().toLowerCase();
-
-    return (
-      students.find((student) => studentRecordId && String(student.id || "").trim() === studentRecordId) ||
-      students.find((student) => admissionNo && String(student.admissionNo || "").trim().toLowerCase() === admissionNo) ||
-      students.find((student) => normalizedEmail && normalizeEmail(student.studentEmail || student.email || "") === normalizedEmail) ||
-      null
-    );
-  }
-
-  function getUserRecoveryContacts(user = {}) {
-    const contacts = [];
-    const pushContact = (type, value, label) => {
-      const raw = String(value || "").trim();
-      const normalized = type === "email" ? normalizeEmail(raw) : raw.replace(/\D/g, "");
-      if (!normalized) {
-        return;
-      }
-      if (contacts.some((entry) => entry.type === type && entry.normalized === normalized)) {
-        return;
-      }
-      contacts.push({
-        type,
-        value: raw,
-        normalized,
-        label: label || (type === "email" ? "Verified email" : "Verified phone"),
-        masked: type === "email" ? maskEmailAddress(raw) : maskPhoneNumber(raw),
-      });
-    };
-
-    pushContact("email", user.email, "Account email");
-    pushContact("phone", user.phone, "Profile phone");
-
-    if (normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE) === "Parent") {
-      const linkedStudents = getParentLinkedStudents(user.email, getStudentManager());
-      linkedStudents.forEach((student) => {
-        (student.guardians || []).forEach((guardian) => {
-          if (normalizeEmail(guardian.email || "") === normalizeEmail(user.email || "")) {
-            pushContact("phone", guardian.phone, "Guardian phone");
-          }
-        });
-      });
-    }
-
-    if (normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE) === "Student") {
-      const student = getStudentRecordForUser(user);
-      pushContact("email", student?.studentEmail || student?.email || "", "Student email");
-    }
-
-    return contacts;
-  }
-
-  function findUserByRecoveryIdentifier(identifier = "") {
-    const raw = String(identifier || "").trim();
-
-    if (!raw) {
-      return null;
-    }
-
-    if (EMAIL_REGEX.test(raw)) {
-      return findUserByEmail(raw);
-    }
-
-    const studentLogin = resolveStudentLoginIdentifier(raw);
-    if (!studentLogin?.error && studentLogin.email) {
-      return findUserByEmail(studentLogin.email);
-    }
-
-    return findUserByEmail(raw);
   }
 
   function buildPasswordRecoveryUrl(token) {
@@ -5758,6 +5653,16 @@
     const client = await getSupabaseClient();
 
     client.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") {
+        localStorage.setItem(
+          AUTH_PASSWORD_RECOVERY_KEY,
+          JSON.stringify({
+            status: "active",
+            updatedAt: nowIso(),
+          }),
+        );
+      }
+
       setTimeout(async () => {
         if (event === "SIGNED_OUT") {
           clearSession();
@@ -22737,7 +22642,6 @@
     const formView = document.getElementById("forgot-form-view");
     const sentView = document.getElementById("forgot-sent-view");
     const sentEmail = sentView?.querySelector("[data-sent-email]");
-    const googleHint = sentView?.querySelector("[data-google-hint]");
     const devPanel = sentView?.querySelector("[data-dev-panel]");
     const devResetLink = sentView?.querySelector("[data-dev-reset-link]");
 
@@ -22756,64 +22660,22 @@
       clearFieldErrors(form);
       setStatus(status, "", "");
 
-      const identifier = String(form.elements.identifier?.value || "").trim();
-      const contact = String(form.elements.contact?.value || "").trim();
-      let hasError = false;
+      const email = String(form.elements.email?.value || "").trim();
 
-      if (!identifier) {
-        setFieldError(form, "identifier", "Enter your account email or admission number.");
-        hasError = true;
-      }
-
-      if (!contact) {
-        setFieldError(form, "contact", "Enter a verified email or phone number.");
-        hasError = true;
-      }
-
-      if (hasError) {
-        setStatus(status, "error", "Complete the recovery details to continue.");
+      if (!email) {
+        setFieldError(form, "email", "Enter your account email.");
+        setStatus(status, "error", "Enter your account email to continue.");
         return;
       }
 
-      const user = findUserByRecoveryIdentifier(identifier);
-
-      if (!user || isUserDeactivated(user)) {
-        if (sentEmail) sentEmail.textContent = identifier;
-        formView.hidden = true;
-        sentView.hidden = false;
-        googleHint.hidden = true;
-        devPanel.hidden = true;
+      if (!EMAIL_REGEX.test(email)) {
+        setFieldError(form, "email", "Enter a valid email address.");
+        setStatus(status, "error", "Enter a valid email address to continue.");
         return;
       }
 
-      if (user.provider === "google") {
-        if (sentEmail) sentEmail.textContent = user.email || identifier;
-        formView.hidden = true;
-        sentView.hidden = false;
-        if (googleHint) {
-          googleHint.hidden = false;
-        }
-        if (devPanel) {
-          devPanel.hidden = true;
-        }
-        return;
-      }
-
-      const recoveryContacts = getUserRecoveryContacts(user);
-      const normalizedContact = normalizeRecoveryContactValue(contact);
-      const matchedContact = recoveryContacts.find((entry) => entry.normalized === normalizedContact);
-
-      if (!matchedContact) {
-        const contactHint = recoveryContacts.length
-          ? `This account can be verified with ${recoveryContacts
-              .map((entry) => `${entry.label.toLowerCase()} (${entry.masked || entry.value})`)
-              .join(" or ")}.`
-          : "No verified contact details are saved yet for this account.";
-        setFieldError(form, "contact", "The verified contact detail does not match this account.");
-        setStatus(status, "error", contactHint);
-        return;
-      }
-
+      const normalizedEmail = normalizeEmail(email);
+      const user = findUserByEmail(normalizedEmail);
       let resetUrl = "";
       if (isSupabaseConfigured()) {
         const client = await getSupabaseClient();
@@ -22821,7 +22683,7 @@
 
         try {
           ({ error } = await withNetworkTimeout(
-            client.auth.resetPasswordForEmail(user.email, {
+            client.auth.resetPasswordForEmail(normalizedEmail, {
               redirectTo: buildSupabaseRedirectUrl("reset-password.html"),
             }),
           ));
@@ -22833,8 +22695,8 @@
           setStatus(status, "error", formatSupabaseAuthError(error, "Could not send the password reset email."));
           return;
         }
-      } else {
-        const recoveryRequest = createLocalPasswordRecoveryRequest(user, matchedContact.value);
+      } else if (user && !isUserDeactivated(user) && user.provider !== "google") {
+        const recoveryRequest = createLocalPasswordRecoveryRequest(user, user.email);
         storePasswordRecoveryMail(user, recoveryRequest);
         resetUrl = buildPasswordRecoveryUrl(recoveryRequest.token);
       }
@@ -22842,19 +22704,16 @@
       recordAuditEvent({
         action: "created",
         entityType: "password-recovery",
-        entityId: user.email,
-        summary: `Password reset requested for ${user.email}`,
-        details: `${matchedContact.label} verified`,
+        entityId: normalizedEmail,
+        summary: `Password reset requested for ${normalizedEmail}`,
+        details: "Recovery email requested",
       });
 
       if (sentEmail) {
-        sentEmail.textContent = user.email || identifier;
-      }
-      if (googleHint) {
-        googleHint.hidden = true;
+        sentEmail.textContent = normalizedEmail;
       }
       if (devPanel && devResetLink) {
-        devPanel.hidden = isSupabaseConfigured();
+        devPanel.hidden = isSupabaseConfigured() || !resetUrl;
         devResetLink.href = resetUrl || "#";
       }
       formView.hidden = true;
@@ -22862,7 +22721,7 @@
     });
   }
 
-  function initResetPasswordFlow() {
+  async function initResetPasswordFlow() {
     if (getPage() !== "reset-password") {
       return;
     }
@@ -22874,20 +22733,60 @@
     const successView = document.getElementById("reset-success-view");
     const params = new URLSearchParams(window.location.search);
     const token = String(params.get("token") || "").trim();
+    const authorizationCode = String(params.get("code") || "").trim();
     const recoveryHash = String(window.location.hash || "");
+    const recoveryMarker = parseJSON(localStorage.getItem(AUTH_PASSWORD_RECOVERY_KEY), null);
+    const recoveryMarkerAge = recoveryMarker?.updatedAt
+      ? Date.now() - new Date(recoveryMarker.updatedAt).getTime()
+      : Number.POSITIVE_INFINITY;
+    const hasActiveRecoveryMarker =
+      recoveryMarkerAge >= 0 &&
+      recoveryMarkerAge <= 2 * 60 * 60 * 1000 &&
+      String(recoveryMarker?.status || "") === "active";
+    const hasRecoveryUrlEvidence =
+      Boolean(authorizationCode) ||
+      params.get("type") === "recovery" ||
+      /(?:^|[#&])type=recovery(?:&|$)/.test(recoveryHash) ||
+      /(?:^|[#&])access_token=/.test(recoveryHash);
     const localRequest = token ? getPasswordRecoveryRequestByToken(token) : null;
-    const session = getSession() || null;
-    const sessionUser = session?.userId ? getUsers().find((entry) => entry.id === session.userId) || null : null;
-    const hasSupabaseRecoverySession = Boolean(
-      session &&
-      session.source === "supabase" &&
-      /(?:^|[#&])type=recovery(?:&|$)/.test(recoveryHash),
-    );
     const hasValidLocalRequest = isPasswordRecoveryRequestValid(localRequest);
+    let hostedRecoveryResult = null;
+
+    if (isSupabaseConfigured() && (hasRecoveryUrlEvidence || hasActiveRecoveryMarker)) {
+      const client = await getSupabaseClient();
+
+      for (let attempt = 0; attempt < 4 && !hostedRecoveryResult; attempt += 1) {
+        try {
+          const {
+            data: { session: hostedSession },
+          } = await client.auth.getSession();
+
+          if (hostedSession?.user) {
+            hostedRecoveryResult = await syncSupabaseSessionToLocal({
+              redirectAuthenticatedAuthPages: false,
+            });
+            break;
+          }
+
+          if (attempt === 0 && authorizationCode && typeof client.auth.exchangeCodeForSession === "function") {
+            const { error: exchangeError } = await client.auth.exchangeCodeForSession(authorizationCode);
+            if (exchangeError) {
+              break;
+            }
+          }
+        } catch {
+          // Retry briefly while the recovery session is being restored from the URL.
+        }
+
+        await new Promise((resolve) => window.setTimeout(resolve, 200));
+      }
+    }
+
+    const hasSupabaseRecoverySession = Boolean(hostedRecoveryResult?.session?.user && hostedRecoveryResult?.user);
     const activeUser = hasValidLocalRequest
       ? getUsers().find((entry) => entry.id === localRequest.userId) || null
       : hasSupabaseRecoverySession
-        ? sessionUser
+        ? hostedRecoveryResult.user
         : null;
 
     if (!form || !status || !formWrapper || !invalidView || !successView) {
@@ -22941,7 +22840,7 @@
         return;
       }
 
-      if (activeUser.provider === "google") {
+      if (activeUser.provider === "google" && !hasSupabaseRecoverySession) {
         setStatus(status, "info", "This account uses Google sign-in. Reset the password from your Google account instead.");
         return;
       }
@@ -22976,6 +22875,7 @@
       if (hasValidLocalRequest) {
         markPasswordRecoveryRequestUsed(token);
       }
+      localStorage.removeItem(AUTH_PASSWORD_RECOVERY_KEY);
 
       recordAuditEvent({
         action: "updated",
