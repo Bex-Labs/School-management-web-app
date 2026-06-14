@@ -263,6 +263,25 @@ const SCHOOL_ATTENDANCE_EVENT = "schoolsphere:attendance-updated";
 const DEFAULT_REPORT_CARD_RECORDS = [];
 const SCHOOL_REPORT_CARDS_STORAGE_KEY = "schoolsphere.reportCards.v1";
 const SCHOOL_REPORT_CARDS_EVENT = "schoolsphere:report-cards-updated";
+const SCHOOL_REPORT_CONFIGURATION_STORAGE_KEY = "schoolsphere.reportConfiguration.v1";
+const SCHOOL_REPORT_CONFIGURATION_EVENT = "schoolsphere:report-configuration-updated";
+const DEFAULT_REPORT_CONFIGURATION = {
+  gradingScale: [
+    { minimum: 70, grade: "A", remark: "Excellent" },
+    { minimum: 60, grade: "B", remark: "Very Good" },
+    { minimum: 50, grade: "C", remark: "Good" },
+    { minimum: 45, grade: "D", remark: "Fair" },
+    { minimum: 40, grade: "E", remark: "Pass" },
+    { minimum: 0, grade: "F", remark: "Needs Improvement" },
+  ],
+  template: {
+    title: "Term Report Card",
+    showAttendance: true,
+    showClassPosition: false,
+    showTeacherComment: true,
+    showSchoolComment: true,
+  },
+};
 const LEGACY_MOCK_CLASS_IDS = new Set([
   "class-nursery-2-tulip",
   "class-primary-3-coral",
@@ -435,6 +454,7 @@ function clearLegacySharedState() {
     SCHOOL_STUDENTS_STORAGE_KEY,
     SCHOOL_ATTENDANCE_STORAGE_KEY,
     SCHOOL_REPORT_CARDS_STORAGE_KEY,
+    SCHOOL_REPORT_CONFIGURATION_STORAGE_KEY,
     AUDIT_TRAIL_STORAGE_KEY,
     FEATURE_TOGGLE_STORAGE_KEY,
     ROLE_PERMISSIONS_STORAGE_KEY,
@@ -3118,15 +3138,58 @@ function normalizeReportCardScore(value) {
   return Math.min(100, Math.round(score * 100) / 100);
 }
 
+function normalizeReportConfiguration(configuration = {}) {
+  const sourceScale = Array.isArray(configuration.gradingScale)
+    ? configuration.gradingScale
+    : DEFAULT_REPORT_CONFIGURATION.gradingScale;
+  const gradingScale = sourceScale
+    .map((entry) => ({
+      minimum: Math.max(0, Math.min(100, Number.parseFloat(entry?.minimum) || 0)),
+      grade: String(entry?.grade || "").trim().toUpperCase(),
+      remark: String(entry?.remark || "").trim(),
+    }))
+    .filter((entry) => entry.grade)
+    .sort((left, right) => right.minimum - left.minimum);
+
+  return {
+    gradingScale: gradingScale.length
+      ? gradingScale
+      : DEFAULT_REPORT_CONFIGURATION.gradingScale.map((entry) => ({ ...entry })),
+    template: {
+      ...DEFAULT_REPORT_CONFIGURATION.template,
+      ...(configuration.template || {}),
+      title:
+        String(configuration.template?.title || DEFAULT_REPORT_CONFIGURATION.template.title).trim() ||
+        DEFAULT_REPORT_CONFIGURATION.template.title,
+      showAttendance: configuration.template?.showAttendance !== false,
+      showClassPosition: Boolean(configuration.template?.showClassPosition),
+      showTeacherComment: configuration.template?.showTeacherComment !== false,
+      showSchoolComment: configuration.template?.showSchoolComment !== false,
+    },
+  };
+}
+
+function getReportConfiguration() {
+  return normalizeReportConfiguration(
+    readWorkspaceState(SCHOOL_REPORT_CONFIGURATION_STORAGE_KEY, DEFAULT_REPORT_CONFIGURATION),
+  );
+}
+
+function saveReportConfiguration(configuration) {
+  const normalized = normalizeReportConfiguration(configuration);
+  writeWorkspaceState(SCHOOL_REPORT_CONFIGURATION_STORAGE_KEY, normalized);
+  window.dispatchEvent(
+    new CustomEvent(SCHOOL_REPORT_CONFIGURATION_EVENT, {
+      detail: { configuration: normalized },
+    }),
+  );
+  return normalized;
+}
+
 function getReportCardGrade(score) {
   const normalizedScore = normalizeReportCardScore(score);
-
-  if (normalizedScore >= 70) return { grade: "A", remark: "Excellent" };
-  if (normalizedScore >= 60) return { grade: "B", remark: "Very Good" };
-  if (normalizedScore >= 50) return { grade: "C", remark: "Good" };
-  if (normalizedScore >= 45) return { grade: "D", remark: "Fair" };
-  if (normalizedScore >= 40) return { grade: "E", remark: "Pass" };
-  return { grade: "F", remark: "Needs Improvement" };
+  const scale = getReportConfiguration().gradingScale;
+  return scale.find((entry) => normalizedScore >= entry.minimum) || scale[scale.length - 1];
 }
 
 function normalizeReportCardSubject(record = {}) {
@@ -3694,6 +3757,14 @@ window.SchoolSphereReportCards = {
   setReleased: setReportCardReleased,
   getForStudentPeriod: getReportCardForStudentPeriod,
   eventName: SCHOOL_REPORT_CARDS_EVENT,
+};
+
+window.SchoolSphereReportConfiguration = {
+  defaults: DEFAULT_REPORT_CONFIGURATION,
+  getConfiguration: getReportConfiguration,
+  saveConfiguration: saveReportConfiguration,
+  gradeScore: getReportCardGrade,
+  eventName: SCHOOL_REPORT_CONFIGURATION_EVENT,
 };
 
 window.SchoolSphereAuditTrail = {

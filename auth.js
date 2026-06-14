@@ -230,6 +230,7 @@
     "admin-settings-access": "settings_manage",
     "admin-settings-roles": "settings_manage",
     "admin-settings-academic": "settings_manage",
+    "admin-settings-grading": "settings_manage",
     "staff-dashboard": "staff_dashboard_view",
     "staff-timetable": "staff_timetable_view",
     "staff-attendance": "staff_attendance_mark",
@@ -436,6 +437,7 @@
     "admin-settings-access",
     "admin-settings-roles",
     "admin-settings-academic",
+    "admin-settings-grading",
   ]);
 
   const DASHBOARD_EVENT_ITEMS = [
@@ -532,6 +534,7 @@
     "schoolsphere.students.v1",
     "schoolsphere.attendance.v1",
     "schoolsphere.reportCards.v1",
+    "schoolsphere.reportConfiguration.v1",
     "schoolsphere.featureModules.v1",
     "schoolsphere.rolePermissions.v1",
     "schoolsphere.auditTrail.v1",
@@ -545,6 +548,7 @@
   const SUPABASE_STATE_KEY_STUDENTS = "schoolsphere.students.v1";
   const SUPABASE_STATE_KEY_ATTENDANCE = "schoolsphere.attendance.v1";
   const SUPABASE_STATE_KEY_REPORT_CARDS = "schoolsphere.reportCards.v1";
+  const SUPABASE_STATE_KEY_REPORT_CONFIGURATION = "schoolsphere.reportConfiguration.v1";
   const SUPABASE_STATE_KEY_FEE_ITEMS = "schoolsphere.feeItems.v1";
   const SUPABASE_STATE_KEY_ACADEMIC_CYCLES = "schoolsphere.academicCycles.v1";
   const SUPABASE_STATE_KEY_ADMISSION_CONFIG = "schoolsphere.admissionConfig.v1";
@@ -564,6 +568,7 @@
     SUPABASE_STATE_KEY_STUDENTS,
     SUPABASE_STATE_KEY_ATTENDANCE,
     SUPABASE_STATE_KEY_REPORT_CARDS,
+    SUPABASE_STATE_KEY_REPORT_CONFIGURATION,
     SUPABASE_STATE_KEY_FEE_ITEMS,
     SUPABASE_STATE_KEY_ACADEMIC_CYCLES,
     SUPABASE_STATE_KEY_ADMISSION_CONFIG,
@@ -4076,6 +4081,7 @@
       [SUPABASE_STATE_KEY_STUDENTS, getStudentManager()?.eventName],
       [SUPABASE_STATE_KEY_ATTENDANCE, getAttendanceManager()?.eventName],
       [SUPABASE_STATE_KEY_REPORT_CARDS, getReportCardManager()?.eventName],
+      [SUPABASE_STATE_KEY_REPORT_CONFIGURATION, getReportConfigurationManager()?.eventName],
       [SUPABASE_STATE_KEY_FEE_ITEMS, getFeeItemManager()?.eventName],
       [SUPABASE_STATE_KEY_ACADEMIC_CYCLES, getAcademicCycleManager()?.eventName],
       [SUPABASE_STATE_KEY_ADMISSION_CONFIG, getAdmissionConfigManager()?.eventName],
@@ -4232,6 +4238,11 @@
         manager: getReportCardManager(),
         stateKey: SUPABASE_STATE_KEY_REPORT_CARDS,
         getPayload: (manager) => manager.getRecords(),
+      },
+      {
+        manager: getReportConfigurationManager(),
+        stateKey: SUPABASE_STATE_KEY_REPORT_CONFIGURATION,
+        getPayload: (manager) => manager.getConfiguration(),
       },
       {
         manager: getFeeItemManager(),
@@ -6278,6 +6289,10 @@
 
   function getReportCardManager() {
     return window.SchoolSphereReportCards || null;
+  }
+
+  function getReportConfigurationManager() {
+    return window.SchoolSphereReportConfiguration || null;
   }
 
   function getDefaultAdminSchoolSettings() {
@@ -24479,6 +24494,11 @@
 
   function getReportCardGradeInfo(value) {
     const score = normalizeReportCardScore(value);
+    const configurationManager = getReportConfigurationManager();
+
+    if (configurationManager && typeof configurationManager.gradeScore === "function") {
+      return configurationManager.gradeScore(score);
+    }
 
     if (score >= 70) return { grade: "A", remark: "Excellent" };
     if (score >= 60) return { grade: "B", remark: "Very Good" };
@@ -24575,6 +24595,20 @@
       }))
       .sort((left, right) => right.averageScore - left.averageScore);
     const positionIndex = comparableRecords.findIndex((entry) => entry.id === record.id);
+    const reportConfiguration =
+      getReportConfigurationManager()?.getConfiguration?.() || {
+        template: {
+          title: "Term Report Card",
+          showAttendance: true,
+          showClassPosition: false,
+          showTeacherComment: true,
+          showSchoolComment: true,
+        },
+      };
+    const attendanceEntries = (getAttendanceManager()?.getRecords?.() || []).flatMap((attendanceRecord) =>
+      (attendanceRecord.entries || []).filter((entry) => String(entry.studentId || "") === String(record.studentId || "")),
+    );
+    const presentCount = attendanceEntries.filter((entry) => ["present", "late"].includes(entry.status)).length;
 
     return {
       ...record,
@@ -24593,6 +24627,8 @@
       ).trim(),
       termName: String(record.termName || getTermLabelFromCycle(cycleState, record.termId) || "Term").trim(),
       position: positionIndex >= 0 ? `${positionIndex + 1} of ${comparableRecords.length}` : "Not ranked",
+      reportTemplate: reportConfiguration.template || {},
+      attendanceLabel: attendanceEntries.length ? `${presentCount} of ${attendanceEntries.length} present` : "No attendance recorded",
     };
   }
 
@@ -24601,6 +24637,7 @@
     const schoolName = card.settings.schoolName || "School";
     const schoolLocation = card.settings.address || card.settings.campusDetails || "";
     const schoolInitial = String(schoolName).trim().charAt(0).toUpperCase() || "S";
+    const template = card.reportTemplate || {};
     const logoHtml = card.settings.logoUrl
       ? `<img src="${escapeHtml(String(card.settings.logoUrl))}" alt="${escapeHtml(String(schoolName))} logo" />`
       : escapeHtml(schoolInitial);
@@ -24629,7 +24666,7 @@
           <div class="portal-report-card-school">
             <span class="portal-report-card-mark ${card.settings.logoUrl ? "is-image" : ""}">${logoHtml}</span>
             <div>
-              <span>Official report card</span>
+              <span>${escapeHtml(String(template.title || "Term Report Card"))}</span>
               <h4>${escapeHtml(String(schoolName))}</h4>
               ${schoolLocation ? `<p>${escapeHtml(String(schoolLocation))}</p>` : ""}
             </div>
@@ -24647,7 +24684,16 @@
           <article><span>Class / Level</span><strong>${escapeHtml(card.classLevel)}</strong></article>
           <article><span>Academic Session</span><strong>${escapeHtml(card.sessionName)}</strong></article>
           <article><span>Term / Semester</span><strong>${escapeHtml(card.termName)}</strong></article>
-          <article><span>Position</span><strong>${escapeHtml(card.position)}</strong></article>
+          ${
+            template.showClassPosition
+              ? `<article><span>Position</span><strong>${escapeHtml(card.position)}</strong></article>`
+              : ""
+          }
+          ${
+            template.showAttendance !== false
+              ? `<article><span>Attendance</span><strong>${escapeHtml(card.attendanceLabel)}</strong></article>`
+              : ""
+          }
         </div>
 
         <div class="portal-report-card-table-wrap">
@@ -24671,16 +24717,28 @@
           <article><span>Overall Grade</span><strong>${escapeHtml(card.overallGrade)}</strong></article>
         </div>
 
-        <div class="portal-report-card-comments">
-          <article>
-            <span>Teacher&apos;s Comment</span>
-            <p>${escapeHtml(String(card.teacherComment || "No comment recorded."))}</p>
-          </article>
-          <article>
-            <span>School Comment</span>
-            <p>${escapeHtml(String(card.schoolComment || card.overallRemark || "No comment recorded."))}</p>
-          </article>
-        </div>
+        ${
+          template.showTeacherComment !== false || template.showSchoolComment !== false
+            ? `<div class="portal-report-card-comments">
+                ${
+                  template.showTeacherComment !== false
+                    ? `<article>
+                        <span>Teacher&apos;s Comment</span>
+                        <p>${escapeHtml(String(card.teacherComment || "No comment recorded."))}</p>
+                      </article>`
+                    : ""
+                }
+                ${
+                  template.showSchoolComment !== false
+                    ? `<article>
+                        <span>School Comment</span>
+                        <p>${escapeHtml(String(card.schoolComment || card.overallRemark || "No comment recorded."))}</p>
+                      </article>`
+                    : ""
+                }
+              </div>`
+            : ""
+        }
 
         <footer class="portal-report-card-footer">
           <span>Released by ${escapeHtml(String(card.releasedByName || "School administration"))}</span>
@@ -32355,6 +32413,290 @@
     };
   }
 
+  function setReportSelectOptions(select, options = [], selectedValue = "") {
+    if (!(select instanceof HTMLSelectElement)) {
+      return "";
+    }
+    const values = options.map((option) => String(option.value || ""));
+    const nextValue = values.includes(String(selectedValue || ""))
+      ? String(selectedValue || "")
+      : values[0] || "";
+    select.innerHTML = options
+      .map(
+        (option) =>
+          `<option value="${escapeHtml(String(option.value || ""))}" ${
+            String(option.value || "") === nextValue ? "selected" : ""
+          }>${escapeHtml(String(option.label || option.value || ""))}</option>`,
+      )
+      .join("");
+    return nextValue;
+  }
+
+  function studentMatchesReportSession(student, session) {
+    if (!session) {
+      return true;
+    }
+    const createdAt = String(student.createdAt || "").slice(0, 10);
+    if (!createdAt) {
+      return true;
+    }
+    if (session.startDate && createdAt < session.startDate) {
+      return false;
+    }
+    if (session.endDate && createdAt > session.endDate) {
+      return false;
+    }
+    return true;
+  }
+
+  function renderEnrollmentReport(report) {
+    const target = document.getElementById("admin-report-enrollment");
+    const sessionSelect = document.getElementById("admin-report-enrollment-session");
+    const classSelect = document.getElementById("admin-report-enrollment-class");
+    const genderSelect = document.getElementById("admin-report-enrollment-gender");
+    if (!target || !sessionSelect || !classSelect || !genderSelect) {
+      return;
+    }
+
+    const cycleState = getAcademicCycleManager()?.getState?.() || { sessions: [] };
+    const sessions = Array.isArray(cycleState.sessions) ? cycleState.sessions : [];
+    const selectedSession = setReportSelectOptions(
+      sessionSelect,
+      [{ value: "all", label: "All sessions" }, ...sessions.map((session) => ({ value: session.id, label: session.name }))],
+      sessionSelect.value,
+    );
+    const classLabels = Array.from(
+      new Set(report.activeStudents.map((student) => getStudentLevelDisplayLabel(student.level)).filter(Boolean)),
+    ).sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
+    const selectedClass = setReportSelectOptions(
+      classSelect,
+      [{ value: "all", label: "All classes" }, ...classLabels.map((label) => ({ value: label, label }))],
+      classSelect.value,
+    );
+    const selectedGender = genderSelect.value || "all";
+    const session = sessions.find((entry) => entry.id === selectedSession) || null;
+    const students = report.activeStudents.filter((student) => {
+      const classLabel = getStudentLevelDisplayLabel(student.level);
+      const gender = String(student.gender || "Other").trim() || "Other";
+      return (
+        studentMatchesReportSession(student, session) &&
+        (selectedClass === "all" || classLabel === selectedClass) &&
+        (selectedGender === "all" || (selectedGender === "Other" ? !["Male", "Female"].includes(gender) : gender === selectedGender))
+      );
+    });
+    const classRows = Array.from(
+      students.reduce((map, student) => {
+        const label = getStudentLevelDisplayLabel(student.level) || "Unassigned";
+        map.set(label, (map.get(label) || 0) + 1);
+        return map;
+      }, new Map()),
+    )
+      .map(([label, value]) => ({ label, value }))
+      .sort((left, right) => left.label.localeCompare(right.label, undefined, { numeric: true }));
+    const genderRows = ["Male", "Female", "Other"].map((label) => ({
+      label,
+      value: students.filter((student) => {
+        const gender = String(student.gender || "").trim();
+        return label === "Other" ? !["Male", "Female"].includes(gender) : gender === label;
+      }).length,
+    }));
+    const classMax = Math.max(...classRows.map((row) => row.value), 1);
+    const genderMax = Math.max(...genderRows.map((row) => row.value), 1);
+
+    target.innerHTML = `
+      <article class="admin-report-analysis-card">
+        <header><span>Enrollment</span><strong>${formatReportNumber(students.length)}</strong></header>
+        <div class="admin-report-horizontal-bars">
+          ${
+            classRows.length
+              ? classRows
+                  .map(
+                    (row) => `<div><span>${escapeHtml(row.label)}</span><strong>${row.value}</strong><i><em style="width:${
+                      (row.value / classMax) * 100
+                    }%"></em></i></div>`,
+                  )
+                  .join("")
+              : `<p class="admin-report-empty-copy">No students match this enrollment filter.</p>`
+          }
+        </div>
+      </article>
+      <article class="admin-report-analysis-card">
+        <header><span>Gender distribution</span><strong>${formatReportNumber(students.length)}</strong></header>
+        <div class="admin-report-horizontal-bars is-gender">
+          ${genderRows
+            .map(
+              (row) => `<div><span>${escapeHtml(row.label)}</span><strong>${row.value}</strong><i><em style="width:${
+                (row.value / genderMax) * 100
+              }%"></em></i></div>`,
+            )
+            .join("")}
+        </div>
+      </article>
+    `;
+  }
+
+  function renderAcademicPerformanceReport() {
+    const target = document.getElementById("admin-report-performance");
+    const sessionSelect = document.getElementById("admin-report-performance-session");
+    const classSelect = document.getElementById("admin-report-performance-class");
+    const subjectSelect = document.getElementById("admin-report-performance-subject");
+    if (!target || !sessionSelect || !classSelect || !subjectSelect) {
+      return;
+    }
+
+    const records = getReportCardManager()?.getRecords?.() || [];
+    const sessions = Array.from(
+      records.reduce((map, record) => {
+        if (record.sessionId) map.set(record.sessionId, record.sessionName || record.sessionId);
+        return map;
+      }, new Map()),
+    );
+    const selectedSession = setReportSelectOptions(
+      sessionSelect,
+      [{ value: "all", label: "All sessions" }, ...sessions.map(([value, label]) => ({ value, label }))],
+      sessionSelect.value,
+    );
+    const sessionRecords = records.filter((record) => selectedSession === "all" || record.sessionId === selectedSession);
+    const classes = Array.from(new Set(sessionRecords.map((record) => record.classLevel).filter(Boolean))).sort((a, b) =>
+      a.localeCompare(b, undefined, { numeric: true }),
+    );
+    const selectedClass = setReportSelectOptions(
+      classSelect,
+      [{ value: "all", label: "All classes" }, ...classes.map((label) => ({ value: label, label }))],
+      classSelect.value,
+    );
+    const classRecords = sessionRecords.filter((record) => selectedClass === "all" || record.classLevel === selectedClass);
+    const subjects = Array.from(
+      new Set(classRecords.flatMap((record) => (record.subjects || []).map((subject) => subject.name)).filter(Boolean)),
+    ).sort((a, b) => a.localeCompare(b));
+    const selectedSubject = setReportSelectOptions(
+      subjectSelect,
+      [{ value: "all", label: "All subjects" }, ...subjects.map((label) => ({ value: label, label }))],
+      subjectSelect.value,
+    );
+    const subjectMap = new Map();
+    classRecords.forEach((record) => {
+      (record.subjects || []).forEach((subject) => {
+        if (selectedSubject !== "all" && subject.name !== selectedSubject) {
+          return;
+        }
+        const current = subjectMap.get(subject.name) || { label: subject.name, total: 0, count: 0, pass: 0 };
+        const score = Number(subject.totalScore || 0);
+        current.total += score;
+        current.count += 1;
+        if (score >= 40) current.pass += 1;
+        subjectMap.set(subject.name, current);
+      });
+    });
+    const rows = Array.from(subjectMap.values())
+      .map((row) => ({
+        ...row,
+        average: row.count ? Math.round((row.total / row.count) * 10) / 10 : 0,
+        passRate: row.count ? Math.round((row.pass / row.count) * 100) : 0,
+      }))
+      .sort((left, right) => right.average - left.average);
+    const overallAverage = rows.length
+      ? Math.round((rows.reduce((sum, row) => sum + row.average, 0) / rows.length) * 10) / 10
+      : 0;
+
+    target.innerHTML = `
+      <article class="admin-report-analysis-card">
+        <header><span>Average score</span><strong>${formatReportPercent(overallAverage)}</strong></header>
+        <div class="admin-report-horizontal-bars">
+          ${
+            rows.length
+              ? rows
+                  .map(
+                    (row) => `<div><span>${escapeHtml(row.label)}</span><strong>${row.average}%</strong><i><em style="width:${
+                      row.average
+                    }%"></em></i></div>`,
+                  )
+                  .join("")
+              : `<p class="admin-report-empty-copy">No result records match this performance filter.</p>`
+          }
+        </div>
+      </article>
+      <article class="admin-report-analysis-card">
+        <header><span>Pass rate</span><strong>${formatReportNumber(classRecords.length)} reports</strong></header>
+        <div class="admin-report-horizontal-bars is-performance">
+          ${
+            rows.length
+              ? rows
+                  .map(
+                    (row) => `<div><span>${escapeHtml(row.label)}</span><strong>${row.passRate}%</strong><i><em style="width:${
+                      row.passRate
+                    }%"></em></i></div>`,
+                  )
+                  .join("")
+              : `<p class="admin-report-empty-copy">Released and draft report-card scores will appear here.</p>`
+          }
+        </div>
+      </article>
+    `;
+  }
+
+  function csvCell(value) {
+    const text = String(value ?? "");
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+
+  function downloadReportDataset(type, report) {
+    let headers = [];
+    let rows = [];
+    if (type === "students") {
+      headers = ["Student", "Admission Number", "Email", "Class", "Gender", "Status"];
+      rows = (getStudentManager()?.getStudents?.() || []).map((student) => [
+        student.fullName,
+        student.admissionNo,
+        student.studentEmail,
+        getStudentLevelDisplayLabel(student.level),
+        student.gender,
+        student.status,
+      ]);
+    } else if (type === "finance") {
+      headers = ["Invoice", "Student", "Class", "Total Due", "Paid", "Balance", "Status"];
+      rows = report.invoices.map((invoice) => [
+        invoice.invoiceNo,
+        invoice.studentName,
+        invoice.classLevel,
+        invoice.totalDue,
+        Number(invoice.totalDue || 0) - Number(invoice.balance || 0),
+        invoice.balance,
+        invoice.status,
+      ]);
+    } else if (type === "attendance") {
+      headers = ["Date", "Class", "Student", "Status", "Submitted By"];
+      rows = (getAttendanceManager()?.getRecords?.() || []).flatMap((record) =>
+        (record.entries || []).map((entry) => [
+          record.date,
+          record.className || record.level,
+          entry.studentName,
+          entry.status,
+          record.submittedByName,
+        ]),
+      );
+    } else {
+      headers = ["Session", "Term", "Class", "Student", "Admission Number", "Subject", "CA", "Exam", "Total", "Grade", "Status"];
+      rows = (getReportCardManager()?.getRecords?.() || []).flatMap((record) =>
+        (record.subjects || []).map((subject) => [
+          record.sessionName,
+          record.termName,
+          record.classLevel,
+          record.studentName,
+          record.admissionNo,
+          subject.name,
+          subject.caScore,
+          subject.examScore,
+          subject.totalScore,
+          subject.grade,
+          record.status,
+        ]),
+      );
+    }
+    const content = [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
+    downloadTextFile(`school-${type}-data.csv`, content, "text/csv;charset=utf-8");
+  }
+
   function renderAdminReportsDashboard() {
     if (getPage() !== "admin-reports") {
       return;
@@ -32371,6 +32713,8 @@
     }
 
     const report = buildAdminReportSnapshot();
+    renderEnrollmentReport(report);
+    renderAcademicPerformanceReport();
     const attendanceCounts = report.attendanceSummary.counts || {};
     const unmarkedCount = Number(attendanceCounts.unmarked || 0);
     const attendanceRateLabel = formatReportPercent(report.attendanceSummary.attendanceRate);
@@ -32627,7 +32971,6 @@
         `,
       )
       .join("");
-
   }
 
   function initAdminReportsPage() {
@@ -32653,12 +32996,31 @@
     refresh();
 
     [
+      "admin-report-enrollment-session",
+      "admin-report-enrollment-class",
+      "admin-report-enrollment-gender",
+      "admin-report-performance-session",
+      "admin-report-performance-class",
+      "admin-report-performance-subject",
+    ].forEach((id) => {
+      document.getElementById(id)?.addEventListener("change", refresh);
+    });
+
+    document.querySelectorAll("[data-admin-report-export]").forEach((button) => {
+      button.addEventListener("click", () => {
+        downloadReportDataset(String(button.dataset.adminReportExport || ""), buildAdminReportSnapshot());
+      });
+    });
+
+    [
       getStudentManager()?.eventName,
       getClassManager()?.eventName,
       getFeeItemManager()?.eventName,
       getAttendanceManager()?.eventName,
       getTimetableManager()?.eventName,
       getAdmissionConfigManager()?.eventName,
+      getReportCardManager()?.eventName,
+      getReportConfigurationManager()?.eventName,
       ADMISSIONS_EVENT_NAME,
       PARENT_FEES_EVENT_NAME,
       NOTIFICATION_EVENT_NAME,
@@ -32718,6 +33080,149 @@
     });
   }
 
+  function initReportConfigurationControls({ isAdmin, form, status, listTarget }) {
+    if (!form || !status || !listTarget) {
+      return;
+    }
+
+    const manager = getReportConfigurationManager();
+    const addButton = form.querySelector("[data-grading-scale-add]");
+    const resetButton = form.querySelector("[data-report-configuration-reset]");
+
+    const renderGradeRows = (scale = []) => {
+      listTarget.innerHTML = scale
+        .map(
+          (entry) => `
+            <div class="portal-grading-scale-row" data-grading-scale-row>
+              <label class="portal-field">
+                <span>Minimum score</span>
+                <input name="minimum" type="number" min="0" max="100" step="1" value="${escapeHtml(String(entry.minimum))}" />
+              </label>
+              <label class="portal-field">
+                <span>Grade</span>
+                <input name="grade" type="text" maxlength="4" value="${escapeHtml(entry.grade)}" />
+              </label>
+              <label class="portal-field">
+                <span>Remark</span>
+                <input name="remark" type="text" value="${escapeHtml(entry.remark)}" />
+              </label>
+              <button class="portal-grading-scale-remove" type="button" data-grading-scale-remove aria-label="Remove grade">&times;</button>
+            </div>
+          `,
+        )
+        .join("");
+    };
+
+    const render = () => {
+      const configuration = manager?.getConfiguration?.() || manager?.defaults || {
+        gradingScale: [],
+        template: {},
+      };
+      renderGradeRows(configuration.gradingScale || []);
+      form.elements.templateTitle.value = configuration.template?.title || "Term Report Card";
+      form.elements.showAttendance.checked = configuration.template?.showAttendance !== false;
+      form.elements.showClassPosition.checked = Boolean(configuration.template?.showClassPosition);
+      form.elements.showTeacherComment.checked = configuration.template?.showTeacherComment !== false;
+      form.elements.showSchoolComment.checked = configuration.template?.showSchoolComment !== false;
+      Array.from(form.elements).forEach((field) => {
+        if (field instanceof HTMLElement) field.disabled = !isAdmin;
+      });
+    };
+
+    render();
+    addButton?.addEventListener("click", () => {
+      const row = document.createElement("div");
+      row.className = "portal-grading-scale-row";
+      row.dataset.gradingScaleRow = "";
+      row.innerHTML = `
+        <label class="portal-field"><span>Minimum score</span><input name="minimum" type="number" min="0" max="100" step="1" value="0" /></label>
+        <label class="portal-field"><span>Grade</span><input name="grade" type="text" maxlength="4" /></label>
+        <label class="portal-field"><span>Remark</span><input name="remark" type="text" /></label>
+        <button class="portal-grading-scale-remove" type="button" data-grading-scale-remove aria-label="Remove grade">&times;</button>
+      `;
+      listTarget.appendChild(row);
+      row.querySelector('input[name="minimum"]')?.focus();
+    });
+
+    listTarget.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-grading-scale-remove]");
+      if (!button || !isAdmin) return;
+      if (listTarget.querySelectorAll("[data-grading-scale-row]").length <= 1) {
+        setStatus(status, "error", "Keep at least one grade in the scale.");
+        return;
+      }
+      button.closest("[data-grading-scale-row]")?.remove();
+    });
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      if (!isAdmin || !manager) return;
+      const gradingScale = Array.from(listTarget.querySelectorAll("[data-grading-scale-row]")).map((row) => ({
+        minimum: Number.parseFloat(row.querySelector('[name="minimum"]')?.value || ""),
+        grade: String(row.querySelector('[name="grade"]')?.value || "").trim().toUpperCase(),
+        remark: String(row.querySelector('[name="remark"]')?.value || "").trim(),
+      }));
+      if (
+        gradingScale.some(
+          (entry) =>
+            !Number.isFinite(entry.minimum) ||
+            entry.minimum < 0 ||
+            entry.minimum > 100 ||
+            !entry.grade ||
+            !entry.remark,
+        )
+      ) {
+        setStatus(status, "error", "Every grade needs a minimum score, grade, and remark.");
+        return;
+      }
+      if (new Set(gradingScale.map((entry) => entry.minimum)).size !== gradingScale.length) {
+        setStatus(status, "error", "Each grade must have a different minimum score.");
+        return;
+      }
+      if (!gradingScale.some((entry) => entry.minimum === 0)) {
+        setStatus(status, "error", "Include a final grade with a minimum score of 0.");
+        return;
+      }
+
+      manager.saveConfiguration({
+        gradingScale,
+        template: {
+          title: String(form.elements.templateTitle.value || "").trim() || "Term Report Card",
+          showAttendance: form.elements.showAttendance.checked,
+          showClassPosition: form.elements.showClassPosition.checked,
+          showTeacherComment: form.elements.showTeacherComment.checked,
+          showSchoolComment: form.elements.showSchoolComment.checked,
+        },
+      });
+      recordAuditEvent({
+        action: "updated",
+        entityType: "report-configuration",
+        summary: "Updated grading scale and report-card template",
+        details: `${gradingScale.length} grade bands configured`,
+      });
+      render();
+      setStatus(status, "success", "Grading scale and report template saved.");
+    });
+
+    resetButton?.addEventListener("click", async () => {
+      if (!isAdmin || !manager) return;
+      const confirmed = await showAppConfirm({
+        title: "Restore report defaults?",
+        message: "Replace the current grading scale and report template with the default settings?",
+        details: "Existing report cards remain saved. Future calculations will use the restored scale.",
+        confirmLabel: "Restore defaults",
+      });
+      if (!confirmed) return;
+      manager.saveConfiguration(manager.defaults);
+      render();
+      setStatus(status, "success", "Default report settings restored.");
+    });
+
+    if (manager?.eventName) {
+      window.addEventListener(manager.eventName, render);
+    }
+  }
+
   function initAdminSettingsPage() {
     const page = getPage();
 
@@ -32749,6 +33254,9 @@
     const termForm = document.getElementById("portal-term-form");
     const termStatus = document.getElementById("portal-term-status");
     const termList = document.getElementById("portal-term-list");
+    const reportConfigurationForm = document.getElementById("portal-report-configuration-form");
+    const reportConfigurationStatus = document.getElementById("portal-report-configuration-status");
+    const gradingScaleList = document.getElementById("portal-grading-scale-list");
 
     initSchoolSettingsControls({
       isAdmin: canManageSettings,
@@ -32791,6 +33299,13 @@
       termForm,
       termStatus,
       termListTarget: termList,
+    });
+
+    initReportConfigurationControls({
+      isAdmin: canManageSettings,
+      form: reportConfigurationForm,
+      status: reportConfigurationStatus,
+      listTarget: gradingScaleList,
     });
 
   }

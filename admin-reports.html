@@ -145,6 +145,56 @@
 
           <div id="admin-report-kpis" class="admin-report-kpis"></div>
 
+          <article class="admin-surface-card admin-report-section">
+            <div class="admin-surface-head">
+              <div>
+                <h2>Enrollment Reports</h2>
+                <span>Class, gender, and session distribution</span>
+              </div>
+              <div class="admin-report-filter-row">
+                <select id="admin-report-enrollment-session" aria-label="Enrollment session"></select>
+                <select id="admin-report-enrollment-class" aria-label="Enrollment class"></select>
+                <select id="admin-report-enrollment-gender" aria-label="Enrollment gender">
+                  <option value="all">All genders</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other / not recorded</option>
+                </select>
+              </div>
+            </div>
+            <div id="admin-report-enrollment" class="admin-report-analysis-grid"></div>
+          </article>
+
+          <article class="admin-surface-card admin-report-section">
+            <div class="admin-surface-head">
+              <div>
+                <h2>Academic Performance</h2>
+                <span>Results by class and subject</span>
+              </div>
+              <div class="admin-report-filter-row">
+                <select id="admin-report-performance-session" aria-label="Performance session"></select>
+                <select id="admin-report-performance-class" aria-label="Performance class"></select>
+                <select id="admin-report-performance-subject" aria-label="Performance subject"></select>
+              </div>
+            </div>
+            <div id="admin-report-performance" class="admin-report-analysis-grid"></div>
+          </article>
+
+          <article class="admin-surface-card admin-report-section">
+            <div class="admin-surface-head">
+              <div>
+                <h2>Data Exports</h2>
+                <span>Download current school records as CSV</span>
+              </div>
+            </div>
+            <div class="admin-report-export-grid">
+              <button class="button button-outline" type="button" data-admin-report-export="students">Student data</button>
+              <button class="button button-outline" type="button" data-admin-report-export="finance">Finance data</button>
+              <button class="button button-outline" type="button" data-admin-report-export="attendance">Attendance data</button>
+              <button class="button button-outline" type="button" data-admin-report-export="results">Result data</button>
+            </div>
+          </article>
+
           <div class="admin-report-layout">
             <article class="admin-surface-card admin-report-insight-card">
               <div class="admin-surface-head">
