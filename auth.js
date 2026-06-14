@@ -2,6 +2,7 @@
   const STORAGE_KEYS = {
     users: "schoolsphere.users.v1",
     mail: "schoolsphere.mail.v1",
+    passwordRecovery: "schoolsphere.passwordRecovery.v1",
     persistentSession: "schoolsphere.session.persistent.v1",
     transientSession: "schoolsphere.session.transient.v1",
   };
@@ -601,6 +602,8 @@
     initRoleButtons();
     initSignupFlow();
     initLoginFlow();
+    initForgotPasswordFlow();
+    initResetPasswordFlow();
     initGoogleButtons();
     initConfirmPage();
     initPortalPage();
@@ -1111,6 +1114,14 @@
     localStorage.setItem(STORAGE_KEYS.mail, JSON.stringify(entries));
   }
 
+  function getPasswordRecoveryRequests() {
+    return parseJSON(localStorage.getItem(STORAGE_KEYS.passwordRecovery), []);
+  }
+
+  function savePasswordRecoveryRequests(entries) {
+    localStorage.setItem(STORAGE_KEYS.passwordRecovery, JSON.stringify(entries));
+  }
+
   function clearSession() {
     localStorage.removeItem(STORAGE_KEYS.persistentSession);
     sessionStorage.removeItem(STORAGE_KEYS.transientSession);
@@ -1257,6 +1268,190 @@
       mustChangePassword: Boolean(record.mustChangePassword),
       workspaceId: deriveWorkspaceIdFromRecord(record),
     };
+  }
+
+  function maskEmailAddress(value) {
+    const email = normalizeEmail(value || "");
+    const [localPart, domain = ""] = email.split("@");
+    if (!localPart || !domain) {
+      return "";
+    }
+    const localVisible =
+      localPart.length <= 2 ? `${localPart.charAt(0)}*` : `${localPart.slice(0, 2)}${"*".repeat(Math.max(1, localPart.length - 2))}`;
+    const domainParts = domain.split(".");
+    const domainName = domainParts.shift() || "";
+    const domainTld = domainParts.join(".");
+    const domainVisible =
+      domainName.length <= 2 ? `${domainName.charAt(0)}*` : `${domainName.slice(0, 2)}${"*".repeat(Math.max(1, domainName.length - 2))}`;
+    return `${localVisible}@${domainVisible}${domainTld ? `.${domainTld}` : ""}`;
+  }
+
+  function maskPhoneNumber(value) {
+    const raw = String(value || "").trim();
+    const digits = raw.replace(/\D/g, "");
+    if (!digits) {
+      return "";
+    }
+    const suffix = digits.slice(-4);
+    return `${"*".repeat(Math.max(2, digits.length - 4))}${suffix}`;
+  }
+
+  function normalizeRecoveryContactValue(value) {
+    const raw = String(value || "").trim();
+    return raw.includes("@") ? normalizeEmail(raw) : raw.replace(/\D/g, "");
+  }
+
+  function getStudentRecordForUser(user = {}) {
+    const students = getStudentManager()?.getStudents?.() || [];
+    const normalizedEmail = normalizeEmail(user.email || "");
+    const studentRecordId = String(user.studentRecordId || "").trim();
+    const admissionNo = String(user.admissionNo || "").trim().toLowerCase();
+
+    return (
+      students.find((student) => studentRecordId && String(student.id || "").trim() === studentRecordId) ||
+      students.find((student) => admissionNo && String(student.admissionNo || "").trim().toLowerCase() === admissionNo) ||
+      students.find((student) => normalizedEmail && normalizeEmail(student.studentEmail || student.email || "") === normalizedEmail) ||
+      null
+    );
+  }
+
+  function getUserRecoveryContacts(user = {}) {
+    const contacts = [];
+    const pushContact = (type, value, label) => {
+      const raw = String(value || "").trim();
+      const normalized = type === "email" ? normalizeEmail(raw) : raw.replace(/\D/g, "");
+      if (!normalized) {
+        return;
+      }
+      if (contacts.some((entry) => entry.type === type && entry.normalized === normalized)) {
+        return;
+      }
+      contacts.push({
+        type,
+        value: raw,
+        normalized,
+        label: label || (type === "email" ? "Verified email" : "Verified phone"),
+        masked: type === "email" ? maskEmailAddress(raw) : maskPhoneNumber(raw),
+      });
+    };
+
+    pushContact("email", user.email, "Account email");
+    pushContact("phone", user.phone, "Profile phone");
+
+    if (normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE) === "Parent") {
+      const linkedStudents = getParentLinkedStudents(user.email, getStudentManager());
+      linkedStudents.forEach((student) => {
+        (student.guardians || []).forEach((guardian) => {
+          if (normalizeEmail(guardian.email || "") === normalizeEmail(user.email || "")) {
+            pushContact("phone", guardian.phone, "Guardian phone");
+          }
+        });
+      });
+    }
+
+    if (normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE) === "Student") {
+      const student = getStudentRecordForUser(user);
+      pushContact("email", student?.studentEmail || student?.email || "", "Student email");
+    }
+
+    return contacts;
+  }
+
+  function findUserByRecoveryIdentifier(identifier = "") {
+    const raw = String(identifier || "").trim();
+
+    if (!raw) {
+      return null;
+    }
+
+    if (EMAIL_REGEX.test(raw)) {
+      return findUserByEmail(raw);
+    }
+
+    const studentLogin = resolveStudentLoginIdentifier(raw);
+    if (!studentLogin?.error && studentLogin.email) {
+      return findUserByEmail(studentLogin.email);
+    }
+
+    return findUserByEmail(raw);
+  }
+
+  function buildPasswordRecoveryUrl(token) {
+    return `./reset-password.html?token=${encodeURIComponent(token)}`;
+  }
+
+  function storePasswordRecoveryMail(user, recoveryRequest) {
+    const mailLog = getMailLog();
+    mailLog.unshift({
+      id: createId(),
+      to: user.email,
+      subject: "Reset your SchoolSphere password",
+      token: recoveryRequest.token,
+      resetUrl: buildPasswordRecoveryUrl(recoveryRequest.token),
+      sentAt: recoveryRequest.createdAt,
+      expiresAt: recoveryRequest.expiresAt,
+    });
+    saveMailLog(mailLog.slice(0, 30));
+  }
+
+  function createLocalPasswordRecoveryRequest(user = {}, verifiedContact = "") {
+    const existing = getPasswordRecoveryRequests()
+      .filter((entry) => String(entry.userId || "") !== String(user.id || ""))
+      .filter((entry) => String(entry.expiresAt || "") > nowIso())
+      .filter((entry) => !entry.usedAt);
+    const request = {
+      id: createId(),
+      token: createToken(),
+      userId: user.id,
+      email: user.email,
+      workspaceId: user.workspaceId || null,
+      verifiedContact: String(verifiedContact || "").trim(),
+      createdAt: nowIso(),
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      usedAt: "",
+    };
+    savePasswordRecoveryRequests([request, ...existing].slice(0, 40));
+    return request;
+  }
+
+  function getPasswordRecoveryRequestByToken(token = "") {
+    const rawToken = String(token || "").trim();
+    if (!rawToken) {
+      return null;
+    }
+    return getPasswordRecoveryRequests().find((entry) => String(entry.token || "") === rawToken) || null;
+  }
+
+  function markPasswordRecoveryRequestUsed(token = "") {
+    const rawToken = String(token || "").trim();
+    if (!rawToken) {
+      return false;
+    }
+    let changed = false;
+    const next = getPasswordRecoveryRequests().map((entry) => {
+      if (String(entry.token || "") !== rawToken) {
+        return entry;
+      }
+      changed = true;
+      return {
+        ...entry,
+        usedAt: nowIso(),
+      };
+    });
+    if (changed) {
+      savePasswordRecoveryRequests(next);
+    }
+    return changed;
+  }
+
+  function isPasswordRecoveryRequestValid(request = {}) {
+    if (!request || !request.token) {
+      return false;
+    }
+    if (String(request.usedAt || "").trim()) {
+      return false;
+    }
+    return String(request.expiresAt || "") > nowIso();
   }
 
   function isUserDeactivated(user) {
@@ -22529,6 +22724,285 @@
 
       clearFormDraftFor(form);
       window.location.assign(getPostLoginRoute(userRole, updatedUser));
+    });
+  }
+
+  function initForgotPasswordFlow() {
+    if (getPage() !== "forgot-password") {
+      return;
+    }
+
+    const form = document.getElementById("forgot-form");
+    const status = document.getElementById("forgot-status");
+    const formView = document.getElementById("forgot-form-view");
+    const sentView = document.getElementById("forgot-sent-view");
+    const sentEmail = sentView?.querySelector("[data-sent-email]");
+    const googleHint = sentView?.querySelector("[data-google-hint]");
+    const devPanel = sentView?.querySelector("[data-dev-panel]");
+    const devResetLink = sentView?.querySelector("[data-dev-reset-link]");
+
+    if (!form || !status || !formView || !sentView) {
+      return;
+    }
+
+    form.addEventListener("input", () => {
+      clearFieldErrors(form);
+      setStatus(status, "", "");
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      clearFieldErrors(form);
+      setStatus(status, "", "");
+
+      const identifier = String(form.elements.identifier?.value || "").trim();
+      const contact = String(form.elements.contact?.value || "").trim();
+      let hasError = false;
+
+      if (!identifier) {
+        setFieldError(form, "identifier", "Enter your account email or admission number.");
+        hasError = true;
+      }
+
+      if (!contact) {
+        setFieldError(form, "contact", "Enter a verified email or phone number.");
+        hasError = true;
+      }
+
+      if (hasError) {
+        setStatus(status, "error", "Complete the recovery details to continue.");
+        return;
+      }
+
+      const user = findUserByRecoveryIdentifier(identifier);
+
+      if (!user || isUserDeactivated(user)) {
+        if (sentEmail) sentEmail.textContent = identifier;
+        formView.hidden = true;
+        sentView.hidden = false;
+        googleHint.hidden = true;
+        devPanel.hidden = true;
+        return;
+      }
+
+      if (user.provider === "google") {
+        if (sentEmail) sentEmail.textContent = user.email || identifier;
+        formView.hidden = true;
+        sentView.hidden = false;
+        if (googleHint) {
+          googleHint.hidden = false;
+        }
+        if (devPanel) {
+          devPanel.hidden = true;
+        }
+        return;
+      }
+
+      const recoveryContacts = getUserRecoveryContacts(user);
+      const normalizedContact = normalizeRecoveryContactValue(contact);
+      const matchedContact = recoveryContacts.find((entry) => entry.normalized === normalizedContact);
+
+      if (!matchedContact) {
+        const contactHint = recoveryContacts.length
+          ? `This account can be verified with ${recoveryContacts
+              .map((entry) => `${entry.label.toLowerCase()} (${entry.masked || entry.value})`)
+              .join(" or ")}.`
+          : "No verified contact details are saved yet for this account.";
+        setFieldError(form, "contact", "The verified contact detail does not match this account.");
+        setStatus(status, "error", contactHint);
+        return;
+      }
+
+      let resetUrl = "";
+      if (isSupabaseConfigured()) {
+        const client = await getSupabaseClient();
+        let error;
+
+        try {
+          ({ error } = await withNetworkTimeout(
+            client.auth.resetPasswordForEmail(user.email, {
+              redirectTo: buildSupabaseRedirectUrl("reset-password.html"),
+            }),
+          ));
+        } catch (requestError) {
+          error = requestError;
+        }
+
+        if (error) {
+          setStatus(status, "error", formatSupabaseAuthError(error, "Could not send the password reset email."));
+          return;
+        }
+      } else {
+        const recoveryRequest = createLocalPasswordRecoveryRequest(user, matchedContact.value);
+        storePasswordRecoveryMail(user, recoveryRequest);
+        resetUrl = buildPasswordRecoveryUrl(recoveryRequest.token);
+      }
+
+      recordAuditEvent({
+        action: "created",
+        entityType: "password-recovery",
+        entityId: user.email,
+        summary: `Password reset requested for ${user.email}`,
+        details: `${matchedContact.label} verified`,
+      });
+
+      if (sentEmail) {
+        sentEmail.textContent = user.email || identifier;
+      }
+      if (googleHint) {
+        googleHint.hidden = true;
+      }
+      if (devPanel && devResetLink) {
+        devPanel.hidden = isSupabaseConfigured();
+        devResetLink.href = resetUrl || "#";
+      }
+      formView.hidden = true;
+      sentView.hidden = false;
+    });
+  }
+
+  function initResetPasswordFlow() {
+    if (getPage() !== "reset-password") {
+      return;
+    }
+
+    const form = document.getElementById("reset-form");
+    const status = document.getElementById("reset-status");
+    const formWrapper = document.getElementById("reset-form-wrapper");
+    const invalidView = document.getElementById("reset-invalid-view");
+    const successView = document.getElementById("reset-success-view");
+    const params = new URLSearchParams(window.location.search);
+    const token = String(params.get("token") || "").trim();
+    const recoveryHash = String(window.location.hash || "");
+    const localRequest = token ? getPasswordRecoveryRequestByToken(token) : null;
+    const session = getSession() || null;
+    const sessionUser = session?.userId ? getUsers().find((entry) => entry.id === session.userId) || null : null;
+    const hasSupabaseRecoverySession = Boolean(
+      session &&
+      session.source === "supabase" &&
+      /(?:^|[#&])type=recovery(?:&|$)/.test(recoveryHash),
+    );
+    const hasValidLocalRequest = isPasswordRecoveryRequestValid(localRequest);
+    const activeUser = hasValidLocalRequest
+      ? getUsers().find((entry) => entry.id === localRequest.userId) || null
+      : hasSupabaseRecoverySession
+        ? sessionUser
+        : null;
+
+    if (!form || !status || !formWrapper || !invalidView || !successView) {
+      return;
+    }
+
+    if (!activeUser) {
+      formWrapper.hidden = true;
+      invalidView.hidden = false;
+      successView.hidden = true;
+      return;
+    }
+
+    invalidView.hidden = true;
+    formWrapper.hidden = false;
+    successView.hidden = true;
+
+    form.addEventListener("input", () => {
+      clearFieldErrors(form);
+      setStatus(status, "", "");
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      clearFieldErrors(form);
+      setStatus(status, "", "");
+
+      const password = String(form.elements.password?.value || "");
+      const confirmPassword = String(form.elements.confirmPassword?.value || "");
+      let hasError = false;
+
+      if (!password) {
+        setFieldError(form, "password", "Enter a new password.");
+        hasError = true;
+      } else if (!isStrongPassword(password)) {
+        setFieldError(form, "password", "Use at least 8 characters with letters and numbers.");
+        hasError = true;
+      }
+
+      if (!confirmPassword) {
+        setFieldError(form, "confirmPassword", "Confirm your new password.");
+        hasError = true;
+      } else if (password !== confirmPassword) {
+        setFieldError(form, "confirmPassword", "Passwords do not match.");
+        hasError = true;
+      }
+
+      if (hasError) {
+        setStatus(status, "error", "Fix the highlighted fields and try again.");
+        return;
+      }
+
+      if (activeUser.provider === "google") {
+        setStatus(status, "info", "This account uses Google sign-in. Reset the password from your Google account instead.");
+        return;
+      }
+
+      if (isSupabaseConfigured() && hasSupabaseRecoverySession) {
+        const client = await getSupabaseClient();
+        let error;
+
+        try {
+          ({ error } = await withNetworkTimeout(
+            client.auth.updateUser({
+              password,
+            }),
+          ));
+        } catch (requestError) {
+          error = requestError;
+        }
+
+        if (error) {
+          setStatus(status, "error", formatSupabaseAuthError(error, "Could not update the password."));
+          return;
+        }
+      }
+
+      const nextPasswordHash = await hashSecret(password);
+      updateUser(activeUser.id, (record) => ({
+        ...record,
+        passwordHash: nextPasswordHash,
+        mustChangePassword: false,
+      }));
+
+      if (hasValidLocalRequest) {
+        markPasswordRecoveryRequestUsed(token);
+      }
+
+      recordAuditEvent({
+        action: "updated",
+        entityType: "user-password",
+        entityId: activeUser.email,
+        summary: `Password reset completed for ${activeUser.email}`,
+        details: hasValidLocalRequest ? "Verified contact recovery" : "Hosted recovery session",
+      });
+
+      form.reset();
+      clearFormDraftFor(form);
+      formWrapper.hidden = true;
+      successView.hidden = false;
+
+      if (isSupabaseConfigured() && hasSupabaseRecoverySession) {
+        try {
+          const client = await getSupabaseClient();
+          await client.auth.signOut();
+        } catch {
+          // Keep the local success path even if the sign-out request stalls.
+        }
+      }
+
+      clearSession();
+      window.setTimeout(() => {
+        window.location.assign("./login.html");
+      }, 1400);
     });
   }
 
