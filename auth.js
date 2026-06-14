@@ -20876,6 +20876,7 @@
         const profilePhotoUrl = String(record.profilePhotoUrl || "").trim();
         const admissionLabel = record.admissionNo ? `Admission No. ${record.admissionNo}` : "No admission number";
         const levelLabel = getStudentLevelDisplayLabel(record.level) || "No class assigned";
+        const academicHistory = getStudentAcademicHistory(record);
         const progressionLabel =
           record.promotionDecision === "repeat"
             ? "Repeat class"
@@ -20932,6 +20933,54 @@
               <article class="portal-student-view-empty">
                 <strong>No documents uploaded</strong>
                 <p>Use the student documents action to keep files on this record.</p>
+              </article>
+            `;
+        const academicResultRows = academicHistory.reportRows.length
+          ? academicHistory.reportRows
+              .map(
+                (entry) => `
+                  <article class="portal-student-history-row">
+                    <div>
+                      <strong>${escapeHtml(entry.termName)}</strong>
+                      <span>${escapeHtml(entry.sessionName)} • ${escapeHtml(entry.classLevel)}</span>
+                    </div>
+                    <div class="portal-student-history-metrics">
+                      <span>${escapeHtml(String(entry.subjectCount || 0))} subject${entry.subjectCount === 1 ? "" : "s"}</span>
+                      <strong>${escapeHtml(formatReportPercent(entry.averageScore || 0))}</strong>
+                      <em class="portal-student-history-badge ${entry.status === "released" ? "is-live" : "is-draft"}">${escapeHtml(
+                        `${String(entry.grade || "—")} • ${entry.status === "released" ? "Released" : "Draft"}`,
+                      )}</em>
+                    </div>
+                  </article>
+                `,
+              )
+              .join("")
+          : `
+              <article class="portal-student-view-empty">
+                <strong>No term results yet</strong>
+                <p>Report card history will appear here once results are drafted or released.</p>
+              </article>
+            `;
+        const progressionRows = academicHistory.progressionRows.length
+          ? academicHistory.progressionRows
+              .map(
+                (entry) => `
+                  <article class="portal-student-history-event">
+                    <div>
+                      <strong>${escapeHtml(entry.note || "Profile updated")}</strong>
+                      <span>${escapeHtml(
+                        [entry.fromLevel, entry.toLevel].filter(Boolean).join(" → ") || record.level || "Class",
+                      )}</span>
+                    </div>
+                    <small>${escapeHtml(formatTimestamp(entry.timestamp || nowIso()))}</small>
+                  </article>
+                `,
+              )
+              .join("")
+          : `
+              <article class="portal-student-view-empty">
+                <strong>No progression history yet</strong>
+                <p>Promotions, repeats, transfers, and other academic movement will be tracked here.</p>
               </article>
             `;
         if (viewContent) {
@@ -21001,6 +21050,46 @@
                     <span>Status</span>
                     <strong>${escapeHtml(statusLabel)}</strong>
                   </article>
+                </div>
+              </section>
+              <section class="portal-student-view-card">
+                <div class="portal-student-view-card-head">
+                  <strong>Academic history</strong>
+                  <span>Across terms and sessions.</span>
+                </div>
+                <div class="portal-student-history-summary">
+                  <article>
+                    <span>Sessions</span>
+                    <strong>${escapeHtml(String(academicHistory.sessionCount || 0))}</strong>
+                  </article>
+                  <article>
+                    <span>Terms / Semesters</span>
+                    <strong>${escapeHtml(String(academicHistory.termCount || 0))}</strong>
+                  </article>
+                  <article>
+                    <span>Released cards</span>
+                    <strong>${escapeHtml(String(academicHistory.releasedCount || 0))}</strong>
+                  </article>
+                  <article>
+                    <span>Latest average</span>
+                    <strong>${escapeHtml(
+                      academicHistory.latestAverage === null ? "Not available" : formatReportPercent(academicHistory.latestAverage),
+                    )}</strong>
+                  </article>
+                </div>
+                <div class="portal-student-history-block">
+                  <div class="portal-student-history-list">
+                    ${academicResultRows}
+                  </div>
+                  <div class="portal-student-history-timeline">
+                    <div class="portal-student-view-card-head">
+                      <strong>Progression timeline</strong>
+                      <span>Promotions, repeats, transfers, and updates.</span>
+                    </div>
+                    <div class="portal-student-history-events">
+                      ${progressionRows}
+                    </div>
+                  </div>
                 </div>
               </section>
               <section class="portal-student-view-card">
@@ -32635,6 +32724,178 @@
     `;
   }
 
+  function getAdminAnnouncementClassOptions() {
+    const classManager = getClassManager();
+    const classes =
+      classManager && typeof classManager.getClasses === "function"
+        ? classManager.getClasses().filter((item) => item.status !== "archived")
+        : [];
+    const mapped = new Map();
+
+    classes.forEach((item) => {
+      const rawLabel = getClassDisplayName(item) || item.level || item.name || "";
+      const label = getStudentLevelDisplayLabel(rawLabel) || String(rawLabel || "").trim();
+      const token = normalizeLevelToken(label);
+      if (!token || mapped.has(token)) {
+        return;
+      }
+      mapped.set(token, label);
+    });
+
+    return Array.from(mapped.entries())
+      .map(([value, label]) => ({ value, label }))
+      .sort((left, right) => left.label.localeCompare(right.label, undefined, { numeric: true }));
+  }
+
+  function getAdminAnnouncementNotifications(workspaceId = null) {
+    const resolvedWorkspaceId = normalizeWorkspaceId(workspaceId || getCurrentWorkspaceId());
+    return getNotifications(resolvedWorkspaceId)
+      .filter((entry) => isStudentAnnouncementNotification(entry))
+      .sort((left, right) => String(right.createdAt || "").localeCompare(String(left.createdAt || "")));
+  }
+
+  function renderAdminAnnouncementSection({ isAdmin = false, user = null } = {}) {
+    const form = document.getElementById("admin-announcement-form");
+    const status = document.getElementById("admin-announcement-status");
+    const classWrap = document.querySelector("[data-announcement-class-wrap]");
+    const classOptionsTarget = document.getElementById("admin-announcement-class-options");
+    const listTarget = document.getElementById("admin-announcement-list");
+
+    if (!form || !status || !classOptionsTarget || !listTarget) {
+      return;
+    }
+
+    const selectedClassValues = new Set(
+      Array.from(form.querySelectorAll('input[name="classTargets"]:checked'))
+        .map((input) => normalizeLevelToken(input.value))
+        .filter(Boolean),
+    );
+    const scope = String(form.elements.scope?.value || "school").trim().toLowerCase();
+    const classOptions = getAdminAnnouncementClassOptions();
+    const announcements = getAdminAnnouncementNotifications(user?.workspaceId || getCurrentWorkspaceId()).slice(0, 12);
+
+    if (classWrap instanceof HTMLElement) {
+      classWrap.hidden = scope !== "class";
+    }
+
+    classOptionsTarget.innerHTML = classOptions.length
+      ? classOptions
+          .map(
+            (option) => `
+              <label class="admin-announcement-class-option">
+                <input
+                  type="checkbox"
+                  name="classTargets"
+                  value="${escapeHtml(option.label)}"
+                  ${selectedClassValues.has(option.value) ? "checked" : ""}
+                  ${isAdmin ? "" : "disabled"}
+                />
+                <span>${escapeHtml(option.label)}</span>
+              </label>
+            `,
+          )
+          .join("")
+      : `
+          <article class="portal-class-empty">
+            <strong>No classes available yet</strong>
+            <p>Create classes first to target announcements to selected classes.</p>
+          </article>
+        `;
+
+    listTarget.innerHTML = announcements.length
+      ? announcements
+          .map((entry) => {
+            const audienceRoles = normalizeNotificationRoles(entry.visibleToRoles, [])
+              .filter((role) => role !== "Admin")
+              .join(", ");
+            const targetLabel = isWholeSchoolAnnouncement(entry)
+              ? "Whole school"
+              : entry.metadata?.targetClassLabel || getStudentLevelDisplayLabel(entry.entityId) || entry.entityId || "Selected class";
+            const audienceLabel = audienceRoles || "All portals";
+            return `
+              <article class="admin-announcement-item">
+                <div class="admin-announcement-item-head">
+                  <div>
+                    <strong>${escapeHtml(entry.title || "Announcement")}</strong>
+                    <p>${escapeHtml(entry.message || "No additional details.")}</p>
+                  </div>
+                  <small>${escapeHtml(formatTimestamp(entry.createdAt))}</small>
+                </div>
+                <div class="admin-announcement-item-meta">
+                  <span>${escapeHtml(targetLabel)}</span>
+                  <span>${escapeHtml(audienceLabel)}</span>
+                  <span>${escapeHtml(entry.actorName || "Admin")}</span>
+                </div>
+              </article>
+            `;
+          })
+          .join("")
+      : `
+          <article class="portal-class-empty">
+            <strong>No announcements yet</strong>
+            <p>New announcements posted here will appear in recent notifications and relevant portals.</p>
+          </article>
+        `;
+
+    Array.from(form.elements).forEach((field) => {
+      if (field instanceof HTMLElement) {
+        field.disabled = !isAdmin;
+      }
+    });
+  }
+
+  function getStudentAcademicHistory(record = {}) {
+    const reportManager = getReportCardManager();
+    const cycleManager = getAcademicCycleManager();
+    const cycleState =
+      cycleManager && typeof cycleManager.getState === "function"
+        ? cycleManager.getState()
+        : { sessions: [], terms: [] };
+    const admissionNo = String(record.admissionNo || "").trim().toLowerCase();
+    const studentEmail = normalizeEmail(record.studentEmail || record.email || "");
+    const records =
+      reportManager && typeof reportManager.getRecords === "function"
+        ? reportManager.getRecords()
+        : [];
+
+    const reportRows = records
+      .filter((entry) => {
+        const sameStudentId = String(entry.studentId || "").trim() === String(record.id || "").trim();
+        const sameAdmissionNo =
+          admissionNo && String(entry.admissionNo || "").trim().toLowerCase() === admissionNo;
+        const sameEmail = studentEmail && normalizeEmail(entry.studentEmail || "") === studentEmail;
+        return sameStudentId || sameAdmissionNo || sameEmail;
+      })
+      .map((entry) => {
+        const summary = summarizeReportCardSubjects(entry.subjects || []);
+        return {
+          id: entry.id,
+          sessionName: String(entry.sessionName || getSessionLabelFromCycle(cycleState, entry.sessionId) || "Session").trim(),
+          termName: String(entry.termName || getTermLabelFromCycle(cycleState, entry.termId) || "Term").trim(),
+          classLevel: getStudentLevelDisplayLabel(entry.classLevel || record.level) || entry.classLevel || record.level || "Class",
+          averageScore: summary.averageScore,
+          grade: summary.grade,
+          subjectCount: summary.subjectCount,
+          status: String(entry.status || "draft").trim().toLowerCase(),
+          updatedAt: entry.releasedAt || entry.updatedAt || entry.createdAt || nowIso(),
+        };
+      })
+      .sort((left, right) => String(right.updatedAt || "").localeCompare(String(left.updatedAt || "")));
+
+    const progressionRows = (Array.isArray(record.progressionHistory) ? record.progressionHistory : [])
+      .slice()
+      .sort((left, right) => String(right.timestamp || "").localeCompare(String(left.timestamp || "")));
+
+    return {
+      reportRows,
+      progressionRows,
+      sessionCount: new Set(reportRows.map((row) => row.sessionName).filter(Boolean)).size,
+      termCount: reportRows.length,
+      releasedCount: reportRows.filter((row) => row.status === "released").length,
+      latestAverage: reportRows.length ? reportRows[0].averageScore : null,
+    };
+  }
+
   function csvCell(value) {
     const text = String(value ?? "");
     return `"${text.replace(/"/g, '""')}"`;
@@ -32978,7 +33239,7 @@
       return;
     }
 
-    const { isAdmin, roleLabel } = getAdminAccessContext();
+    const { isAdmin, roleLabel, user } = getAdminAccessContext();
     const canViewReports = isAdmin && canAccessPermission(roleLabel, PAGE_PERMISSION_KEYS["admin-reports"]);
     const reportsWorkspace = document.querySelector(".admin-report-workspace");
 
@@ -32992,7 +33253,10 @@
       return;
     }
 
-    const refresh = () => renderAdminReportsDashboard();
+    const refresh = () => {
+      renderAdminReportsDashboard();
+      renderAdminAnnouncementSection({ isAdmin: canViewReports, user });
+    };
     refresh();
 
     [
@@ -33011,6 +33275,132 @@
         downloadReportDataset(String(button.dataset.adminReportExport || ""), buildAdminReportSnapshot());
       });
     });
+
+    const announcementForm = document.getElementById("admin-announcement-form");
+    const announcementStatus = document.getElementById("admin-announcement-status");
+    if (announcementForm && announcementStatus && announcementForm.dataset.bound !== "true") {
+      announcementForm.addEventListener("change", (event) => {
+        if (event.target === announcementForm.elements.scope) {
+          renderAdminAnnouncementSection({ isAdmin: canViewReports, user });
+        }
+      });
+
+      announcementForm.addEventListener("reset", () => {
+        window.setTimeout(() => {
+          renderAdminAnnouncementSection({ isAdmin: canViewReports, user });
+          setStatus(announcementStatus, "", "");
+        }, 0);
+      });
+
+      announcementForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+
+        if (!canViewReports) {
+          setStatus(announcementStatus, "info", "Only administrators can post announcements.");
+          return;
+        }
+
+        const scope = String(announcementForm.elements.scope?.value || "school").trim().toLowerCase();
+        const title = String(announcementForm.elements.title?.value || "").trim();
+        const message = String(announcementForm.elements.message?.value || "").trim();
+        const selectedRoles = Array.from(
+          announcementForm.querySelectorAll('input[name="roleTargets"]:checked'),
+        )
+          .map((input) => normalizeRoleLabel(input.value))
+          .filter(Boolean);
+        const selectedClasses = Array.from(
+          announcementForm.querySelectorAll('input[name="classTargets"]:checked'),
+        )
+          .map((input) => String(input.value || "").trim())
+          .filter(Boolean);
+
+        if (!title) {
+          setStatus(announcementStatus, "error", "Enter an announcement title.");
+          return;
+        }
+
+        if (!message) {
+          setStatus(announcementStatus, "error", "Enter the announcement message.");
+          return;
+        }
+
+        if (!selectedRoles.length) {
+          setStatus(announcementStatus, "error", "Select at least one target role.");
+          return;
+        }
+
+        if (scope === "class" && !selectedClasses.length) {
+          setStatus(announcementStatus, "error", "Select at least one class for this announcement.");
+          return;
+        }
+
+        const workspaceId = normalizeWorkspaceId(user?.workspaceId || getCurrentWorkspaceId());
+        const actorName = user?.displayName || user?.email || "Admin";
+
+        if (scope === "class") {
+          selectedClasses.forEach((classLabel) => {
+            pushNotification(
+              {
+                title,
+                message,
+                entityType: "class-announcement",
+                entityId: classLabel,
+                action: "posted",
+                actorName,
+                visibleToRoles: selectedRoles,
+                metadata: {
+                  announcementScope: "class",
+                  targetClassLabel: classLabel,
+                  targetRoles: selectedRoles,
+                },
+              },
+              workspaceId,
+            );
+          });
+        } else {
+          pushNotification(
+            {
+              title,
+              message,
+              entityType: "school-announcement",
+              entityId: "all",
+              action: "posted",
+              actorName,
+              visibleToRoles: selectedRoles,
+              metadata: {
+                announcementScope: "school",
+                targetRoles: selectedRoles,
+              },
+            },
+            workspaceId,
+          );
+        }
+
+        recordAuditEvent({
+          action: "created",
+          entityType: scope === "class" ? "class-announcement" : "school-announcement",
+          entityId: scope === "class" ? selectedClasses.join(", ") : "all",
+          summary: `Posted ${scope === "class" ? "class" : "school-wide"} announcement: ${title}`,
+          details:
+            scope === "class"
+              ? `${selectedClasses.length} class target(s) • ${selectedRoles.join(", ")}`
+              : `Whole school • ${selectedRoles.join(", ")}`,
+          workspaceId,
+        });
+
+        announcementForm.reset();
+        setStatus(
+          announcementStatus,
+          "success",
+          scope === "class"
+            ? `Announcement sent to <strong>${selectedClasses.length}</strong> selected class${selectedClasses.length === 1 ? "" : "es"}.`
+            : "School-wide announcement sent successfully.",
+        );
+        refresh();
+      });
+
+      announcementForm.dataset.bound = "true";
+    }
 
     [
       getStudentManager()?.eventName,

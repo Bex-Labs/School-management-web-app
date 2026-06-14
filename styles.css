@@ -6091,6 +6091,126 @@ body.admin-dashboard-page .admin-report-export-grid {
   gap: 10px;
 }
 
+body.admin-dashboard-page .admin-report-announcement-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr);
+  gap: 16px;
+  align-items: start;
+}
+
+body.admin-dashboard-page .admin-report-announcement-feed,
+body.admin-dashboard-page .admin-announcement-config {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #e2e7f0;
+  border-radius: 12px;
+  background: #fbfcff;
+}
+
+body.admin-dashboard-page .admin-report-announcement-feed > .admin-surface-head {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+body.admin-dashboard-page .admin-announcement-config-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+body.admin-dashboard-page .admin-announcement-role-grid,
+body.admin-dashboard-page .admin-announcement-class-grid,
+body.admin-dashboard-page .admin-announcement-list {
+  display: grid;
+  gap: 10px;
+}
+
+body.admin-dashboard-page .admin-announcement-class-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+body.admin-dashboard-page .admin-announcement-class-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #dfe7f2;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #263a54;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+body.admin-dashboard-page .admin-announcement-class-option input,
+body.admin-dashboard-page .admin-announcement-role-grid input {
+  width: 16px;
+  height: 16px;
+  accent-color: #2f6fed;
+}
+
+body.admin-dashboard-page .admin-announcement-item {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #dfe7f2;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+body.admin-dashboard-page .admin-announcement-item-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+body.admin-dashboard-page .admin-announcement-item-head div {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+body.admin-dashboard-page .admin-announcement-item-head strong {
+  color: #17233a;
+  font-size: 0.95rem;
+}
+
+body.admin-dashboard-page .admin-announcement-item-head p {
+  margin: 0;
+  color: #667188;
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+body.admin-dashboard-page .admin-announcement-item-head small {
+  color: #7c8799;
+  font-size: 0.75rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+body.admin-dashboard-page .admin-announcement-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+body.admin-dashboard-page .admin-announcement-item-meta span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #eef5ff;
+  color: #315d9b;
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
 body.admin-dashboard-page .portal-grading-scale-list {
   display: grid;
   gap: 10px;
@@ -10919,6 +11039,111 @@ body.admin-dashboard-page .portal-student-mini-list {
   gap: 10px;
 }
 
+body.admin-dashboard-page .portal-student-history-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+body.admin-dashboard-page .portal-student-history-summary article {
+  min-width: 0;
+  padding: 13px 14px;
+  border: 1px solid #edf2f8;
+  border-radius: 14px;
+  background: #fbfdff;
+}
+
+body.admin-dashboard-page .portal-student-history-summary span {
+  display: block;
+  color: #738098;
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+body.admin-dashboard-page .portal-student-history-summary strong {
+  display: block;
+  margin-top: 8px;
+  color: #17233a;
+  font-size: 0.94rem;
+}
+
+body.admin-dashboard-page .portal-student-history-block,
+body.admin-dashboard-page .portal-student-history-list,
+body.admin-dashboard-page .portal-student-history-timeline,
+body.admin-dashboard-page .portal-student-history-events {
+  display: grid;
+  gap: 10px;
+}
+
+body.admin-dashboard-page .portal-student-history-row,
+body.admin-dashboard-page .portal-student-history-event {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid #edf2f8;
+  border-radius: 14px;
+  background: #fbfdff;
+}
+
+body.admin-dashboard-page .portal-student-history-row > div:first-child,
+body.admin-dashboard-page .portal-student-history-event > div:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+body.admin-dashboard-page .portal-student-history-row strong,
+body.admin-dashboard-page .portal-student-history-event strong {
+  color: #17233a;
+  font-size: 0.9rem;
+}
+
+body.admin-dashboard-page .portal-student-history-row span,
+body.admin-dashboard-page .portal-student-history-event span,
+body.admin-dashboard-page .portal-student-history-event small {
+  color: #667188;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+body.admin-dashboard-page .portal-student-history-metrics {
+  display: grid;
+  justify-items: end;
+  gap: 5px;
+  flex: 0 0 auto;
+}
+
+body.admin-dashboard-page .portal-student-history-metrics strong {
+  font-size: 0.95rem;
+}
+
+body.admin-dashboard-page .portal-student-history-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+body.admin-dashboard-page .portal-student-history-badge.is-live {
+  background: #ecfbf3;
+  color: #0f7a4d;
+}
+
+body.admin-dashboard-page .portal-student-history-badge.is-draft {
+  background: #eef5ff;
+  color: #315d9b;
+}
+
 body.admin-dashboard-page .portal-student-mini-card {
   display: grid;
   grid-template-columns: 42px minmax(0, 1fr);
@@ -12893,6 +13118,16 @@ body.admin-dashboard-page .portal-class-empty p {
     width: 100%;
   }
 
+  body.admin-dashboard-page .admin-report-announcement-layout,
+  body.admin-dashboard-page .admin-announcement-config-grid {
+    grid-template-columns: 1fr;
+  }
+
+  body.admin-dashboard-page .admin-announcement-class-grid,
+  body.admin-dashboard-page .portal-student-history-summary {
+    grid-template-columns: 1fr;
+  }
+
   body.admin-dashboard-page .admin-report-health-score {
     width: min(180px, 100%);
   }
@@ -12912,6 +13147,17 @@ body.admin-dashboard-page .portal-class-empty p {
 
   body.admin-dashboard-page .staff-portal-row small {
     justify-self: start;
+  }
+
+  body.admin-dashboard-page .portal-student-history-row,
+  body.admin-dashboard-page .portal-student-history-event {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  body.admin-dashboard-page .portal-student-history-metrics {
+    width: 100%;
+    justify-items: start;
   }
 
   body.admin-dashboard-page .attendance-status-picker {
