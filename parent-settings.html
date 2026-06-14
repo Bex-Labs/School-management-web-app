@@ -109,6 +109,61 @@
 
           <article class="admin-surface-card">
             <div class="admin-surface-head">
+              <h2>Notification Preferences</h2>
+              <span>Choose which updates should appear as alerts in your parent portal.</span>
+            </div>
+            <form id="user-notification-preferences-form" class="portal-settings-form" novalidate>
+              <div id="user-notification-preferences-status" class="auth-status" role="status" aria-live="polite" hidden></div>
+              <div class="portal-toggle-grid parent-notification-preferences">
+                <label class="portal-toggle-card">
+                  <span class="portal-toggle-copy">
+                    <strong>Absence alerts</strong>
+                    <span>Notify me when my child is marked absent.</span>
+                  </span>
+                  <span class="portal-toggle-control">
+                    <input class="portal-toggle-input" type="checkbox" data-notification-preference="absenceAlerts" />
+                    <span class="portal-toggle-switch" aria-hidden="true"></span>
+                  </span>
+                </label>
+                <label class="portal-toggle-card">
+                  <span class="portal-toggle-copy">
+                    <strong>School announcements</strong>
+                    <span>Show class and whole-school notices.</span>
+                  </span>
+                  <span class="portal-toggle-control">
+                    <input class="portal-toggle-input" type="checkbox" data-notification-preference="announcements" />
+                    <span class="portal-toggle-switch" aria-hidden="true"></span>
+                  </span>
+                </label>
+                <label class="portal-toggle-card">
+                  <span class="portal-toggle-copy">
+                    <strong>Fee alerts</strong>
+                    <span>Receive balance and overdue payment updates.</span>
+                  </span>
+                  <span class="portal-toggle-control">
+                    <input class="portal-toggle-input" type="checkbox" data-notification-preference="feeAlerts" />
+                    <span class="portal-toggle-switch" aria-hidden="true"></span>
+                  </span>
+                </label>
+                <label class="portal-toggle-card">
+                  <span class="portal-toggle-copy">
+                    <strong>Result alerts</strong>
+                    <span>Notify me when results or report cards are released.</span>
+                  </span>
+                  <span class="portal-toggle-control">
+                    <input class="portal-toggle-input" type="checkbox" data-notification-preference="resultAlerts" />
+                    <span class="portal-toggle-switch" aria-hidden="true"></span>
+                  </span>
+                </label>
+              </div>
+              <div class="utility-actions">
+                <button class="button button-primary" type="submit">Save preferences</button>
+              </div>
+            </form>
+          </article>
+
+          <article class="admin-surface-card">
+            <div class="admin-surface-head">
               <h2>Change Password</h2>
               <span id="user-settings-hint">Use a strong password with letters and numbers.</span>
             </div>

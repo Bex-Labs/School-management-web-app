@@ -12319,6 +12319,84 @@ body.admin-dashboard-page .staff-portal-list {
   gap: 10px;
 }
 
+body.admin-dashboard-page .parent-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+body.admin-dashboard-page[data-page="parent-portal"] .admin-class-grid,
+body.admin-dashboard-page[data-page="parent-settings"] .admin-class-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+}
+
+body.admin-dashboard-page .parent-dashboard-stat-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+body.admin-dashboard-page .parent-dashboard-stat-row > div,
+body.admin-dashboard-page .parent-dashboard-result {
+  display: grid;
+  gap: 5px;
+  padding: 18px;
+  border: 1px solid #e1e8f2;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+
+body.admin-dashboard-page .parent-dashboard-stat-row span,
+body.admin-dashboard-page .parent-dashboard-result span {
+  color: #63718a;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+body.admin-dashboard-page .parent-dashboard-stat-row strong,
+body.admin-dashboard-page .parent-dashboard-result strong {
+  color: #17233a;
+  font-size: 1.65rem;
+}
+
+body.admin-dashboard-page .parent-dashboard-stat-row .is-alert {
+  background: #fff7f7;
+  border-color: #ffdada;
+}
+
+body.admin-dashboard-page .parent-dashboard-stat-row .is-alert strong {
+  color: #bc3f49;
+}
+
+body.admin-dashboard-page .parent-dashboard-announcements {
+  grid-column: 1 / -1;
+}
+
+body.admin-dashboard-page[data-page="parent-settings"] .parent-notification-preferences {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+body.admin-dashboard-page[data-page^="parent-"] .admin-dashboard-tools {
+  display: flex;
+  align-items: end;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+@media (max-width: 760px) {
+  body.admin-dashboard-page .parent-dashboard-grid,
+  body.admin-dashboard-page[data-page="parent-settings"] .parent-notification-preferences {
+    grid-template-columns: 1fr;
+  }
+
+  body.admin-dashboard-page[data-page^="parent-"] .admin-dashboard-tools {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+}
+
 body.admin-dashboard-page .staff-portal-row,
 body.admin-dashboard-page .staff-portal-tile {
   border: 1px solid #e1e8f2;

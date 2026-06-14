@@ -18,6 +18,7 @@
   const ACCESS_GRANTS_EVENT_NAME = "schoolsphere:access-grants:updated";
   const NOTIFICATION_STORAGE_PREFIX = "schoolsphere.notifications.v1";
   const NOTIFICATION_EVENT_NAME = "schoolsphere:notifications:updated";
+  const NOTIFICATION_PREFERENCES_STORAGE_PREFIX = "schoolsphere.notification-preferences.v1";
   const FORM_DRAFT_STORAGE_PREFIX = "schoolsphere.form-draft.v1";
   const NETWORK_RESILIENCE_BANNER_ID = "network-resilience-banner";
   const STUDENT_STORAGE_KEY_BASE = "schoolsphere.students.v1";
@@ -1605,6 +1606,99 @@
     return `${NOTIFICATION_STORAGE_PREFIX}:${normalizeWorkspaceId(workspaceId || getCurrentWorkspaceId())}`;
   }
 
+  function getNotificationPreferenceDefaults(roleLabel = DEFAULT_AUTH_ROLE) {
+    const role = normalizeRoleLabel(roleLabel || DEFAULT_AUTH_ROLE);
+
+    if (role === "Parent") {
+      return {
+        absenceAlerts: true,
+        announcements: true,
+        feeAlerts: true,
+        resultAlerts: true,
+      };
+    }
+
+    if (role === "Student") {
+      return {
+        absenceAlerts: true,
+        announcements: true,
+        feeAlerts: true,
+        resultAlerts: true,
+      };
+    }
+
+    return {
+      absenceAlerts: true,
+      announcements: true,
+      feeAlerts: true,
+      resultAlerts: true,
+    };
+  }
+
+  function getNotificationPreferencesStorageKey(userOrSession = {}, roleOverride = "") {
+    const session = getSession() || {};
+    const role = normalizeRoleLabel(roleOverride || userOrSession.role || session.role || DEFAULT_AUTH_ROLE);
+    const workspaceId = normalizeWorkspaceId(
+      userOrSession.workspaceId || session.workspaceId || getCurrentWorkspaceId(),
+    );
+    const identity = normalizeEmail(userOrSession.email || session.email || "") ||
+      String(userOrSession.id || userOrSession.userId || session.userId || "anonymous").trim().toLowerCase();
+    return `${NOTIFICATION_PREFERENCES_STORAGE_PREFIX}:${workspaceId}:${role.toLowerCase()}:${identity}`;
+  }
+
+  function getNotificationPreferences(userOrSession = {}, roleOverride = "") {
+    const role = normalizeRoleLabel(roleOverride || userOrSession.role || getSession()?.role || DEFAULT_AUTH_ROLE);
+    const defaults = getNotificationPreferenceDefaults(role);
+    const stored = parseJSON(localStorage.getItem(getNotificationPreferencesStorageKey(userOrSession, role)), {});
+    return {
+      ...defaults,
+      ...(stored && typeof stored === "object" && !Array.isArray(stored) ? stored : {}),
+      ...(userOrSession.notificationPreferences &&
+      typeof userOrSession.notificationPreferences === "object" &&
+      !Array.isArray(userOrSession.notificationPreferences)
+        ? userOrSession.notificationPreferences
+        : {}),
+    };
+  }
+
+  function saveNotificationPreferences(userOrSession = {}, roleOverride = "", preferences = {}) {
+    const role = normalizeRoleLabel(roleOverride || userOrSession.role || getSession()?.role || DEFAULT_AUTH_ROLE);
+    const next = {
+      ...getNotificationPreferenceDefaults(role),
+      ...preferences,
+    };
+    localStorage.setItem(
+      getNotificationPreferencesStorageKey(userOrSession, role),
+      JSON.stringify(next),
+    );
+    return next;
+  }
+
+  function notificationAllowedByPreferences(entry = {}, userOrSession = {}, roleOverride = "") {
+    const role = normalizeRoleLabel(roleOverride || userOrSession.role || getSession()?.role || DEFAULT_AUTH_ROLE);
+    if (role !== "Parent" && role !== "Student") {
+      return true;
+    }
+
+    const entityType = String(entry.entityType || "").trim().toLowerCase();
+    const preferences = getNotificationPreferences(userOrSession, role);
+
+    if (entityType === "attendance-absence") {
+      return preferences.absenceAlerts !== false;
+    }
+    if (isStudentAnnouncementNotification(entry)) {
+      return preferences.announcements !== false;
+    }
+    if (["fee", "fee-overdue", "invoice", "payment"].includes(entityType)) {
+      return preferences.feeAlerts !== false;
+    }
+    if (["result", "report-card", "report_card"].includes(entityType)) {
+      return preferences.resultAlerts !== false;
+    }
+
+    return true;
+  }
+
   function normalizeNotificationRoles(roles, fallback = ["Admin"]) {
     const source = Array.isArray(roles) ? roles : [roles];
     const normalized = source
@@ -1811,6 +1905,7 @@
     return roleFiltered.filter(
       (entry) =>
         notificationMatchesUserScope(entry, scope) &&
+        notificationAllowedByPreferences(entry, scope.user || session || {}, scope.role) &&
         !isNotificationHiddenForViewer(entry, scope.user || session, scope.role),
     );
   }
@@ -5462,6 +5557,13 @@
       lastLoginAt: nowIso(),
       status: existingIndex >= 0 ? normalizeUserStatus(users[existingIndex].status) : "active",
       mustChangePassword: existingIndex >= 0 ? Boolean(users[existingIndex].mustChangePassword) : false,
+      notificationPreferences:
+        authUser.user_metadata?.notification_preferences &&
+        typeof authUser.user_metadata.notification_preferences === "object"
+          ? { ...authUser.user_metadata.notification_preferences }
+          : existingIndex >= 0
+            ? { ...(users[existingIndex].notificationPreferences || {}) }
+            : {},
     };
 
     if (existingIndex >= 0) {
@@ -19031,6 +19133,79 @@
     );
   }
 
+  function syncAttendanceAbsenceNotifications(record = null, workspaceId = null) {
+    if (!record?.id) {
+      return;
+    }
+
+    const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId || getCurrentWorkspaceId());
+    const existing = getNotifications(normalizedWorkspaceId);
+    const recordNotifications = new Map(
+      existing
+        .filter(
+          (entry) =>
+            String(entry.entityType || "").trim().toLowerCase() === "attendance-absence" &&
+            String(entry.metadata?.attendanceRecordId || "") === String(record.id),
+        )
+        .map((entry) => [String(entry.metadata?.studentId || entry.entityId || ""), entry]),
+    );
+    const retained = existing.filter(
+      (entry) =>
+        !(
+          String(entry.entityType || "").trim().toLowerCase() === "attendance-absence" &&
+          String(entry.metadata?.attendanceRecordId || "") === String(record.id)
+        ),
+    );
+    const absenceNotifications = (record.entries || [])
+      .filter((entry) => normalizeAttendanceStatus(entry.status) === "absent")
+      .map((entry) => {
+        const previous = recordNotifications.get(String(entry.studentId || "")) || {};
+        return normalizeNotificationEntry(
+          {
+            ...previous,
+            id: `attendance-absence:${record.id}:${entry.studentId}`,
+            title: `Absence recorded for ${entry.studentName || "student"}`,
+            message: `${entry.studentName || "The student"} was marked absent on ${record.date || "the selected date"}${
+              entry.note ? `. Note: ${entry.note}` : "."
+            }`,
+            entityType: "attendance-absence",
+            entityId: entry.studentId,
+            action: "recorded",
+            actorName: record.submittedByName || record.submittedByEmail || "School",
+            createdAt: previous.createdAt || record.takenAt || record.updatedAt || nowIso(),
+            visibleToRoles: ["Parent", "Student"],
+            metadata: {
+              ...(previous.metadata || {}),
+              attendanceRecordId: record.id,
+              studentId: entry.studentId,
+              studentName: entry.studentName || "",
+              classId: record.classId || "",
+              className: record.className || record.level || "",
+              attendanceDate: record.date || "",
+              note: entry.note || "",
+            },
+          },
+          normalizedWorkspaceId,
+        );
+      });
+
+    saveNotifications([...absenceNotifications, ...retained], normalizedWorkspaceId);
+    window.dispatchEvent(
+      new CustomEvent(NOTIFICATION_EVENT_NAME, {
+        detail: { workspaceId: normalizedWorkspaceId },
+      }),
+    );
+  }
+
+  function syncStoredAttendanceAbsenceNotifications(workspaceId = null) {
+    const attendanceManager = getAttendanceManager();
+    const records =
+      attendanceManager && typeof attendanceManager.getRecords === "function"
+        ? attendanceManager.getRecords()
+        : [];
+    records.forEach((record) => syncAttendanceAbsenceNotifications(record, workspaceId));
+  }
+
   function summarizeAttendanceForStudents(students = [], records = []) {
     const latestEntryByStudent = new Map();
 
@@ -23990,7 +24165,14 @@
       manager && selectedClass && typeof manager.getRecordForClassDate === "function"
         ? manager.getRecordForClassDate(selectedClass.id, selectedDate)
         : null;
-    const existingEntries = getAttendanceRecordEntryMap(existingRecord);
+    const attendanceDraftKey = selectedClass
+      ? `teacher-attendance:${user.id || user.email || "teacher"}:${selectedClass.id}:${selectedDate}`
+      : "";
+    const attendanceDraft = readFormDraft(attendanceDraftKey);
+    const draftEntries = Array.isArray(attendanceDraft?.entries)
+      ? getAttendanceRecordEntryMap({ entries: attendanceDraft.entries })
+      : new Map();
+    const existingEntries = draftEntries.size ? draftEntries : getAttendanceRecordEntryMap(existingRecord);
     const submittedCount = existingRecord?.entries?.length || 0;
     const markedLabel = selectedClass
       ? `${submittedCount || 0}/${roster.length || 0}`
@@ -24176,6 +24358,36 @@
     }
 
     if (form && selectedClass) {
+      const persistAttendanceDraft = () => {
+        const studentLookup = new Map(roster.map((student) => [student.id, student]));
+        const entries = Array.from(form.querySelectorAll("[data-attendance-student-row]"))
+          .map((row) => {
+            const studentId = String(row.dataset.studentId || "").trim();
+            const student = studentLookup.get(studentId);
+            const checked = row.querySelector('input[type="radio"]:checked');
+
+            if (!student || !(checked instanceof HTMLInputElement)) {
+              return null;
+            }
+
+            return {
+              studentId,
+              status: normalizeAttendanceStatus(checked.value),
+              note: row.querySelector("[data-attendance-note]")?.value || "",
+            };
+          })
+          .filter(Boolean);
+
+        writeFormDraft(attendanceDraftKey, {
+          classId: selectedClass.id,
+          date: selectedDate,
+          entries,
+          updatedAt: nowIso(),
+        });
+      };
+
+      form.addEventListener("input", persistAttendanceDraft);
+      form.addEventListener("change", persistAttendanceDraft);
       form.addEventListener("submit", (event) => {
         event.preventDefault();
 
@@ -24227,6 +24439,9 @@
         });
         const savedRecord =
           savedRecords.find((record) => record.classId === selectedClass.id && record.date === selectedDate) || null;
+
+        syncAttendanceAbsenceNotifications(savedRecord, user.workspaceId || getCurrentWorkspaceId());
+        clearFormDraft(attendanceDraftKey);
 
         recordAuditEvent({
           action: existingRecord ? "updated" : "submitted",
@@ -25824,6 +26039,32 @@
     return filterNotificationsForSession(getNotifications(workspaceId), studentSession)
       .filter((entry) => isStudentAnnouncementNotification(entry))
       .slice(0, 6);
+  }
+
+  function getParentPortalAnnouncements(user = {}, student = null) {
+    const session = getSession() || {};
+    const workspaceId = normalizeWorkspaceId(user.workspaceId || session.workspaceId || getCurrentWorkspaceId());
+    const studentId = String(student?.id || "").trim().toLowerCase();
+    const studentLevel = normalizeLevelToken(student?.level);
+
+    return filterNotificationsForSession(getNotifications(workspaceId), {
+      ...session,
+      role: "Parent",
+      userId: user.id || session.userId,
+      email: user.email || session.email,
+      workspaceId,
+    })
+      .filter((entry) => {
+        if (!isStudentAnnouncementNotification(entry)) {
+          return false;
+        }
+        if (isWholeSchoolAnnouncement(entry)) {
+          return true;
+        }
+        const entityId = String(entry.entityId || "").trim().toLowerCase();
+        return entityId === studentId || normalizeLevelToken(entityId) === studentLevel;
+      })
+      .slice(0, 5);
   }
 
   function isWholeSchoolAnnouncement(entry = {}) {
@@ -29796,6 +30037,15 @@
     const studentFee = feesState[student.id] || buildConfiguredParentFeeSnapshot(student) || { totalDue: 0, balance: 0, dueDate: "Not set" };
     ensureParentOverdueFeeAlert({ user, student, invoice: studentFee, workspaceId });
     const feeStatus = isParentInvoiceOverdue(studentFee) ? "Overdue" : "Outstanding Balance";
+    const reportManager = getReportCardManager();
+    const releasedCards =
+      reportManager && typeof reportManager.getRecords === "function"
+        ? reportManager
+            .getRecords()
+            .filter((record) => record.studentId === student.id && record.status === "released")
+        : [];
+    const latestReport = releasedCards[0] ? getReportCardDisplayContext(releasedCards[0]) : null;
+    const announcements = getParentPortalAnnouncements(user, student);
 
     target.innerHTML = `
       <section class="admin-metrics-grid">
@@ -29815,10 +30065,72 @@
           <p>From class/course setup</p>
         </article>
         <article class="admin-metric-card admin-metric-card-rose">
-          <strong>${escapeHtml(String(studentFee.balance || 0))}</strong>
+          <strong>${escapeHtml(formatCurrencyAmount(studentFee.balance || 0))}</strong>
           <h3>${escapeHtml(feeStatus)}</h3>
           <p>Due: ${escapeHtml(studentFee.dueDate || "Not set")}</p>
         </article>
+      </section>
+      <section class="parent-dashboard-grid">
+        <article class="admin-surface-card">
+          <div class="admin-surface-head">
+            <div>
+              <h2>Attendance</h2>
+              <span>${escapeHtml(attendance.currentSession)} • ${escapeHtml(attendance.currentTermLabel)}</span>
+            </div>
+            <a class="portal-class-button" href="./parent-attendance.html">View history</a>
+          </div>
+          <div class="parent-dashboard-stat-row">
+            <div><span>Present</span><strong>${attendance.present}</strong></div>
+            <div class="is-alert"><span>Absent</span><strong>${attendance.absent}</strong></div>
+          </div>
+        </article>
+        <article class="admin-surface-card">
+          <div class="admin-surface-head">
+            <div>
+              <h2>Results</h2>
+              <span>${releasedCards.length} released report card${releasedCards.length === 1 ? "" : "s"}</span>
+            </div>
+            <a class="portal-class-button" href="./parent-reports.html">Open reports</a>
+          </div>
+          <div class="parent-dashboard-result">
+            <strong>${latestReport ? `${escapeHtml(formatReportCardScore(latestReport.averageScore))}%` : "--"}</strong>
+            <span>${latestReport ? `${escapeHtml(latestReport.termName)} • Grade ${escapeHtml(latestReport.overallGrade)}` : "No released result yet"}</span>
+          </div>
+        </article>
+      </section>
+      <section class="admin-surface-card parent-dashboard-announcements">
+        <div class="admin-surface-head">
+          <div>
+            <h2>Announcements</h2>
+            <span>Updates for ${escapeHtml(student.fullName)} or the whole school</span>
+          </div>
+        </div>
+        <div class="staff-portal-list">
+          ${
+            announcements.length
+              ? announcements
+                  .map(
+                    (entry) => `
+                      <article class="staff-portal-row staff-portal-row-wide">
+                        <div>
+                          <strong>${escapeHtml(entry.title || "School announcement")}</strong>
+                          <span>${escapeHtml(entry.message || "No extra details.")}</span>
+                        </div>
+                        <small>${escapeHtml(isWholeSchoolAnnouncement(entry) ? "Whole school" : student.level || "Class")} • ${escapeHtml(
+                          formatTimestamp(entry.createdAt),
+                        )}</small>
+                      </article>
+                    `,
+                  )
+                  .join("")
+              : `
+                <article class="portal-class-empty">
+                  <strong>No announcements yet</strong>
+                  <p>Class and whole-school updates will appear here.</p>
+                </article>
+              `
+          }
+        </div>
       </section>
       <section class="admin-primary-grid">
         <article class="admin-surface-card">
@@ -30904,6 +31216,7 @@
     }
 
     user = alignParentWorkspaceFromGuardianLink(user, session);
+    syncStoredAttendanceAbsenceNotifications(user.workspaceId || session.workspaceId || getCurrentWorkspaceId());
 
     const brandMark = document.getElementById("admin-brand-mark");
     const brandName = document.getElementById("admin-brand-name");
@@ -30945,6 +31258,35 @@
 
     const switcherHost = document.getElementById("parent-child-switcher");
     renderParentChildSelector(switcherHost, children, selectedChild?.id || "", user);
+    let notificationButton = document.getElementById("admin-notification-button");
+    const topbar = document.querySelector(".admin-dashboard-topbar");
+    const toolsHost =
+      switcherHost ||
+      topbar?.querySelector(".admin-dashboard-tools") ||
+      (() => {
+        const host = document.createElement("div");
+        host.className = "admin-dashboard-tools";
+        topbar?.appendChild(host);
+        return host;
+      })();
+
+    if (!notificationButton && toolsHost) {
+      notificationButton = document.createElement("button");
+      notificationButton.id = "admin-notification-button";
+      notificationButton.className = "admin-notification-button";
+      notificationButton.type = "button";
+      notificationButton.setAttribute("aria-label", "Open notifications");
+      notificationButton.setAttribute("aria-expanded", "false");
+      notificationButton.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"></path>
+          <path d="M10 21h4"></path>
+        </svg>
+        <span id="admin-notification-dot" class="admin-notification-dot" hidden></span>
+      `;
+      toolsHost.appendChild(notificationButton);
+    }
+    initPortalNotifications(notificationButton, session);
 
     const contentHost = document.getElementById("parent-page-content");
     if (!contentHost) {
@@ -34106,6 +34448,8 @@
     const gate = document.getElementById("portal-gate");
     const notificationButton = document.getElementById("admin-notification-button");
     const dashboardSearchInput = document.getElementById("admin-global-search");
+    const notificationPreferencesForm = document.getElementById("user-notification-preferences-form");
+    const notificationPreferencesStatus = document.getElementById("user-notification-preferences-status");
     const { session, user, roleLabel } = getAdminAccessContext();
     const normalizedRole = normalizeRoleLabel(roleLabel || DEFAULT_AUTH_ROLE);
     let activeUser = user;
@@ -34199,6 +34543,65 @@
     };
 
     renderUserSettingsProfile(activeUser);
+
+    if (isParentSettingsPage && notificationPreferencesForm) {
+      const renderNotificationPreferences = () => {
+        const preferences = getNotificationPreferences(activeUser, normalizedRole);
+        notificationPreferencesForm.querySelectorAll("[data-notification-preference]").forEach((input) => {
+          if (input instanceof HTMLInputElement) {
+            input.checked = preferences[input.dataset.notificationPreference] !== false;
+            input.closest(".portal-toggle-card")?.classList.toggle("is-active", input.checked);
+          }
+        });
+      };
+
+      renderNotificationPreferences();
+      notificationPreferencesForm.addEventListener("change", (event) => {
+        const input = event.target;
+        if (input instanceof HTMLInputElement && input.matches("[data-notification-preference]")) {
+          input.closest(".portal-toggle-card")?.classList.toggle("is-active", input.checked);
+        }
+      });
+      notificationPreferencesForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const preferences = {};
+        notificationPreferencesForm.querySelectorAll("[data-notification-preference]").forEach((input) => {
+          if (input instanceof HTMLInputElement) {
+            preferences[input.dataset.notificationPreference] = input.checked;
+          }
+        });
+        saveNotificationPreferences(activeUser, normalizedRole, preferences);
+        const updatedUser = updateUser(activeUser.id, (record) => ({
+          ...record,
+          notificationPreferences: { ...preferences },
+        }));
+        if (updatedUser) {
+          activeUser = updatedUser;
+        }
+        if (isSupabaseConfigured() && session.source === "supabase") {
+          try {
+            const client = await getSupabaseClient();
+            await withNetworkTimeout(
+              client.auth.updateUser({
+                data: {
+                  notification_preferences: preferences,
+                },
+              }),
+            );
+          } catch {
+            // The offline preference remains active and can sync on a later save.
+          }
+        }
+        window.dispatchEvent(
+          new CustomEvent(NOTIFICATION_EVENT_NAME, {
+            detail: {
+              workspaceId: normalizeWorkspaceId(activeUser.workspaceId || session.workspaceId || getCurrentWorkspaceId()),
+            },
+          }),
+        );
+        setStatus(notificationPreferencesStatus, "success", "Notification preferences saved.");
+      });
+    }
 
     profileForm.addEventListener("input", () => {
       clearFieldErrors(profileForm);
@@ -34803,6 +35206,9 @@
 
     const isStaffPortal = page === "staff-dashboard" && roleLabel === "Teacher";
     const isStudentPortal = page === "portal" && roleLabel === "Student";
+    if (isStudentPortal) {
+      syncStoredAttendanceAbsenceNotifications(user.workspaceId || session.workspaceId || getCurrentWorkspaceId());
+    }
     const hasDashboardAccess = canAccessPermission(roleLabel, PAGE_PERMISSION_KEYS[page] || PAGE_PERMISSION_KEYS.portal);
     const hasStudentPortalAccess =
       isStudentPortal &&
