@@ -162,6 +162,34 @@
             <div id="portal-report-configuration-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
 
             <div class="portal-settings-section-head">
+              <strong>Score structure</strong>
+              <span>Set how the final score of 100 is divided between continuous assessment and examination.</span>
+            </div>
+            <div class="portal-score-structure-presets" role="group" aria-label="Score structure presets">
+              <button class="portal-score-preset" type="button" data-score-preset="40,60">40 CA / 60 Exam</button>
+              <button class="portal-score-preset" type="button" data-score-preset="50,50">50 CA / 50 Exam</button>
+              <button class="portal-score-preset" type="button" data-score-preset="30,70">30 CA / 70 Exam</button>
+            </div>
+            <div class="portal-score-structure-grid">
+              <label class="portal-field" for="report-ca-maximum">
+                <span>Continuous assessment</span>
+                <div class="portal-score-input"><input id="report-ca-maximum" name="caMaximum" type="number" min="0" max="100" step="1" /><strong>marks</strong></div>
+              </label>
+              <div class="portal-score-structure-total" aria-hidden="true">
+                <span>+</span>
+              </div>
+              <label class="portal-field" for="report-exam-maximum">
+                <span>Examination</span>
+                <div class="portal-score-input"><input id="report-exam-maximum" name="examMaximum" type="number" min="0" max="100" step="1" /><strong>marks</strong></div>
+              </label>
+              <div class="portal-score-structure-total">
+                <span>Total</span>
+                <strong data-score-structure-total>100</strong>
+              </div>
+            </div>
+            <p class="portal-settings-note">Teachers can divide the continuous-assessment marks into CA tests, assignments, attendance, pop tests, practicals, or custom components.</p>
+
+            <div class="portal-settings-section-head">
               <strong>Grading scale</strong>
               <span>Scores use the highest matching minimum mark.</span>
             </div>

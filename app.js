@@ -265,7 +265,14 @@ const SCHOOL_REPORT_CARDS_STORAGE_KEY = "schoolsphere.reportCards.v1";
 const SCHOOL_REPORT_CARDS_EVENT = "schoolsphere:report-cards-updated";
 const SCHOOL_REPORT_CONFIGURATION_STORAGE_KEY = "schoolsphere.reportConfiguration.v1";
 const SCHOOL_REPORT_CONFIGURATION_EVENT = "schoolsphere:report-configuration-updated";
+const DEFAULT_GRADEBOOK_RECORDS = [];
+const SCHOOL_GRADEBOOK_STORAGE_KEY = "schoolsphere.gradebook.v1";
+const SCHOOL_GRADEBOOK_EVENT = "schoolsphere:gradebook-updated";
 const DEFAULT_REPORT_CONFIGURATION = {
+  scoreStructure: {
+    caMaximum: 40,
+    examMaximum: 60,
+  },
   gradingScale: [
     { minimum: 70, grade: "A", remark: "Excellent" },
     { minimum: 60, grade: "B", remark: "Very Good" },
@@ -302,7 +309,7 @@ const ROLE_PERMISSION_OPTIONS_BY_ROLE = {
     { key: "staff_timetable_view", label: "My Timetable", description: "Weekly schedule for the active term" },
     { key: "staff_attendance_mark", label: "Attendance", description: "Mark class register" },
     { key: "staff_classes_view", label: "My Classes", description: "Assigned classes and student rosters" },
-    { key: "staff_gradebook_manage", label: "Gradebook", description: "Score entry per subject and assessment" },
+    { key: "staff_gradebook_manage", label: "Gradebook", description: "Continuous-assessment setup and score entry" },
     { key: "staff_results_manage", label: "Results", description: "View, comment, and publish term results" },
     { key: "staff_lesson_plans_manage", label: "Lesson Plans", description: "Create and submit weekly plans" },
     { key: "staff_messages_view", label: "Messages", description: "Message admin, linked parents, and assigned students" },
@@ -455,6 +462,7 @@ function clearLegacySharedState() {
     SCHOOL_ATTENDANCE_STORAGE_KEY,
     SCHOOL_REPORT_CARDS_STORAGE_KEY,
     SCHOOL_REPORT_CONFIGURATION_STORAGE_KEY,
+    SCHOOL_GRADEBOOK_STORAGE_KEY,
     AUDIT_TRAIL_STORAGE_KEY,
     FEATURE_TOGGLE_STORAGE_KEY,
     ROLE_PERMISSIONS_STORAGE_KEY,
@@ -3150,8 +3158,22 @@ function normalizeReportConfiguration(configuration = {}) {
     }))
     .filter((entry) => entry.grade)
     .sort((left, right) => right.minimum - left.minimum);
+  const rawCaMaximum = Number.parseFloat(configuration.scoreStructure?.caMaximum);
+  const rawExamMaximum = Number.parseFloat(configuration.scoreStructure?.examMaximum);
+  const hasValidScoreStructure =
+    Number.isFinite(rawCaMaximum) &&
+    Number.isFinite(rawExamMaximum) &&
+    rawCaMaximum >= 0 &&
+    rawExamMaximum >= 0 &&
+    rawCaMaximum <= 100 &&
+    rawExamMaximum <= 100 &&
+    rawCaMaximum + rawExamMaximum === 100;
+  const scoreStructure = hasValidScoreStructure
+    ? { caMaximum: rawCaMaximum, examMaximum: rawExamMaximum }
+    : { ...DEFAULT_REPORT_CONFIGURATION.scoreStructure };
 
   return {
+    scoreStructure,
     gradingScale: gradingScale.length
       ? gradingScale
       : DEFAULT_REPORT_CONFIGURATION.gradingScale.map((entry) => ({ ...entry })),
@@ -3167,6 +3189,123 @@ function normalizeReportConfiguration(configuration = {}) {
       showSchoolComment: configuration.template?.showSchoolComment !== false,
     },
   };
+}
+
+function normalizeGradebookComponent(component = {}, index = 0) {
+  return {
+    id: String(component.id || createStorageId("assessment")),
+    name: String(component.name || `Assessment ${index + 1}`).trim() || `Assessment ${index + 1}`,
+    maximum: Math.max(0, Math.min(100, Number.parseFloat(component.maximum) || 0)),
+  };
+}
+
+function normalizeGradebookRecord(record = {}) {
+  const timestamp = new Date().toISOString();
+  const components = (Array.isArray(record.components) ? record.components : [])
+    .map((component, index) => normalizeGradebookComponent(component, index))
+    .filter((component) => component.name && component.maximum > 0);
+  const componentIds = new Set(components.map((component) => component.id));
+  const scores = (Array.isArray(record.scores) ? record.scores : [])
+    .map((entry) => {
+      const componentScores = Object.entries(entry?.componentScores || {}).reduce((result, [key, value]) => {
+        if (componentIds.has(key)) {
+          result[key] = Math.max(0, Number.parseFloat(value) || 0);
+        }
+        return result;
+      }, {});
+      return {
+        studentId: String(entry?.studentId || "").trim(),
+        studentName: String(entry?.studentName || "").trim(),
+        admissionNo: String(entry?.admissionNo || "").trim(),
+        componentScores,
+      };
+    })
+    .filter((entry) => entry.studentId);
+
+  return {
+    id: String(record.id || createStorageId("gradebook")),
+    classId: String(record.classId || "").trim(),
+    classLevel: String(record.classLevel || "").trim(),
+    subject: String(record.subject || "").trim(),
+    subjectCode: String(record.subjectCode || "").trim().toUpperCase(),
+    sessionId: String(record.sessionId || "").trim(),
+    sessionName: String(record.sessionName || "").trim(),
+    termId: String(record.termId || "").trim(),
+    termName: String(record.termName || "").trim(),
+    teacherId: String(record.teacherId || "").trim(),
+    teacherName: String(record.teacherName || "").trim(),
+    components,
+    scores,
+    createdAt: record.createdAt || timestamp,
+    updatedAt: record.updatedAt || timestamp,
+  };
+}
+
+function getGradebookRecords() {
+  const stored = readWorkspaceState(SCHOOL_GRADEBOOK_STORAGE_KEY, DEFAULT_GRADEBOOK_RECORDS);
+  const source = Array.isArray(stored) ? stored : DEFAULT_GRADEBOOK_RECORDS;
+  return source.map((record) => normalizeGradebookRecord(record));
+}
+
+function saveGradebookRecords(records) {
+  const normalized = (Array.isArray(records) ? records : [])
+    .map((record) => normalizeGradebookRecord(record))
+    .filter((record) => record.classId && record.subject && record.sessionId && record.termId);
+  writeWorkspaceState(SCHOOL_GRADEBOOK_STORAGE_KEY, normalized);
+  window.dispatchEvent(new CustomEvent(SCHOOL_GRADEBOOK_EVENT, { detail: { records: normalized } }));
+  return normalized;
+}
+
+function upsertGradebookRecord(record) {
+  const records = getGradebookRecords();
+  const incoming = normalizeGradebookRecord({ ...record, updatedAt: new Date().toISOString() });
+  const existingIndex = records.findIndex(
+    (entry) =>
+      entry.id === incoming.id ||
+      (entry.classId === incoming.classId &&
+        entry.subject.toLowerCase() === incoming.subject.toLowerCase() &&
+        entry.sessionId === incoming.sessionId &&
+        entry.termId === incoming.termId),
+  );
+
+  if (existingIndex === -1) {
+    records.push(incoming);
+  } else {
+    records[existingIndex] = {
+      ...records[existingIndex],
+      ...incoming,
+      id: records[existingIndex].id,
+      createdAt: records[existingIndex].createdAt,
+    };
+  }
+  return saveGradebookRecords(records);
+}
+
+function getGradebookRecordForContext(classId, subject, sessionId, termId) {
+  const normalizedSubject = String(subject || "").trim().toLowerCase();
+  return (
+    getGradebookRecords().find(
+      (record) =>
+        record.classId === String(classId || "").trim() &&
+        record.subject.toLowerCase() === normalizedSubject &&
+        record.sessionId === String(sessionId || "").trim() &&
+        record.termId === String(termId || "").trim(),
+    ) || null
+  );
+}
+
+function getGradebookStudentTotal(classId, subject, sessionId, termId, studentId) {
+  const record = getGradebookRecordForContext(classId, subject, sessionId, termId);
+  const studentScores = record?.scores?.find((entry) => entry.studentId === String(studentId || "").trim());
+  if (!record || !studentScores) {
+    return 0;
+  }
+  return Math.round(
+    record.components.reduce((total, component) => {
+      const score = Math.max(0, Number.parseFloat(studentScores.componentScores?.[component.id]) || 0);
+      return total + Math.min(component.maximum, score);
+    }, 0) * 100,
+  ) / 100;
 }
 
 function getReportConfiguration() {
@@ -3767,6 +3906,16 @@ window.SchoolSphereReportConfiguration = {
   eventName: SCHOOL_REPORT_CONFIGURATION_EVENT,
 };
 
+window.SchoolSphereGradebook = {
+  defaults: DEFAULT_GRADEBOOK_RECORDS,
+  getRecords: getGradebookRecords,
+  saveRecords: saveGradebookRecords,
+  upsertRecord: upsertGradebookRecord,
+  getForContext: getGradebookRecordForContext,
+  getStudentTotal: getGradebookStudentTotal,
+  eventName: SCHOOL_GRADEBOOK_EVENT,
+};
+
 window.SchoolSphereAuditTrail = {
   getEntries: getAuditTrailEntries,
   saveEntries: saveAuditTrailEntries,
@@ -3822,6 +3971,22 @@ window.addEventListener("storage", (event) => {
 
   if (isWorkspaceScopedStorageEventKey(event.key, SCHOOL_REPORT_CARDS_STORAGE_KEY)) {
     emitReportCardsUpdate(getReportCardRecords());
+  }
+
+  if (isWorkspaceScopedStorageEventKey(event.key, SCHOOL_REPORT_CONFIGURATION_STORAGE_KEY)) {
+    window.dispatchEvent(
+      new CustomEvent(SCHOOL_REPORT_CONFIGURATION_EVENT, {
+        detail: { configuration: getReportConfiguration() },
+      }),
+    );
+  }
+
+  if (isWorkspaceScopedStorageEventKey(event.key, SCHOOL_GRADEBOOK_STORAGE_KEY)) {
+    window.dispatchEvent(
+      new CustomEvent(SCHOOL_GRADEBOOK_EVENT, {
+        detail: { records: getGradebookRecords() },
+      }),
+    );
   }
 
   if (isWorkspaceScopedStorageEventKey(event.key, AUDIT_TRAIL_STORAGE_KEY)) {

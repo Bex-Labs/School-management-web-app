@@ -288,7 +288,7 @@
       label: "Gradebook",
       href: "./staff-gradebook.html",
       permissionKey: "staff_gradebook_manage",
-      description: "Score entry per subject and assessment",
+      description: "Continuous-assessment setup and score entry",
     },
     {
       key: "results",
@@ -351,7 +351,7 @@
     "staff-gradebook": {
       key: "gradebook",
       heading: "Gradebook",
-      copy: "Score entry per subject and assessment.",
+      copy: "Configure and record continuous-assessment scores.",
     },
     "staff-results": {
       key: "results",
@@ -545,6 +545,7 @@
     "schoolsphere.attendance.v1",
     "schoolsphere.reportCards.v1",
     "schoolsphere.reportConfiguration.v1",
+    "schoolsphere.gradebook.v1",
     "schoolsphere.featureModules.v1",
     "schoolsphere.rolePermissions.v1",
     "schoolsphere.auditTrail.v1",
@@ -559,6 +560,7 @@
   const SUPABASE_STATE_KEY_ATTENDANCE = "schoolsphere.attendance.v1";
   const SUPABASE_STATE_KEY_REPORT_CARDS = "schoolsphere.reportCards.v1";
   const SUPABASE_STATE_KEY_REPORT_CONFIGURATION = "schoolsphere.reportConfiguration.v1";
+  const SUPABASE_STATE_KEY_GRADEBOOK = "schoolsphere.gradebook.v1";
   const SUPABASE_STATE_KEY_FEE_ITEMS = "schoolsphere.feeItems.v1";
   const SUPABASE_STATE_KEY_ACADEMIC_CYCLES = "schoolsphere.academicCycles.v1";
   const SUPABASE_STATE_KEY_ADMISSION_CONFIG = "schoolsphere.admissionConfig.v1";
@@ -579,6 +581,7 @@
     SUPABASE_STATE_KEY_ATTENDANCE,
     SUPABASE_STATE_KEY_REPORT_CARDS,
     SUPABASE_STATE_KEY_REPORT_CONFIGURATION,
+    SUPABASE_STATE_KEY_GRADEBOOK,
     SUPABASE_STATE_KEY_FEE_ITEMS,
     SUPABASE_STATE_KEY_ACADEMIC_CYCLES,
     SUPABASE_STATE_KEY_ADMISSION_CONFIG,
@@ -3361,6 +3364,7 @@
       stateKey === SUPABASE_STATE_KEY_COURSES ||
       stateKey === SUPABASE_STATE_KEY_STUDENTS ||
       stateKey === SUPABASE_STATE_KEY_REPORT_CARDS ||
+      stateKey === SUPABASE_STATE_KEY_GRADEBOOK ||
       stateKey === SUPABASE_STATE_KEY_FEE_ITEMS ||
       stateKey === SUPABASE_STATE_KEY_ACADEMIC_CYCLES ||
       stateKey === SUPABASE_STATE_KEY_ADMISSION_CONFIG ||
@@ -3554,6 +3558,7 @@
       [SUPABASE_STATE_KEY_COURSES]: "courses",
       [SUPABASE_STATE_KEY_STUDENTS]: "students",
       [SUPABASE_STATE_KEY_REPORT_CARDS]: "report_cards",
+      [SUPABASE_STATE_KEY_GRADEBOOK]: "gradebook_records",
       [SUPABASE_STATE_KEY_FEE_ITEMS]: "fee_items",
       [SUPABASE_STATE_KEY_ACADEMIC_CYCLES]: "academic_cycles_state",
       [SUPABASE_STATE_KEY_ADMISSION_CONFIG]: "admission_config_state",
@@ -3816,6 +3821,31 @@
                 ? "released"
                 : "draft",
             released_at: normalized.releasedAt ? String(normalized.releasedAt) : null,
+            payload: normalized,
+            created_by: context.userId,
+            created_at: String(normalized.createdAt || nowIso()),
+            updated_at: String(normalized.updatedAt || nowIso()),
+          };
+        },
+      },
+      [SUPABASE_STATE_KEY_GRADEBOOK]: {
+        table: "gradebook_records",
+        map: (record) => {
+          const normalized = asObject(record, {});
+          const recordId = String(normalized.id || "").trim();
+          const classRecordId = String(normalized.classId || "").trim();
+          const subjectName = String(normalized.subject || "").trim();
+          const sessionRecordId = String(normalized.sessionId || "").trim();
+          const termRecordId = String(normalized.termId || "").trim();
+          if (!recordId || !classRecordId || !subjectName || !sessionRecordId || !termRecordId) return null;
+          return {
+            institution_id: context.institutionId,
+            record_id: recordId,
+            class_record_id: classRecordId,
+            subject_name: subjectName,
+            session_record_id: sessionRecordId,
+            term_record_id: termRecordId,
+            teacher_id: String(normalized.teacherId || "").trim() || null,
             payload: normalized,
             created_by: context.userId,
             created_at: String(normalized.createdAt || nowIso()),
@@ -4269,6 +4299,7 @@
       [SUPABASE_STATE_KEY_ATTENDANCE, getAttendanceManager()?.eventName],
       [SUPABASE_STATE_KEY_REPORT_CARDS, getReportCardManager()?.eventName],
       [SUPABASE_STATE_KEY_REPORT_CONFIGURATION, getReportConfigurationManager()?.eventName],
+      [SUPABASE_STATE_KEY_GRADEBOOK, getGradebookManager()?.eventName],
       [SUPABASE_STATE_KEY_FEE_ITEMS, getFeeItemManager()?.eventName],
       [SUPABASE_STATE_KEY_ACADEMIC_CYCLES, getAcademicCycleManager()?.eventName],
       [SUPABASE_STATE_KEY_ADMISSION_CONFIG, getAdmissionConfigManager()?.eventName],
@@ -4432,6 +4463,11 @@
         getPayload: (manager) => manager.getConfiguration(),
       },
       {
+        manager: getGradebookManager(),
+        stateKey: SUPABASE_STATE_KEY_GRADEBOOK,
+        getPayload: (manager) => manager.getRecords(),
+      },
+      {
         manager: getFeeItemManager(),
         stateKey: SUPABASE_STATE_KEY_FEE_ITEMS,
         getPayload: (manager) => manager.getItems(),
@@ -4485,7 +4521,9 @@
 
     const activeManagerBindings = isAdmin
       ? managerBindings
-      : managerBindings.filter((binding) => binding.stateKey === SUPABASE_STATE_KEY_REPORT_CARDS);
+      : managerBindings.filter((binding) =>
+          [SUPABASE_STATE_KEY_REPORT_CARDS, SUPABASE_STATE_KEY_GRADEBOOK].includes(binding.stateKey),
+        );
 
     activeManagerBindings.forEach((binding) => {
       if (!binding.manager || !binding.manager.eventName || typeof binding.getPayload !== "function") {
@@ -6538,6 +6576,10 @@
 
   function getReportConfigurationManager() {
     return window.SchoolSphereReportConfiguration || null;
+  }
+
+  function getGradebookManager() {
+    return window.SchoolSphereGradebook || null;
   }
 
   function getDefaultAdminSchoolSettings() {
@@ -25318,6 +25360,7 @@
     const positionIndex = comparableRecords.findIndex((entry) => entry.id === record.id);
     const reportConfiguration =
       getReportConfigurationManager()?.getConfiguration?.() || {
+        scoreStructure: { caMaximum: 40, examMaximum: 60 },
         template: {
           title: "Term Report Card",
           showAttendance: true,
@@ -25349,6 +25392,7 @@
       termName: String(record.termName || getTermLabelFromCycle(cycleState, record.termId) || "Term").trim(),
       position: positionIndex >= 0 ? `${positionIndex + 1} of ${comparableRecords.length}` : "Not ranked",
       reportTemplate: reportConfiguration.template || {},
+      scoreStructure: reportConfiguration.scoreStructure || { caMaximum: 40, examMaximum: 60 },
       attendanceLabel: attendanceEntries.length ? `${presentCount} of ${attendanceEntries.length} present` : "No attendance recorded",
     };
   }
@@ -25420,7 +25464,11 @@
         <div class="portal-report-card-table-wrap">
           <table class="portal-report-card-table">
             <thead>
-              <tr><th>#</th><th>Subject / Course</th><th>CA</th><th>Exam</th><th>Total</th><th>Grade</th><th>Remark</th></tr>
+              <tr><th>#</th><th>Subject / Course</th><th>CA / ${escapeHtml(
+                formatReportCardScore(card.scoreStructure?.caMaximum || 40),
+              )}</th><th>Exam / ${escapeHtml(
+                formatReportCardScore(card.scoreStructure?.examMaximum || 60),
+              )}</th><th>Total</th><th>Grade</th><th>Remark</th></tr>
             </thead>
             <tbody>
               ${
@@ -25622,7 +25670,15 @@
     const margin = 14;
     const contentWidth = pageWidth - margin * 2;
     const columns = [8, 64, 20, 20, 20, 16, 34];
-    const headers = ["#", "Subject / Course", "CA", "Exam", "Total", "Grade", "Remark"];
+    const headers = [
+      "#",
+      "Subject / Course",
+      `CA / ${formatReportCardScore(card.scoreStructure?.caMaximum || 40)}`,
+      `Exam / ${formatReportCardScore(card.scoreStructure?.examMaximum || 60)}`,
+      "Total",
+      "Grade",
+      "Remark",
+    ];
     let y = 15;
 
     const drawText = (text, x, textY, options = {}) => {
@@ -27292,43 +27348,468 @@
     `;
   }
 
-  function buildStaffGradebookSection(user) {
-    const assignments = getTeacherPortalAssignments(user);
+  function getStaffGradebookAssignments(user = {}) {
+    const assignedClasses = getTeacherAssignedClasses(user);
+    const assignments = [];
+    const seen = new Set();
 
-    return `
-      <section class="staff-portal-section admin-surface-card">
+    assignedClasses.forEach((classRecord) => {
+      const isClassTeacher = staffValueMatchesUser(classRecord.classTeacher, user);
+      const assignedSubjects = new Set(
+        (classRecord.teacherAssignments || [])
+          .filter((assignment) => staffValueMatchesUser(assignment.teacher, user))
+          .map((assignment) => String(assignment.subject || "").trim().toLowerCase())
+          .filter(Boolean),
+      );
+      const options = getReportCardSubjectOptionsForClass(classRecord);
+      options.forEach((subject) => {
+        if (!isClassTeacher && !assignedSubjects.has(subject.name.toLowerCase())) {
+          const courseManager = getCourseManager();
+          const matchingCourse = courseManager
+            ?.getCourses?.()
+            .find(
+              (course) =>
+                normalizeLevelToken(course.level) === normalizeLevelToken(classRecord.level) &&
+                String(course.name || course.code || "").trim().toLowerCase() === subject.name.toLowerCase() &&
+                (course.teacherAssignments || []).some((teacher) => staffValueMatchesUser(teacher, user)),
+            );
+          if (!matchingCourse) return;
+        }
+        const key = `${classRecord.id}:${subject.name}`.toLowerCase();
+        if (seen.has(key)) return;
+        seen.add(key);
+        assignments.push({
+          classId: classRecord.id,
+          classRecord,
+          classLabel: getClassDisplayName(classRecord),
+          subject: subject.name,
+          subjectCode: subject.code || "",
+        });
+      });
+    });
+
+    return assignments.sort((left, right) =>
+      `${left.classLabel}:${left.subject}`.localeCompare(`${right.classLabel}:${right.subject}`, undefined, {
+        numeric: true,
+      }),
+    );
+  }
+
+  function buildDefaultGradebookComponents(caMaximum = 40) {
+    const names = ["CA 1", "CA 2", "Pop Test", "Assignment", "Attendance Grade", "Classwork"];
+    const ratios = [0.25, 0.25, 0.125, 0.15, 0.1, 0.125];
+    let allocated = 0;
+    return names.map((name, index) => {
+      const maximum =
+        index === names.length - 1
+          ? Math.max(0, Math.round((caMaximum - allocated) * 100) / 100)
+          : Math.max(0, Math.round(caMaximum * ratios[index] * 100) / 100);
+      allocated += maximum;
+      return { id: createId(), name, maximum };
+    });
+  }
+
+  function renderStaffGradebookWorkspace(target, user) {
+    if (!target) return;
+
+    const manager = getGradebookManager();
+    const reportConfiguration =
+      getReportConfigurationManager()?.getConfiguration?.() || {
+        scoreStructure: { caMaximum: 40, examMaximum: 60 },
+      };
+    const caMaximum = Number.parseFloat(reportConfiguration.scoreStructure?.caMaximum) || 40;
+    const examMaximum = Number.parseFloat(reportConfiguration.scoreStructure?.examMaximum) || 60;
+    const assignments = getStaffGradebookAssignments(user);
+    const { cycleState, openSession, openTerm } = getStaffActiveTermContext();
+    const sessions = Array.isArray(cycleState.sessions) ? cycleState.sessions : [];
+    const selectedClassId =
+      assignments.find((entry) => entry.classId === target.dataset.gradebookClassId)?.classId ||
+      assignments[0]?.classId ||
+      "";
+    const classAssignments = assignments.filter((entry) => entry.classId === selectedClassId);
+    const selectedAssignment =
+      classAssignments.find((entry) => entry.subject === target.dataset.gradebookSubject) ||
+      classAssignments[0] ||
+      null;
+    const selectedSession =
+      sessions.find((entry) => entry.id === target.dataset.gradebookSessionId) || openSession || sessions[0] || null;
+    const terms = (cycleState.terms || []).filter((entry) => entry.sessionId === selectedSession?.id);
+    const selectedTerm =
+      terms.find((entry) => entry.id === target.dataset.gradebookTermId) ||
+      (openTerm?.sessionId === selectedSession?.id ? openTerm : null) ||
+      terms[0] ||
+      null;
+    const record =
+      selectedAssignment && selectedSession && selectedTerm
+        ? manager?.getForContext?.(
+            selectedAssignment.classId,
+            selectedAssignment.subject,
+            selectedSession.id,
+            selectedTerm.id,
+          )
+        : null;
+    const components = record?.components?.length
+      ? record.components
+      : buildDefaultGradebookComponents(caMaximum);
+    const roster = selectedAssignment ? getActiveStudentsForClass(selectedAssignment.classRecord) : [];
+    const scoreMap = new Map((record?.scores || []).map((entry) => [entry.studentId, entry]));
+
+    target.dataset.gradebookClassId = selectedClassId;
+    target.dataset.gradebookSubject = selectedAssignment?.subject || "";
+    target.dataset.gradebookSessionId = selectedSession?.id || "";
+    target.dataset.gradebookTermId = selectedTerm?.id || "";
+    target.hidden = false;
+    target.innerHTML = `
+      <section class="staff-portal-section admin-surface-card staff-gradebook-command">
         <div class="admin-surface-head">
           <div>
-            <h2>Gradebook</h2>
-            <span>${assignments.length} teaching assignment${assignments.length === 1 ? "" : "s"}</span>
+            <h2>Continuous Assessment Gradebook</h2>
+            <span>Configure assessment components and record CA scores only.</span>
+          </div>
+          <div class="staff-gradebook-policy">
+            <span>School format</span>
+            <strong>${escapeHtml(formatReportCardScore(caMaximum))} CA / ${escapeHtml(formatReportCardScore(examMaximum))} Exam</strong>
           </div>
         </div>
-        <div class="staff-portal-list">
-          ${
-            assignments.length
-              ? assignments
+
+        <div id="staff-gradebook-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+        <div class="portal-settings-grid staff-gradebook-context">
+          <label class="portal-field">
+            <span>Class</span>
+            <select data-gradebook-class ${assignments.length ? "" : "disabled"}>
+              ${
+                Array.from(new Map(assignments.map((entry) => [entry.classId, entry])).values())
                   .map(
-                    (assignment) => `
-                      <article class="staff-portal-row staff-portal-row-wide">
-                        <div>
-                          <strong>${escapeHtml(assignment.subject)}</strong>
-                          <span>${escapeHtml(assignment.classLabel)}</span>
-                        </div>
-                        <small>${escapeHtml(assignment.role)}</small>
-                      </article>
-                    `,
+                    (entry) =>
+                      `<option value="${escapeHtml(entry.classId)}" ${
+                        entry.classId === selectedClassId ? "selected" : ""
+                      }>${escapeHtml(entry.classLabel)}</option>`,
                   )
-                  .join("")
-              : `
-                <article class="portal-class-empty">
-                  <strong>No gradebook assignments yet</strong>
-                  <p>Assigned subjects and courses will appear here.</p>
-                </article>
-              `
-          }
+                  .join("") || `<option value="">No assigned class</option>`
+              }
+            </select>
+          </label>
+          <label class="portal-field">
+            <span>Subject or course</span>
+            <select data-gradebook-subject ${classAssignments.length ? "" : "disabled"}>
+              ${
+                classAssignments
+                  .map(
+                    (entry) =>
+                      `<option value="${escapeHtml(entry.subject)}" ${
+                        entry.subject === selectedAssignment?.subject ? "selected" : ""
+                      }>${escapeHtml(entry.subject)}${entry.subjectCode ? ` (${escapeHtml(entry.subjectCode)})` : ""}</option>`,
+                  )
+                  .join("") || `<option value="">No assigned subject</option>`
+              }
+            </select>
+          </label>
+          <label class="portal-field">
+            <span>Session</span>
+            <select data-gradebook-session ${sessions.length ? "" : "disabled"}>
+              ${
+                sessions
+                  .map(
+                    (entry) =>
+                      `<option value="${escapeHtml(entry.id)}" ${
+                        entry.id === selectedSession?.id ? "selected" : ""
+                      }>${escapeHtml(entry.name)}</option>`,
+                  )
+                  .join("") || `<option value="">No session configured</option>`
+              }
+            </select>
+          </label>
+          <label class="portal-field">
+            <span>Term or semester</span>
+            <select data-gradebook-term ${terms.length ? "" : "disabled"}>
+              ${
+                terms
+                  .map(
+                    (entry) =>
+                      `<option value="${escapeHtml(entry.id)}" ${
+                        entry.id === selectedTerm?.id ? "selected" : ""
+                      }>${escapeHtml(entry.name)}</option>`,
+                  )
+                  .join("") || `<option value="">No term configured</option>`
+              }
+            </select>
+          </label>
         </div>
       </section>
+
+      ${
+        selectedAssignment && selectedSession && selectedTerm
+          ? `
+            <section class="staff-portal-section admin-surface-card">
+              <div class="admin-surface-head">
+                <div>
+                  <h2>Assessment Setup</h2>
+                  <span>Component marks must add up to ${escapeHtml(formatReportCardScore(caMaximum))}.</span>
+                </div>
+                <button class="button button-outline button-compact" type="button" data-gradebook-add-component>Add assessment</button>
+              </div>
+              <div class="staff-gradebook-components" data-gradebook-components>
+                ${components
+                  .map(
+                    (component) => `
+                      <div class="staff-gradebook-component" data-gradebook-component data-component-id="${escapeHtml(component.id)}">
+                        <label class="portal-field"><span>Assessment</span><input data-component-name type="text" value="${escapeHtml(component.name)}" placeholder="Assessment name" /></label>
+                        <label class="portal-field"><span>Maximum mark</span><input data-component-maximum type="number" min="0.01" max="${escapeHtml(
+                          formatReportCardScore(caMaximum),
+                        )}" step="0.01" value="${escapeHtml(formatReportCardScore(component.maximum))}" /></label>
+                        <button class="portal-grading-scale-remove" type="button" data-gradebook-remove-component aria-label="Remove assessment">&times;</button>
+                      </div>
+                    `,
+                  )
+                  .join("")}
+              </div>
+              <div class="staff-gradebook-component-summary">
+                <span>Configured CA marks</span>
+                <strong data-gradebook-component-total>0 / ${escapeHtml(formatReportCardScore(caMaximum))}</strong>
+              </div>
+            </section>
+
+            <section class="staff-portal-section admin-surface-card">
+              <div class="admin-surface-head">
+                <div>
+                  <h2>${escapeHtml(selectedAssignment.subject)} Scores</h2>
+                  <span>${escapeHtml(selectedAssignment.classLabel)} · ${roster.length} student${roster.length === 1 ? "" : "s"}</span>
+                </div>
+                <button class="button button-primary button-compact" type="button" data-gradebook-save>Save gradebook</button>
+              </div>
+              <div class="staff-gradebook-table-wrap">
+                <table class="staff-gradebook-table">
+                  <thead>
+                    <tr>
+                      <th>Student</th>
+                      ${components
+                        .map(
+                          (component) =>
+                            `<th data-gradebook-heading="${escapeHtml(component.id)}">${escapeHtml(component.name)}<small>/${escapeHtml(
+                              formatReportCardScore(component.maximum),
+                            )}</small></th>`,
+                        )
+                        .join("")}
+                      <th>CA Total<small>/${escapeHtml(formatReportCardScore(caMaximum))}</small></th>
+                    </tr>
+                  </thead>
+                  <tbody data-gradebook-score-rows>
+                    ${
+                      roster.length
+                        ? roster
+                            .map((student) => {
+                              const saved = scoreMap.get(student.id);
+                              return `
+                                <tr data-gradebook-student="${escapeHtml(student.id)}">
+                                  <td><strong>${escapeHtml(student.fullName)}</strong><small>${escapeHtml(
+                                    student.admissionNo || "No admission number",
+                                  )}</small></td>
+                                  ${components
+                                    .map(
+                                      (component) => `
+                                        <td><input data-gradebook-score="${escapeHtml(component.id)}" type="number" min="0" max="${escapeHtml(
+                                          formatReportCardScore(component.maximum),
+                                        )}" step="0.01" value="${escapeHtml(
+                                          formatReportCardScore(saved?.componentScores?.[component.id] || 0),
+                                        )}" aria-label="${escapeHtml(`${component.name} score for ${student.fullName}`)}" /></td>
+                                      `,
+                                    )
+                                    .join("")}
+                                  <td><strong data-gradebook-student-total>0</strong></td>
+                                </tr>
+                              `;
+                            })
+                            .join("")
+                        : `<tr><td colspan="${components.length + 2}">No active students are enrolled in this class.</td></tr>`
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          `
+          : `
+            <section class="staff-portal-section admin-surface-card">
+              <article class="portal-class-empty">
+                <strong>Gradebook setup is not ready</strong>
+                <p>Assign a subject, create an academic session, and open a term or semester to begin.</p>
+              </article>
+            </section>
+          `
+      }
     `;
+
+    if (target.dataset.gradebookFlash) {
+      setStatus(
+        target.querySelector("#staff-gradebook-status"),
+        "success",
+        target.dataset.gradebookFlash,
+      );
+      delete target.dataset.gradebookFlash;
+    }
+
+    const rerender = () => renderStaffGradebookWorkspace(target, user);
+    target.querySelector("[data-gradebook-class]")?.addEventListener("change", (event) => {
+      target.dataset.gradebookClassId = event.target.value;
+      target.dataset.gradebookSubject = "";
+      rerender();
+    });
+    target.querySelector("[data-gradebook-subject]")?.addEventListener("change", (event) => {
+      target.dataset.gradebookSubject = event.target.value;
+      rerender();
+    });
+    target.querySelector("[data-gradebook-session]")?.addEventListener("change", (event) => {
+      target.dataset.gradebookSessionId = event.target.value;
+      target.dataset.gradebookTermId = "";
+      rerender();
+    });
+    target.querySelector("[data-gradebook-term]")?.addEventListener("change", (event) => {
+      target.dataset.gradebookTermId = event.target.value;
+      rerender();
+    });
+
+    if (!selectedAssignment || !selectedSession || !selectedTerm || !manager) return;
+
+    const status = target.querySelector("#staff-gradebook-status");
+    const componentsTarget = target.querySelector("[data-gradebook-components]");
+    const refreshTotals = () => {
+      const componentRows = Array.from(target.querySelectorAll("[data-gradebook-component]"));
+      const currentComponents = componentRows.map((row) => ({
+        id: row.dataset.componentId,
+        name: String(row.querySelector("[data-component-name]")?.value || "").trim(),
+        maximum: Number.parseFloat(row.querySelector("[data-component-maximum]")?.value || "0") || 0,
+      }));
+      const componentTotal = currentComponents.reduce((sum, component) => sum + component.maximum, 0);
+      currentComponents.forEach((component) => {
+        const heading = target.querySelector(`[data-gradebook-heading="${CSS.escape(component.id)}"]`);
+        if (heading) {
+          heading.replaceChildren(document.createTextNode(component.name || "Assessment"));
+          const maximum = document.createElement("small");
+          maximum.textContent = `/${formatReportCardScore(component.maximum)}`;
+          heading.appendChild(maximum);
+        }
+      });
+      const totalTarget = target.querySelector("[data-gradebook-component-total]");
+      if (totalTarget) {
+        totalTarget.textContent = `${formatReportCardScore(componentTotal)} / ${formatReportCardScore(caMaximum)}`;
+        totalTarget.classList.toggle("is-invalid", componentTotal !== caMaximum);
+      }
+      target.querySelectorAll("[data-gradebook-student]").forEach((row) => {
+        let total = 0;
+        currentComponents.forEach((component) => {
+          const input = row.querySelector(`[data-gradebook-score="${CSS.escape(component.id)}"]`);
+          if (!input) return;
+          input.max = String(component.maximum);
+          total += Math.min(component.maximum, Math.max(0, Number.parseFloat(input.value) || 0));
+        });
+        const studentTotal = row.querySelector("[data-gradebook-student-total]");
+        if (studentTotal) studentTotal.textContent = formatReportCardScore(total);
+      });
+      return { currentComponents, componentTotal };
+    };
+
+    target.addEventListener("input", (event) => {
+      if (event.target.closest("[data-gradebook-component]") || event.target.matches("[data-gradebook-score]")) {
+        refreshTotals();
+      }
+    });
+    target.querySelector("[data-gradebook-add-component]")?.addEventListener("click", () => {
+      const componentId = createId();
+      componentsTarget.insertAdjacentHTML(
+        "beforeend",
+        `
+          <div class="staff-gradebook-component" data-gradebook-component data-component-id="${escapeHtml(componentId)}">
+            <label class="portal-field"><span>Assessment</span><input data-component-name type="text" placeholder="Assessment name" /></label>
+            <label class="portal-field"><span>Maximum mark</span><input data-component-maximum type="number" min="0.01" max="${escapeHtml(
+              formatReportCardScore(caMaximum),
+            )}" step="0.01" value="5" /></label>
+            <button class="portal-grading-scale-remove" type="button" data-gradebook-remove-component aria-label="Remove assessment">&times;</button>
+          </div>
+        `,
+      );
+      componentsTarget.lastElementChild?.querySelector("[data-component-name]")?.focus();
+      const totalHeading = target.querySelector(".staff-gradebook-table thead th:last-child");
+      totalHeading?.insertAdjacentHTML(
+        "beforebegin",
+        `<th data-gradebook-heading="${escapeHtml(componentId)}">Assessment<small>/5</small></th>`,
+      );
+      target.querySelectorAll("[data-gradebook-student]").forEach((row) => {
+        row.lastElementChild?.insertAdjacentHTML(
+          "beforebegin",
+          `<td><input data-gradebook-score="${escapeHtml(
+            componentId,
+          )}" type="number" min="0" max="5" step="0.01" value="0" aria-label="Assessment score" /></td>`,
+        );
+      });
+      refreshTotals();
+    });
+    target.addEventListener("click", (event) => {
+      const removeButton = event.target.closest("[data-gradebook-remove-component]");
+      if (!removeButton) return;
+      if (target.querySelectorAll("[data-gradebook-component]").length <= 1) {
+        setStatus(status, "error", "Keep at least one continuous-assessment component.");
+        return;
+      }
+      const componentRow = removeButton.closest("[data-gradebook-component]");
+      const componentId = componentRow?.dataset.componentId || "";
+      componentRow?.remove();
+      target.querySelector(`[data-gradebook-heading="${CSS.escape(componentId)}"]`)?.remove();
+      target.querySelectorAll(`[data-gradebook-score="${CSS.escape(componentId)}"]`).forEach((input) => {
+        input.closest("td")?.remove();
+      });
+      refreshTotals();
+    });
+    target.querySelector("[data-gradebook-save]")?.addEventListener("click", () => {
+      const { currentComponents, componentTotal } = refreshTotals();
+      if (currentComponents.some((component) => !component.name || component.maximum <= 0)) {
+        setStatus(status, "error", "Every assessment needs a name and a maximum mark.");
+        return;
+      }
+      if (new Set(currentComponents.map((component) => component.name.toLowerCase())).size !== currentComponents.length) {
+        setStatus(status, "error", "Assessment names must be unique.");
+        return;
+      }
+      if (componentTotal !== caMaximum) {
+        setStatus(
+          status,
+          "error",
+          `Assessment marks must add up to the school CA total of ${formatReportCardScore(caMaximum)}.`,
+        );
+        return;
+      }
+      const scores = roster.map((student) => {
+        const row = target.querySelector(`[data-gradebook-student="${CSS.escape(student.id)}"]`);
+        const componentScores = {};
+        currentComponents.forEach((component) => {
+          const input = row?.querySelector(`[data-gradebook-score="${CSS.escape(component.id)}"]`);
+          const value = Number.parseFloat(input?.value || "0") || 0;
+          componentScores[component.id] = Math.min(component.maximum, Math.max(0, value));
+        });
+        return {
+          studentId: student.id,
+          studentName: student.fullName,
+          admissionNo: student.admissionNo || "",
+          componentScores,
+        };
+      });
+      target.dataset.gradebookFlash = "Continuous-assessment gradebook saved.";
+      manager.upsertRecord({
+        id: record?.id,
+        classId: selectedAssignment.classId,
+        classLevel: selectedAssignment.classLabel,
+        subject: selectedAssignment.subject,
+        subjectCode: selectedAssignment.subjectCode,
+        sessionId: selectedSession.id,
+        sessionName: selectedSession.name,
+        termId: selectedTerm.id,
+        termName: selectedTerm.name,
+        teacherId: user.id,
+        teacherName: user.displayName || user.email,
+        components: currentComponents,
+        scores,
+        createdAt: record?.createdAt,
+      });
+    });
+    refreshTotals();
   }
 
   function getReportCardSubjectOptionsForClass(classRecord = {}) {
@@ -27369,7 +27850,9 @@
     return options.sort((left, right) => left.name.localeCompare(right.name, undefined, { numeric: true }));
   }
 
-  function renderStaffReportSubjectRow(subject = {}, index = 0, locked = false) {
+  function renderStaffReportSubjectRow(subject = {}, index = 0, locked = false, scoreStructure = {}) {
+    const caMaximum = Number.parseFloat(scoreStructure.caMaximum) || 40;
+    const examMaximum = Number.parseFloat(scoreStructure.examMaximum) || 60;
     const caScore = normalizeReportCardScore(subject.caScore);
     const examScore = normalizeReportCardScore(subject.examScore);
     const totalScore = Math.min(100, Math.round((caScore + examScore) * 100) / 100);
@@ -27383,8 +27866,12 @@
           <input type="text" name="subjectName" value="${escapeHtml(String(subject.name || ""))}" placeholder="Subject or course name" ${disabled} />
           <input type="hidden" name="subjectCode" value="${escapeHtml(String(subject.code || ""))}" />
         </td>
-        <td><input type="number" name="caScore" min="0" max="100" step="0.01" value="${escapeHtml(formatReportCardScore(caScore))}" ${disabled} /></td>
-        <td><input type="number" name="examScore" min="0" max="100" step="0.01" value="${escapeHtml(formatReportCardScore(examScore))}" ${disabled} /></td>
+        <td><input class="staff-result-ca-score" type="number" name="caScore" min="0" max="${escapeHtml(
+          formatReportCardScore(caMaximum),
+        )}" step="0.01" value="${escapeHtml(formatReportCardScore(caScore))}" readonly /></td>
+        <td><input type="number" name="examScore" min="0" max="${escapeHtml(
+          formatReportCardScore(examMaximum),
+        )}" step="0.01" value="${escapeHtml(formatReportCardScore(examScore))}" ${disabled} /></td>
         <td><strong data-report-row-total>${escapeHtml(formatReportCardScore(totalScore))}</strong></td>
         <td><strong data-report-row-grade>${escapeHtml(grading.grade)}</strong></td>
         <td>
@@ -27398,7 +27885,9 @@
     `;
   }
 
-  function collectStaffReportCardSubjects(form) {
+  function collectStaffReportCardSubjects(form, scoreStructure = {}) {
+    const caMaximum = Number.parseFloat(scoreStructure.caMaximum) || 40;
+    const examMaximum = Number.parseFloat(scoreStructure.examMaximum) || 60;
     const rows = Array.from(form.querySelectorAll("[data-report-subject-row]"));
     const subjects = [];
 
@@ -27411,11 +27900,14 @@
       if (!name) {
         return { error: "Enter a subject or course name for every score row.", subjects: [] };
       }
-      if (!Number.isFinite(caScore) || caScore < 0 || caScore > 100) {
-        return { error: `${name}: CA score must be between 0 and 100.`, subjects: [] };
+      if (!Number.isFinite(caScore) || caScore < 0 || caScore > caMaximum) {
+        return { error: `${name}: CA score must be between 0 and ${formatReportCardScore(caMaximum)}.`, subjects: [] };
       }
-      if (!Number.isFinite(examScore) || examScore < 0 || examScore > 100) {
-        return { error: `${name}: exam score must be between 0 and 100.`, subjects: [] };
+      if (!Number.isFinite(examScore) || examScore < 0 || examScore > examMaximum) {
+        return {
+          error: `${name}: exam score must be between 0 and ${formatReportCardScore(examMaximum)}.`,
+          subjects: [],
+        };
       }
       if (caScore + examScore > 100) {
         return { error: `${name}: CA and exam scores cannot total more than 100.`, subjects: [] };
@@ -27437,6 +27929,12 @@
     }
 
     const reportManager = getReportCardManager();
+    const gradebookManager = getGradebookManager();
+    const reportConfiguration =
+      getReportConfigurationManager()?.getConfiguration?.() || {
+        scoreStructure: { caMaximum: 40, examMaximum: 60 },
+      };
+    const scoreStructure = reportConfiguration.scoreStructure || { caMaximum: 40, examMaximum: 60 };
     const assignedClasses = getTeacherAssignedClasses(user);
     const { cycleState, openSession, openTerm } = getStaffActiveTermContext();
     const sessions = Array.isArray(cycleState.sessions) ? cycleState.sessions : [];
@@ -27473,12 +27971,25 @@
               record.termId === selectedTerm?.id,
           ) || null;
     const subjectOptions = selectedClass ? getReportCardSubjectOptionsForClass(selectedClass) : [];
-    const editableSubjects = currentCard?.subjects?.length
+    const baseSubjects = currentCard?.subjects?.length
       ? currentCard.subjects
       : subjectOptions.length
         ? subjectOptions.map((subject) => ({ ...subject, caScore: 0, examScore: 0 }))
         : [{ name: "", code: "", caScore: 0, examScore: 0 }];
     const isReleased = currentCard?.status === "released";
+    const editableSubjects = baseSubjects.map((subject) => ({
+      ...subject,
+      caScore:
+        !isReleased && selectedClass && selectedStudent && selectedSession && selectedTerm
+          ? gradebookManager?.getStudentTotal?.(
+              selectedClass.id,
+              subject.name,
+              selectedSession.id,
+              selectedTerm.id,
+              selectedStudent.id,
+            ) || 0
+          : subject.caScore || 0,
+    }));
     const assignedClassIds = new Set(assignedClasses.map((classRecord) => classRecord.id));
     const assignedLevelTokens = new Set(assignedClasses.map((classRecord) => normalizeLevelToken(classRecord.level)));
     const releasedCards = allReportCards
@@ -27628,14 +28139,26 @@
                 </div>
                 <form id="staff-result-card-form" class="portal-settings-form staff-result-card-form" novalidate>
                   <div id="staff-result-card-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+                  <div class="staff-result-score-policy">
+                    <strong>${escapeHtml(formatReportCardScore(scoreStructure.caMaximum))} CA + ${escapeHtml(
+                      formatReportCardScore(scoreStructure.examMaximum),
+                    )} Exam</strong>
+                    <span>CA scores come from the Gradebook. Enter examination scores here.</span>
+                  </div>
                   <div class="staff-result-table-wrap">
                     <table class="staff-result-score-table">
                       <thead>
-                        <tr><th>#</th><th>Subject / Course</th><th>CA</th><th>Exam</th><th>Total</th><th>Grade</th><th></th></tr>
+                        <tr><th>#</th><th>Subject / Course</th><th>CA / ${escapeHtml(
+                          formatReportCardScore(scoreStructure.caMaximum),
+                        )}</th><th>Exam / ${escapeHtml(
+                          formatReportCardScore(scoreStructure.examMaximum),
+                        )}</th><th>Total</th><th>Grade</th><th></th></tr>
                       </thead>
                       <tbody id="staff-result-subject-rows">
                         ${editableSubjects
-                          .map((subject, index) => renderStaffReportSubjectRow(subject, index, isReleased))
+                          .map((subject, index) =>
+                            renderStaffReportSubjectRow(subject, index, isReleased, scoreStructure),
+                          )
                           .join("")}
                       </tbody>
                     </table>
@@ -27788,7 +28311,7 @@
       });
     };
     const buildReportCardPayload = (status = "draft") => {
-      const result = collectStaffReportCardSubjects(cardForm);
+      const result = collectStaffReportCardSubjects(cardForm, scoreStructure);
       if (result.error) {
         setStatus(statusTarget, "error", escapeHtml(result.error));
         return null;
@@ -27827,7 +28350,10 @@
     cardForm.addEventListener("click", async (event) => {
       if (event.target.closest("[data-report-subject-add]")) {
         const rowIndex = rowsTarget.querySelectorAll("[data-report-subject-row]").length;
-        rowsTarget.insertAdjacentHTML("beforeend", renderStaffReportSubjectRow({}, rowIndex, false));
+        rowsTarget.insertAdjacentHTML(
+          "beforeend",
+          renderStaffReportSubjectRow({}, rowIndex, false, scoreStructure),
+        );
         rowsTarget.querySelectorAll("[data-report-subject-row]")[rowIndex]?.querySelector('[name="subjectName"]')?.focus();
         refreshEditorSummary();
         return;
@@ -28657,6 +29183,11 @@
       return;
     }
 
+    if (page === "staff-gradebook") {
+      renderStaffGradebookWorkspace(target, user);
+      return;
+    }
+
     if (page === "staff-messages") {
       renderStaffMessagesInbox(target, user);
       return;
@@ -28665,7 +29196,6 @@
     const contentByPage = {
       "staff-timetable": buildStaffTimetableSection(user),
       "staff-classes": buildStaffClassesSection(user),
-      "staff-gradebook": buildStaffGradebookSection(user),
       "staff-lesson-plans": buildStaffLessonPlansSection(user),
       "staff-leave": buildStaffLeaveSection(user),
     };
@@ -34405,6 +34935,24 @@
     const manager = getReportConfigurationManager();
     const addButton = form.querySelector("[data-grading-scale-add]");
     const resetButton = form.querySelector("[data-report-configuration-reset]");
+    const caMaximumInput = form.elements.caMaximum;
+    const examMaximumInput = form.elements.examMaximum;
+    const scoreTotalTarget = form.querySelector("[data-score-structure-total]");
+    const presetButtons = Array.from(form.querySelectorAll("[data-score-preset]"));
+
+    const refreshScoreStructure = () => {
+      const caMaximum = Number.parseFloat(caMaximumInput?.value || "0");
+      const examMaximum = Number.parseFloat(examMaximumInput?.value || "0");
+      const total = (Number.isFinite(caMaximum) ? caMaximum : 0) + (Number.isFinite(examMaximum) ? examMaximum : 0);
+      if (scoreTotalTarget) {
+        scoreTotalTarget.textContent = formatReportCardScore(total);
+        scoreTotalTarget.classList.toggle("is-invalid", total !== 100);
+      }
+      presetButtons.forEach((button) => {
+        const [presetCa, presetExam] = String(button.dataset.scorePreset || "").split(",").map(Number);
+        button.classList.toggle("is-active", presetCa === caMaximum && presetExam === examMaximum);
+      });
+    };
 
     const renderGradeRows = (scale = []) => {
       listTarget.innerHTML = scale
@@ -34432,9 +34980,12 @@
 
     const render = () => {
       const configuration = manager?.getConfiguration?.() || manager?.defaults || {
+        scoreStructure: { caMaximum: 40, examMaximum: 60 },
         gradingScale: [],
         template: {},
       };
+      form.elements.caMaximum.value = String(configuration.scoreStructure?.caMaximum ?? 40);
+      form.elements.examMaximum.value = String(configuration.scoreStructure?.examMaximum ?? 60);
       renderGradeRows(configuration.gradingScale || []);
       form.elements.templateTitle.value = configuration.template?.title || "Term Report Card";
       form.elements.showAttendance.checked = configuration.template?.showAttendance !== false;
@@ -34444,9 +34995,22 @@
       Array.from(form.elements).forEach((field) => {
         if (field instanceof HTMLElement) field.disabled = !isAdmin;
       });
+      refreshScoreStructure();
     };
 
     render();
+    [caMaximumInput, examMaximumInput].forEach((input) => {
+      input?.addEventListener("input", refreshScoreStructure);
+    });
+    presetButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        if (!isAdmin) return;
+        const [caMaximum, examMaximum] = String(button.dataset.scorePreset || "").split(",");
+        caMaximumInput.value = caMaximum;
+        examMaximumInput.value = examMaximum;
+        refreshScoreStructure();
+      });
+    });
     addButton?.addEventListener("click", () => {
       const row = document.createElement("div");
       row.className = "portal-grading-scale-row";
@@ -34474,6 +35038,20 @@
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       if (!isAdmin || !manager) return;
+      const caMaximum = Number.parseFloat(form.elements.caMaximum.value || "");
+      const examMaximum = Number.parseFloat(form.elements.examMaximum.value || "");
+      if (
+        !Number.isFinite(caMaximum) ||
+        !Number.isFinite(examMaximum) ||
+        caMaximum < 0 ||
+        examMaximum < 0 ||
+        caMaximum > 100 ||
+        examMaximum > 100 ||
+        caMaximum + examMaximum !== 100
+      ) {
+        setStatus(status, "error", "Continuous assessment and examination marks must add up to 100.");
+        return;
+      }
       const gradingScale = Array.from(listTarget.querySelectorAll("[data-grading-scale-row]")).map((row) => ({
         minimum: Number.parseFloat(row.querySelector('[name="minimum"]')?.value || ""),
         grade: String(row.querySelector('[name="grade"]')?.value || "").trim().toUpperCase(),
@@ -34502,6 +35080,10 @@
       }
 
       manager.saveConfiguration({
+        scoreStructure: {
+          caMaximum,
+          examMaximum,
+        },
         gradingScale,
         template: {
           title: String(form.elements.templateTitle.value || "").trim() || "Term Report Card",
@@ -34514,11 +35096,11 @@
       recordAuditEvent({
         action: "updated",
         entityType: "report-configuration",
-        summary: "Updated grading scale and report-card template",
-        details: `${gradingScale.length} grade bands configured`,
+        summary: "Updated grading structure and report-card template",
+        details: `${formatReportCardScore(caMaximum)} CA / ${formatReportCardScore(examMaximum)} exam`,
       });
       render();
-      setStatus(status, "success", "Grading scale and report template saved.");
+      setStatus(status, "success", "Grading structure and report template saved.");
     });
 
     resetButton?.addEventListener("click", async () => {
@@ -35174,6 +35756,8 @@
       getTimetableManager()?.eventName,
       getAttendanceManager()?.eventName,
       getReportCardManager()?.eventName,
+      getGradebookManager()?.eventName,
+      getReportConfigurationManager()?.eventName,
       page === "staff-messages" ? null : NOTIFICATION_EVENT_NAME,
     ]
       .filter(Boolean)

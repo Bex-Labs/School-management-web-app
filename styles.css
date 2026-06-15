@@ -6359,6 +6359,95 @@ body.admin-dashboard-page .portal-grading-scale-list {
   gap: 10px;
 }
 
+body.admin-dashboard-page .portal-score-structure-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+body.admin-dashboard-page .portal-score-preset {
+  min-height: 38px;
+  padding: 0 13px;
+  border: 1px solid #d7e1ef;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #40516b;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+body.admin-dashboard-page .portal-score-preset.is-active {
+  border-color: #2f6fed;
+  background: #edf4ff;
+  color: #1f59c7;
+}
+
+body.admin-dashboard-page .portal-score-structure-grid {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 36px minmax(180px, 1fr) minmax(110px, 0.6fr);
+  gap: 12px;
+  align-items: end;
+}
+
+body.admin-dashboard-page .portal-score-input {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid #d8e1ee;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+body.admin-dashboard-page .portal-score-input input {
+  border: 0;
+  border-radius: 0;
+}
+
+body.admin-dashboard-page .portal-score-input strong {
+  padding: 0 12px;
+  color: #738097;
+  font-size: 0.74rem;
+}
+
+body.admin-dashboard-page .portal-score-structure-total {
+  display: grid;
+  place-items: center;
+  min-height: 44px;
+  color: #738097;
+}
+
+body.admin-dashboard-page .portal-score-structure-total:last-child {
+  justify-items: start;
+  padding: 8px 12px;
+  border: 1px solid #dfe7f2;
+  border-radius: 8px;
+  background: #f7faff;
+}
+
+body.admin-dashboard-page .portal-score-structure-total:last-child span {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+body.admin-dashboard-page .portal-score-structure-total strong {
+  color: #17233a;
+  font-size: 1.05rem;
+}
+
+body.admin-dashboard-page .portal-score-structure-total strong.is-invalid,
+body.admin-dashboard-page .staff-gradebook-component-summary strong.is-invalid {
+  color: #c43d2b;
+}
+
+body.admin-dashboard-page .portal-settings-note {
+  margin: 0;
+  color: #6d798d;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
 body.admin-dashboard-page .portal-grading-scale-row {
   display: grid;
   grid-template-columns: 150px 130px minmax(180px, 1fr) 36px;
@@ -6401,6 +6490,138 @@ body.admin-dashboard-page .portal-settings-toggle input {
   width: 17px;
   height: 17px;
   accent-color: #2f6fed;
+}
+
+body.admin-dashboard-page .staff-gradebook-command,
+body.admin-dashboard-page .staff-gradebook-context {
+  width: 100%;
+}
+
+body.admin-dashboard-page .staff-gradebook-policy {
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+}
+
+body.admin-dashboard-page .staff-gradebook-policy span {
+  color: #748096;
+  font-size: 0.69rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+body.admin-dashboard-page .staff-gradebook-policy strong {
+  color: #1f5f45;
+  font-size: 0.88rem;
+}
+
+body.admin-dashboard-page .staff-gradebook-components {
+  display: grid;
+  gap: 10px;
+}
+
+body.admin-dashboard-page .staff-gradebook-component {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 150px 36px;
+  gap: 10px;
+  align-items: end;
+  padding: 12px;
+  border: 1px solid #dfe7f2;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+body.admin-dashboard-page .staff-gradebook-component-summary {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  color: #6d798d;
+  font-size: 0.8rem;
+}
+
+body.admin-dashboard-page .staff-gradebook-component-summary strong {
+  color: #1f5f45;
+}
+
+body.admin-dashboard-page .staff-gradebook-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid #dfe7f2;
+  border-radius: 8px;
+}
+
+body.admin-dashboard-page .staff-gradebook-table {
+  width: 100%;
+  min-width: 860px;
+  border-collapse: collapse;
+}
+
+body.admin-dashboard-page .staff-gradebook-table th,
+body.admin-dashboard-page .staff-gradebook-table td {
+  padding: 11px;
+  border-bottom: 1px solid #e5ebf3;
+  text-align: left;
+  vertical-align: middle;
+}
+
+body.admin-dashboard-page .staff-gradebook-table th {
+  background: #f5f8fc;
+  color: #48566c;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+body.admin-dashboard-page .staff-gradebook-table th small,
+body.admin-dashboard-page .staff-gradebook-table td small {
+  display: block;
+  margin-top: 3px;
+  color: #8490a2;
+  font-size: 0.65rem;
+}
+
+body.admin-dashboard-page .staff-gradebook-table td:first-child {
+  min-width: 200px;
+}
+
+body.admin-dashboard-page .staff-gradebook-table input {
+  width: 78px;
+  min-height: 36px;
+  padding: 7px 8px;
+  border: 1px solid #d8e1ee;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #17233a;
+}
+
+body.admin-dashboard-page .staff-gradebook-table tr:last-child td {
+  border-bottom: 0;
+}
+
+body.admin-dashboard-page .staff-result-score-policy {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 13px;
+  border: 1px solid #dce8f7;
+  border-radius: 8px;
+  background: #f5f9ff;
+}
+
+body.admin-dashboard-page .staff-result-score-policy strong {
+  color: #245da8;
+  font-size: 0.84rem;
+  white-space: nowrap;
+}
+
+body.admin-dashboard-page .staff-result-score-policy span {
+  color: #66758b;
+  font-size: 0.78rem;
+}
+
+body.admin-dashboard-page .staff-result-ca-score {
+  background: #f1f4f8;
+  color: #536076;
 }
 
 body.admin-dashboard-page .admin-report-insights,
@@ -13143,9 +13364,15 @@ body.admin-dashboard-page .portal-class-empty p {
   body.admin-dashboard-page .admin-report-areas,
   body.admin-dashboard-page .admin-report-export-grid,
   body.admin-dashboard-page .portal-grading-scale-row,
+  body.admin-dashboard-page .portal-score-structure-grid,
+  body.admin-dashboard-page .staff-gradebook-component,
   body.admin-dashboard-page .portal-toggle-grid,
   body.admin-dashboard-page .portal-role-permission-grid {
     grid-template-columns: 1fr;
+  }
+
+  body.admin-dashboard-page .portal-score-structure-total {
+    justify-items: start;
   }
 
   body.admin-dashboard-page .admin-report-kpis {
@@ -13235,6 +13462,17 @@ body.admin-dashboard-page .portal-class-empty p {
     left: 0;
     right: auto;
     width: min(100%, calc(100vw - 32px));
+  }
+}
+
+@media (max-width: 640px) {
+  body.admin-dashboard-page .staff-gradebook-policy {
+    justify-items: start;
+  }
+
+  body.admin-dashboard-page .staff-result-score-policy {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 
