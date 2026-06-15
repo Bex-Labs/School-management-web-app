@@ -4934,6 +4934,9 @@ body.admin-dashboard-page .admin-sidebar-brand-copy span {
 
 body.admin-dashboard-page .admin-sidebar-nav {
   display: grid;
+  flex: 1 1 auto;
+  align-content: space-between;
+  grid-auto-rows: 35px;
   gap: 3px;
   min-height: 0;
   overflow-y: auto;
@@ -4979,7 +4982,7 @@ body.admin-dashboard-page .admin-notification-button svg {
 }
 
 body.admin-dashboard-page .admin-sidebar-profile {
-  margin-top: auto;
+  margin-top: 0;
   display: grid;
   gap: 6px;
   padding: 9px;
@@ -6118,6 +6121,10 @@ body.admin-dashboard-page .admin-announcement-config-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
+}
+
+body.admin-dashboard-page [data-announcement-class-wrap][hidden] {
+  display: none;
 }
 
 body.admin-dashboard-page .admin-announcement-role-grid,

@@ -33997,60 +33997,27 @@
       .join("");
   }
 
-  function initAdminReportsPage() {
-    if (getPage() !== "admin-reports") {
-      return;
-    }
-
-    const { isAdmin, roleLabel, user } = getAdminAccessContext();
-    const canViewReports = isAdmin && canAccessPermission(roleLabel, PAGE_PERMISSION_KEYS["admin-reports"]);
-    const reportsWorkspace = document.querySelector(".admin-report-workspace");
-
-    if (!canViewReports && reportsWorkspace) {
-      reportsWorkspace.innerHTML = `
-        <article class="admin-surface-card">
-          <div class="admin-surface-head"><h2>Reports unavailable</h2><span>Permission required</span></div>
-          <p class="auth-helper-text">Your account does not currently have permission to view reports.</p>
-        </article>
-      `;
-      return;
-    }
-
-    const refresh = () => {
-      renderAdminReportsDashboard();
-      renderAdminAnnouncementSection({ isAdmin: canViewReports, user });
-    };
-    refresh();
-
-    [
-      "admin-report-enrollment-session",
-      "admin-report-enrollment-class",
-      "admin-report-enrollment-gender",
-      "admin-report-performance-session",
-      "admin-report-performance-class",
-      "admin-report-performance-subject",
-    ].forEach((id) => {
-      document.getElementById(id)?.addEventListener("change", refresh);
-    });
-
-    document.querySelectorAll("[data-admin-report-export]").forEach((button) => {
-      button.addEventListener("click", () => {
-        downloadReportDataset(String(button.dataset.adminReportExport || ""), buildAdminReportSnapshot());
-      });
-    });
-
+  function initAdminAnnouncementComposer({ isAdmin = false, user = null } = {}) {
     const announcementForm = document.getElementById("admin-announcement-form");
     const announcementStatus = document.getElementById("admin-announcement-status");
-    if (announcementForm && announcementStatus && announcementForm.dataset.bound !== "true") {
+
+    if (!announcementForm || !announcementStatus) {
+      return;
+    }
+
+    const refreshAnnouncements = () => renderAdminAnnouncementSection({ isAdmin, user });
+    refreshAnnouncements();
+
+    if (announcementForm.dataset.bound !== "true") {
       announcementForm.addEventListener("change", (event) => {
         if (event.target === announcementForm.elements.scope) {
-          renderAdminAnnouncementSection({ isAdmin: canViewReports, user });
+          refreshAnnouncements();
         }
       });
 
       announcementForm.addEventListener("reset", () => {
         window.setTimeout(() => {
-          renderAdminAnnouncementSection({ isAdmin: canViewReports, user });
+          refreshAnnouncements();
           setStatus(announcementStatus, "", "");
         }, 0);
       });
@@ -34058,7 +34025,7 @@
       announcementForm.addEventListener("submit", (event) => {
         event.preventDefault();
 
-        if (!canViewReports) {
+        if (!isAdmin) {
           setStatus(announcementStatus, "info", "Only administrators can post announcements.");
           return;
         }
@@ -34159,11 +34126,59 @@
             ? `Announcement sent to <strong>${selectedClasses.length}</strong> selected class${selectedClasses.length === 1 ? "" : "es"}.`
             : "School-wide announcement sent successfully.",
         );
-        refresh();
+        refreshAnnouncements();
       });
 
       announcementForm.dataset.bound = "true";
     }
+
+    [getClassManager()?.eventName, getStudentManager()?.eventName, NOTIFICATION_EVENT_NAME]
+      .filter(Boolean)
+      .forEach((eventName) => {
+        window.addEventListener(eventName, refreshAnnouncements);
+      });
+  }
+
+  function initAdminReportsPage() {
+    if (getPage() !== "admin-reports") {
+      return;
+    }
+
+    const { isAdmin, roleLabel, user } = getAdminAccessContext();
+    const canViewReports = isAdmin && canAccessPermission(roleLabel, PAGE_PERMISSION_KEYS["admin-reports"]);
+    const reportsWorkspace = document.querySelector(".admin-report-workspace");
+
+    if (!canViewReports && reportsWorkspace) {
+      reportsWorkspace.innerHTML = `
+        <article class="admin-surface-card">
+          <div class="admin-surface-head"><h2>Reports unavailable</h2><span>Permission required</span></div>
+          <p class="auth-helper-text">Your account does not currently have permission to view reports.</p>
+        </article>
+      `;
+      return;
+    }
+
+    const refresh = () => {
+      renderAdminReportsDashboard();
+    };
+    refresh();
+
+    [
+      "admin-report-enrollment-session",
+      "admin-report-enrollment-class",
+      "admin-report-enrollment-gender",
+      "admin-report-performance-session",
+      "admin-report-performance-class",
+      "admin-report-performance-subject",
+    ].forEach((id) => {
+      document.getElementById(id)?.addEventListener("change", refresh);
+    });
+
+    document.querySelectorAll("[data-admin-report-export]").forEach((button) => {
+      button.addEventListener("click", () => {
+        downloadReportDataset(String(button.dataset.adminReportExport || ""), buildAdminReportSnapshot());
+      });
+    });
 
     [
       getStudentManager()?.eventName,
@@ -34207,6 +34222,7 @@
     const refresh = () => renderAdminMessageInbox(messagesTarget, user);
 
     refresh();
+    initAdminAnnouncementComposer({ isAdmin: canViewReports, user });
     getStudentManager()?.eventName &&
       window.addEventListener(getStudentManager().eventName, refresh);
     window.addEventListener(ACCESS_GRANTS_EVENT_NAME, refresh);
