@@ -2983,6 +2983,142 @@ input[type="file"]:hover::-webkit-file-upload-button {
   font-size: 0.9rem;
 }
 
+.portal-announcement-toast[hidden] {
+  display: none;
+}
+
+.portal-announcement-toast {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 180;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 28px;
+  gap: 12px;
+  align-items: start;
+  width: min(390px, calc(100vw - 32px));
+  padding: 16px 16px 18px;
+  overflow: hidden;
+  border: 1px solid #d9e6f4;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #17233a;
+  box-shadow: 0 22px 58px rgba(15, 43, 74, 0.22);
+  opacity: 0;
+  transform: translateX(calc(100% + 36px));
+  transition: opacity 240ms ease, transform 240ms ease;
+}
+
+.portal-announcement-toast.is-visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.portal-announcement-toast.is-leaving {
+  opacity: 0;
+  transform: translateX(calc(100% + 36px));
+}
+
+.portal-announcement-toast-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #eaf4ff;
+  color: #1e5d92;
+}
+
+.portal-announcement-toast-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.portal-announcement-toast-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.portal-announcement-toast-copy > span {
+  color: #1e5d92;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.portal-announcement-toast-copy strong {
+  overflow-wrap: anywhere;
+  font-size: 0.95rem;
+}
+
+.portal-announcement-toast-copy p {
+  margin: 0;
+  color: #52627a;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.portal-announcement-toast-copy small {
+  color: #7b8799;
+  font-size: 0.7rem;
+}
+
+.portal-announcement-toast > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #7b8799;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.portal-announcement-toast-timer {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: #2f80c0;
+  transform-origin: left;
+  animation: portalAnnouncementTimer 6.5s linear forwards;
+}
+
+@keyframes portalAnnouncementTimer {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+@media (max-width: 640px) {
+  .portal-announcement-toast {
+    top: 14px;
+    right: 16px;
+    left: 16px;
+    width: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-announcement-toast {
+    transition: opacity 120ms ease;
+    transform: none;
+  }
+
+  .portal-announcement-toast-timer {
+    animation: none;
+  }
+}
+
 .auth-field-block {
   display: grid;
   gap: 6px;

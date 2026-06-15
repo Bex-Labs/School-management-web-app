@@ -19,6 +19,7 @@
   const NOTIFICATION_STORAGE_PREFIX = "schoolsphere.notifications.v1";
   const NOTIFICATION_EVENT_NAME = "schoolsphere:notifications:updated";
   const NOTIFICATION_PREFERENCES_STORAGE_PREFIX = "schoolsphere.notification-preferences.v1";
+  const ANNOUNCEMENT_TOAST_SESSION_PREFIX = "schoolsphere.announcement-toast.v1";
   const FORM_DRAFT_STORAGE_PREFIX = "schoolsphere.form-draft.v1";
   const NETWORK_RESILIENCE_BANNER_ID = "network-resilience-banner";
   const STUDENT_STORAGE_KEY_BASE = "schoolsphere.students.v1";
@@ -658,11 +659,6 @@
 
   function getPostLoginRoute(roleLabel, user = null) {
     const normalizedRole = normalizeRoleLabel(roleLabel || DEFAULT_AUTH_ROLE);
-
-    if (normalizedRole === "Teacher" && user?.mustChangePassword) {
-      return "./staff-settings.html";
-    }
-
     return getRoleHomeRoute(normalizedRole);
   }
 
@@ -26121,6 +26117,152 @@
     return !entityId || ["all", "everyone", "global", "school", "whole-school", "whole_school"].includes(entityId);
   }
 
+  function isPortalAnnouncementToastEntry(entry = {}) {
+    return ["announcement", "school-announcement", "class-announcement", "notice"].includes(
+      String(entry.entityType || "").trim().toLowerCase(),
+    );
+  }
+
+  function getAnnouncementToastSessionKey(session = {}, user = {}) {
+    const identity =
+      normalizeEmail(user.email || session.email || "") ||
+      String(user.id || session.userId || "user").trim().toLowerCase();
+    return `${ANNOUNCEMENT_TOAST_SESSION_PREFIX}:${identity}:${String(session.signedInAt || "current").trim()}`;
+  }
+
+  function initPortalAnnouncementToasts(session = null, user = null) {
+    const role = normalizeRoleLabel(session?.role || user?.role || DEFAULT_AUTH_ROLE);
+    if (!session || !user || !["Teacher", "Parent", "Student"].includes(role)) {
+      return;
+    }
+
+    const workspaceId = normalizeWorkspaceId(user.workspaceId || session.workspaceId || getCurrentWorkspaceId());
+    const scopedSession = {
+      ...session,
+      role,
+      userId: user.id || session.userId,
+      email: user.email || session.email,
+      workspaceId,
+    };
+    const sessionKey = getAnnouncementToastSessionKey(scopedSession, user);
+    let savedIds = [];
+    try {
+      savedIds = parseJSON(sessionStorage.getItem(sessionKey), []);
+    } catch {
+      savedIds = [];
+    }
+    const shownIds = new Set(Array.isArray(savedIds) ? savedIds : []);
+    const queue = [];
+    let isShowing = false;
+
+    const saveShownIds = () => {
+      try {
+        sessionStorage.setItem(sessionKey, JSON.stringify(Array.from(shownIds).slice(-80)));
+      } catch {
+        // The toast still works when session storage is unavailable.
+      }
+    };
+
+    const ensureToast = () => {
+      let toast = document.getElementById("portal-announcement-toast");
+      if (toast) {
+        return toast;
+      }
+
+      toast = document.createElement("aside");
+      toast.id = "portal-announcement-toast";
+      toast.className = "portal-announcement-toast";
+      toast.setAttribute("role", "status");
+      toast.setAttribute("aria-live", "polite");
+      toast.hidden = true;
+      toast.innerHTML = `
+        <div class="portal-announcement-toast-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 11v2"></path>
+            <path d="M6 9v6"></path>
+            <path d="m9 8 9-4v16l-9-4Z"></path>
+            <path d="M9 16l1.5 4H7.5L6 15"></path>
+          </svg>
+        </div>
+        <div class="portal-announcement-toast-copy">
+          <span>School announcement</span>
+          <strong data-announcement-toast-title></strong>
+          <p data-announcement-toast-message></p>
+          <small data-announcement-toast-meta></small>
+        </div>
+        <button type="button" data-announcement-toast-close aria-label="Dismiss announcement">&times;</button>
+        <i class="portal-announcement-toast-timer" aria-hidden="true"></i>
+      `;
+      document.body.appendChild(toast);
+      return toast;
+    };
+
+    const showNext = () => {
+      if (isShowing || !queue.length) {
+        return;
+      }
+
+      const entry = queue.shift();
+      const toast = ensureToast();
+      const timer = toast.querySelector(".portal-announcement-toast-timer");
+      let hideHandle = null;
+
+      shownIds.add(entry.id);
+      saveShownIds();
+      isShowing = true;
+      toast.querySelector("[data-announcement-toast-title]").textContent =
+        entry.title || "School announcement";
+      toast.querySelector("[data-announcement-toast-message]").textContent =
+        entry.message || "A new school notice has been posted.";
+      toast.querySelector("[data-announcement-toast-meta]").textContent = `${
+        isWholeSchoolAnnouncement(entry) ? "Whole school" : "Your class"
+      } • ${formatTimestamp(entry.createdAt || nowIso())}`;
+      toast.hidden = false;
+      toast.classList.remove("is-leaving");
+      toast.classList.add("is-visible");
+      if (timer) {
+        timer.style.animation = "none";
+        void timer.offsetWidth;
+        timer.style.animation = "";
+      }
+
+      const dismiss = () => {
+        window.clearTimeout(hideHandle);
+        toast.classList.remove("is-visible");
+        toast.classList.add("is-leaving");
+        window.setTimeout(() => {
+          toast.hidden = true;
+          toast.classList.remove("is-leaving");
+          isShowing = false;
+          showNext();
+        }, 260);
+      };
+
+      toast.querySelector("[data-announcement-toast-close]").onclick = dismiss;
+      hideHandle = window.setTimeout(dismiss, 6500);
+    };
+
+    const refreshQueue = () => {
+      const nextEntries = filterNotificationsForSession(getNotifications(workspaceId), scopedSession)
+        .filter((entry) => isPortalAnnouncementToastEntry(entry))
+        .filter((entry) => isNotificationUnreadForViewer(entry, user, role))
+        .filter((entry) => !shownIds.has(entry.id))
+        .filter((entry) => !queue.some((queued) => queued.id === entry.id))
+        .sort((left, right) => String(left.createdAt || "").localeCompare(String(right.createdAt || "")));
+
+      queue.push(...nextEntries);
+      showNext();
+    };
+
+    refreshQueue();
+    window.addEventListener(NOTIFICATION_EVENT_NAME, (event) => {
+      const eventWorkspaceId = normalizeWorkspaceId(event?.detail?.workspaceId || workspaceId);
+      if (eventWorkspaceId === workspaceId) {
+        refreshQueue();
+      }
+    });
+  }
+
   function renderStudentAnnouncementsPanel(user = {}) {
     const announcements = getStudentPortalAnnouncements(user);
 
@@ -27875,7 +28017,10 @@
     const role = normalizeRoleLabel(options.role || user.role || DEFAULT_AUTH_ROLE);
     const workspaceId = normalizeWorkspaceId(user.workspaceId || getCurrentWorkspaceId());
     const savedActiveKey = String(target.dataset.activeMessageThread || "").trim();
-    const activeThread = threads.find((thread) => thread.key === savedActiveKey) || null;
+    const conversationThreads = threads.filter((thread) => thread.messages.length > 0);
+    const activeThread =
+      threads.find((thread) => thread.key === savedActiveKey) ||
+      (!savedActiveKey ? conversationThreads[0] || null : null);
 
     if (activeThread) {
       target.dataset.activeMessageThread = activeThread.key;
@@ -27962,7 +28107,6 @@
             ? "Search School Admin or connected teachers"
             : "Search parents, teachers or students");
     const totalUnread = threads.reduce((count, thread) => count + thread.unreadIds.length, 0);
-    const conversationThreads = threads.filter((thread) => thread.messages.length > 0);
     const conversationRows = activeThread
       ? conversationThreads
           .map((thread) => {
@@ -31334,6 +31478,10 @@
       toolsHost.appendChild(notificationButton);
     }
     initPortalNotifications(notificationButton, session);
+    initPortalAnnouncementToasts(
+      { ...session, role: "Parent", workspaceId: user.workspaceId || session.workspaceId },
+      user,
+    );
 
     const contentHost = document.getElementById("parent-page-content");
     if (!contentHost) {
@@ -35040,6 +35188,7 @@
 
     initDashboardGlobalSearch(dashboardSearchInput, session, normalizedRole);
     initPortalNotifications(notificationButton, session);
+    initPortalAnnouncementToasts(session, user);
   }
 
   function initPortalPage() {
@@ -35486,5 +35635,8 @@
     initAdminSectionQuickNav();
     initDashboardGlobalSearch(dashboardSearchInput, session, roleLabel);
     initPortalNotifications(notificationButton, session);
+    if (isStaffPortal || isStudentPortal) {
+      initPortalAnnouncementToasts(session, user);
+    }
   }
 })();
