@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Messages | SchoolSphere Admin</title>
-    <meta name="description" content="Parent and teacher message inbox under the SchoolSphere reports area." />
+    <meta name="description" content="Parent, teacher, and student message inbox for SchoolSphere administrators." />
     <link rel="stylesheet" href="./styles.css" />
     <style>
       /* ─── Inbox shell ─────────────────────────────────────── */
@@ -375,7 +375,7 @@
       }
     </style>
   </head>
-  <body data-page="admin-report-messages" class="admin-dashboard-page">
+  <body data-page="admin-messages" class="admin-dashboard-page">
     <main class="admin-dashboard-shell">
       <aside class="admin-sidebar">
         <a class="admin-sidebar-brand" href="./index.html" aria-label="School dashboard home">
@@ -444,7 +444,7 @@
             </span>
             <span>Attendance</span>
           </a>
-          <a class="admin-sidebar-link is-active" href="./admin-reports.html">
+          <a class="admin-sidebar-link" href="./admin-reports.html">
             <span class="admin-sidebar-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M4 19V5"></path><path d="M10 19V9"></path>
@@ -488,11 +488,10 @@
         <section class="admin-report-workspace" aria-labelledby="admin-report-title">
           <div class="admin-report-heading">
             <div>
-              <span>Reports</span>
+              <span>Messages</span>
               <h2 id="admin-report-title">School Message Inbox</h2>
               <p>Search for a parent, teacher, or student to start a conversation.</p>
             </div>
-            <a class="button button-outline" href="./admin-reports.html">Back to reports</a>
           </div>
 
           <!-- auth.js renders into this div; our script then replaces its content -->
@@ -508,7 +507,7 @@
     <script src="./auth.js"></script>
     <script>
     /**
-     * WhatsApp-style inbox for admin-report-messages.html
+     * WhatsApp-style inbox for admin-messages.html
      *
      * Auth.js stores notifications under:
      *   localStorage key: "schoolsphere.notifications.v1:<workspaceId>"
@@ -994,7 +993,7 @@
        * auth.js calls renderAdminReportParentMessages(target) which writes
        * a flat bubble list. We wait until auth.js has done its work
        * (it fires schoolsphere:notifications:updated after pushNotification,
-       * and initAdminReportMessagesPage runs after DOMContentLoaded),
+       * and initAdminMessagesPage runs after DOMContentLoaded),
        * then replace the content with our inbox UI.
        *
        * We use a MutationObserver on the target so we catch BOTH the first
@@ -1028,7 +1027,7 @@
 
       // Run after auth.js page init (which fires after DOMContentLoaded)
       document.addEventListener("DOMContentLoaded", function () {
-        // auth.js initAdminReportMessagesPage runs synchronously in its
+        // auth.js initAdminMessagesPage runs synchronously in its
         // DOMContentLoaded callback. Schedule ours just after.
         setTimeout(mountInbox, 100);
       });

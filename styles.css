@@ -4841,8 +4841,8 @@ body.admin-dashboard-page .admin-sidebar {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 60px 14px 12px;
+  gap: 10px;
+  padding: 30px 12px 10px;
   background: linear-gradient(180deg, #edf3ff 0%, #eaf0ff 42%, #e4ecff 100%);
   border-right: 1px solid #e8ebf1;
   transition: opacity 220ms ease, transform 220ms ease, padding 220ms ease;
@@ -4850,7 +4850,7 @@ body.admin-dashboard-page .admin-sidebar {
 
 body.admin-dashboard-page .admin-sidebar-toggle {
   position: fixed;
-  top: 78px;
+  top: 44px;
   left: 238px;
   z-index: 60;
   display: inline-flex;
@@ -4887,8 +4887,8 @@ body.admin-dashboard-page .admin-sidebar-toggle-icon {
 body.admin-dashboard-page .admin-sidebar-brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 4px 8px;
+  gap: 9px;
+  padding: 2px 8px 5px;
   color: #17233a;
   flex: 0 0 auto;
 }
@@ -4897,8 +4897,8 @@ body.admin-dashboard-page .admin-brand-mark {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 46px;
-  height: 46px;
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
   border: 2px solid rgba(244, 213, 82, 0.72);
   background: #fffef8;
@@ -4918,23 +4918,23 @@ body.admin-dashboard-page .admin-brand-mark.is-image img {
 
 body.admin-dashboard-page .admin-sidebar-brand-copy {
   display: grid;
-  gap: 4px;
+  gap: 2px;
 }
 
 body.admin-dashboard-page .admin-sidebar-brand-copy strong {
   color: #17233a;
-  font-size: 1.08rem;
+  font-size: 1rem;
   letter-spacing: -0.04em;
 }
 
 body.admin-dashboard-page .admin-sidebar-brand-copy span {
   color: #818aa0;
-  font-size: 0.76rem;
+  font-size: 0.7rem;
 }
 
 body.admin-dashboard-page .admin-sidebar-nav {
   display: grid;
-  gap: 6px;
+  gap: 3px;
   min-height: 0;
   overflow-y: auto;
   padding-right: 4px;
@@ -4944,12 +4944,12 @@ body.admin-dashboard-page .admin-sidebar-nav {
 body.admin-dashboard-page .admin-sidebar-link {
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 42px;
-  padding: 0 12px;
-  border-radius: 14px;
+  gap: 9px;
+  min-height: 35px;
+  padding: 0 10px;
+  border-radius: 10px;
   color: #6f788c;
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   font-weight: 700;
   transition: background 180ms ease, color 180ms ease, transform 180ms ease;
 }
@@ -4965,8 +4965,8 @@ body.admin-dashboard-page .admin-sidebar-link.is-active {
 
 body.admin-dashboard-page .admin-sidebar-icon {
   display: inline-flex;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   color: currentColor;
 }
 
@@ -4981,9 +4981,9 @@ body.admin-dashboard-page .admin-notification-button svg {
 body.admin-dashboard-page .admin-sidebar-profile {
   margin-top: auto;
   display: grid;
-  gap: 8px;
-  padding: 12px;
-  border-radius: 16px;
+  gap: 6px;
+  padding: 9px;
+  border-radius: 12px;
   background: #f1f2f7;
   flex: 0 0 auto;
 }

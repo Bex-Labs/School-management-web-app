@@ -208,6 +208,12 @@
       copy: "Review printable summaries, exports, and school-wide reporting outputs.",
     },
     {
+      label: "Messages",
+      href: "./admin-messages.html",
+      permissionKey: "reports_view",
+      copy: "Manage conversations with parents, teachers, and students.",
+    },
+    {
       label: "Settings",
       href: "./admin-settings-school.html",
       permissionKey: "settings_manage",
@@ -226,7 +232,7 @@
     "admin-fees": "fees_manage",
     "admin-attendance": "attendance_manage",
     "admin-reports": "reports_view",
-    "admin-report-messages": "reports_view",
+    "admin-messages": "reports_view",
     "admin-feature-modules": "settings_manage",
     "admin-settings": "settings_manage",
     "admin-settings-school": "settings_manage",
@@ -621,7 +627,7 @@
     initAdminFeesPage();
     initAdminAttendancePage();
     initAdminReportsPage();
-    initAdminReportMessagesPage();
+    initAdminMessagesPage();
     initAdminFeatureModulesPage();
     initAdminSettingsPage();
     initUserSettingsPage();
@@ -6025,6 +6031,47 @@
       nav.querySelectorAll(".admin-sidebar-link").forEach((link) => {
         const isActive = link.getAttribute("href") === "./admin-fees.html";
         link.classList.toggle("is-active", isActive);
+      });
+    }
+
+    const shouldInjectMessagesLink =
+      !isStaffSidebar &&
+      !isStudentSidebar &&
+      !isAccountSettingsPage &&
+      !isParentPage() &&
+      !nav?.querySelector('a[href="./admin-messages.html"]');
+
+    if (nav && shouldInjectMessagesLink) {
+      const reportsLink = nav.querySelector('a[href="./admin-reports.html"]');
+      const messagesLink = document.createElement("a");
+      const isMessagesPage = getPage() === "admin-messages";
+      messagesLink.className = `admin-sidebar-link${isMessagesPage ? " is-active" : ""}`;
+      messagesLink.href = "./admin-messages.html";
+      messagesLink.innerHTML = `
+        <span class="admin-sidebar-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v8Z"></path>
+            <path d="M8 9h8"></path>
+            <path d="M8 13h5"></path>
+          </svg>
+        </span>
+        <span>Messages</span>
+      `;
+
+      if (reportsLink?.nextSibling) {
+        nav.insertBefore(messagesLink, reportsLink.nextSibling);
+      } else {
+        nav.append(messagesLink);
+      }
+
+      if (isMessagesPage) {
+        nav.querySelectorAll(".admin-sidebar-link").forEach((link) => {
+          link.classList.toggle("is-active", link === messagesLink);
+        });
+      }
+    } else if (nav && getPage() === "admin-messages") {
+      nav.querySelectorAll(".admin-sidebar-link").forEach((link) => {
+        link.classList.toggle("is-active", link.getAttribute("href") === "./admin-messages.html");
       });
     }
 
@@ -34137,13 +34184,13 @@
       });
   }
 
-  function initAdminReportMessagesPage() {
-    if (getPage() !== "admin-report-messages") {
+  function initAdminMessagesPage() {
+    if (getPage() !== "admin-messages") {
       return;
     }
 
     const { isAdmin, roleLabel, user } = getAdminAccessContext();
-    const canViewReports = isAdmin && canAccessPermission(roleLabel, PAGE_PERMISSION_KEYS["admin-report-messages"]);
+    const canViewReports = isAdmin && canAccessPermission(roleLabel, PAGE_PERMISSION_KEYS["admin-messages"]);
     const messagesTarget = document.getElementById("admin-report-parent-messages");
     const workspace = document.querySelector(".admin-report-workspace");
 
@@ -34151,7 +34198,7 @@
       workspace.innerHTML = `
         <article class="admin-surface-card">
           <div class="admin-surface-head"><h2>Messages unavailable</h2><span>Permission required</span></div>
-          <p class="auth-helper-text">Your account does not currently have permission to view report messages.</p>
+          <p class="auth-helper-text">Your account does not currently have permission to view messages.</p>
         </article>
       `;
       return;
