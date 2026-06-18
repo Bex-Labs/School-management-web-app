@@ -6996,6 +6996,165 @@
     return levels;
   }
 
+  function getActiveClassRecordsForLevel(levelValue = "") {
+    const classManager = getClassManager();
+    if (!classManager || typeof classManager.getClasses !== "function") {
+      return [];
+    }
+
+    const levelToken = normalizeLevelToken(levelValue);
+    if (!levelToken) {
+      return [];
+    }
+
+    return classManager
+      .getClasses()
+      .filter((record) => record.status !== "archived")
+      .filter((record) => {
+        const recordTokens = [
+          normalizeLevelToken(record.level),
+          normalizeLevelToken(getClassDisplayName(record)),
+          normalizeLevelToken(`${record.level || ""} ${record.name || ""}`),
+        ].filter(Boolean);
+        return recordTokens.includes(levelToken);
+      })
+      .sort((left, right) => getClassDisplayName(left).localeCompare(getClassDisplayName(right), undefined, { numeric: true }));
+  }
+
+  function findClassRecordForStudent(student = {}) {
+    const classManager = getClassManager();
+    const classes =
+      classManager && typeof classManager.getClasses === "function"
+        ? classManager.getClasses().filter((record) => record.status !== "archived")
+        : [];
+    const classId = String(student.classId || student.classRecordId || "").trim();
+
+    if (classId) {
+      const byId = classes.find((record) => String(record.id || "").trim() === classId);
+      if (byId) {
+        return byId;
+      }
+    }
+
+    const studentLevelToken = normalizeLevelToken(student.level);
+    if (!studentLevelToken) {
+      return null;
+    }
+
+    return (
+      classes.find((record) => normalizeLevelToken(getClassDisplayName(record)) === studentLevelToken) ||
+      classes.find((record) => normalizeLevelToken(`${record.level || ""} ${record.name || ""}`) === studentLevelToken) ||
+      null
+    );
+  }
+
+  function getStudentBaseClassLevel(student = {}) {
+    const classRecord = findClassRecordForStudent(student);
+    return String(
+      classRecord?.level ||
+        student.classLevel ||
+        student.baseLevel ||
+        student.level ||
+        "",
+    ).trim();
+  }
+
+  function buildStudentClassAssignment(levelValue = "", classRecord = null) {
+    const baseLevel = String(classRecord?.level || levelValue || "").trim();
+    const exactLevel = classRecord ? getClassDisplayName(classRecord) : baseLevel;
+    const classId = String(classRecord?.id || "").trim();
+
+    return {
+      level: exactLevel,
+      classLevel: baseLevel,
+      baseLevel,
+      classId,
+      classRecordId: classId,
+      classArm: String(classRecord?.name || "").trim(),
+    };
+  }
+
+  function chooseStudentClassRecordForLevel(levelValue = "", options = {}) {
+    const { selectedClassId = "", excludeStudentId = "" } = options;
+    const records = getActiveClassRecordsForLevel(levelValue);
+    const requestedId = String(selectedClassId || "").trim();
+
+    if (requestedId) {
+      const selected = records.find((record) => String(record.id || "").trim() === requestedId);
+      if (selected) {
+        return selected;
+      }
+    }
+
+    if (!records.length) {
+      return null;
+    }
+
+    const studentManager = getStudentManager();
+    const students =
+      studentManager && typeof studentManager.getStudents === "function"
+        ? studentManager.getStudents().filter((student) => student.status === "active" && student.id !== excludeStudentId)
+        : [];
+    const counts = records.map((record) => {
+      const classId = String(record.id || "").trim();
+      const classToken = normalizeLevelToken(getClassDisplayName(record));
+      const count = students.filter((student) => {
+        const studentClassId = String(student.classId || student.classRecordId || "").trim();
+        if (classId && studentClassId === classId) {
+          return true;
+        }
+        return normalizeLevelToken(student.level) === classToken;
+      }).length;
+      return { record, count };
+    });
+    const minCount = Math.min(...counts.map((entry) => entry.count));
+    const candidates = counts.filter((entry) => entry.count === minCount).map((entry) => entry.record);
+
+    return candidates[Math.floor(Math.random() * candidates.length)] || records[0] || null;
+  }
+
+  function renderStudentClassArmOptions(form, selectedClassId = "", { autoPick = true } = {}) {
+    const levelSelect = form?.elements?.level;
+    const armSelect = form?.elements?.classId;
+    const armField = form?.querySelector?.("[data-student-arm-field]");
+
+    if (!(levelSelect instanceof HTMLSelectElement) || !(armSelect instanceof HTMLSelectElement)) {
+      return null;
+    }
+
+    const levelValue = String(levelSelect.value || "").trim();
+    const records = getActiveClassRecordsForLevel(levelValue);
+    const studentId = String(form.elements.studentId?.value || "").trim();
+
+    if (armField) {
+      armField.hidden = !levelValue || !records.length;
+    }
+
+    if (!levelValue || !records.length) {
+      armSelect.innerHTML = `<option value="">No class arms available</option>`;
+      armSelect.value = "";
+      armSelect.disabled = true;
+      return null;
+    }
+
+    const selectedRecord = autoPick
+      ? chooseStudentClassRecordForLevel(levelValue, { selectedClassId, excludeStudentId: studentId })
+      : records.find((record) => String(record.id || "") === String(selectedClassId || "")) || null;
+    const resolvedId = String(selectedRecord?.id || selectedClassId || "").trim();
+
+    armSelect.innerHTML = records
+      .map((record) => {
+        const id = String(record.id || "").trim();
+        const label = getClassDisplayName(record);
+        return `<option value="${escapeHtml(id)}" ${id === resolvedId ? "selected" : ""}>${escapeHtml(label)}</option>`;
+      })
+      .join("");
+    armSelect.value = resolvedId || String(records[0]?.id || "");
+    armSelect.disabled = false;
+
+    return records.find((record) => String(record.id || "") === String(armSelect.value || "")) || null;
+  }
+
   function renderConfiguredSchoolTypeSelect(select, { includeCombined = false } = {}) {
     if (!(select instanceof HTMLSelectElement)) {
       return "";
@@ -8549,13 +8708,7 @@
         const studentManager = getStudentManager();
         const studentCount =
           studentManager && typeof studentManager.getStudents === "function"
-            ? studentManager
-                .getStudents()
-                .filter(
-                  (student) =>
-                    String(student.status || "active") === "active" &&
-                    normalizeLevelToken(student.level) === normalizeLevelToken(record.level),
-                ).length
+            ? getActiveStudentsForClass(record).length
             : 0;
         setStatus(
           status,
@@ -8585,25 +8738,23 @@
           return;
         }
 
-        const studentsToPromote = studentManager
-          .getStudents()
-          .filter(
-            (student) =>
-              String(student.status || "active") === "active" &&
-              normalizeLevelToken(student.level) === normalizeLevelToken(record.level),
-          );
+        const studentsToPromote = getActiveStudentsForClass(record);
 
         studentsToPromote.forEach((student) => {
+          const selectedClassRecord = chooseStudentClassRecordForLevel(nextLevel, {
+            excludeStudentId: student.id,
+          });
+          const classAssignment = buildStudentClassAssignment(nextLevel, selectedClassRecord);
           studentManager.updateStudentProgression(student.id, (current) => ({
             ...current,
-            level: nextLevel,
+            ...classAssignment,
             promotionDecision: "promote",
             examOutcome: "pass",
             lastPromotionOutcome: "class-promoted",
             progressionHistory: appendStudentProgression(current, {
               type: "class-promoted",
               fromLevel: current.level,
-              toLevel: nextLevel,
+              toLevel: classAssignment.level,
               note: `Promoted from class workspace ${record.level}`,
             }),
           }));
@@ -12110,7 +12261,11 @@
       const classToken = normalizeLevelToken(classLevel);
       return studentManager
         .getStudents()
-        .filter((student) => student.status === "active" && normalizeLevelToken(student.level) === classToken)
+        .filter(
+          (student) =>
+            student.status === "active" &&
+            normalizeLevelToken(getStudentBaseClassLevel(student)) === classToken,
+        )
         .sort((left, right) => left.fullName.localeCompare(right.fullName, undefined, { numeric: true }));
     };
 
@@ -12323,7 +12478,8 @@
       `;
     };
 
-    const renderFeeInvoiceDocument = (invoice) => {
+    const renderFeeInvoiceDocument = (invoice, options = {}) => {
+      const includePaymentHistory = options.includePaymentHistory !== false;
       const settings = getInvoiceSchoolSettings();
       const items = Array.isArray(invoice.invoiceItems) ? invoice.invoiceItems : [];
       const totalDue = Number(invoice.totalDue || 0);
@@ -12398,12 +12554,12 @@
             <div><span>Balance</span><strong>${escapeHtml(formatCurrencyAmount(balance))}</strong></div>
           </div>
 
-          ${renderFeeTransactionHistory(invoice)}
+          ${includePaymentHistory ? renderFeeTransactionHistory(invoice) : ""}
         </section>
       `;
     };
 
-    const renderFeeInvoicePrintDocument = (invoice) => `
+    const renderFeeInvoicePrintDocument = (invoice, options = {}) => `
       <!doctype html>
       <html>
         <head>
@@ -12442,7 +12598,7 @@
           </style>
         </head>
         <body>
-          ${renderFeeInvoiceDocument(invoice)}
+          ${renderFeeInvoiceDocument(invoice, options)}
           <script>
             window.addEventListener("load", function () {
               window.focus();
@@ -12494,10 +12650,13 @@
           )}">Download history PDF</button>
           <button class="button button-outline" type="button" data-fee-invoice-print-history data-invoice-student-id="${escapeHtml(
             invoice.studentId || "",
-          )}">Print history</button>
+          )}">Print history only</button>
+          <button class="button button-outline" type="button" data-fee-invoice-print-with-history data-invoice-student-id="${escapeHtml(
+            invoice.studentId || "",
+          )}">Print invoice with history</button>
           <button class="button button-primary" type="button" data-fee-invoice-print-current data-invoice-student-id="${escapeHtml(
             invoice.studentId || "",
-          )}">Print invoice</button>
+          )}">Print invoice only</button>
         </div>
       `;
       invoiceOverlay.hidden = false;
@@ -12505,7 +12664,7 @@
       invoiceOverlay.querySelector("[data-fee-invoice-close]")?.focus();
     };
 
-    const printFeeInvoice = (invoice) => {
+    const printFeeInvoice = (invoice, options = {}) => {
       const printWindow = window.open("", "_blank", "width=920,height=760");
       if (!printWindow) {
         setStatus(invoiceStatus || status, "error", "Allow pop-ups for this page so the invoice can open for printing.");
@@ -12513,7 +12672,7 @@
       }
 
       printWindow.document.open();
-      printWindow.document.write(renderFeeInvoicePrintDocument(invoice));
+      printWindow.document.write(renderFeeInvoicePrintDocument(invoice, options));
       printWindow.document.close();
     };
 
@@ -13200,7 +13359,7 @@
       }
 
       if (actionButton.dataset.feeInvoiceAction === "print") {
-        printFeeInvoice(invoice);
+        printFeeInvoice(invoice, { includePaymentHistory: false });
         return;
       }
 
@@ -13239,7 +13398,16 @@
       if (printButton) {
         const invoice = getFeeInvoiceByStudentId(String(printButton.dataset.invoiceStudentId || "").trim());
         if (invoice) {
-          printFeeInvoice(invoice);
+          printFeeInvoice(invoice, { includePaymentHistory: false });
+        }
+        return;
+      }
+
+      const printWithHistoryButton = event.target.closest("[data-fee-invoice-print-with-history]");
+      if (printWithHistoryButton) {
+        const invoice = getFeeInvoiceByStudentId(String(printWithHistoryButton.dataset.invoiceStudentId || "").trim());
+        if (invoice) {
+          printFeeInvoice(invoice, { includePaymentHistory: true });
         }
         return;
       }
@@ -19131,15 +19299,26 @@
       studentManager && typeof studentManager.getStudents === "function"
         ? studentManager.getStudents()
         : [];
+    const classId = String(classRecord.id || "").trim();
+    const hasDistinctArm =
+      classRecord.name &&
+      classRecord.level &&
+      normalizeLevelToken(classRecord.name) !== normalizeLevelToken(classRecord.level);
     const classTokens = [
-      normalizeLevelToken(classRecord.level),
-      normalizeLevelToken(classRecord.name),
+      hasDistinctArm ? "" : normalizeLevelToken(classRecord.level),
+      hasDistinctArm ? "" : normalizeLevelToken(classRecord.name),
       normalizeLevelToken(`${classRecord.level || ""} ${classRecord.name || ""}`),
+      normalizeLevelToken(getClassDisplayName(classRecord)),
     ].filter(Boolean);
 
     return students.filter((student) => {
       if (student.status !== "active") {
         return false;
+      }
+
+      const studentClassId = String(student.classId || student.classRecordId || "").trim();
+      if (classId && studentClassId === classId) {
+        return true;
       }
 
       const studentToken = normalizeLevelToken(student.level);
@@ -19190,7 +19369,11 @@
         const assignmentTeacher = String(assignment?.teacher || "").trim();
         return normalizeEmail(assignmentTeacher) === teacherEmail || assignmentTeacher.toLowerCase() === teacherName;
       });
-      const hasCourseAssignment = courseLevelTokens.has(normalizeLevelToken(classRecord.level));
+      const exactClassTokens = [
+        normalizeLevelToken(getClassDisplayName(classRecord)),
+        normalizeLevelToken(`${classRecord.level || ""} ${classRecord.name || ""}`),
+      ].filter(Boolean);
+      const hasCourseAssignment = exactClassTokens.some((token) => courseLevelTokens.has(token));
 
       return isClassTeacher || hasSubjectAssignment || hasCourseAssignment;
     });
@@ -19695,6 +19878,7 @@
     if (form.elements.level instanceof HTMLSelectElement) {
       renderStudentLevelSelectOptions(form.elements.level);
     }
+    renderStudentClassArmOptions(form, "", { autoPick: false });
 
     if (guardianList) {
       guardianList.innerHTML = "";
@@ -19733,13 +19917,20 @@
     }
     form.elements.admissionNo.dataset.autoGenerated = "false";
     if (form.elements.level instanceof HTMLSelectElement) {
-      const levels = renderStudentLevelSelectOptions(form.elements.level, record.level || "");
+      const baseLevel = getStudentBaseClassLevel(record);
+      const levels = renderStudentLevelSelectOptions(form.elements.level, baseLevel || record.level || "");
       const matchingLevel =
-        levels.find((level) => normalizeLevelToken(level) === normalizeLevelToken(record.level)) || record.level || "";
+        levels.find((level) => normalizeLevelToken(level) === normalizeLevelToken(baseLevel)) ||
+        baseLevel ||
+        record.level ||
+        "";
       form.elements.level.value = matchingLevel;
     } else {
-      form.elements.level.value = record.level || "";
+      form.elements.level.value = getStudentBaseClassLevel(record) || record.level || "";
     }
+    renderStudentClassArmOptions(form, record.classId || record.classRecordId || findClassRecordForStudent(record)?.id || "", {
+      autoPick: true,
+    });
     if (form.elements.dateOfBirth) {
       form.elements.dateOfBirth.value = record.dateOfBirth || "";
     }
@@ -20009,6 +20200,8 @@
     if (takenAdmissions instanceof Set) {
       takenAdmissions.add(admissionNo.toLowerCase());
     }
+    const selectedClassRecord = chooseStudentClassRecordForLevel(level);
+    const classAssignment = buildStudentClassAssignment(level, selectedClassRecord);
 
     return {
       firstName,
@@ -20016,7 +20209,7 @@
       fullName: [firstName, lastName].filter(Boolean).join(" ").trim(),
       studentEmail,
       admissionNo,
-      level,
+      ...classAssignment,
       dateOfBirth,
       gender,
       promotionDecision: "promote",
@@ -20303,7 +20496,8 @@
         return;
       }
 
-      const nextLevel = getNextStudentLevel(student.level);
+      const currentBaseLevel = getStudentBaseClassLevel(student);
+      const nextLevel = getNextStudentLevel(currentBaseLevel);
 
       if (!nextLevel) {
         studentManager.updateStudentProgression(student.id, (current) => ({
@@ -20323,10 +20517,14 @@
         summary.retainedTopLevel += 1;
         return;
       }
+      const selectedClassRecord = chooseStudentClassRecordForLevel(nextLevel, {
+        excludeStudentId: student.id,
+      });
+      const classAssignment = buildStudentClassAssignment(nextLevel, selectedClassRecord);
 
       studentManager.updateStudentProgression(student.id, (current) => ({
         ...current,
-        level: nextLevel,
+        ...classAssignment,
         status: "active",
         examOutcome: "pass",
         promotionDecision: "promote",
@@ -20335,7 +20533,7 @@
         progressionHistory: appendStudentProgression(current, {
           type: "auto-promoted",
           fromLevel: current.level,
-          toLevel: nextLevel,
+          toLevel: classAssignment.level,
           note: `Promoted automatically after ${sessionLabel} close`,
         }),
       }));
@@ -20395,6 +20593,7 @@
     const refreshStudentLevelOptions = () => {
       if (levelSelect instanceof HTMLSelectElement) {
         renderStudentLevelSelectOptions(levelSelect, levelSelect.value);
+        renderStudentClassArmOptions(form, form.elements.classId?.value || "", { autoPick: false });
         levelSelect.disabled = !isAdmin;
       }
     };
@@ -20880,7 +21079,10 @@
     });
 
     if (form.elements.level) {
-      form.elements.level.addEventListener("change", tryAutoFillAdmissionNo);
+      form.elements.level.addEventListener("change", () => {
+        renderStudentClassArmOptions(form, "", { autoPick: true });
+        tryAutoFillAdmissionNo();
+      });
       form.elements.level.addEventListener("blur", tryAutoFillAdmissionNo);
     }
 
@@ -20905,7 +21107,12 @@
       const firstName = form.elements.firstName.value.trim();
       const lastName = form.elements.lastName.value.trim();
       const studentEmail = String(form.elements.studentEmail?.value || "").trim();
-      const level = form.elements.level.value.trim();
+      const baseLevel = form.elements.level.value.trim();
+      const selectedClassRecord = chooseStudentClassRecordForLevel(baseLevel, {
+        selectedClassId: form.elements.classId?.value || "",
+        excludeStudentId: studentId || "",
+      });
+      const classAssignment = buildStudentClassAssignment(baseLevel, selectedClassRecord);
       const admissionNoRaw = form.elements.admissionNo.value.trim();
       const promotionDecisionRaw = String(form.elements.promotionDecision?.value || "promote")
         .trim()
@@ -20924,10 +21131,10 @@
           admissionNoRaw ||
           generateAdmissionNumber({
             manager,
-            levelValue: level,
+            levelValue: baseLevel,
             excludeStudentId: studentId || undefined,
           }),
-        level,
+        ...classAssignment,
         dateOfBirth: form.elements.dateOfBirth?.value || "",
         gender: form.elements.gender?.value || "",
         promotionDecision,
@@ -20966,10 +21173,10 @@
         hasError = true;
       }
 
-      if (!payload.level) {
+      if (!baseLevel) {
         setPortalStudentError(form, "level", "Enter the student level or class.");
         hasError = true;
-      } else if (!isKnownClassLevel(payload.level, getActiveClassLevelTokenSet())) {
+      } else if (!isKnownClassLevel(baseLevel, getActiveClassLevelTokenSet())) {
         setPortalStudentError(form, "level", "Select a level or class from the school structure.");
         hasError = true;
       }
@@ -21552,7 +21759,8 @@
       }
 
       if (action === "promote") {
-        const nextLevel = getNextStudentLevel(record.level);
+        const currentBaseLevel = getStudentBaseClassLevel(record);
+        const nextLevel = getNextStudentLevel(currentBaseLevel);
         if (!nextLevel) {
           setStatus(
             status,
@@ -21563,10 +21771,14 @@
           );
           return;
         }
+        const selectedClassRecord = chooseStudentClassRecordForLevel(nextLevel, {
+          excludeStudentId: record.id,
+        });
+        const classAssignment = buildStudentClassAssignment(nextLevel, selectedClassRecord);
 
         manager.updateStudentProgression(record.id, (current) => ({
           ...current,
-          level: nextLevel,
+          ...classAssignment,
           status: "active",
           promotionDecision: "promote",
           examOutcome: "pass",
@@ -21577,7 +21789,7 @@
           progressionHistory: appendStudentProgression(current, {
             type: "promoted",
             fromLevel: current.level,
-            toLevel: nextLevel,
+            toLevel: classAssignment.level,
             note: "Promoted by admin",
           }),
         }));
@@ -21586,14 +21798,14 @@
           entityType: "student",
           entityId: record.admissionNo,
           summary: `Promoted ${record.fullName}`,
-          details: `${record.level} → ${nextLevel}`,
+          details: `${record.level} → ${classAssignment.level}`,
         });
         setStatus(
           status,
           "success",
           `Student <strong>${escapeHtml(record.fullName)}</strong> promoted from <strong>${escapeHtml(
             record.level,
-          )}</strong> to <strong>${escapeHtml(nextLevel)}</strong>.`,
+          )}</strong> to <strong>${escapeHtml(classAssignment.level)}</strong>.`,
         );
         return;
       }
@@ -21793,12 +22005,14 @@
         }
 
         const admissionNo = generateAdmissionNumber({ manager, levelValue: level });
+        const selectedClassRecord = chooseStudentClassRecordForLevel(level);
+        const classAssignment = buildStudentClassAssignment(level, selectedClassRecord);
         const payload = {
           firstName,
           lastName,
           fullName: `${firstName} ${lastName}`,
           admissionNo,
-          level,
+          ...classAssignment,
           dateOfBirth: "",
           gender: "",
           promotionDecision: "promote",
@@ -26028,8 +26242,9 @@
 
     const classManager = getClassManager();
     const studentLevelToken = normalizeLevelToken(student.level);
+    const studentClassId = String(student.classId || student.classRecordId || "").trim();
 
-    if (!classManager || typeof classManager.getClasses !== "function" || !studentLevelToken) {
+    if (!classManager || typeof classManager.getClasses !== "function" || (!studentLevelToken && !studentClassId)) {
       return [];
     }
 
@@ -26037,6 +26252,7 @@
       .getClasses()
       .filter((record) => record.status !== "archived")
       .filter((record) =>
+        (studentClassId && String(record.id || "").trim() === studentClassId) ||
         [
           record.id,
           record.level,
@@ -30176,7 +30392,8 @@
     const cycleState = cycleManager && typeof cycleManager.getState === "function"
       ? cycleManager.getState()
       : { sessions: [], terms: [] };
-    const studentClassToken = normalizeLevelToken(student.level);
+    const studentClassLevel = getStudentBaseClassLevel(student);
+    const studentClassToken = normalizeLevelToken(studentClassLevel);
     const matchingItems = feeManager
       .getItems()
       .filter(
@@ -30209,13 +30426,13 @@
       .sort();
     const sessionId = openTerm?.sessionId || openSession?.id || displayItems[0]?.sessionId || "";
     const termId = openTerm?.id || displayItems[0]?.termId || "";
-    const invoiceKey = sessionId && termId && student.level ? `${sessionId}:${termId}:${student.level}` : "";
+    const invoiceKey = sessionId && termId && studentClassLevel ? `${sessionId}:${termId}:${studentClassLevel}` : "";
 
     return {
       studentId: student.id,
       studentName: student.fullName,
       admissionNo: student.admissionNo,
-      classLevel: student.level,
+      classLevel: studentClassLevel,
       sessionId,
       sessionName: sessionId ? getSessionLabelFromCycle(cycleState, sessionId) : "",
       termId,
@@ -30517,12 +30734,17 @@
       ? courseManager.getCourses().filter((item) => item.status !== "archived")
       : [];
     const studentLevelToken = normalizeLevelToken(student.level);
+    const studentBaseLevelToken = normalizeLevelToken(getStudentBaseClassLevel(student));
     const classMatch =
+      classes.find((item) => String(item.id || "").trim() === String(student.classId || student.classRecordId || "").trim()) ||
       classes.find((item) => normalizeLevelToken(getClassDisplayName(item)) === studentLevelToken) ||
-      classes.find((item) => normalizeLevelToken(item.level) === studentLevelToken) ||
+      classes.find((item) => normalizeLevelToken(item.level) === studentBaseLevelToken || normalizeLevelToken(item.level) === studentLevelToken) ||
       null;
     const subjectsFromClass = classMatch?.subjects || [];
-    const matchedByLevel = courses.filter((course) => normalizeLevelToken(course.level) === studentLevelToken);
+    const matchedByLevel = courses.filter((course) => {
+      const courseToken = normalizeLevelToken(course.level);
+      return courseToken === studentLevelToken || courseToken === studentBaseLevelToken;
+    });
 
     const merged = [];
     const seen = new Set();
@@ -32392,6 +32614,8 @@
             manager: studentManager,
             levelValue: level,
           });
+      const selectedClassRecord = chooseStudentClassRecordForLevel(level);
+      const classAssignment = buildStudentClassAssignment(level, selectedClassRecord);
 
       return {
         payload: {
@@ -32406,7 +32630,7 @@
           profilePhotoMimeType: String(entry.passportPhotoFile?.type || "").trim(),
           profilePhotoSizeBytes: Number(entry.passportPhotoFile?.size || 0),
           profilePhotoRemoved: false,
-          level,
+          ...classAssignment,
           dateOfBirth: String(entry.dateOfBirth || "").trim(),
           gender: String(entry.gender || "").trim(),
           promotionDecision: "promote",
