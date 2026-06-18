@@ -7393,6 +7393,7 @@
     const normalizeLookupToken = (value) => String(value || "").trim().toLowerCase();
     const normalizeClassArmName = (value) => String(value || "").trim().replace(/^Arm\s+/i, "");
     const normalizeClassNameLookup = (value) => normalizeLookupToken(normalizeClassArmName(value));
+    let classFormOverlay = null;
 
     const getActiveCourseCatalog = () => {
       if (!courseManager || typeof courseManager.getActiveCatalog !== "function") {
@@ -7720,10 +7721,54 @@
       return { items, invalidLines };
     };
 
+    const closeClassFormModal = () => {
+      clearPortalClassErrors(form);
+      resetPortalClassForm(form, isAdmin);
+      renderClassTeacherOptions("");
+      renderTeacherAssignmentRows([{}]);
+      setClassFormVisibility(false);
+      setStatus(status, "", "");
+    };
+
+    const ensureClassFormOverlay = () => {
+      if (classFormOverlay) {
+        return classFormOverlay;
+      }
+
+      const wrapper = document.createElement("div");
+      wrapper.innerHTML = `
+        <div id="portal-class-edit-overlay" class="portal-overlay portal-class-edit-overlay" hidden>
+          <button class="portal-overlay-backdrop" type="button" data-class-form-modal-close aria-label="Close class editor"></button>
+          <section class="portal-overlay-panel portal-class-edit-modal-panel" role="dialog" aria-modal="true" aria-labelledby="portal-class-edit-modal-title">
+            <header class="portal-overlay-head">
+              <div>
+                <h3 id="portal-class-edit-modal-title">Edit class arm</h3>
+                <span>Update arm name, class teacher, subjects, and teacher assignments.</span>
+              </div>
+              <button class="portal-overlay-close" type="button" data-class-form-modal-close aria-label="Close class editor">&times;</button>
+            </header>
+            <div class="portal-class-edit-modal-body" data-class-form-modal-body></div>
+          </section>
+        </div>
+      `;
+      document.body.appendChild(wrapper.firstElementChild);
+      classFormOverlay = document.getElementById("portal-class-edit-overlay");
+      classFormOverlay.querySelector("[data-class-form-modal-body]")?.appendChild(form);
+      classFormOverlay.addEventListener("click", (event) => {
+        if (event.target.closest("[data-class-form-modal-close]")) {
+          closeClassFormModal();
+        }
+      });
+      return classFormOverlay;
+    };
+
     const setClassFormVisibility = (isVisible) => {
+      const overlay = ensureClassFormOverlay();
       form.hidden = !isVisible;
       form.classList.toggle("portal-class-form-hidden", !isVisible);
       form.setAttribute("aria-hidden", String(!isVisible));
+      overlay.hidden = !isVisible;
+      document.body.classList.toggle("portal-overlay-open", isVisible);
 
       if (formToggleButton) {
         formToggleButton.textContent = isVisible ? "Hide class form" : "Create class";
@@ -20089,6 +20134,8 @@
       normalizeLevelToken(`${classRecord.level || ""} ${classRecord.name || ""}`),
       normalizeLevelToken(getClassDisplayName(classRecord)),
     ].filter(Boolean);
+    const baseLevelToken = normalizeLevelToken(classRecord.level);
+    const armToken = normalizeLevelToken(classRecord.name);
 
     return students.filter((student) => {
       if (student.status !== "active") {
@@ -20096,12 +20143,32 @@
       }
 
       const studentClassId = String(student.classId || student.classRecordId || "").trim();
-      if (classId && studentClassId === classId) {
-        return true;
+      if (studentClassId) {
+        return Boolean(classId && studentClassId === classId);
       }
 
-      const studentToken = normalizeLevelToken(student.level);
-      return classTokens.includes(studentToken);
+      const studentLevelToken = normalizeLevelToken(student.level);
+      const studentBaseLevelToken = normalizeLevelToken(student.classLevel || student.baseLevel);
+      const studentArmToken = normalizeLevelToken(student.classArm);
+
+      if (hasDistinctArm) {
+        const exactLevelMatches = classTokens.includes(studentLevelToken);
+        const baseLevelMatches = Boolean(
+          baseLevelToken &&
+            ((studentBaseLevelToken && studentBaseLevelToken === baseLevelToken) ||
+              (studentLevelToken && studentLevelToken === baseLevelToken)),
+        );
+        if (studentArmToken) {
+          return (
+            studentArmToken === armToken &&
+            (exactLevelMatches || baseLevelMatches)
+          );
+        }
+
+        return exactLevelMatches;
+      }
+
+      return classTokens.includes(studentLevelToken) || Boolean(studentBaseLevelToken && studentBaseLevelToken === baseLevelToken);
     });
   }
 

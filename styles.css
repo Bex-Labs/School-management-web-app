@@ -11886,6 +11886,16 @@ body.admin-dashboard-page .portal-overlay-panel .portal-class-form {
   padding: 22px;
 }
 
+body.admin-dashboard-page .portal-class-edit-modal-panel {
+  width: min(900px, 96vw);
+  max-height: min(92vh, 860px);
+}
+
+body.admin-dashboard-page .portal-class-edit-modal-body {
+  overflow: auto;
+  background: #ffffff;
+}
+
 body.admin-dashboard-page[data-page="admin-admissions"] .portal-class-layout-wide {
   display: grid;
   grid-template-columns: 1fr;
