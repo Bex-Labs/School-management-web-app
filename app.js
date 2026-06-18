@@ -268,6 +268,9 @@ const SCHOOL_REPORT_CONFIGURATION_EVENT = "schoolsphere:report-configuration-upd
 const DEFAULT_GRADEBOOK_RECORDS = [];
 const SCHOOL_GRADEBOOK_STORAGE_KEY = "schoolsphere.gradebook.v1";
 const SCHOOL_GRADEBOOK_EVENT = "schoolsphere:gradebook-updated";
+const DEFAULT_LESSON_PLAN_RECORDS = [];
+const SCHOOL_LESSON_PLANS_STORAGE_KEY = "schoolsphere.lessonPlans.v1";
+const SCHOOL_LESSON_PLANS_EVENT = "schoolsphere:lesson-plans-updated";
 const DEFAULT_REPORT_CONFIGURATION = {
   scoreStructure: {
     caMaximum: 40,
@@ -463,6 +466,7 @@ function clearLegacySharedState() {
     SCHOOL_REPORT_CARDS_STORAGE_KEY,
     SCHOOL_REPORT_CONFIGURATION_STORAGE_KEY,
     SCHOOL_GRADEBOOK_STORAGE_KEY,
+    SCHOOL_LESSON_PLANS_STORAGE_KEY,
     AUDIT_TRAIL_STORAGE_KEY,
     FEATURE_TOGGLE_STORAGE_KEY,
     ROLE_PERMISSIONS_STORAGE_KEY,
@@ -2619,6 +2623,213 @@ function summarizeSchoolCourses() {
   };
 }
 
+function normalizeLessonPlanTextList(value) {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => String(item || "").trim())
+      .filter(Boolean);
+  }
+
+  return String(value || "")
+    .split(/\n|,/g)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function normalizeLessonPlanAttachment(file = {}) {
+  const timestamp = new Date().toISOString();
+
+  return {
+    id: String(file.id || createStorageId("lesson-resource")),
+    name: String(file.name || "Resource").trim(),
+    type: String(file.type || file.mimeType || "").trim(),
+    size: Math.max(0, Number.parseInt(file.size || file.sizeBytes, 10) || 0),
+    dataUrl: String(file.dataUrl || file.url || "").trim(),
+    uploadedAt: file.uploadedAt || timestamp,
+  };
+}
+
+function normalizeLessonPlanRecord(record = {}) {
+  const timestamp = new Date().toISOString();
+  const rawStatus = String(record.status || "draft").trim().toLowerCase();
+  const status = rawStatus === "submitted" || rawStatus === "delivered" ? rawStatus : "draft";
+  const delivery = record.delivery && typeof record.delivery === "object" ? record.delivery : {};
+  const homework = record.homework && typeof record.homework === "object" ? record.homework : {};
+  const syllabusOrder = Number.parseInt(record.syllabusOrder, 10);
+  const weekNumber = Number.parseInt(record.weekNumber, 10);
+
+  return {
+    id: String(record.id || createStorageId("lesson-plan")),
+    teacherId: String(record.teacherId || "").trim(),
+    teacherName: String(record.teacherName || "").trim(),
+    teacherEmail: String(record.teacherEmail || "").trim(),
+    subject: String(record.subject || "").trim(),
+    subjectCode: String(record.subjectCode || "").trim(),
+    classId: String(record.classId || "").trim(),
+    classLevel: String(record.classLevel || record.classLabel || "").trim(),
+    sessionId: String(record.sessionId || "").trim(),
+    sessionName: String(record.sessionName || "").trim(),
+    termId: String(record.termId || "").trim(),
+    termName: String(record.termName || "").trim(),
+    weekNumber: Number.isFinite(weekNumber) && weekNumber > 0 ? weekNumber : 1,
+    planDate: String(record.planDate || "").trim(),
+    planView: String(record.planView || "week").trim(),
+    topic: String(record.topic || "").trim(),
+    subTopic: String(record.subTopic || "").trim(),
+    curriculumTopic: String(record.curriculumTopic || record.topic || "").trim(),
+    syllabusOrder: Number.isFinite(syllabusOrder) && syllabusOrder > 0 ? syllabusOrder : 1,
+    coverageStatus: ["pending", "planned", "in-progress", "completed"].includes(
+      String(record.coverageStatus || "").trim().toLowerCase(),
+    )
+      ? String(record.coverageStatus).trim().toLowerCase()
+      : "planned",
+    objectives: String(record.objectives || "").trim(),
+    materials: String(record.materials || "").trim(),
+    teachingMethods: normalizeLessonPlanTextList(record.teachingMethods),
+    classActivities: String(record.classActivities || "").trim(),
+    assessment: String(record.assessment || "").trim(),
+    homework: {
+      title: String(homework.title || record.homeworkTitle || "").trim(),
+      instructions: String(homework.instructions || record.homework || "").trim(),
+      dueDate: String(homework.dueDate || record.homeworkDueDate || "").trim(),
+      linkedAssessment: String(homework.linkedAssessment || record.linkedAssessment || "").trim(),
+    },
+    remarks: String(record.remarks || "").trim(),
+    reflection: String(record.reflection || "").trim(),
+    delivery: {
+      taught: Boolean(delivery.taught || record.lessonTaught),
+      deliveryDate: String(delivery.deliveryDate || record.deliveryDate || "").trim(),
+      topicsCovered: String(delivery.topicsCovered || record.topicsCovered || "").trim(),
+      timeSpent: String(delivery.timeSpent || record.timeSpent || "").trim(),
+      attendanceSummary: String(delivery.attendanceSummary || record.attendanceSummary || "").trim(),
+      challenges: String(delivery.challenges || record.challenges || "").trim(),
+    },
+    attachments: Array.isArray(record.attachments)
+      ? record.attachments.map((file) => normalizeLessonPlanAttachment(file)).filter((file) => file.name)
+      : [],
+    status,
+    submittedAt: status === "submitted" || status === "delivered" ? record.submittedAt || timestamp : "",
+    deliveredAt:
+      status === "delivered" || delivery.taught || record.lessonTaught
+        ? record.deliveredAt || delivery.deliveryDate || timestamp
+        : "",
+    createdAt: record.createdAt || timestamp,
+    updatedAt: record.updatedAt || timestamp,
+  };
+}
+
+function compareLessonPlans(left, right) {
+  const dateComparison = String(right.planDate || "").localeCompare(String(left.planDate || ""));
+  if (dateComparison !== 0) return dateComparison;
+
+  const weekComparison = Number(right.weekNumber || 0) - Number(left.weekNumber || 0);
+  if (weekComparison !== 0) return weekComparison;
+
+  return `${left.classLevel}:${left.subject}:${left.topic}`.localeCompare(
+    `${right.classLevel}:${right.subject}:${right.topic}`,
+    undefined,
+    { numeric: true },
+  );
+}
+
+function getLessonPlans() {
+  const stored = readWorkspaceState(SCHOOL_LESSON_PLANS_STORAGE_KEY, DEFAULT_LESSON_PLAN_RECORDS);
+  const source = Array.isArray(stored) ? stored : DEFAULT_LESSON_PLAN_RECORDS;
+  return source.map((record) => normalizeLessonPlanRecord(record)).sort(compareLessonPlans);
+}
+
+function emitLessonPlansUpdate(records = getLessonPlans()) {
+  window.dispatchEvent(
+    new CustomEvent(SCHOOL_LESSON_PLANS_EVENT, {
+      detail: { records },
+    }),
+  );
+}
+
+function saveLessonPlans(records) {
+  const normalized = (Array.isArray(records) ? records : [])
+    .map((record) => normalizeLessonPlanRecord(record))
+    .sort(compareLessonPlans);
+  writeWorkspaceState(SCHOOL_LESSON_PLANS_STORAGE_KEY, normalized);
+  emitLessonPlansUpdate(normalized);
+  return normalized;
+}
+
+function upsertLessonPlan(record) {
+  const records = getLessonPlans();
+  const timestamp = new Date().toISOString();
+  const nextRecord = normalizeLessonPlanRecord({
+    ...record,
+    updatedAt: timestamp,
+  });
+  const existingIndex = records.findIndex((item) => item.id === nextRecord.id);
+
+  if (existingIndex === -1) {
+    records.push({
+      ...nextRecord,
+      createdAt: nextRecord.createdAt || timestamp,
+    });
+  } else {
+    records[existingIndex] = {
+      ...records[existingIndex],
+      ...nextRecord,
+      createdAt: records[existingIndex].createdAt,
+      updatedAt: timestamp,
+    };
+  }
+
+  return saveLessonPlans(records);
+}
+
+function duplicateLessonPlan(planId, overrides = {}) {
+  const source = getLessonPlans().find((record) => record.id === planId);
+
+  if (!source) {
+    return null;
+  }
+
+  const timestamp = new Date().toISOString();
+  const copy = normalizeLessonPlanRecord({
+    ...source,
+    ...overrides,
+    id: createStorageId("lesson-plan"),
+    status: "draft",
+    submittedAt: "",
+    deliveredAt: "",
+    delivery: {
+      taught: false,
+      deliveryDate: "",
+      topicsCovered: "",
+      timeSpent: "",
+      attendanceSummary: "",
+      challenges: "",
+    },
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  });
+  saveLessonPlans([copy, ...getLessonPlans()]);
+  return copy;
+}
+
+function deleteLessonPlan(planId) {
+  return saveLessonPlans(getLessonPlans().filter((record) => record.id !== planId));
+}
+
+function summarizeLessonPlans() {
+  const records = getLessonPlans();
+  const submitted = records.filter((record) => record.status === "submitted" || record.status === "delivered");
+  const delivered = records.filter((record) => record.status === "delivered" || record.delivery.taught);
+  const attachments = records.reduce((sum, record) => sum + record.attachments.length, 0);
+
+  return {
+    records,
+    draftCount: records.filter((record) => record.status === "draft").length,
+    submittedCount: submitted.length,
+    deliveredCount: delivered.length,
+    attachmentCount: attachments,
+  };
+}
+
 function normalizeGuardianContact(contact = {}) {
   return {
     id: String(contact.id || createStorageId("guardian")),
@@ -3865,6 +4076,17 @@ window.SchoolSphereCourses = {
   deleteCourse: deleteSchoolCourse,
   getActiveCatalog: getActiveCourseCatalog,
   eventName: SCHOOL_COURSES_EVENT,
+};
+
+window.SchoolSphereLessonPlans = {
+  defaults: DEFAULT_LESSON_PLAN_RECORDS,
+  getPlans: getLessonPlans,
+  summarize: summarizeLessonPlans,
+  savePlans: saveLessonPlans,
+  upsertPlan: upsertLessonPlan,
+  duplicatePlan: duplicateLessonPlan,
+  deletePlan: deleteLessonPlan,
+  eventName: SCHOOL_LESSON_PLANS_EVENT,
 };
 
 window.SchoolSphereStudents = {

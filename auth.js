@@ -6562,6 +6562,10 @@
     return window.SchoolSphereCourses || null;
   }
 
+  function getLessonPlanManager() {
+    return window.SchoolSphereLessonPlans || null;
+  }
+
   function getStudentManager() {
     return window.SchoolSphereStudents || null;
   }
@@ -25409,7 +25413,7 @@
     const rows = [];
     const seen = new Set();
     const pushRow = (row = {}) => {
-      const key = [row.classLabel, row.subject, row.role].join(":").toLowerCase();
+      const key = [row.classId, row.classLabel, row.subject, row.role].join(":").toLowerCase();
       if (seen.has(key)) {
         return;
       }
@@ -25421,8 +25425,11 @@
       const classLabel = getClassDisplayName(classRecord);
       if (staffValueMatchesUser(classRecord.classTeacher, user)) {
         pushRow({
+          classId: classRecord.id || "",
+          classRecord,
           classLabel,
           subject: "Class register",
+          subjectCode: "",
           role: "Class teacher",
         });
       }
@@ -25430,8 +25437,11 @@
       (classRecord.teacherAssignments || []).forEach((assignment) => {
         if (staffValueMatchesUser(assignment.teacher, user)) {
           pushRow({
+            classId: classRecord.id || "",
+            classRecord,
             classLabel,
             subject: assignment.subject || "Subject",
+            subjectCode: "",
             role: "Subject teacher",
           });
         }
@@ -25447,11 +25457,16 @@
       }
 
       const matchedClass = assignedClasses.find(
-        (classRecord) => normalizeLevelToken(classRecord.level) === normalizeLevelToken(course.level),
+        (classRecord) =>
+          normalizeLevelToken(getClassDisplayName(classRecord)) === normalizeLevelToken(course.level) ||
+          normalizeLevelToken(classRecord.level) === normalizeLevelToken(course.level),
       );
       pushRow({
+        classId: matchedClass?.id || "",
+        classRecord: matchedClass || null,
         classLabel: matchedClass ? getClassDisplayName(matchedClass) : course.level || "Assigned level",
         subject: course.name || course.code || "Course",
+        subjectCode: course.code || "",
         role: course.creditUnit ? "Course lecturer" : "Subject teacher",
       });
     });
@@ -26917,6 +26932,30 @@
     }
 
     const courses = getParentCoursesForStudent(student);
+    const lessonPlanManager = getLessonPlanManager();
+    const classRecords = getStudentPortalClassRecords(student);
+    const classIds = new Set(classRecords.map((record) => String(record.id || "").trim()).filter(Boolean));
+    const classTokens = new Set(
+      [
+        student.level,
+        getStudentBaseClassLevel(student),
+        ...classRecords.flatMap((record) => [record.level, record.name, getClassDisplayName(record)]),
+      ]
+        .map((value) => normalizeLevelToken(value))
+        .filter(Boolean),
+    );
+    const lessonPlans =
+      lessonPlanManager && typeof lessonPlanManager.summarize === "function"
+        ? (lessonPlanManager.summarize().records || [])
+            .filter((plan) => plan.status === "submitted" || plan.status === "delivered")
+            .filter(
+              (plan) =>
+                (plan.classId && classIds.has(String(plan.classId || "").trim())) ||
+                classTokens.has(normalizeLevelToken(plan.classLevel)),
+            )
+            .filter((plan) => plan.attachments.length || plan.homework?.title || plan.homework?.instructions)
+            .slice(0, 12)
+        : [];
     target.innerHTML = `
       <section class="staff-portal-section admin-surface-card">
         <div class="admin-surface-head">
@@ -26945,6 +26984,48 @@
                   <p>Assigned subjects/courses will appear after admin adds them to your class.</p>
                 </article>
               `
+          }
+        </div>
+      </section>
+      <section class="staff-portal-section admin-surface-card student-lesson-resources-card">
+        <div class="admin-surface-head">
+          <div>
+            <h2>Lesson Resources</h2>
+            <span>Materials and homework shared by teachers.</span>
+          </div>
+        </div>
+        <div class="student-lesson-resource-list">
+          ${
+            lessonPlans.length
+              ? lessonPlans
+                  .map(
+                    (plan) => `
+                      <article class="student-lesson-resource">
+                        <div class="student-lesson-resource-head">
+                          <div>
+                            <span>${escapeHtml(plan.subject || "Subject")}</span>
+                            <strong>${escapeHtml(plan.topic || "Lesson topic")}</strong>
+                            <small>${escapeHtml([plan.classLevel, plan.planDate || `Week ${plan.weekNumber}`].filter(Boolean).join(" - "))}</small>
+                          </div>
+                          <em>${escapeHtml(getLessonPlanStatusLabel(plan.status))}</em>
+                        </div>
+                        ${
+                          plan.homework?.title || plan.homework?.instructions
+                            ? `<div class="student-lesson-homework">
+                                <strong>${escapeHtml(plan.homework.title || "Homework")}</strong>
+                                <span>${escapeHtml(plan.homework.instructions || "No instructions added.")}</span>
+                                ${plan.homework.dueDate ? `<small>Due ${escapeHtml(plan.homework.dueDate)}</small>` : ""}
+                              </div>`
+                            : ""
+                        }
+                        <div class="lesson-plan-resource-row">
+                          ${renderLessonPlanAttachments(plan.attachments)}
+                        </div>
+                      </article>
+                    `,
+                  )
+                  .join("")
+              : `<article class="portal-class-empty"><strong>No lesson resources yet</strong><p>Teacher-uploaded materials will appear here after lesson plans are submitted.</p></article>`
           }
         </div>
       </section>
@@ -28660,31 +28741,787 @@
     refreshEditorSummary();
   }
 
-  function buildStaffLessonPlansSection(user) {
-    const assignments = getTeacherPortalAssignments(user);
+  function getTeacherLessonPlans(user = {}) {
+    const manager = getLessonPlanManager();
+    const summary = manager && typeof manager.summarize === "function" ? manager.summarize() : null;
+    const userEmail = normalizeEmail(user.email || "");
+    const userId = String(user.id || "").trim().toLowerCase();
+    const userName = String(user.displayName || user.email || "").trim().toLowerCase();
+
+    if (!summary) {
+      return [];
+    }
+
+    return (summary.records || []).filter((plan) => {
+      const planEmail = normalizeEmail(plan.teacherEmail || "");
+      const planId = String(plan.teacherId || "").trim().toLowerCase();
+      const planName = String(plan.teacherName || "").trim().toLowerCase();
+      return (
+        (userEmail && planEmail === userEmail) ||
+        (userId && planId === userId) ||
+        (userName && planName === userName)
+      );
+    });
+  }
+
+  function getLessonPlanStatusLabel(status = "") {
+    const normalized = String(status || "draft").trim().toLowerCase();
+    if (normalized === "delivered") return "Delivered";
+    if (normalized === "submitted") return "Submitted";
+    return "Draft";
+  }
+
+  function getLessonPlanStatusClass(status = "") {
+    const normalized = String(status || "draft").trim().toLowerCase();
+    if (normalized === "delivered") return "is-delivered";
+    if (normalized === "submitted") return "is-submitted";
+    return "is-draft";
+  }
+
+  function lessonPlanMatchesAssignment(plan = {}, assignment = {}) {
+    if (!assignment) return false;
+    const planClassId = String(plan.classId || "").trim();
+    const assignmentClassId = String(assignment.classId || "").trim();
+    const classMatches =
+      (planClassId && assignmentClassId && planClassId === assignmentClassId) ||
+      normalizeLevelToken(plan.classLevel) === normalizeLevelToken(assignment.classLabel);
+    const subjectMatches = String(plan.subject || "").trim().toLowerCase() === String(assignment.subject || "").trim().toLowerCase();
+    return classMatches && subjectMatches;
+  }
+
+  function getLessonPlanCoverageInfo(plans = [], assignment = null, termId = "") {
+    const relevant = (Array.isArray(plans) ? plans : []).filter((plan) => {
+      if (!lessonPlanMatchesAssignment(plan, assignment)) return false;
+      return !termId || !plan.termId || plan.termId === termId;
+    });
+    const maxOrder = Math.max(0, ...relevant.map((plan) => Number.parseInt(plan.syllabusOrder, 10) || 0));
+    const completedOrders = new Set(
+      relevant
+        .filter(
+          (plan) =>
+            plan.coverageStatus === "completed" ||
+            plan.status === "delivered" ||
+            Boolean(plan.delivery?.taught),
+        )
+        .map((plan) => Number.parseInt(plan.syllabusOrder, 10) || 0)
+        .filter(Boolean),
+    );
+    const submittedOrders = new Set(
+      relevant
+        .filter((plan) => plan.status === "submitted" || plan.status === "delivered")
+        .map((plan) => Number.parseInt(plan.syllabusOrder, 10) || 0)
+        .filter(Boolean),
+    );
+    const denominator = Math.max(maxOrder, completedOrders.size, submittedOrders.size);
+    const percent = denominator ? Math.round((completedOrders.size / denominator) * 100) : 0;
+    const pending = denominator ? Math.max(0, denominator - completedOrders.size) : 0;
+
+    return {
+      relevant,
+      completed: completedOrders.size,
+      submitted: submittedOrders.size,
+      total: denominator,
+      pending,
+      percent,
+      nextOrder: Math.max(1, maxOrder + 1),
+    };
+  }
+
+  function getLessonPlanMissingOrders(plans = [], candidate = {}) {
+    const order = Number.parseInt(candidate.syllabusOrder, 10) || 0;
+    if (order <= 1) return [];
+
+    const completed = new Set(
+      (Array.isArray(plans) ? plans : [])
+        .filter((plan) => plan.id !== candidate.id)
+        .filter((plan) => {
+          const classMatches =
+            (candidate.classId && plan.classId && candidate.classId === plan.classId) ||
+            normalizeLevelToken(candidate.classLevel) === normalizeLevelToken(plan.classLevel);
+          return (
+            classMatches &&
+            String(plan.subject || "").trim().toLowerCase() === String(candidate.subject || "").trim().toLowerCase() &&
+            (!candidate.termId || !plan.termId || plan.termId === candidate.termId)
+          );
+        })
+        .filter(
+          (plan) =>
+            plan.coverageStatus === "completed" ||
+            plan.status === "delivered" ||
+            Boolean(plan.delivery?.taught),
+        )
+        .map((plan) => Number.parseInt(plan.syllabusOrder, 10) || 0)
+        .filter(Boolean),
+    );
+
+    return Array.from({ length: order - 1 }, (_, index) => index + 1).filter((item) => !completed.has(item));
+  }
+
+  function renderLessonPlanAttachments(attachments = [], options = {}) {
+    const editable = Boolean(options.editable);
+    if (!attachments.length) {
+      return `<div class="lesson-plan-attachment-empty">No resources attached.</div>`;
+    }
+
+    return attachments
+      .map(
+        (file) => `
+          <article class="lesson-plan-attachment">
+            <div>
+              <strong>${escapeHtml(file.name || "Resource")}</strong>
+              <span>${escapeHtml([file.type || "File", formatFileSize(file.size || file.sizeBytes || 0)].filter(Boolean).join(" - "))}</span>
+            </div>
+            <div class="lesson-plan-attachment-actions">
+              ${
+                file.dataUrl
+                  ? `<a class="portal-class-button" href="${escapeHtml(file.dataUrl)}" download="${escapeHtml(file.name || "resource")}" rel="noopener">Download</a>`
+                  : ""
+              }
+              ${
+                editable
+                  ? `<button class="portal-class-button is-archive" type="button" data-lesson-attachment-remove="${escapeHtml(file.id)}">Remove</button>`
+                  : ""
+              }
+            </div>
+          </article>
+        `,
+      )
+      .join("");
+  }
+
+  function renderLessonPlanCalendar(plans = []) {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const startOffset = firstDay.getDay();
+    const byDate = plans.reduce((map, plan) => {
+      const key = String(plan.planDate || "").trim();
+      if (!key) return map;
+      map.set(key, [...(map.get(key) || []), plan]);
+      return map;
+    }, new Map());
+    const cells = [];
+
+    for (let index = 0; index < startOffset; index += 1) {
+      cells.push(`<span class="lesson-calendar-cell is-muted"></span>`);
+    }
+
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      const dateKey = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      const dayPlans = byDate.get(dateKey) || [];
+      cells.push(`
+        <span class="lesson-calendar-cell ${dayPlans.length ? "has-plan" : ""}">
+          <strong>${day}</strong>
+          ${dayPlans.length ? `<small>${dayPlans.length}</small>` : ""}
+        </span>
+      `);
+    }
 
     return `
-      <section class="staff-portal-section admin-surface-card">
-        <div class="admin-surface-head">
-          <div>
-            <h2>Lesson Plans</h2>
-            <span>Weekly planning</span>
-          </div>
+      <div class="lesson-plan-calendar">
+        <div class="lesson-calendar-days">
+          ${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => `<b>${day}</b>`).join("")}
         </div>
-        <div class="staff-portal-grid">
-          <article class="staff-portal-tile">
-            <span>This week</span>
-            <strong>${assignments.length}</strong>
-            <p>Subject plan slot${assignments.length === 1 ? "" : "s"} linked to your assignments.</p>
-          </article>
-          <article class="staff-portal-tile">
-            <span>Status</span>
-            <strong>Draft</strong>
-            <p>Pending submission</p>
-          </article>
-        </div>
-      </section>
+        <div class="lesson-calendar-grid">${cells.join("")}</div>
+      </div>
     `;
+  }
+
+  function renderStaffLessonPlansWorkspace(target, user) {
+    if (!target) return;
+
+    const manager = getLessonPlanManager();
+    const assignments = getTeacherPortalAssignments(user).filter((assignment) => assignment.subject);
+    const { cycleState, openSession, openTerm } = getStaffActiveTermContext();
+    const sessions = Array.isArray(cycleState.sessions) ? cycleState.sessions : [];
+    const terms = Array.isArray(cycleState.terms) ? cycleState.terms : [];
+    let editingAttachments = [];
+
+    const render = () => {
+      const plans = getTeacherLessonPlans(user);
+      const selectedAssignmentIndex = Number.parseInt(target.dataset.lessonAssignmentIndex || "0", 10) || 0;
+      const selectedAssignment = assignments[selectedAssignmentIndex] || assignments[0] || null;
+      const coverage = getLessonPlanCoverageInfo(plans, selectedAssignment, openTerm?.id || "");
+      const submittedCount = plans.filter((plan) => plan.status === "submitted" || plan.status === "delivered").length;
+      const deliveredCount = plans.filter((plan) => plan.status === "delivered" || plan.delivery?.taught).length;
+      const upcomingPlans = plans
+        .filter((plan) => plan.planDate && plan.planDate >= getTodayDateValue())
+        .slice(0, 6);
+
+      target.hidden = false;
+      target.innerHTML = `
+        <section class="staff-portal-section admin-surface-card lesson-plan-hero">
+          <div class="admin-surface-head">
+            <div>
+              <h2>Lesson Plans</h2>
+              <span>Plan instruction, submit weekly work, and publish resources for students.</span>
+            </div>
+          </div>
+          <div class="staff-portal-grid lesson-plan-metrics">
+            <article class="staff-portal-tile">
+              <span>Drafts</span>
+              <strong>${plans.filter((plan) => plan.status === "draft").length}</strong>
+              <p>Plans still being prepared.</p>
+            </article>
+            <article class="staff-portal-tile">
+              <span>Submitted</span>
+              <strong>${submittedCount}</strong>
+              <p>Plans ready for review and student resources.</p>
+            </article>
+            <article class="staff-portal-tile">
+              <span>Delivered</span>
+              <strong>${deliveredCount}</strong>
+              <p>Lessons marked as taught.</p>
+            </article>
+            <article class="staff-portal-tile">
+              <span>Syllabus coverage</span>
+              <strong>${coverage.percent}%</strong>
+              <p>${coverage.completed} completed, ${coverage.pending} pending topic${coverage.pending === 1 ? "" : "s"}.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="lesson-plan-layout">
+          <article class="admin-surface-card lesson-plan-editor-card">
+            <div class="admin-surface-head">
+              <div>
+                <h2>Create Lesson Plan</h2>
+                <span>Draft, submit, duplicate, and track delivery.</span>
+              </div>
+            </div>
+            <form id="staff-lesson-plan-form" class="lesson-plan-form">
+              <input type="hidden" name="planId" />
+              <div class="portal-settings-grid">
+                <label class="portal-field portal-field-span-2">
+                  <span>Subject and class</span>
+                  <select name="assignmentIndex" ${assignments.length ? "" : "disabled"}>
+                    ${
+                      assignments.length
+                        ? assignments
+                            .map(
+                              (assignment, index) => `
+                                <option value="${index}" ${index === selectedAssignmentIndex ? "selected" : ""}>
+                                  ${escapeHtml(`${assignment.subject} - ${assignment.classLabel}`)}
+                                </option>
+                              `,
+                            )
+                            .join("")
+                        : `<option value="">No assigned class or subject found</option>`
+                    }
+                  </select>
+                </label>
+                <label class="portal-field">
+                  <span>Academic session</span>
+                  <select name="sessionId">
+                    ${
+                      sessions.length
+                        ? sessions
+                            .map(
+                              (session) =>
+                                `<option value="${escapeHtml(session.id)}" ${session.id === openSession?.id ? "selected" : ""}>${escapeHtml(session.name)}</option>`,
+                            )
+                            .join("")
+                        : `<option value="">No session configured</option>`
+                    }
+                  </select>
+                </label>
+                <label class="portal-field">
+                  <span>Term / semester</span>
+                  <select name="termId">
+                    ${
+                      terms.length
+                        ? terms
+                            .map(
+                              (term) =>
+                                `<option value="${escapeHtml(term.id)}" ${term.id === openTerm?.id ? "selected" : ""}>${escapeHtml(term.name)}</option>`,
+                            )
+                            .join("")
+                        : `<option value="">No term configured</option>`
+                    }
+                  </select>
+                </label>
+                <label class="portal-field">
+                  <span>Planning horizon</span>
+                  <select name="planView">
+                    <option value="day">Day</option>
+                    <option value="week" selected>Week</option>
+                    <option value="month">Month</option>
+                    <option value="term">Term</option>
+                  </select>
+                </label>
+                <label class="portal-field">
+                  <span>Week number</span>
+                  <input name="weekNumber" type="number" min="1" value="1" />
+                </label>
+                <label class="portal-field">
+                  <span>Date</span>
+                  <input name="planDate" type="date" value="${escapeHtml(getTodayDateValue())}" />
+                </label>
+                <label class="portal-field">
+                  <span>Syllabus order</span>
+                  <input name="syllabusOrder" type="number" min="1" value="${escapeHtml(String(coverage.nextOrder))}" />
+                </label>
+                <label class="portal-field portal-field-span-2">
+                  <span>Topic</span>
+                  <input name="topic" type="text" placeholder="Lesson topic" />
+                </label>
+                <label class="portal-field portal-field-span-2">
+                  <span>Sub-topic</span>
+                  <input name="subTopic" type="text" placeholder="Sub-topic or focus area" />
+                </label>
+                <label class="portal-field portal-field-span-2">
+                  <span>Learning objectives / outcomes</span>
+                  <textarea name="objectives" rows="3" placeholder="What students should know or be able to do"></textarea>
+                </label>
+                <label class="portal-field portal-field-span-2">
+                  <span>Teaching materials / resources</span>
+                  <textarea name="materials" rows="2" placeholder="Textbook, worksheets, slides, lab materials"></textarea>
+                </label>
+                <label class="portal-field portal-field-span-2">
+                  <span>Teaching methods</span>
+                  <input name="teachingMethods" type="text" placeholder="Discussion, demonstration, group work" />
+                </label>
+                <label class="portal-field portal-field-span-2">
+                  <span>Class activities</span>
+                  <textarea name="classActivities" rows="3" placeholder="Student and teacher activities"></textarea>
+                </label>
+                <label class="portal-field portal-field-span-2">
+                  <span>Assessment / evaluation activities</span>
+                  <textarea name="assessment" rows="2" placeholder="Quiz, oral questions, classwork, exit ticket"></textarea>
+                </label>
+                <label class="portal-field">
+                  <span>Coverage status</span>
+                  <select name="coverageStatus">
+                    <option value="planned">Planned</option>
+                    <option value="in-progress">In progress</option>
+                    <option value="completed">Completed</option>
+                    <option value="pending">Pending</option>
+                  </select>
+                </label>
+                <label class="portal-field">
+                  <span>Homework due date</span>
+                  <input name="homeworkDueDate" type="date" />
+                </label>
+                <label class="portal-field portal-field-span-2">
+                  <span>Homework / assignment</span>
+                  <input name="homeworkTitle" type="text" placeholder="Assignment title" />
+                </label>
+                <label class="portal-field portal-field-span-2">
+                  <span>Assignment instructions</span>
+                  <textarea name="homeworkInstructions" rows="2" placeholder="Homework instructions or assessment link"></textarea>
+                </label>
+                <label class="portal-field portal-field-span-2">
+                  <span>Remarks / reflection</span>
+                  <textarea name="remarks" rows="2" placeholder="Teacher reflection after planning or delivery"></textarea>
+                </label>
+              </div>
+
+              <details class="lesson-plan-delivery">
+                <summary>Lesson delivery tracking</summary>
+                <div class="portal-settings-grid">
+                  <label class="portal-field lesson-plan-check-field">
+                    <span>Lesson taught</span>
+                    <input name="lessonTaught" type="checkbox" />
+                  </label>
+                  <label class="portal-field">
+                    <span>Delivery date</span>
+                    <input name="deliveryDate" type="date" />
+                  </label>
+                  <label class="portal-field">
+                    <span>Time spent</span>
+                    <input name="timeSpent" type="text" placeholder="e.g. 45 minutes" />
+                  </label>
+                  <label class="portal-field portal-field-span-2">
+                    <span>Topics covered</span>
+                    <textarea name="topicsCovered" rows="2" placeholder="What was actually covered"></textarea>
+                  </label>
+                  <label class="portal-field portal-field-span-2">
+                    <span>Attendance summary</span>
+                    <input name="attendanceSummary" type="text" placeholder="e.g. 32 present, 2 absent" />
+                  </label>
+                  <label class="portal-field portal-field-span-2">
+                    <span>Challenges encountered</span>
+                    <textarea name="challenges" rows="2" placeholder="Instructional challenges or follow-up needed"></textarea>
+                  </label>
+                </div>
+              </details>
+
+              <div class="lesson-plan-upload">
+                <label class="portal-field">
+                  <span>Upload resources</span>
+                  <input name="attachments" type="file" multiple accept=".pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,.mp4,.mov,.txt" />
+                </label>
+                <div class="lesson-plan-attachment-list" data-lesson-attachments>
+                  ${renderLessonPlanAttachments(editingAttachments, { editable: true })}
+                </div>
+              </div>
+
+              <div id="staff-lesson-plan-status" class="portal-inline-status" aria-live="polite"></div>
+              <div class="lesson-plan-form-actions">
+                <button class="button button-outline" type="button" data-lesson-reset>New plan</button>
+                <button class="button button-outline" type="submit" data-lesson-save-status="draft">Save draft</button>
+                <button class="button button-primary" type="submit" data-lesson-save-status="submitted">Submit completed plan</button>
+              </div>
+            </form>
+          </article>
+
+          <aside class="lesson-plan-side">
+            <article class="admin-surface-card lesson-plan-progress-card">
+              <div class="admin-surface-head">
+                <div>
+                  <h2>Syllabus Coverage</h2>
+                  <span>${escapeHtml(selectedAssignment ? `${selectedAssignment.subject} - ${selectedAssignment.classLabel}` : "No assignment selected")}</span>
+                </div>
+              </div>
+              <div class="lesson-plan-progress-ring" style="--lesson-progress:${coverage.percent}%">
+                <strong>${coverage.percent}%</strong>
+                <span>${coverage.completed}/${coverage.total || 0} topics</span>
+              </div>
+              <div class="lesson-plan-progress-list">
+                <span>Submitted topics <strong>${coverage.submitted}</strong></span>
+                <span>Pending topics <strong>${coverage.pending}</strong></span>
+              </div>
+            </article>
+
+            <article class="admin-surface-card">
+              <div class="admin-surface-head">
+                <div>
+                  <h2>Planning Calendar</h2>
+                  <span>${escapeHtml(new Date().toLocaleString(undefined, { month: "long", year: "numeric" }))}</span>
+                </div>
+              </div>
+              ${renderLessonPlanCalendar(plans)}
+            </article>
+
+            <article class="admin-surface-card">
+              <div class="admin-surface-head">
+                <div>
+                  <h2>Upcoming Lessons</h2>
+                  <span>${upcomingPlans.length} planned</span>
+                </div>
+              </div>
+              <div class="staff-portal-list">
+                ${
+                  upcomingPlans.length
+                    ? upcomingPlans
+                        .map(
+                          (plan) => `
+                            <article class="staff-portal-row">
+                              <div>
+                                <strong>${escapeHtml(plan.topic || "Untitled topic")}</strong>
+                                <span>${escapeHtml(`${plan.subject} - ${plan.classLevel}`)}</span>
+                              </div>
+                              <small>${escapeHtml(plan.planDate || `Week ${plan.weekNumber}`)}</small>
+                            </article>
+                          `,
+                        )
+                        .join("")
+                    : `<article class="portal-class-empty"><strong>No upcoming lessons</strong><p>Submitted and draft plans with future dates will appear here.</p></article>`
+                }
+              </div>
+            </article>
+          </aside>
+        </section>
+
+        <section class="staff-portal-section admin-surface-card lesson-plan-history-card">
+          <div class="admin-surface-head">
+            <div>
+              <h2>Plan History</h2>
+              <span>${plans.length} lesson plan${plans.length === 1 ? "" : "s"}</span>
+            </div>
+          </div>
+          <div class="lesson-plan-history">
+            ${
+              plans.length
+                ? plans
+                    .map(
+                      (plan) => `
+                        <article class="lesson-plan-history-item">
+                          <div class="lesson-plan-history-main">
+                            <span class="lesson-plan-status ${getLessonPlanStatusClass(plan.status)}">${escapeHtml(getLessonPlanStatusLabel(plan.status))}</span>
+                            <h3>${escapeHtml(plan.topic || "Untitled lesson")}</h3>
+                            <p>${escapeHtml([plan.subject, plan.classLevel, plan.termName || plan.sessionName, `Week ${plan.weekNumber}`].filter(Boolean).join(" - "))}</p>
+                            <div class="lesson-plan-history-meta">
+                              <span>${escapeHtml(plan.planDate || "No date")}</span>
+                              <span>${escapeHtml(`Topic ${plan.syllabusOrder}`)}</span>
+                              <span>${escapeHtml(plan.attachments.length ? `${plan.attachments.length} resource${plan.attachments.length === 1 ? "" : "s"}` : "No resources")}</span>
+                            </div>
+                          </div>
+                          <div class="lesson-plan-history-actions">
+                            <button class="portal-class-button" type="button" data-lesson-action="edit" data-lesson-id="${escapeHtml(plan.id)}">Edit</button>
+                            <button class="portal-class-button" type="button" data-lesson-action="duplicate" data-lesson-id="${escapeHtml(plan.id)}">Duplicate</button>
+                          </div>
+                          <div class="lesson-plan-resource-row">
+                            ${renderLessonPlanAttachments(plan.attachments)}
+                          </div>
+                        </article>
+                      `,
+                    )
+                    .join("")
+                : `<article class="portal-class-empty"><strong>No lesson plans yet</strong><p>Create your first plan for an assigned class and subject.</p></article>`
+            }
+          </div>
+        </section>
+      `;
+
+      bindLessonPlanControls();
+    };
+
+    const populateForm = (plan = null) => {
+      const form = target.querySelector("#staff-lesson-plan-form");
+      if (!form) return;
+
+      if (!plan) {
+        editingAttachments = [];
+        form.reset();
+        form.elements.planId.value = "";
+        form.elements.planDate.value = getTodayDateValue();
+        form.elements.weekNumber.value = "1";
+        form.elements.syllabusOrder.value = "1";
+        form.elements.planView.value = "week";
+        form.elements.coverageStatus.value = "planned";
+        target.querySelector("[data-lesson-attachments]").innerHTML = renderLessonPlanAttachments(editingAttachments, { editable: true });
+        return;
+      }
+
+      const assignmentIndex = assignments.findIndex((assignment) => lessonPlanMatchesAssignment(plan, assignment));
+      target.dataset.lessonAssignmentIndex = String(Math.max(0, assignmentIndex));
+      form.elements.planId.value = plan.id || "";
+      form.elements.assignmentIndex.value = String(Math.max(0, assignmentIndex));
+      form.elements.sessionId.value = plan.sessionId || openSession?.id || "";
+      form.elements.termId.value = plan.termId || openTerm?.id || "";
+      form.elements.planView.value = plan.planView || "week";
+      form.elements.weekNumber.value = String(plan.weekNumber || 1);
+      form.elements.planDate.value = plan.planDate || getTodayDateValue();
+      form.elements.syllabusOrder.value = String(plan.syllabusOrder || 1);
+      form.elements.topic.value = plan.topic || "";
+      form.elements.subTopic.value = plan.subTopic || "";
+      form.elements.objectives.value = plan.objectives || "";
+      form.elements.materials.value = plan.materials || "";
+      form.elements.teachingMethods.value = (plan.teachingMethods || []).join(", ");
+      form.elements.classActivities.value = plan.classActivities || "";
+      form.elements.assessment.value = plan.assessment || "";
+      form.elements.coverageStatus.value = plan.coverageStatus || "planned";
+      form.elements.homeworkDueDate.value = plan.homework?.dueDate || "";
+      form.elements.homeworkTitle.value = plan.homework?.title || "";
+      form.elements.homeworkInstructions.value = plan.homework?.instructions || "";
+      form.elements.remarks.value = plan.remarks || plan.reflection || "";
+      form.elements.lessonTaught.checked = Boolean(plan.delivery?.taught);
+      form.elements.deliveryDate.value = plan.delivery?.deliveryDate || "";
+      form.elements.timeSpent.value = plan.delivery?.timeSpent || "";
+      form.elements.topicsCovered.value = plan.delivery?.topicsCovered || "";
+      form.elements.attendanceSummary.value = plan.delivery?.attendanceSummary || "";
+      form.elements.challenges.value = plan.delivery?.challenges || "";
+      editingAttachments = Array.isArray(plan.attachments) ? [...plan.attachments] : [];
+      target.querySelector("[data-lesson-attachments]").innerHTML = renderLessonPlanAttachments(editingAttachments, { editable: true });
+      form.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+
+    const buildPayloadFromForm = async (form, requestedStatus) => {
+      const statusTarget = target.querySelector("#staff-lesson-plan-status");
+      const assignment = assignments[Number.parseInt(form.elements.assignmentIndex.value, 10)] || assignments[0] || null;
+      const session = sessions.find((item) => item.id === form.elements.sessionId.value) || openSession || null;
+      const term = terms.find((item) => item.id === form.elements.termId.value) || openTerm || null;
+      const files = Array.from(form.elements.attachments?.files || []);
+      const maxBytes = 3 * 1024 * 1024;
+
+      if (!assignment) {
+        setStatus(statusTarget, "error", "No assigned class or subject is available for lesson planning.");
+        return null;
+      }
+
+      const newAttachments = [];
+      for (const file of files) {
+        if (file.size > maxBytes) {
+          setStatus(statusTarget, "error", `${escapeHtml(file.name)} is too large. Keep each lesson resource under 3MB.`);
+          return null;
+        }
+        const dataUrl = await readFileAsDataUrl(file);
+        newAttachments.push({
+          id: createId(),
+          name: file.name || "Resource",
+          type: file.type || "",
+          size: file.size || 0,
+          dataUrl,
+          uploadedAt: nowIso(),
+        });
+      }
+
+      const payload = {
+        id: form.elements.planId.value || undefined,
+        teacherId: user.id || "",
+        teacherName: user.displayName || user.email || "Teacher",
+        teacherEmail: user.email || "",
+        subject: assignment.subject || "",
+        subjectCode: assignment.subjectCode || "",
+        classId: assignment.classId || "",
+        classLevel: assignment.classLabel || "",
+        sessionId: session?.id || "",
+        sessionName: session?.name || "",
+        termId: term?.id || "",
+        termName: term?.name || "",
+        weekNumber: form.elements.weekNumber.value,
+        planDate: form.elements.planDate.value,
+        planView: form.elements.planView.value,
+        topic: form.elements.topic.value,
+        subTopic: form.elements.subTopic.value,
+        curriculumTopic: form.elements.topic.value,
+        syllabusOrder: form.elements.syllabusOrder.value,
+        coverageStatus: form.elements.coverageStatus.value,
+        objectives: form.elements.objectives.value,
+        materials: form.elements.materials.value,
+        teachingMethods: form.elements.teachingMethods.value,
+        classActivities: form.elements.classActivities.value,
+        assessment: form.elements.assessment.value,
+        homework: {
+          title: form.elements.homeworkTitle.value,
+          instructions: form.elements.homeworkInstructions.value,
+          dueDate: form.elements.homeworkDueDate.value,
+          linkedAssessment: form.elements.assessment.value,
+        },
+        remarks: form.elements.remarks.value,
+        reflection: form.elements.remarks.value,
+        delivery: {
+          taught: form.elements.lessonTaught.checked,
+          deliveryDate: form.elements.deliveryDate.value,
+          topicsCovered: form.elements.topicsCovered.value,
+          timeSpent: form.elements.timeSpent.value,
+          attendanceSummary: form.elements.attendanceSummary.value,
+          challenges: form.elements.challenges.value,
+        },
+        attachments: [...editingAttachments, ...newAttachments],
+        status: form.elements.lessonTaught.checked ? "delivered" : requestedStatus,
+      };
+
+      if (requestedStatus !== "draft") {
+        const requiredFields = [
+          ["topic", payload.topic, "Enter the topic."],
+          ["objectives", payload.objectives, "Enter learning objectives."],
+          ["classActivities", payload.classActivities, "Enter class activities."],
+        ];
+        const missing = requiredFields.find(([, value]) => !String(value || "").trim());
+        if (missing) {
+          setStatus(statusTarget, "error", missing[2]);
+          form.elements[missing[0]]?.focus?.();
+          return null;
+        }
+
+        const missingOrders = getLessonPlanMissingOrders(getTeacherLessonPlans(user), payload);
+        if (missingOrders.length) {
+          setStatus(
+            statusTarget,
+            "error",
+            `Complete syllabus topic ${missingOrders[0]} before submitting topic ${payload.syllabusOrder}. Save this as a draft for now.`,
+          );
+          return null;
+        }
+      }
+
+      return payload;
+    };
+
+    const bindLessonPlanControls = () => {
+      const form = target.querySelector("#staff-lesson-plan-form");
+      const statusTarget = target.querySelector("#staff-lesson-plan-status");
+      if (!form) return;
+
+      form.elements.assignmentIndex?.addEventListener("change", () => {
+        target.dataset.lessonAssignmentIndex = form.elements.assignmentIndex.value || "0";
+        const assignment = assignments[Number.parseInt(form.elements.assignmentIndex.value, 10)] || assignments[0] || null;
+        const coverage = getLessonPlanCoverageInfo(getTeacherLessonPlans(user), assignment, openTerm?.id || "");
+        form.elements.syllabusOrder.value = String(coverage.nextOrder);
+      });
+
+      form.addEventListener("click", (event) => {
+        const removeButton = event.target.closest("[data-lesson-attachment-remove]");
+        if (removeButton) {
+          editingAttachments = editingAttachments.filter((file) => file.id !== removeButton.dataset.lessonAttachmentRemove);
+          target.querySelector("[data-lesson-attachments]").innerHTML = renderLessonPlanAttachments(editingAttachments, { editable: true });
+        }
+      });
+
+      target.querySelector("[data-lesson-reset]")?.addEventListener("click", () => {
+        populateForm(null);
+        setStatus(statusTarget, "", "");
+      });
+
+      form.querySelectorAll("[data-lesson-save-status]").forEach((button) => {
+        button.addEventListener("click", () => {
+          form.dataset.saveStatus = button.dataset.lessonSaveStatus || "draft";
+        });
+      });
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (!manager || typeof manager.upsertPlan !== "function") {
+          setStatus(statusTarget, "error", "Lesson plan storage is not available.");
+          return;
+        }
+        const requestedStatus = form.dataset.saveStatus || "draft";
+        const payload = await buildPayloadFromForm(form, requestedStatus);
+        if (!payload) return;
+
+        manager.upsertPlan(payload);
+        recordAuditEvent({
+          action: payload.status === "draft" ? "saved" : "submitted",
+          entityType: "lesson-plan",
+          entityId: payload.id || payload.topic,
+          summary: `${payload.status === "draft" ? "Saved" : "Submitted"} lesson plan for ${payload.subject}`,
+          details: `${payload.classLevel} - ${payload.topic}`,
+          visibleToRoles: payload.status === "draft" ? ["Teacher"] : ["Admin", "Teacher", "Student"],
+        });
+        setStatus(
+          statusTarget,
+          "success",
+          payload.status === "draft" ? "Lesson plan draft saved." : "Lesson plan submitted and resources are available to students.",
+        );
+        editingAttachments = [];
+        render();
+      });
+
+      target.querySelectorAll("[data-lesson-action]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const action = button.dataset.lessonAction;
+          const planId = button.dataset.lessonId;
+          const plan = getTeacherLessonPlans(user).find((entry) => entry.id === planId);
+          if (!plan || !manager) return;
+
+          if (action === "edit") {
+            populateForm(plan);
+            setStatus(statusTarget, "info", `Editing ${escapeHtml(plan.topic || "lesson plan")}.`);
+            return;
+          }
+
+          if (action === "duplicate" && typeof manager.duplicatePlan === "function") {
+            const duplicate = manager.duplicatePlan(plan.id, {
+              planDate: getTodayDateValue(),
+              weekNumber: Number(plan.weekNumber || 1) + 1,
+            });
+            recordAuditEvent({
+              action: "duplicated",
+              entityType: "lesson-plan",
+              entityId: plan.id,
+              summary: `Duplicated lesson plan for ${plan.subject}`,
+              details: `${plan.classLevel} - ${plan.topic}`,
+              visibleToRoles: ["Teacher"],
+            });
+            render();
+            if (duplicate) {
+              const updated = getTeacherLessonPlans(user).find((entry) => entry.id === duplicate.id) || duplicate;
+              populateForm(updated);
+            }
+          }
+        });
+      });
+    };
+
+    render();
+
+    if (manager?.eventName) {
+      window.addEventListener(manager.eventName, render);
+    }
   }
 
   function getPortalMessageInitials(value = "") {
@@ -29409,10 +30246,14 @@
       return;
     }
 
+    if (page === "staff-lesson-plans") {
+      renderStaffLessonPlansWorkspace(target, user);
+      return;
+    }
+
     const contentByPage = {
       "staff-timetable": buildStaffTimetableSection(user),
       "staff-classes": buildStaffClassesSection(user),
-      "staff-lesson-plans": buildStaffLessonPlansSection(user),
       "staff-leave": buildStaffLeaveSection(user),
     };
 

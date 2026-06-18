@@ -12843,6 +12843,333 @@ body.admin-dashboard-page .staff-portal-link-tile:hover {
   box-shadow: 0 16px 34px rgba(38, 48, 72, 0.1);
 }
 
+body.admin-dashboard-page .lesson-plan-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.75fr);
+  gap: 18px;
+  align-items: start;
+}
+
+body.admin-dashboard-page .lesson-plan-editor-card,
+body.admin-dashboard-page .lesson-plan-form,
+body.admin-dashboard-page .lesson-plan-side,
+body.admin-dashboard-page .lesson-plan-history,
+body.admin-dashboard-page .student-lesson-resource-list {
+  display: grid;
+  gap: 16px;
+}
+
+body.admin-dashboard-page .lesson-plan-metrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+body.admin-dashboard-page .lesson-plan-delivery {
+  border: 1px solid #dfe7f2;
+  border-radius: 14px;
+  background: #f8fbff;
+  overflow: hidden;
+}
+
+body.admin-dashboard-page .lesson-plan-delivery summary {
+  padding: 14px 16px;
+  color: #17233a;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+body.admin-dashboard-page .lesson-plan-delivery .portal-settings-grid {
+  padding: 0 16px 16px;
+}
+
+body.admin-dashboard-page .lesson-plan-check-field {
+  align-content: start;
+}
+
+body.admin-dashboard-page .lesson-plan-check-field input {
+  width: 18px;
+  height: 18px;
+}
+
+body.admin-dashboard-page .lesson-plan-upload {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #dfe7f2;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+body.admin-dashboard-page .lesson-plan-attachment-list,
+body.admin-dashboard-page .lesson-plan-resource-row {
+  display: grid;
+  gap: 8px;
+}
+
+body.admin-dashboard-page .lesson-plan-attachment {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #e1e8f2;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+
+body.admin-dashboard-page .lesson-plan-attachment > div:first-child {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+body.admin-dashboard-page .lesson-plan-attachment strong {
+  color: #17233a;
+  font-size: 0.86rem;
+  overflow-wrap: anywhere;
+}
+
+body.admin-dashboard-page .lesson-plan-attachment span,
+body.admin-dashboard-page .lesson-plan-attachment-empty {
+  color: #667188;
+  font-size: 0.76rem;
+}
+
+body.admin-dashboard-page .lesson-plan-attachment-actions,
+body.admin-dashboard-page .lesson-plan-form-actions,
+body.admin-dashboard-page .lesson-plan-history-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+body.admin-dashboard-page .lesson-plan-progress-card {
+  text-align: center;
+}
+
+body.admin-dashboard-page .lesson-plan-progress-ring {
+  --lesson-progress: 0%;
+  display: grid;
+  place-items: center;
+  width: 150px;
+  height: 150px;
+  margin: 4px auto 14px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at center, #ffffff 0 58%, transparent 59%),
+    conic-gradient(#246bfe var(--lesson-progress), #e7edf7 0);
+}
+
+body.admin-dashboard-page .lesson-plan-progress-ring strong {
+  color: #17233a;
+  font-size: 1.75rem;
+}
+
+body.admin-dashboard-page .lesson-plan-progress-ring span {
+  margin-top: -30px;
+  color: #667188;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+body.admin-dashboard-page .lesson-plan-progress-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+body.admin-dashboard-page .lesson-plan-progress-list span {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid #e1e8f2;
+  border-radius: 12px;
+  color: #667188;
+  font-size: 0.76rem;
+  text-align: left;
+}
+
+body.admin-dashboard-page .lesson-plan-progress-list strong {
+  color: #17233a;
+  font-size: 1rem;
+}
+
+body.admin-dashboard-page .lesson-plan-calendar {
+  display: grid;
+  gap: 8px;
+}
+
+body.admin-dashboard-page .lesson-calendar-days,
+body.admin-dashboard-page .lesson-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+body.admin-dashboard-page .lesson-calendar-days b {
+  color: #667188;
+  font-size: 0.68rem;
+  text-align: center;
+}
+
+body.admin-dashboard-page .lesson-calendar-cell {
+  position: relative;
+  min-height: 42px;
+  padding: 7px;
+  border: 1px solid #e1e8f2;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #17233a;
+  font-size: 0.74rem;
+}
+
+body.admin-dashboard-page .lesson-calendar-cell.is-muted {
+  border-color: transparent;
+  background: transparent;
+}
+
+body.admin-dashboard-page .lesson-calendar-cell.has-plan {
+  border-color: #b9d4ff;
+  background: #eef5ff;
+}
+
+body.admin-dashboard-page .lesson-calendar-cell small {
+  position: absolute;
+  right: 6px;
+  bottom: 5px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #246bfe;
+  color: #ffffff;
+  font-size: 0.66rem;
+  font-weight: 900;
+}
+
+body.admin-dashboard-page .lesson-plan-history-item,
+body.admin-dashboard-page .student-lesson-resource {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #e1e8f2;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(38, 48, 72, 0.05);
+}
+
+body.admin-dashboard-page .lesson-plan-history-item {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+body.admin-dashboard-page .lesson-plan-history-main {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+body.admin-dashboard-page .lesson-plan-history-main h3,
+body.admin-dashboard-page .student-lesson-resource-head strong {
+  margin: 0;
+  color: #17233a;
+  font-size: 1rem;
+}
+
+body.admin-dashboard-page .lesson-plan-history-main p,
+body.admin-dashboard-page .student-lesson-resource-head small,
+body.admin-dashboard-page .student-lesson-resource-head span,
+body.admin-dashboard-page .student-lesson-homework span,
+body.admin-dashboard-page .student-lesson-homework small {
+  margin: 0;
+  color: #667188;
+  font-size: 0.78rem;
+}
+
+body.admin-dashboard-page .lesson-plan-history-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+body.admin-dashboard-page .lesson-plan-history-meta span,
+body.admin-dashboard-page .lesson-plan-status,
+body.admin-dashboard-page .student-lesson-resource-head em {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  min-height: 25px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: #eef3fb;
+  color: #566277;
+  font-size: 0.68rem;
+  font-style: normal;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+body.admin-dashboard-page .lesson-plan-status.is-draft {
+  background: #fff7df;
+  color: #936309;
+}
+
+body.admin-dashboard-page .lesson-plan-status.is-submitted {
+  background: #eaf2ff;
+  color: #1f5fd4;
+}
+
+body.admin-dashboard-page .lesson-plan-status.is-delivered {
+  background: #edfdf4;
+  color: #167a3e;
+}
+
+body.admin-dashboard-page .lesson-plan-history-item .lesson-plan-resource-row {
+  grid-column: 1 / -1;
+}
+
+body.admin-dashboard-page .student-lesson-resource-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+body.admin-dashboard-page .student-lesson-resource-head > div,
+body.admin-dashboard-page .student-lesson-homework {
+  display: grid;
+  gap: 5px;
+}
+
+body.admin-dashboard-page .student-lesson-homework {
+  padding: 11px;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+
+@media (max-width: 1120px) {
+  body.admin-dashboard-page .lesson-plan-layout,
+  body.admin-dashboard-page .lesson-plan-metrics {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  body.admin-dashboard-page .lesson-plan-history-item,
+  body.admin-dashboard-page .student-lesson-resource-head,
+  body.admin-dashboard-page .lesson-plan-attachment {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+
+  body.admin-dashboard-page .lesson-plan-form-actions,
+  body.admin-dashboard-page .lesson-plan-history-actions,
+  body.admin-dashboard-page .lesson-plan-attachment-actions {
+    justify-content: flex-start;
+  }
+}
+
 body.staff-portal-page .admin-sidebar-link {
   min-height: 39px;
 }
