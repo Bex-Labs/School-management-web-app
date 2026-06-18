@@ -7965,7 +7965,7 @@
         level: form.elements.level.value.trim(),
         capacity: form.elements.capacity.value,
         classTeacher: form.elements.classTeacher.value.trim(),
-        arms: parseCommaSeparatedValues(form.elements.arms.value),
+        arms: [form.elements.name.value.trim()].filter(Boolean),
         subjects: parseCommaSeparatedValues(form.elements.subjects.value),
       };
       if (!payload.arms.length && payload.name) {
@@ -8546,7 +8546,573 @@
       setClassTimetableModalOpen(true);
     };
 
+    let classDetailModalElement = null;
+    let classDetailModalBody = null;
+    let classDetailModalTitle = null;
+    let classDetailModalSubtitle = null;
+
+    const setClassDetailModalOpen = (visible) => {
+      if (!classDetailModalElement) {
+        return;
+      }
+      classDetailModalElement.hidden = !visible;
+      document.body.classList.toggle("portal-overlay-open", visible);
+    };
+
+    const ensureClassDetailModal = () => {
+      if (classDetailModalElement) {
+        return classDetailModalElement;
+      }
+
+      const wrapper = document.createElement("div");
+      wrapper.innerHTML = `
+        <div id="portal-class-detail-modal" class="portal-overlay portal-class-detail-modal" hidden>
+          <button class="portal-overlay-backdrop" type="button" data-class-detail-close aria-label="Close class details"></button>
+          <section class="portal-overlay-panel portal-class-detail-modal-panel" role="dialog" aria-modal="true" aria-labelledby="portal-class-detail-modal-title">
+            <header class="portal-overlay-head">
+              <div>
+                <h3 id="portal-class-detail-modal-title">Class page</h3>
+                <span id="portal-class-detail-modal-subtitle">Class information</span>
+              </div>
+              <button class="portal-overlay-close" type="button" data-class-detail-close aria-label="Close class details">&times;</button>
+            </header>
+            <div id="portal-class-detail-modal-body" class="portal-class-detail-modal-body"></div>
+            <div class="utility-actions portal-class-detail-modal-actions">
+              <button class="button button-outline" type="button" data-class-detail-close>Close</button>
+            </div>
+          </section>
+        </div>
+      `;
+      document.body.appendChild(wrapper.firstElementChild);
+      classDetailModalElement = document.getElementById("portal-class-detail-modal");
+      classDetailModalBody = document.getElementById("portal-class-detail-modal-body");
+      classDetailModalTitle = document.getElementById("portal-class-detail-modal-title");
+      classDetailModalSubtitle = document.getElementById("portal-class-detail-modal-subtitle");
+      classDetailModalElement.addEventListener("click", (event) => {
+        if (event.target.closest("[data-class-detail-close]")) {
+          setClassDetailModalOpen(false);
+          return;
+        }
+
+        const getDetailRecordFromButton = (button) =>
+          manager
+            .getClasses()
+            .find((item) => item.id === String(button?.dataset.classId || classDetailModalElement.dataset.classId || "").trim());
+
+        const editButton = event.target.closest('[data-class-action="edit"]');
+        if (editButton && isAdmin) {
+          const record = getDetailRecordFromButton(editButton);
+          if (record) {
+            setClassDetailModalOpen(false);
+            populatePortalClassForm(form, record, isAdmin);
+            renderClassTeacherOptions(record.classTeacher || "");
+            renderTeacherAssignmentRows(record.teacherAssignments || [{}]);
+            setClassFormVisibility(true);
+            setStatus(
+              status,
+              "info",
+              `Editing <strong>${escapeHtml(record.level)} · ${escapeHtml(
+                record.name,
+              )}</strong>. Save to update this class.`,
+            );
+            form.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+          return;
+        }
+
+        const subjectButton = event.target.closest("[data-class-subjects-view]");
+        if (subjectButton) {
+          const record = getDetailRecordFromButton(subjectButton);
+          if (record) {
+            setClassDetailModalOpen(false);
+            renderClassSubjectModal(record);
+          }
+          return;
+        }
+
+        const timetableButton = event.target.closest("[data-class-timetable-view]");
+        if (timetableButton) {
+          const record = getDetailRecordFromButton(timetableButton);
+          if (record) {
+            setClassDetailModalOpen(false);
+            renderClassTimetablePreview(record);
+          }
+          return;
+        }
+
+        const jumpButton = event.target.closest("[data-class-detail-jump]");
+        if (jumpButton) {
+          const record = getDetailRecordFromButton(jumpButton);
+          if (record) {
+            renderClassDetailModal(record, jumpButton.dataset.classDetailJump || "overview");
+          }
+        }
+      });
+      return classDetailModalElement;
+    };
+
+    const formatClassDateValue = (value) => {
+      const rawValue = String(value || "").trim();
+      if (!rawValue) {
+        return "--";
+      }
+      const parsed = new Date(rawValue.length === 10 ? `${rawValue}T00:00:00` : rawValue);
+      if (Number.isNaN(parsed.getTime())) {
+        return rawValue;
+      }
+      return new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(parsed);
+    };
+
+    const getStudentDisplayName = (student = {}) =>
+      String(student.fullName || [student.firstName, student.lastName].filter(Boolean).join(" ") || student.admissionNo || "Student").trim();
+
+    const getClassRecordTokens = (classRecord = {}) => {
+      const hasDistinctArm =
+        classRecord.name &&
+        classRecord.level &&
+        normalizeLevelToken(classRecord.name) !== normalizeLevelToken(classRecord.level);
+      return [
+        hasDistinctArm ? "" : classRecord.level,
+        getClassDisplayName(classRecord),
+        `${classRecord.level || ""} ${classRecord.name || ""}`,
+      ]
+        .map((value) => normalizeLevelToken(value))
+        .filter(Boolean);
+    };
+
+    const recordMatchesClassRecord = (record = {}, classRecord = {}) => {
+      const classId = String(classRecord.id || "").trim();
+      const recordClassId = String(record.classId || record.classRecordId || "").trim();
+      if (classId && recordClassId === classId) {
+        return true;
+      }
+
+      const classTokens = getClassRecordTokens(classRecord);
+      return [record.className, record.level, record.classLevel, record.classLabel]
+        .map((value) => normalizeLevelToken(value))
+        .filter(Boolean)
+        .some((token) => classTokens.includes(token));
+    };
+
+    const getClassAttendanceRecords = (classRecord = {}) => {
+      const attendanceManager = getAttendanceManager();
+      const records =
+        attendanceManager && typeof attendanceManager.getRecords === "function"
+          ? attendanceManager.getRecords()
+          : [];
+      return records.filter((record) => recordMatchesClassRecord(record, classRecord));
+    };
+
+    const summarizeClassAttendanceRows = (classRecord = {}) => {
+      const students = getActiveStudentsForClass(classRecord);
+      const records = getClassAttendanceRecords(classRecord);
+      const rows = new Map(
+        students.map((student) => [
+          student.id,
+          {
+            student,
+            present: 0,
+            absent: 0,
+            late: 0,
+            excused: 0,
+            marked: 0,
+            latestStatus: "",
+            latestDate: "",
+          },
+        ]),
+      );
+
+      records.forEach((record) => {
+        (record.entries || []).forEach((entry) => {
+          const row = rows.get(String(entry.studentId || "").trim());
+          if (!row) {
+            return;
+          }
+          const statusValue = normalizeAttendanceStatus(entry.status);
+          row[statusValue] = (row[statusValue] || 0) + 1;
+          row.marked += 1;
+          if (!row.latestDate || String(record.date || "") >= row.latestDate) {
+            row.latestDate = String(record.date || "");
+            row.latestStatus = statusValue;
+          }
+        });
+      });
+
+      return {
+        students,
+        records,
+        rows: Array.from(rows.values()),
+      };
+    };
+
+    const summarizeReportCardAverage = (card = {}) => {
+      const subjectScores = (card.subjects || [])
+        .map((subject) => Number.parseFloat(subject.totalScore ?? subject.total ?? subject.score ?? ""))
+        .filter((value) => Number.isFinite(value));
+      const average = subjectScores.length
+        ? Math.round((subjectScores.reduce((sum, score) => sum + score, 0) / subjectScores.length) * 100) / 100
+        : Number.parseFloat(card.averageScore || card.average || "0") || 0;
+      const grade = getReportConfigurationManager()?.gradeScore?.(average)?.grade || card.grade || "--";
+      return {
+        average,
+        grade,
+        subjectCount: subjectScores.length || Number(card.subjectCount || 0),
+      };
+    };
+
+    const getGradebookAverageForStudent = (student = {}, classRecord = {}) => {
+      const gradebookManager = getGradebookManager();
+      const records =
+        gradebookManager && typeof gradebookManager.getRecords === "function"
+          ? gradebookManager.getRecords()
+          : [];
+      const scores = records
+        .filter((record) => recordMatchesClassRecord(record, classRecord))
+        .map((record) => {
+          const studentScores = (record.scores || []).find((entry) => entry.studentId === student.id);
+          if (!studentScores) {
+            return null;
+          }
+          const total = (record.components || []).reduce((sum, component) => {
+            const score = Math.max(0, Number.parseFloat(studentScores.componentScores?.[component.id]) || 0);
+            return sum + Math.min(Number.parseFloat(component.maximum) || 0, score);
+          }, 0);
+          return {
+            total: Math.round(total * 100) / 100,
+            subject: record.subject,
+            sessionName: record.sessionName,
+            termName: record.termName,
+          };
+        })
+        .filter(Boolean);
+
+      if (!scores.length) {
+        return null;
+      }
+
+      return {
+        average: Math.round((scores.reduce((sum, item) => sum + item.total, 0) / scores.length) * 100) / 100,
+        grade: "CA",
+        subjectCount: scores.length,
+        period: scores.find((item) => item.sessionName || item.termName) || {},
+        source: "Gradebook",
+      };
+    };
+
+    const buildClassResultRows = (classRecord = {}) => {
+      const students = getActiveStudentsForClass(classRecord);
+      const reportManager = getReportCardManager();
+      const cards =
+        reportManager && typeof reportManager.getRecords === "function"
+          ? reportManager.getRecords().filter((record) => recordMatchesClassRecord(record, classRecord))
+          : [];
+      const cardsByStudent = cards.reduce((collection, card) => {
+        const key = String(card.studentId || "").trim();
+        if (!key) {
+          return collection;
+        }
+        if (!collection.has(key)) {
+          collection.set(key, []);
+        }
+        collection.get(key).push(card);
+        return collection;
+      }, new Map());
+
+      return students.map((student) => {
+        const latestCard = (cardsByStudent.get(student.id) || [])
+          .sort(
+            (left, right) =>
+              String(right.releasedAt || right.updatedAt || right.createdAt || "").localeCompare(
+                String(left.releasedAt || left.updatedAt || left.createdAt || ""),
+              ),
+          )[0];
+
+        if (latestCard) {
+          const summary = summarizeReportCardAverage(latestCard);
+          return {
+            student,
+            average: summary.average,
+            grade: summary.grade,
+            subjectCount: summary.subjectCount,
+            period: [latestCard.sessionName, latestCard.termName].filter(Boolean).join(" - ") || "--",
+            source: latestCard.status === "released" ? "Released report" : "Draft report",
+          };
+        }
+
+        const gradebookSummary = getGradebookAverageForStudent(student, classRecord);
+        if (gradebookSummary) {
+          return {
+            student,
+            average: gradebookSummary.average,
+            grade: gradebookSummary.grade,
+            subjectCount: gradebookSummary.subjectCount,
+            period: [gradebookSummary.period?.sessionName, gradebookSummary.period?.termName].filter(Boolean).join(" - ") || "--",
+            source: gradebookSummary.source,
+          };
+        }
+
+        return {
+          student,
+          average: null,
+          grade: "--",
+          subjectCount: 0,
+          period: "--",
+          source: "No result yet",
+        };
+      });
+    };
+
+    const renderClassDetailStat = (label, value, note = "") => `
+      <article class="portal-class-detail-stat">
+        <span>${escapeHtml(label)}</span>
+        <strong>${escapeHtml(value)}</strong>
+        ${note ? `<p>${escapeHtml(note)}</p>` : ""}
+      </article>
+    `;
+
+    const renderClassStudentsModalContent = (classRecord = {}) => {
+      const students = getActiveStudentsForClass(classRecord);
+      const classLabel = getClassDisplayName(classRecord);
+
+      return `
+        <section class="portal-class-detail-summary">
+          ${renderClassDetailStat("Students", students.length.toLocaleString(), classLabel)}
+          ${renderClassDetailStat("Capacity", Number(classRecord.capacity || 0).toLocaleString(), "Configured seats")}
+          ${renderClassDetailStat("Class teacher", classRecord.classTeacher || "Not assigned", normalizeClassArmName(classRecord.name) || "Arm")}
+        </section>
+        ${
+          students.length
+            ? `<div class="portal-class-detail-table-wrap">
+                <table class="portal-class-detail-table">
+                  <thead>
+                    <tr>
+                      <th>Student</th>
+                      <th>Admission no.</th>
+                      <th>Email</th>
+                      <th>Gender</th>
+                      <th>Guardian</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${students
+                      .map((student) => {
+                        const guardian = student.guardians?.[0] || {};
+                        return `
+                          <tr>
+                            <td><strong>${escapeHtml(getStudentDisplayName(student))}</strong></td>
+                            <td>${escapeHtml(student.admissionNo || "--")}</td>
+                            <td>${escapeHtml(student.studentEmail || "--")}</td>
+                            <td>${escapeHtml(student.gender || "--")}</td>
+                            <td>${escapeHtml(guardian.name || "--")}</td>
+                          </tr>
+                        `;
+                      })
+                      .join("")}
+                  </tbody>
+                </table>
+              </div>`
+            : `<article class="portal-class-detail-empty">
+                <strong>No students assigned yet</strong>
+                <p>Students assigned to ${escapeHtml(classLabel)} will appear here.</p>
+              </article>`
+        }
+      `;
+    };
+
+    const renderClassAttendanceModalContent = (classRecord = {}) => {
+      const { students, records, rows } = summarizeClassAttendanceRows(classRecord);
+      const presentCount = rows.reduce((sum, row) => sum + row.present, 0);
+      const absentCount = rows.reduce((sum, row) => sum + row.absent, 0);
+      const markedCount = rows.reduce((sum, row) => sum + row.marked, 0);
+      const attendanceRate = markedCount ? Math.round((presentCount / markedCount) * 100) : 0;
+
+      return `
+        <section class="portal-class-detail-summary">
+          ${renderClassDetailStat("Students", students.length.toLocaleString(), "Current roster")}
+          ${renderClassDetailStat("Registers", records.length.toLocaleString(), "Submitted records")}
+          ${renderClassDetailStat("Attendance rate", `${attendanceRate}%`, `${presentCount} present marks`)}
+          ${renderClassDetailStat("Absences", absentCount.toLocaleString(), "Across submitted records")}
+        </section>
+        ${
+          rows.length
+            ? `<div class="portal-class-detail-table-wrap">
+                <table class="portal-class-detail-table">
+                  <thead>
+                    <tr>
+                      <th>Student</th>
+                      <th>Present</th>
+                      <th>Absent</th>
+                      <th>Late</th>
+                      <th>Last mark</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${rows
+                      .map(
+                        (row) => `
+                          <tr>
+                            <td><strong>${escapeHtml(getStudentDisplayName(row.student))}</strong><span>${escapeHtml(
+                              row.student.admissionNo || "--",
+                            )}</span></td>
+                            <td>${escapeHtml(String(row.present))}</td>
+                            <td>${escapeHtml(String(row.absent))}</td>
+                            <td>${escapeHtml(String(row.late))}</td>
+                            <td>${escapeHtml(
+                              row.latestStatus
+                                ? `${getAttendanceStatusLabel(row.latestStatus)} - ${formatClassDateValue(row.latestDate)}`
+                                : "Not marked",
+                            )}</td>
+                          </tr>
+                        `,
+                      )
+                      .join("")}
+                  </tbody>
+                </table>
+              </div>`
+            : `<article class="portal-class-detail-empty">
+                <strong>No attendance records yet</strong>
+                <p>Submitted registers for this class will appear here.</p>
+              </article>`
+        }
+      `;
+    };
+
+    const renderClassResultsModalContent = (classRecord = {}) => {
+      const rows = buildClassResultRows(classRecord);
+      const scoredRows = rows.filter((row) => Number.isFinite(row.average));
+      const classAverage = scoredRows.length
+        ? Math.round((scoredRows.reduce((sum, row) => sum + row.average, 0) / scoredRows.length) * 100) / 100
+        : null;
+
+      return `
+        <section class="portal-class-detail-summary">
+          ${renderClassDetailStat("Students", rows.length.toLocaleString(), "Current roster")}
+          ${renderClassDetailStat("With results", scoredRows.length.toLocaleString(), "Report or gradebook entries")}
+          ${renderClassDetailStat("Class average", classAverage === null ? "--" : `${formatReportCardScore(classAverage)}%`, "Latest available")}
+        </section>
+        ${
+          rows.length
+            ? `<div class="portal-class-detail-table-wrap">
+                <table class="portal-class-detail-table">
+                  <thead>
+                    <tr>
+                      <th>Student</th>
+                      <th>Average</th>
+                      <th>Grade</th>
+                      <th>Subjects</th>
+                      <th>Period</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${rows
+                      .map(
+                        (row) => `
+                          <tr>
+                            <td><strong>${escapeHtml(getStudentDisplayName(row.student))}</strong><span>${escapeHtml(
+                              row.student.admissionNo || "--",
+                            )}</span></td>
+                            <td>${row.average === null ? "--" : `${escapeHtml(formatReportCardScore(row.average))}%`}</td>
+                            <td>${escapeHtml(row.grade || "--")}</td>
+                            <td>${escapeHtml(String(row.subjectCount || 0))}</td>
+                            <td><strong>${escapeHtml(row.period || "--")}</strong><span>${escapeHtml(row.source || "")}</span></td>
+                          </tr>
+                        `,
+                      )
+                      .join("")}
+                  </tbody>
+                </table>
+              </div>`
+            : `<article class="portal-class-detail-empty">
+                <strong>No students found</strong>
+                <p>Average results will show once students are assigned and scores are recorded.</p>
+              </article>`
+        }
+      `;
+    };
+
+    const renderClassOverviewModalContent = (classRecord = {}) => {
+      const classLabel = getClassDisplayName(classRecord);
+      const students = getActiveStudentsForClass(classRecord);
+      const subjectRows = buildClassSubjectRows(classRecord);
+      const attendanceSummary = summarizeClassAttendanceRows(classRecord);
+      const timetableGroup = getLatestClassTimetableGroup(classRecord);
+      const resultRows = buildClassResultRows(classRecord);
+      const scoredRows = resultRows.filter((row) => Number.isFinite(row.average));
+
+      return `
+        <section class="portal-class-detail-hero">
+          <div>
+            <span>${escapeHtml(classRecord.status === "archived" ? "Archived class" : "Active class")}</span>
+            <strong>${escapeHtml(classLabel)}</strong>
+            <p>${escapeHtml(classRecord.level || "No level")} • ${escapeHtml(normalizeClassArmName(classRecord.name) || "No arm")}</p>
+          </div>
+          <button class="portal-class-button" type="button" data-class-action="edit" data-class-id="${escapeHtml(classRecord.id)}">
+            Edit arm
+          </button>
+        </section>
+        <section class="portal-class-detail-summary">
+          ${renderClassDetailStat("Students", students.length.toLocaleString(), `${Number(classRecord.capacity || 0).toLocaleString()} capacity`)}
+          ${renderClassDetailStat("Subjects", subjectRows.length.toLocaleString(), "Linked subjects/courses")}
+          ${renderClassDetailStat("Registers", attendanceSummary.records.length.toLocaleString(), "Attendance records")}
+          ${renderClassDetailStat("Timetable", timetableGroup?.rows?.length ? "Saved" : "Not saved", timetableGroup?.rows?.length ? `${timetableGroup.rows.length} lesson slots` : "No class timetable")}
+          ${renderClassDetailStat("Results", scoredRows.length.toLocaleString(), "Students with scores")}
+          ${renderClassDetailStat("Class teacher", classRecord.classTeacher || "Not assigned", "Teacher in charge")}
+        </section>
+        <section class="portal-class-detail-shortcuts" aria-label="Class shortcuts">
+          <button type="button" data-class-detail-jump="students" data-class-id="${escapeHtml(classRecord.id)}">Students</button>
+          <button type="button" data-class-subjects-view data-class-id="${escapeHtml(classRecord.id)}">${escapeHtml(
+            getClassSubjectTerminology(classRecord).plural,
+          )}</button>
+          <button type="button" data-class-detail-jump="attendance" data-class-id="${escapeHtml(classRecord.id)}">Attendance</button>
+          <button type="button" data-class-timetable-view data-class-id="${escapeHtml(classRecord.id)}">Timetable</button>
+          <button type="button" data-class-detail-jump="results" data-class-id="${escapeHtml(classRecord.id)}">Results</button>
+        </section>
+      `;
+    };
+
+    const renderClassDetailModal = (classRecord = {}, mode = "overview") => {
+      ensureClassDetailModal();
+      const normalizedMode = ["students", "attendance", "results", "overview"].includes(mode) ? mode : "overview";
+      const classLabel = getClassDisplayName(classRecord);
+      const titleMap = {
+        overview: `${classLabel} class page`,
+        students: `${classLabel} students`,
+        attendance: `${classLabel} attendance`,
+        results: `${classLabel} results`,
+      };
+      const contentMap = {
+        overview: renderClassOverviewModalContent,
+        students: renderClassStudentsModalContent,
+        attendance: renderClassAttendanceModalContent,
+        results: renderClassResultsModalContent,
+      };
+
+      classDetailModalElement.dataset.classId = classRecord.id || "";
+      if (classDetailModalTitle) {
+        classDetailModalTitle.textContent = titleMap[normalizedMode];
+      }
+      if (classDetailModalSubtitle) {
+        classDetailModalSubtitle.textContent = `${classRecord.level || "No level"} • ${
+          normalizeClassArmName(classRecord.name) || "No arm"
+        }`;
+      }
+      classDetailModalBody.innerHTML = contentMap[normalizedMode](classRecord);
+      setClassDetailModalOpen(true);
+    };
+
     listTarget.addEventListener("click", async (event) => {
+      const detailButton = event.target.closest("[data-class-detail-view]");
+
+      if (detailButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        const record = manager.getClasses().find((item) => item.id === String(detailButton.dataset.classId || "").trim());
+        if (record) {
+          renderClassDetailModal(record, detailButton.dataset.classDetailView || "overview");
+        }
+        return;
+      }
+
       const subjectButton = event.target.closest("[data-class-subjects-view]");
 
       if (subjectButton) {
@@ -8703,18 +9269,7 @@
       clearPortalClassErrors(form);
 
       if (action === "view") {
-        const studentManager = getStudentManager();
-        const studentCount =
-          studentManager && typeof studentManager.getStudents === "function"
-            ? getActiveStudentsForClass(record).length
-            : 0;
-        setStatus(
-          status,
-          "info",
-          `<strong>${escapeHtml(record.level)} ${escapeHtml(record.name)}</strong>: ${studentCount} student${
-            studentCount === 1 ? "" : "s"
-          }, ${escapeHtml(record.classTeacher || "no class teacher assigned")}. Use the mini workspace links on the class card for students, subjects, attendance, timetable, results, and announcements.`,
-        );
+        renderClassDetailModal(record, "overview");
         return;
       }
 
@@ -15113,7 +15668,7 @@
     form.elements.level.value = record.level;
     form.elements.capacity.value = record.capacity;
     form.elements.classTeacher.value = record.classTeacher || "";
-    form.elements.arms.value = (record.arms || []).join(", ");
+    form.elements.arms.value = record.name || (record.arms || []).join(", ");
     form.elements.subjects.value = (record.subjects || []).join(", ");
     form.elements.teacherAssignments.value = (record.teacherAssignments || [])
       .map((item) => `${item.subject}: ${item.teacher}`)
@@ -17661,17 +18216,20 @@
                                     <span>Arms: ${escapeHtml((record.arms || []).join(", ") || "None")}</span>
                                     <span>Subjects: ${escapeHtml((record.subjects || []).join(", ") || "None")}</span>
                                   </div>
-                                  <div class="portal-class-route-links">
-                                    <a href="./admin-students.html">Students</a>
+                                  <div class="portal-class-workspace-actions">
+                                    <button type="button" data-class-detail-view="students" data-class-id="${escapeHtml(record.id)}">Students</button>
                                     <button type="button" data-class-subjects-view data-class-id="${escapeHtml(record.id)}">${escapeHtml(subjectRouteLabel)}</button>
-                                    <a href="./admin-attendance.html">Attendance</a>
+                                    <button type="button" data-class-detail-view="attendance" data-class-id="${escapeHtml(record.id)}">Attendance</button>
                                     <button type="button" data-class-timetable-view data-class-id="${escapeHtml(record.id)}">Timetable</button>
-                                    <a href="./admin-reports.html">Results</a>
+                                    <button type="button" data-class-detail-view="results" data-class-id="${escapeHtml(record.id)}">Results</button>
                                   </div>
-                                  <div class="portal-class-actions">
+                                  <div class="portal-class-actions portal-class-admin-actions">
                                     <button class="portal-class-button" type="button" data-class-action="view" data-class-id="${record.id}" ${
                                       isAdmin ? "" : "disabled"
                                     }>View</button>
+                                    <button class="portal-class-button" type="button" data-class-action="edit" data-class-id="${record.id}" ${
+                                      isAdmin ? "" : "disabled"
+                                    }>Edit</button>
                                     <button class="portal-class-button" type="button" data-class-action="promote" data-class-id="${record.id}" ${
                                       isAdmin ? "" : "disabled"
                                     }>Promote</button>

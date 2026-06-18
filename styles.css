@@ -10806,6 +10806,187 @@ body.admin-dashboard-page .portal-class-subject-modal-actions {
   background: #f8fbff;
 }
 
+body.admin-dashboard-page .portal-class-detail-modal-panel {
+  width: min(1040px, 100%);
+}
+
+body.admin-dashboard-page .portal-class-detail-modal-body {
+  display: grid;
+  gap: 16px;
+  padding: 18px 20px 4px;
+  background: #f8fbff;
+}
+
+body.admin-dashboard-page .portal-class-detail-modal-actions {
+  padding: 0 20px 18px;
+  background: #f8fbff;
+}
+
+body.admin-dashboard-page .portal-class-detail-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid #dce7f4;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+body.admin-dashboard-page .portal-class-detail-hero div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+body.admin-dashboard-page .portal-class-detail-hero span,
+body.admin-dashboard-page .portal-class-detail-stat span {
+  color: #315d9b;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+body.admin-dashboard-page .portal-class-detail-hero strong {
+  color: #17233a;
+  font-size: 1.15rem;
+  overflow-wrap: anywhere;
+}
+
+body.admin-dashboard-page .portal-class-detail-hero p {
+  margin: 0;
+  color: #667188;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+body.admin-dashboard-page .portal-class-detail-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+body.admin-dashboard-page .portal-class-detail-stat {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #e1eaf5;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+body.admin-dashboard-page .portal-class-detail-stat strong {
+  color: #17233a;
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+
+body.admin-dashboard-page .portal-class-detail-stat p {
+  margin: 0;
+  color: #718096;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+body.admin-dashboard-page .portal-class-detail-table-wrap {
+  max-height: min(56vh, 520px);
+  overflow: auto;
+  border: 1px solid #e1eaf5;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+body.admin-dashboard-page .portal-class-detail-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+}
+
+body.admin-dashboard-page .portal-class-detail-table th,
+body.admin-dashboard-page .portal-class-detail-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #edf2f8;
+  color: #526070;
+  font-size: 0.86rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+body.admin-dashboard-page .portal-class-detail-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f1f6fc;
+  color: #17233a;
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+body.admin-dashboard-page .portal-class-detail-table td strong {
+  display: block;
+  color: #17233a;
+  font-size: 0.88rem;
+  overflow-wrap: anywhere;
+}
+
+body.admin-dashboard-page .portal-class-detail-table td span {
+  display: block;
+  margin-top: 3px;
+  color: #7b8797;
+  font-size: 0.78rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+body.admin-dashboard-page .portal-class-detail-empty {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+  border: 1px dashed #cfddeb;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+body.admin-dashboard-page .portal-class-detail-empty strong {
+  color: #17233a;
+}
+
+body.admin-dashboard-page .portal-class-detail-empty p {
+  margin: 0;
+  color: #667188;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+body.admin-dashboard-page .portal-class-detail-shortcuts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+body.admin-dashboard-page .portal-class-detail-shortcuts button {
+  min-height: 40px;
+  border: 1px solid #dbe6f3;
+  border-radius: 14px;
+  background: #ffffff;
+  color: #315d9b;
+  font-family: inherit;
+  font-size: 0.84rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+body.admin-dashboard-page .portal-class-detail-shortcuts button:hover {
+  border-color: #b9c9f5;
+  box-shadow: 0 10px 20px rgba(49, 93, 155, 0.1);
+  transform: translateY(-1px);
+}
+
 body.admin-dashboard-page .portal-access-grant-modal-panel {
   width: min(860px, 100%);
 }
@@ -13589,42 +13770,49 @@ body.admin-dashboard-page .portal-access-role-empty {
   margin-top: 14px;
 }
 
-body.admin-dashboard-page .portal-class-route-links,
+body.admin-dashboard-page .portal-class-workspace-actions,
 body.admin-dashboard-page .portal-class-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 16px;
+  gap: 8px;
+  margin-top: 14px;
 }
 
-body.admin-dashboard-page .portal-class-route-links a,
-body.admin-dashboard-page .portal-class-route-links button,
+body.admin-dashboard-page .portal-class-workspace-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+}
+
+body.admin-dashboard-page .portal-class-workspace-actions button,
 body.admin-dashboard-page .portal-class-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 42px;
-  padding: 0 16px;
+  min-height: 38px;
+  padding: 0 12px;
   border: 1px solid #dbe2ee;
-  border-radius: 16px;
+  border-radius: 12px;
   background: #ffffff;
   color: #4f5fff;
   font-family: inherit;
-  font-size: 0.92rem;
+  font-size: 0.84rem;
   font-weight: 800;
   text-decoration: none;
   transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
 }
 
-body.admin-dashboard-page .portal-class-route-links a:hover,
-body.admin-dashboard-page .portal-class-route-links button:hover,
+body.admin-dashboard-page .portal-class-workspace-actions button:hover,
 body.admin-dashboard-page .portal-class-button:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 10px 18px rgba(79, 95, 255, 0.1);
 }
 
-body.admin-dashboard-page .portal-class-route-links button {
+body.admin-dashboard-page .portal-class-workspace-actions button {
   cursor: pointer;
+}
+
+body.admin-dashboard-page .portal-class-admin-actions {
+  justify-content: flex-end;
 }
 
 body.admin-dashboard-page .portal-class-button {
@@ -15250,8 +15438,7 @@ body.admin-dashboard-page .admin-metric-card-green p,
 body.admin-dashboard-page .admin-metric-card-rose p,
 body.admin-dashboard-page .admin-activity-copy span,
 body.admin-dashboard-page .admin-link-card span,
-body.admin-dashboard-page .portal-class-route-links a,
-body.admin-dashboard-page .portal-class-route-links button,
+body.admin-dashboard-page .portal-class-workspace-actions button,
 body.admin-dashboard-page .portal-class-button.is-restore {
   color: var(--sky-600);
 }
@@ -15261,8 +15448,7 @@ body.admin-dashboard-page .portal-class-button.is-restore {
   background: #eaf2fb;
 }
 
-body.admin-dashboard-page .portal-class-route-links a:hover,
-body.admin-dashboard-page .portal-class-route-links button:hover,
+body.admin-dashboard-page .portal-class-workspace-actions button:hover,
 body.admin-dashboard-page .portal-class-button:hover:not(:disabled) {
   box-shadow: 0 10px 18px rgba(15, 43, 74, 0.12);
 }
