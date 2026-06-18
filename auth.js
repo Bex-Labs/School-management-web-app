@@ -7572,9 +7572,7 @@
         )
         .map((user) => ({
           value: String(user.email || "").trim(),
-          label: user.displayName
-            ? `${user.displayName} (${user.email})`
-            : String(user.email || "").trim(),
+          label: user.displayName || buildDisplayName(user.email) || "Teacher",
         }))
         .filter((item) => item.value)
         .sort((left, right) => left.label.localeCompare(right.label));
@@ -7588,7 +7586,12 @@
         }))
         .filter((item) => item.value);
 
-    const buildSelectOptions = ({ options = [], selected = "", placeholder = "Select option" }) => {
+    const buildSelectOptions = ({
+      options = [],
+      selected = "",
+      placeholder = "Select option",
+      formatSelected = (value) => value,
+    }) => {
       const normalizedSelected = String(selected || "").trim();
       const hasSelected =
         normalizedSelected &&
@@ -7596,7 +7599,7 @@
       const selectedOption = hasSelected
         ? ""
         : normalizedSelected
-          ? `<option value="${escapeHtml(normalizedSelected)}" selected>${escapeHtml(normalizedSelected)}</option>`
+          ? `<option value="${escapeHtml(normalizedSelected)}" selected>${escapeHtml(formatSelected(normalizedSelected))}</option>`
           : "";
 
       return `
@@ -7625,6 +7628,7 @@
         options: getTeacherDirectory(),
         selected,
         placeholder: "Select teacher",
+        formatSelected: getTeacherDisplayNameForValue,
       });
     };
 
@@ -7673,6 +7677,7 @@
             options: getTeacherDirectory(),
             selected: teacher,
             placeholder: "Select teacher",
+            formatSelected: getTeacherDisplayNameForValue,
           })}
         </select>
         <button type="button" class="portal-assignment-remove" data-assignment-remove ${disabled ? "disabled" : ""}>Remove</button>
@@ -7717,6 +7722,8 @@
 
     const setClassFormVisibility = (isVisible) => {
       form.hidden = !isVisible;
+      form.classList.toggle("portal-class-form-hidden", !isVisible);
+      form.setAttribute("aria-hidden", String(!isVisible));
 
       if (formToggleButton) {
         formToggleButton.textContent = isVisible ? "Hide class form" : "Create class";
@@ -8198,7 +8205,7 @@
         if (!row.source && source) row.source = String(source).trim();
         teachers.forEach((teacher) => {
           const teacherName = String(teacher || "").trim();
-          if (teacherName) row.teachers.add(teacherName);
+          if (teacherName) row.teachers.add(getTeacherDisplayNameForValue(teacherName));
         });
         return row;
       };
@@ -8878,7 +8885,11 @@
         <section class="portal-class-detail-summary">
           ${renderClassDetailStat("Students", students.length.toLocaleString(), classLabel)}
           ${renderClassDetailStat("Capacity", Number(classRecord.capacity || 0).toLocaleString(), "Configured seats")}
-          ${renderClassDetailStat("Class teacher", classRecord.classTeacher || "Not assigned", normalizeClassArmName(classRecord.name) || "Arm")}
+          ${renderClassDetailStat(
+            "Class teacher",
+            getTeacherDisplayNameForValue(classRecord.classTeacher) || "Not assigned",
+            normalizeClassArmName(classRecord.name) || "Arm",
+          )}
         </section>
         ${
           students.length
@@ -9056,7 +9067,11 @@
           ${renderClassDetailStat("Registers", attendanceSummary.records.length.toLocaleString(), "Attendance records")}
           ${renderClassDetailStat("Timetable", timetableGroup?.rows?.length ? "Saved" : "Not saved", timetableGroup?.rows?.length ? `${timetableGroup.rows.length} lesson slots` : "No class timetable")}
           ${renderClassDetailStat("Results", scoredRows.length.toLocaleString(), "Students with scores")}
-          ${renderClassDetailStat("Class teacher", classRecord.classTeacher || "Not assigned", "Teacher in charge")}
+          ${renderClassDetailStat(
+            "Class teacher",
+            getTeacherDisplayNameForValue(classRecord.classTeacher) || "Not assigned",
+            "Teacher in charge",
+          )}
         </section>
         <section class="portal-class-detail-shortcuts" aria-label="Class shortcuts">
           <button type="button" data-class-detail-jump="students" data-class-id="${escapeHtml(classRecord.id)}">Students</button>
@@ -9542,7 +9557,7 @@
           const email = String(user.email || "").trim();
           return {
             value: email,
-            label: user.displayName ? `${user.displayName} (${email})` : email,
+            label: user.displayName || buildDisplayName(email) || "Teacher",
           };
         })
         .filter((item) => item.value)
@@ -9568,7 +9583,13 @@
             `,
           )
           .join("")}
-        ${selectedValue && !hasSelected ? `<option value="${escapeHtml(selectedValue)}" selected>${escapeHtml(selectedValue)}</option>` : ""}
+        ${
+          selectedValue && !hasSelected
+            ? `<option value="${escapeHtml(selectedValue)}" selected>${escapeHtml(
+                getTeacherDisplayNameForValue(selectedValue),
+              )}</option>`
+            : ""
+        }
       `;
     };
 
@@ -9926,6 +9947,7 @@
       const selectedLevel = String(levelSelect?.value || "").trim();
       const selectedClassRecord = getSelectedCourseClassRecord();
       const selectedTeacher = String(teacherSelect?.value || "").trim();
+      const selectedTeacherLabel = getTeacherDisplayNameForValue(selectedTeacher);
       const selectedCategory =
         type === "secondary"
           ? String(categoryField?.value || "").trim()
@@ -9941,7 +9963,7 @@
         { label: "Class / level", value: selectedLevel },
         { label: "Class arm", value: selectedClassRecord ? getClassDisplayName(selectedClassRecord) : "" },
         { label: type === "higher" ? "Course" : "Subject", value: selectedSubject },
-        { label: "Teacher", value: selectedTeacher },
+        { label: "Teacher", value: selectedTeacherLabel },
       ].filter((item) => String(item.value || "").trim());
 
       templateList.innerHTML = summaryItems.length
@@ -11603,6 +11625,7 @@
       editingEntryId: "",
     };
     let timetableToastTimer = null;
+    let lastTimetableInlineStatus = { type: "", message: "" };
     let timetableModalElement = null;
     let timetableModalBody = null;
     let activeTimetablePrintCriteria = null;
@@ -11630,8 +11653,17 @@
       }, 3600);
     };
 
+    const syncTimetableInlineStatus = () => {
+      const inlineStatus = document.getElementById("portal-timetable-inline-status");
+      if (inlineStatus) {
+        setStatus(inlineStatus, lastTimetableInlineStatus.type, lastTimetableInlineStatus.message);
+      }
+    };
+
     const setTimetableStatus = (type, message) => {
+      lastTimetableInlineStatus = { type, message };
       setStatus(status, type, message);
+      syncTimetableInlineStatus();
       if (type === "success" && message) {
         showTimetableToast(message);
       }
@@ -12209,6 +12241,7 @@
           teachers: getTeacherDirectory(),
         },
       });
+      syncTimetableInlineStatus();
     };
 
     clearPortalTimetableErrors(form);
@@ -12435,7 +12468,109 @@
       });
     }
 
+    const handleCopyPreviousTimetablePeriod = () => {
+      const cycles = getCycleState();
+      const termId = getSelectedTermId();
+      const selectedTerm = (cycles.terms || []).find((term) => term.id === termId);
+      const sameSessionTerms = (cycles.terms || [])
+        .filter((term) => term.sessionId === selectedTerm?.sessionId)
+        .sort((left, right) => String(left.startDate || left.createdAt || left.name).localeCompare(String(right.startDate || right.createdAt || right.name)));
+      const currentIndex = sameSessionTerms.findIndex((term) => term.id === termId);
+      const sourceTerm = sameSessionTerms[currentIndex - 1] || null;
+      if (!sourceTerm) {
+        setTimetableStatus("info", "No previous term or semester found in this session to copy from.");
+        return;
+      }
+      const selectedClass = getSelectedClass();
+      const result = manager.copyTerm({
+        sourceTermId: sourceTerm.id,
+        targetTermId: termId,
+        targetSessionId: getSelectedSessionId(),
+        classId: selectedClass?.id || "",
+        classLevel: getTimetableClassLabel(selectedClass),
+        weekType: getSelectedWeekType(),
+      });
+      setTimetableStatus(result.copied ? "success" : "info", `Copied ${result.copied} lesson${result.copied === 1 ? "" : "s"} from ${escapeHtml(sourceTerm.name)}. Skipped ${result.skipped}.`);
+      refresh();
+    };
+
+    const handleAddTimetablePeriod = () => {
+      const existingPeriods = manager.getPeriods();
+      const nextOrder =
+        Math.max(0, ...existingPeriods.map((period) => Number.parseInt(period.sortOrder, 10) || 0)) + 1;
+      openTimetablePeriodForm({
+        name: `Period ${nextOrder}`,
+        sortOrder: nextOrder,
+      });
+    };
+
+    const handleSaveClassTimetable = () => {
+      const selectedClass = getSelectedClass();
+      const sessionId = getSelectedSessionId();
+      const termId = getSelectedTermId();
+      if (!selectedClass || !sessionId || !termId) {
+        setTimetableStatus("info", "Select a session, term, and class before saving the timetable.");
+        return;
+      }
+
+      const printData = getClassTimetablePrintData({
+        sessionId,
+        termId,
+        classId: selectedClass.id,
+        classLevel: getTimetableClassLabel(selectedClass),
+        weekType: getSelectedWeekType(),
+      });
+      if (!printData.entries.length) {
+        setTimetableStatus("info", "Add at least one lesson to this class grid before saving it.");
+        return;
+      }
+
+      manager.publishGroup({
+        sessionId,
+        termId,
+        classId: selectedClass.id,
+        classLevel: getTimetableClassLabel(selectedClass),
+      });
+      const selectedClassLabel = getTimetableClassLabel(selectedClass);
+      recordAuditEvent({
+        action: "saved",
+        entityType: "timetable",
+        entityId: selectedClassLabel,
+        summary: `Saved timetable for ${selectedClassLabel}`,
+        details: `${sessionId} - ${termId}`,
+      });
+      clearPortalTimetableErrors(form);
+      resetPortalTimetableForm(form, isAdmin);
+      state.selectedPeriodId = "";
+      state.editingEntryId = "";
+      setFormVisibility(false);
+      if (classSelect) {
+        classSelect.value = "";
+      }
+      setTimetableStatus(
+        "success",
+        `Timetable for <strong>${escapeHtml(selectedClassLabel)}</strong> saved. Select another class to create the next timetable.`,
+      );
+      refresh();
+    };
+
+    const handlePrintSelectedClassTimetable = () => {
+      const selectedClass = getSelectedClass();
+      if (!selectedClass) {
+        setTimetableStatus("info", "Select a class or use Print beside a saved class timetable.");
+        return;
+      }
+      printClassTimetable({
+        sessionId: getSelectedSessionId(),
+        termId: getSelectedTermId(),
+        classId: selectedClass.id,
+        classLevel: getTimetableClassLabel(selectedClass),
+        weekType: getSelectedWeekType(),
+      });
+    };
+
     listTarget.addEventListener("click", async (event) => {
+      const inlineActionButton = event.target.closest("[data-timetable-inline-action]");
       const periodEditButton = event.target.closest("[data-timetable-period-edit]");
       const slotButton = event.target.closest("[data-timetable-slot]");
       const rowActionButton = event.target.closest("[data-timetable-action]");
@@ -12443,6 +12578,20 @@
       const groupActionButton = event.target.closest("[data-timetable-group-action]");
 
       if (!isAdmin) {
+        return;
+      }
+
+      if (inlineActionButton) {
+        const action = String(inlineActionButton.dataset.timetableInlineAction || "").trim();
+        if (action === "copy") {
+          handleCopyPreviousTimetablePeriod();
+        } else if (action === "period") {
+          handleAddTimetablePeriod();
+        } else if (action === "save") {
+          handleSaveClassTimetable();
+        } else if (action === "print") {
+          handlePrintSelectedClassTimetable();
+        }
         return;
       }
 
@@ -12643,117 +12792,21 @@
 
     if (copyTermButton) {
       copyTermButton.disabled = !isAdmin || !manager;
-      copyTermButton.addEventListener("click", () => {
-        const cycles = getCycleState();
-        const termId = getSelectedTermId();
-        const selectedTerm = (cycles.terms || []).find((term) => term.id === termId);
-        const sameSessionTerms = (cycles.terms || [])
-          .filter((term) => term.sessionId === selectedTerm?.sessionId)
-          .sort((left, right) => String(left.startDate || left.createdAt || left.name).localeCompare(String(right.startDate || right.createdAt || right.name)));
-        const currentIndex = sameSessionTerms.findIndex((term) => term.id === termId);
-        const sourceTerm = sameSessionTerms[currentIndex - 1] || null;
-        if (!sourceTerm) {
-          setStatus(status, "info", "No previous term or semester found in this session to copy from.");
-          return;
-        }
-        const selectedClass = getSelectedClass();
-        const result = manager.copyTerm({
-          sourceTermId: sourceTerm.id,
-          targetTermId: termId,
-          targetSessionId: getSelectedSessionId(),
-          classId: selectedClass?.id || "",
-          classLevel: getTimetableClassLabel(selectedClass),
-          weekType: getSelectedWeekType(),
-        });
-        setTimetableStatus(result.copied ? "success" : "info", `Copied ${result.copied} lesson${result.copied === 1 ? "" : "s"} from ${escapeHtml(sourceTerm.name)}. Skipped ${result.skipped}.`);
-        refresh();
-      });
+      copyTermButton.addEventListener("click", handleCopyPreviousTimetablePeriod);
     }
 
     if (addPeriodButton) {
       addPeriodButton.disabled = !isAdmin || !manager;
-      addPeriodButton.addEventListener("click", () => {
-        const existingPeriods = manager.getPeriods();
-        const nextOrder =
-          Math.max(0, ...existingPeriods.map((period) => Number.parseInt(period.sortOrder, 10) || 0)) + 1;
-        openTimetablePeriodForm({
-          name: `Period ${nextOrder}`,
-          sortOrder: nextOrder,
-        });
-      });
+      addPeriodButton.addEventListener("click", handleAddTimetablePeriod);
     }
 
     if (saveClassButton) {
       saveClassButton.disabled = !isAdmin || !manager;
-      saveClassButton.addEventListener("click", () => {
-        const selectedClass = getSelectedClass();
-        const sessionId = getSelectedSessionId();
-        const termId = getSelectedTermId();
-        if (!selectedClass || !sessionId || !termId) {
-          setStatus(status, "info", "Select a session, term, and class before saving the timetable.");
-          return;
-        }
-
-        const printData = getClassTimetablePrintData({
-          sessionId,
-          termId,
-          classId: selectedClass.id,
-          classLevel: getTimetableClassLabel(selectedClass),
-          weekType: getSelectedWeekType(),
-        });
-        if (!printData.entries.length) {
-          setStatus(status, "info", "Add at least one lesson to this class grid before saving it.");
-          return;
-        }
-
-        manager.publishGroup({
-          sessionId,
-          termId,
-          classId: selectedClass.id,
-          classLevel: getTimetableClassLabel(selectedClass),
-        });
-        const selectedClassLabel = getTimetableClassLabel(selectedClass);
-        recordAuditEvent({
-          action: "saved",
-          entityType: "timetable",
-          entityId: selectedClassLabel,
-          summary: `Saved timetable for ${selectedClassLabel}`,
-          details: `${sessionId} - ${termId}`,
-        });
-        clearPortalTimetableErrors(form);
-        resetPortalTimetableForm(form, isAdmin);
-        state.selectedPeriodId = "";
-        state.editingEntryId = "";
-        setFormVisibility(false);
-        if (classSelect) {
-          classSelect.value = "";
-        }
-        setTimetableStatus(
-          "success",
-          `Timetable for <strong>${escapeHtml(selectedClassLabel)}</strong> saved. Select another class to create the next timetable.`,
-        );
-        refresh();
-        window.setTimeout(() => {
-          listTarget.querySelector(".portal-timetable-saved-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
-        }, 50);
-      });
+      saveClassButton.addEventListener("click", handleSaveClassTimetable);
     }
 
     if (printButton) {
-      printButton.addEventListener("click", () => {
-        const selectedClass = getSelectedClass();
-        if (!selectedClass) {
-          setStatus(status, "info", "Select a class or use Print beside a saved class timetable.");
-          return;
-        }
-        printClassTimetable({
-          sessionId: getSelectedSessionId(),
-          termId: getSelectedTermId(),
-          classId: selectedClass.id,
-          classLevel: getTimetableClassLabel(selectedClass),
-          weekType: getSelectedWeekType(),
-        });
-      });
+      printButton.addEventListener("click", handlePrintSelectedClassTimetable);
     }
 
     window.addEventListener(manager.eventName, refresh);
@@ -15636,6 +15689,11 @@
       form.elements.teacherAssignments.value = "";
     }
 
+    const advancedSection = form.querySelector(".portal-class-advanced");
+    if (advancedSection instanceof HTMLDetailsElement) {
+      advancedSection.open = false;
+    }
+
     if (form.elements.classId) {
       form.elements.classId.value = "";
     }
@@ -15673,6 +15731,11 @@
     form.elements.teacherAssignments.value = (record.teacherAssignments || [])
       .map((item) => `${item.subject}: ${item.teacher}`)
       .join("\n");
+
+    const advancedSection = form.querySelector(".portal-class-advanced");
+    if (advancedSection instanceof HTMLDetailsElement) {
+      advancedSection.open = true;
+    }
 
     const submitButton = form.querySelector("[data-class-submit]");
     const cancelButton = form.querySelector("[data-class-cancel]");
@@ -18199,14 +18262,16 @@
                               const isArchived = record.status === "archived";
                               const displayName = normalizeClassArmName(record.name) || "Unnamed class";
                               const subjectRouteLabel = inferSchoolTypeFromLevel(record.level) === "higher" ? "Courses" : "Subjects";
+                              const classStudentCount = getActiveStudentsForClass(record).length;
+                              const classTeacherName = getTeacherDisplayNameForValue(record.classTeacher) || "No class teacher";
                               return `
                                 <article class="portal-class-arm-card ${isArchived ? "is-archived" : ""}">
                                   <div class="portal-class-arm-card-head">
                                     <div>
                                       <strong>${escapeHtml(displayName)}</strong>
-                                      <span>${Number(record.capacity).toLocaleString()} capacity • ${escapeHtml(
-                                        record.classTeacher || "No class teacher",
-                                      )}</span>
+                                      <span>${classStudentCount.toLocaleString()} student${
+                                        classStudentCount === 1 ? "" : "s"
+                                      } • ${Number(record.capacity).toLocaleString()} capacity • ${escapeHtml(classTeacherName)}</span>
                                     </div>
                                     <span class="portal-class-status ${isArchived ? "is-archived" : "is-active"}">
                                       ${isArchived ? "Archived" : "Active"}
@@ -18451,7 +18516,9 @@
                             </div>
                             <div class="portal-class-meta-item">
                               <span>Teacher</span>
-                              <strong>${escapeHtml((record.teacherAssignments || [])[0] || "Not assigned")}</strong>
+                              <strong>${escapeHtml(
+                                getTeacherDisplayNameForValue((record.teacherAssignments || [])[0]) || "Not assigned",
+                              )}</strong>
                             </div>
                             <div class="portal-class-meta-item">
                               <span>Class arm</span>
@@ -19193,6 +19260,15 @@
             : `<div class="portal-timetable-grid-empty">No periods configured yet.</div>`
         }
       </div>
+      <section class="portal-timetable-grid-actions" aria-label="Timetable actions">
+        <div id="portal-timetable-inline-status" class="auth-status portal-timetable-inline-status" role="alert" aria-live="polite" hidden></div>
+        <div class="utility-actions portal-timetable-actions portal-timetable-actions-inline">
+          <button class="button button-outline" type="button" data-timetable-inline-action="copy" ${isAdmin ? "" : "disabled"}>Copy previous period</button>
+          <button class="button button-outline" type="button" data-timetable-inline-action="period" ${isAdmin ? "" : "disabled"}>Add period</button>
+          <button class="button button-primary" type="button" data-timetable-inline-action="save" ${isAdmin ? "" : "disabled"}>Save class timetable</button>
+          <button class="button button-outline" type="button" data-timetable-inline-action="print" ${isAdmin ? "" : "disabled"}>Print selected class</button>
+        </div>
+      </section>
       <section class="portal-timetable-footer-panels">
         <article class="portal-class-card portal-timetable-panel">
           <div class="portal-class-title">
@@ -19966,6 +20042,34 @@
 
   function getAttendanceStatusClass(value) {
     return `is-${normalizeAttendanceStatus(value)}`;
+  }
+
+  function getTeacherDisplayNameForValue(value = "") {
+    const teacherValue = String(value || "").trim();
+    if (!teacherValue) {
+      return "";
+    }
+
+    const teacherEmail = EMAIL_REGEX.test(teacherValue) ? normalizeEmail(teacherValue) : "";
+    const teacherLookup = teacherValue.toLowerCase();
+    const matchedUser = getUsers().find((user) => {
+      if (normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE) !== "Teacher") {
+        return false;
+      }
+      const userEmail = normalizeEmail(user.email || "");
+      const userName = String(user.displayName || "").trim().toLowerCase();
+      return (teacherEmail && userEmail === teacherEmail) || (userName && userName === teacherLookup);
+    });
+
+    if (matchedUser?.displayName) {
+      return matchedUser.displayName;
+    }
+
+    if (teacherEmail) {
+      return buildDisplayName(teacherEmail) || "Teacher";
+    }
+
+    return teacherValue;
   }
 
   function getActiveStudentsForClass(classRecord = {}) {
@@ -27584,7 +27688,7 @@
                       <article class="staff-portal-tile">
                         <span>Class</span>
                         <strong>${escapeHtml(getClassDisplayName(classRecord))}</strong>
-                        <p>${escapeHtml(classRecord.classTeacher || "Class teacher not assigned")}</p>
+                        <p>${escapeHtml(getTeacherDisplayNameForValue(classRecord.classTeacher) || "Class teacher not assigned")}</p>
                       </article>
                     `,
                   )
@@ -31416,7 +31520,7 @@
           addDashboardSearchEntry(entries, {
             type: "Class",
             title: getClassDisplayName(record),
-            subtitle: `${record.classTeacher || "No class teacher"} · ${record.capacity || 0} capacity`,
+            subtitle: `${getTeacherDisplayNameForValue(record.classTeacher) || "No class teacher"} · ${record.capacity || 0} capacity`,
             href: "./admin-classes.html",
             keywords: `${record.name || ""} ${record.level || ""} ${record.arms?.join(" ") || ""} class arm stream`,
           });
@@ -32391,7 +32495,7 @@
       const normalized = normalizeEmail(raw);
       const teacher = teacherByEmail[normalized] || null;
       return {
-        name: teacher?.name || raw || "Assigned teacher",
+        name: teacher?.name || getTeacherDisplayNameForValue(raw) || "Assigned teacher",
         email: teacher?.email || (EMAIL_REGEX.test(raw) ? raw : ""),
       };
     };
