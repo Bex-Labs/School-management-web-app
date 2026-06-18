@@ -8163,16 +8163,10 @@
         return [];
       }
 
-      const levelToken = normalizeLevelToken(classRecord.level);
-      const displayToken = normalizeLevelToken(getClassDisplayName(classRecord));
-
       return courseManager
         .getCourses()
         .filter((course) => course.status !== "archived")
-        .filter((course) => {
-          const courseLevelToken = normalizeLevelToken(course.level);
-          return courseLevelToken && (courseLevelToken === levelToken || courseLevelToken === displayToken);
-        });
+        .filter((course) => courseAppliesToClassRecord(course, classRecord));
     };
 
     const buildClassSubjectRows = (classRecord = {}) => {
@@ -8901,10 +8895,12 @@
       document.querySelector("[data-course-form-toggle]");
     const teacherSelect = form.elements.teacherAssignments;
     const levelSelect = form.elements.level;
+    const classArmSelect = form.elements.classId;
     const categoryField = form.elements.category;
     const creditField = form.elements.creditUnit;
     const codeFieldWrap = document.querySelector("[data-course-code-field]");
     const levelFieldWrap = document.querySelector("[data-course-level-field]");
+    const classArmFieldWrap = document.querySelector("[data-course-arm-field]");
     const teacherFieldWrap = document.querySelector("[data-course-teacher-field]");
     const descriptionFieldWrap = document.querySelector("[data-course-description-field]");
     const wizardActions = document.querySelector("[data-course-wizard-actions]");
@@ -9078,6 +9074,57 @@
         : `<option value="">Generate classes first</option>`;
     };
 
+    const getClassArmOptionsForLevel = (level = "") => {
+      if (!classManager || typeof classManager.getClasses !== "function") {
+        return [];
+      }
+
+      const levelToken = normalizeLevelToken(level);
+      if (!levelToken) {
+        return [];
+      }
+
+      return classManager
+        .getClasses()
+        .filter((record) => record.status !== "archived")
+        .filter(
+          (record) =>
+            normalizeLevelToken(record.level) === levelToken ||
+            normalizeLevelToken(getClassDisplayName(record)) === levelToken,
+        )
+        .sort((left, right) => getClassDisplayName(left).localeCompare(getClassDisplayName(right), undefined, { numeric: true }));
+    };
+
+    const getSelectedCourseClassRecord = () => {
+      const classId = String(classArmSelect?.value || "").trim();
+      const options = getClassArmOptionsForLevel(String(levelSelect?.value || "").trim());
+      return options.find((record) => String(record.id || "").trim() === classId) || null;
+    };
+
+    const renderCourseArmOptions = (selectedClassId = "") => {
+      if (!(classArmSelect instanceof HTMLSelectElement)) {
+        return [];
+      }
+
+      const options = getClassArmOptionsForLevel(String(levelSelect?.value || "").trim());
+      const selected = String(selectedClassId || classArmSelect.value || "").trim();
+      const hasSelected = options.some((record) => String(record.id || "").trim() === selected);
+      classArmSelect.innerHTML = options.length
+        ? `<option value="">Select class arm</option>${options
+            .map((record) => {
+              const id = String(record.id || "").trim();
+              return `<option value="${escapeHtml(id)}" ${id === selected ? "selected" : ""}>${escapeHtml(getClassDisplayName(record))}</option>`;
+            })
+            .join("")}`
+        : `<option value="">No class arms found</option>`;
+      classArmSelect.value = hasSelected ? selected : "";
+      classArmSelect.disabled = !isAdmin || !options.length;
+      if (classArmFieldWrap) {
+        classArmFieldWrap.hidden = !String(levelSelect?.value || "").trim() || !options.length;
+      }
+      return options;
+    };
+
     const setSelectOptions = (select, options = [], placeholder = "Select option") => {
       if (!(select instanceof HTMLSelectElement)) {
         return;
@@ -9231,6 +9278,9 @@
       const createButton = document.querySelector("[data-course-form-toggle]");
       const selectedSubject = String(form.elements.name?.value || "").trim();
       const selectedLevel = String(levelSelect?.value || "").trim();
+      const classArmOptions = getClassArmOptionsForLevel(selectedLevel);
+      const selectedClassArm = String(classArmSelect?.value || "").trim();
+      const hasClassArmOptions = Boolean(classArmOptions.length);
       const canChooseLevel =
         type === "nursery" ||
         type === "primary" ||
@@ -9238,7 +9288,7 @@
         (type === "higher" &&
           Boolean(String(facultySelect?.value || "").trim()) &&
           Boolean(getResolvedDepartment()));
-      const showFinalDetails = Boolean(selectedSubject && selectedLevel);
+      const showFinalDetails = Boolean(selectedSubject && selectedLevel && (!hasClassArmOptions || selectedClassArm));
 
       if (heading) {
         heading.textContent = `${label} Management`;
@@ -9254,6 +9304,9 @@
       }
       if (levelFieldWrap) {
         levelFieldWrap.hidden = !canChooseLevel;
+      }
+      if (classArmFieldWrap) {
+        classArmFieldWrap.hidden = !selectedLevel || !hasClassArmOptions;
       }
       if (teacherFieldWrap) {
         teacherFieldWrap.hidden = !showFinalDetails;
@@ -9316,6 +9369,7 @@
 
       const selectedSubject = String(form.elements.name?.value || "").trim();
       const selectedLevel = String(levelSelect?.value || "").trim();
+      const selectedClassRecord = getSelectedCourseClassRecord();
       const selectedTeacher = String(teacherSelect?.value || "").trim();
       const selectedCategory =
         type === "secondary"
@@ -9330,6 +9384,7 @@
         { label: "Type", value: template.label === "Courses" ? "Higher Institution" : selectedTypeLabel },
         { label: type === "higher" ? `${getHigherInstitutionUnitLabel(getConfiguredHigherInstitutionType())} / department` : "Stream", value: selectedCategory },
         { label: "Class / level", value: selectedLevel },
+        { label: "Class arm", value: selectedClassRecord ? getClassDisplayName(selectedClassRecord) : "" },
         { label: type === "higher" ? "Course" : "Subject", value: selectedSubject },
         { label: "Teacher", value: selectedTeacher },
       ].filter((item) => String(item.value || "").trim());
@@ -9377,6 +9432,7 @@
       resetPortalCourseForm(form, isAdmin);
       renderTeacherOptions("");
       renderClassLevelOptions([]);
+      renderCourseArmOptions("");
       renderCourseTemplateTypeOptions();
       renderTemplateCategories();
       renderFacultyOptions("");
@@ -9416,6 +9472,7 @@
       });
       renderTeacherOptions(teacherSelect?.value || "");
       renderClassLevelOptions(Array.from(levelSelect?.selectedOptions || []).map((option) => option.value));
+      renderCourseArmOptions(classArmSelect?.value || "");
       updateCourseTerminology();
       renderSubjectLibrary();
     };
@@ -9452,6 +9509,22 @@
         }
         renderTemplateCategories();
         renderClassLevelOptions([]);
+        renderCourseArmOptions("");
+        updateCourseTerminology();
+        renderSubjectLibrary();
+      });
+    }
+
+    if (levelSelect) {
+      levelSelect.addEventListener("change", () => {
+        renderCourseArmOptions("");
+        updateCourseTerminology();
+        renderSubjectLibrary();
+      });
+    }
+
+    if (classArmSelect) {
+      classArmSelect.addEventListener("change", () => {
         updateCourseTerminology();
         renderSubjectLibrary();
       });
@@ -9540,6 +9613,7 @@
 
       const courseId = form.elements.courseId.value;
       const selectedLevels = [String(form.elements.level.value || "").trim()].filter(Boolean);
+      const selectedClassRecord = getSelectedCourseClassRecord();
       const isHigherCourse = String(templateType?.value || "").trim() === "higher" || getLevelSchoolType(selectedLevels[0]) === "higher";
       const faculty = String(form.elements.faculty?.value || "").trim();
       const selectedDepartment = String(form.elements.department?.value || "").trim();
@@ -9559,6 +9633,10 @@
         creditUnit: String(form.elements.creditUnit?.value || "").trim(),
         description: form.elements.description.value.trim(),
         level: selectedLevels[0] || "",
+        classId: selectedClassRecord?.id || "",
+        classRecordId: selectedClassRecord?.id || "",
+        classLabel: selectedClassRecord ? getClassDisplayName(selectedClassRecord) : "",
+        classArm: selectedClassRecord?.name || "",
         teacherAssignments: form.elements.teacherAssignments.value.trim()
           ? [form.elements.teacherAssignments.value.trim()]
           : [],
@@ -9574,6 +9652,11 @@
 
       if (!payload.level) {
         setPortalCourseError(form, "level", "Select at least one class or level.");
+        hasError = true;
+      }
+
+      if (getClassArmOptionsForLevel(payload.level).length && !payload.classId) {
+        setPortalCourseError(form, "classId", "Select the exact class arm for this subject/course.");
         hasError = true;
       }
 
@@ -9596,6 +9679,9 @@
           (level) =>
             record.id !== courseId &&
             normalizeLevelToken(record.level) === normalizeLevelToken(level) &&
+            (payload.classId
+              ? String(record.classId || record.classRecordId || "").trim() === payload.classId
+              : !String(record.classId || record.classRecordId || "").trim()) &&
             ((payload.code && String(record.code || "").toLowerCase() === payload.code.toLowerCase()) ||
               String(record.name || "").toLowerCase() === payload.name.toLowerCase()),
         ),
@@ -9684,6 +9770,7 @@
         }
         renderTemplateCategories();
         renderClassLevelOptions([record.level || ""]);
+        renderCourseArmOptions(record.classId || record.classRecordId || "");
         updateCourseTerminology();
         const [faculty = "", department = ""] = String(record.category || "")
           .split("/")
@@ -9691,6 +9778,7 @@
         renderFacultyOptions(faculty);
         renderDepartmentOptions(department);
         populatePortalCourseForm(form, record, isAdmin);
+        renderCourseArmOptions(record.classId || record.classRecordId || "");
         renderSubjectPickerOptions(record.name || "");
         renderTeacherOptions((record.teacherAssignments || [])[0] || "");
         updateCourseTerminology();
@@ -11336,7 +11424,6 @@
 
     const getSubjectOptions = () => {
       const selectedClass = getSelectedClass();
-      const classLevel = String(selectedClass?.level || "").trim();
       const courseOptions =
         courseManager && typeof courseManager.getCourses === "function"
           ? courseManager
@@ -11344,7 +11431,7 @@
               .filter(
                 (course) =>
                   course.status !== "archived" &&
-                  (!course.level || !classLevel || String(course.level || "").trim() === classLevel),
+                  (!selectedClass || courseAppliesToClassRecord(course, selectedClass)),
               )
               .map((course) => ({
                 id: course.id,
@@ -14994,6 +15081,10 @@
       form.elements.teacherAssignments.value = "";
     }
 
+    if (form.elements.classId) {
+      form.elements.classId.value = "";
+    }
+
     const submitButton = form.querySelector("[data-class-submit]");
     const cancelButton = form.querySelector("[data-class-cancel]");
 
@@ -15153,6 +15244,17 @@
       });
     } else {
       form.elements.level.value = record.level || "";
+    }
+    if (form.elements.classId instanceof HTMLSelectElement) {
+      const classId = String(record.classId || record.classRecordId || "").trim();
+      if (classId) {
+        const hasClassOption = Array.from(form.elements.classId.options || []).some(
+          (option) => option.value === classId,
+        );
+        if (hasClassOption) {
+          form.elements.classId.value = classId;
+        }
+      }
     }
     if (form.elements.teacherAssignments) {
       form.elements.teacherAssignments.value = (record.teacherAssignments || [])[0] || "";
@@ -17769,7 +17871,14 @@
                         <summary class="portal-class-list-summary">
                           <div class="portal-class-list-main">
                             <strong>${escapeHtml(record.code || "NO-CODE")} · ${escapeHtml(record.name)}</strong>
-                            <span>${escapeHtml(record.description || "No description yet")}</span>
+                            <span>${escapeHtml(
+                              [
+                                record.classLabel || record.level || "No class arm",
+                                record.description || "No description yet",
+                              ]
+                                .filter(Boolean)
+                                .join(" • "),
+                            )}</span>
                           </div>
                           <span class="portal-class-status ${record.status === "archived" ? "is-archived" : "is-active"}">
                             ${record.status === "archived" ? "Archived" : "Active"}
@@ -17785,6 +17894,10 @@
                             <div class="portal-class-meta-item">
                               <span>Teacher</span>
                               <strong>${escapeHtml((record.teacherAssignments || [])[0] || "Not assigned")}</strong>
+                            </div>
+                            <div class="portal-class-meta-item">
+                              <span>Class arm</span>
+                              <strong>${escapeHtml(record.classLabel || "Not selected")}</strong>
                             </div>
                             <div class="portal-class-meta-item">
                               <span>Category</span>
@@ -19341,6 +19454,27 @@
     return level || name || "Class";
   }
 
+  function courseAppliesToClassRecord(course = {}, classRecord = {}) {
+    const courseClassId = String(course.classId || course.classRecordId || "").trim();
+    const classId = String(classRecord.id || "").trim();
+
+    if (courseClassId) {
+      return Boolean(classId && courseClassId === classId);
+    }
+
+    const classTokens = [
+      normalizeLevelToken(classRecord.level),
+      normalizeLevelToken(classRecord.name),
+      normalizeLevelToken(getClassDisplayName(classRecord)),
+    ].filter(Boolean);
+    const courseTokens = [
+      normalizeLevelToken(course.classLabel),
+      normalizeLevelToken(course.level),
+    ].filter(Boolean);
+
+    return courseTokens.some((token) => classTokens.includes(token));
+  }
+
   function getTeacherAssignedClasses(user = {}) {
     const classManager = getClassManager();
     const courseManager = getCourseManager();
@@ -19354,15 +19488,21 @@
       courseManager && typeof courseManager.getCourses === "function"
         ? courseManager.getCourses().filter((record) => record.status !== "archived")
         : [];
+    const teacherCourses = courses.filter((course) =>
+      (course.teacherAssignments || []).some((teacher) => {
+        const value = String(teacher || "").trim();
+        return normalizeEmail(value) === teacherEmail || value.toLowerCase() === teacherName;
+      }),
+    );
+    const courseClassIds = new Set(
+      teacherCourses
+        .map((course) => String(course.classId || course.classRecordId || "").trim())
+        .filter(Boolean),
+    );
     const courseLevelTokens = new Set(
-      courses
-        .filter((course) =>
-          (course.teacherAssignments || []).some((teacher) => {
-            const value = String(teacher || "").trim();
-            return normalizeEmail(value) === teacherEmail || value.toLowerCase() === teacherName;
-          }),
-        )
-        .map((course) => normalizeLevelToken(course.level))
+      teacherCourses
+        .filter((course) => !String(course.classId || course.classRecordId || "").trim())
+        .map((course) => normalizeLevelToken(course.classLabel || course.level))
         .filter(Boolean),
     );
     const assigned = classes.filter((classRecord) => {
@@ -19377,7 +19517,9 @@
         normalizeLevelToken(getClassDisplayName(classRecord)),
         normalizeLevelToken(`${classRecord.level || ""} ${classRecord.name || ""}`),
       ].filter(Boolean);
-      const hasCourseAssignment = exactClassTokens.some((token) => courseLevelTokens.has(token));
+      const hasCourseAssignment =
+        courseClassIds.has(String(classRecord.id || "").trim()) ||
+        exactClassTokens.some((token) => courseLevelTokens.has(token));
 
       return isClassTeacher || hasSubjectAssignment || hasCourseAssignment;
     });
@@ -25456,15 +25598,18 @@
         return;
       }
 
-      const matchedClass = assignedClasses.find(
-        (classRecord) =>
-          normalizeLevelToken(getClassDisplayName(classRecord)) === normalizeLevelToken(course.level) ||
-          normalizeLevelToken(classRecord.level) === normalizeLevelToken(course.level),
-      );
+      const courseClassId = String(course.classId || course.classRecordId || "").trim();
+      const matchedClass =
+        assignedClasses.find((classRecord) => courseClassId && String(classRecord.id || "").trim() === courseClassId) ||
+        assignedClasses.find(
+          (classRecord) =>
+            normalizeLevelToken(getClassDisplayName(classRecord)) === normalizeLevelToken(course.classLabel || course.level) ||
+            normalizeLevelToken(classRecord.level) === normalizeLevelToken(course.level),
+        );
       pushRow({
         classId: matchedClass?.id || "",
         classRecord: matchedClass || null,
-        classLabel: matchedClass ? getClassDisplayName(matchedClass) : course.level || "Assigned level",
+        classLabel: matchedClass ? getClassDisplayName(matchedClass) : course.classLabel || course.level || "Assigned level",
         subject: course.name || course.code || "Course",
         subjectCode: course.code || "",
         role: course.creditUnit ? "Course lecturer" : "Subject teacher",
@@ -27666,7 +27811,7 @@
             ?.getCourses?.()
             .find(
               (course) =>
-                normalizeLevelToken(course.level) === normalizeLevelToken(classRecord.level) &&
+                courseAppliesToClassRecord(course, classRecord) &&
                 String(course.name || course.code || "").trim().toLowerCase() === subject.name.toLowerCase() &&
                 (course.teacherAssignments || []).some((teacher) => staffValueMatchesUser(teacher, user)),
             );
@@ -28139,7 +28284,7 @@
     (classRecord.subjects || []).forEach((subject) => addOption(subject));
     (classRecord.teacherAssignments || []).forEach((assignment) => addOption(assignment.subject));
     courses.forEach((course) => {
-      if (classTokens.has(normalizeLevelToken(course.level))) {
+      if (courseAppliesToClassRecord(course, classRecord)) {
         addOption(course.name || course.code, course.code);
       }
     });
@@ -30754,7 +30899,7 @@
             title: record.name || record.code,
             subtitle: `${record.code || "No code"} · ${record.level || record.category || "Unassigned"}`,
             href: "./admin-courses.html",
-            keywords: `${record.name || ""} ${record.code || ""} ${record.category || ""} ${record.level || ""} ${record.teacherAssignments?.join(" ") || ""} subject course`,
+            keywords: `${record.name || ""} ${record.code || ""} ${record.category || ""} ${record.level || ""} ${record.classLabel || ""} ${record.teacherAssignments?.join(" ") || ""} subject course`,
           });
         });
     }
@@ -31576,14 +31721,21 @@
       : [];
     const studentLevelToken = normalizeLevelToken(student.level);
     const studentBaseLevelToken = normalizeLevelToken(getStudentBaseClassLevel(student));
+    const studentClassId = String(student.classId || student.classRecordId || "").trim();
     const classMatch =
-      classes.find((item) => String(item.id || "").trim() === String(student.classId || student.classRecordId || "").trim()) ||
+      classes.find((item) => String(item.id || "").trim() === studentClassId) ||
       classes.find((item) => normalizeLevelToken(getClassDisplayName(item)) === studentLevelToken) ||
       classes.find((item) => normalizeLevelToken(item.level) === studentBaseLevelToken || normalizeLevelToken(item.level) === studentLevelToken) ||
       null;
+    const effectiveStudentClassId = studentClassId || String(classMatch?.id || "").trim();
     const subjectsFromClass = classMatch?.subjects || [];
     const matchedByLevel = courses.filter((course) => {
-      const courseToken = normalizeLevelToken(course.level);
+      const courseClassId = String(course.classId || course.classRecordId || "").trim();
+      if (courseClassId) {
+        return Boolean(effectiveStudentClassId && courseClassId === effectiveStudentClassId);
+      }
+
+      const courseToken = normalizeLevelToken(course.classLabel || course.level);
       return courseToken === studentLevelToken || courseToken === studentBaseLevelToken;
     });
 
@@ -31599,7 +31751,9 @@
         ...course,
         name: course.name,
         code: course.code,
-        level: course.level,
+        level: course.classLabel || course.level,
+        classId: course.classId || course.classRecordId || "",
+        classLabel: course.classLabel || course.level || "",
         teacherAssignments: Array.isArray(course.teacherAssignments) ? [...course.teacherAssignments] : [],
       });
     });

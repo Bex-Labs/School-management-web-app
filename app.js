@@ -2478,6 +2478,10 @@ function normalizeSchoolCourse(record = {}) {
     creditUnit: String(record.creditUnit || "").trim(),
     description: String(record.description || "").trim(),
     level: String(record.level || "").trim(),
+    classId: String(record.classId || record.classRecordId || "").trim(),
+    classRecordId: String(record.classRecordId || record.classId || "").trim(),
+    classLabel: String(record.classLabel || record.classLevel || "").trim(),
+    classArm: String(record.classArm || "").trim(),
     teacherAssignments: normalizeCourseAssignmentList(record.teacherAssignments),
     studentAssignments: normalizeCourseAssignmentList(record.studentAssignments),
     status,
@@ -2496,6 +2500,12 @@ function compareSchoolCourses(left, right) {
 
   if (levelComparison !== 0) {
     return levelComparison;
+  }
+
+  const classComparison = left.classLabel.localeCompare(right.classLabel, undefined, { numeric: true });
+
+  if (classComparison !== 0) {
+    return classComparison;
   }
 
   const codeComparison = left.code.localeCompare(right.code, undefined, { numeric: true });
@@ -2588,6 +2598,8 @@ function getActiveCourseCatalog() {
         name: course.name,
         code: course.code,
         level: course.level,
+        classId: course.classId,
+        classLabel: course.classLabel,
         label,
       };
     });
