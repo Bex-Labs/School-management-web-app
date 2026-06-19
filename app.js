@@ -2482,6 +2482,7 @@ function normalizeSchoolCourse(record = {}) {
     classRecordId: String(record.classRecordId || record.classId || "").trim(),
     classLabel: String(record.classLabel || record.classLevel || "").trim(),
     classArm: String(record.classArm || "").trim(),
+    classScope: String(record.classScope || "").trim(),
     teacherAssignments: normalizeCourseAssignmentList(record.teacherAssignments),
     studentAssignments: normalizeCourseAssignmentList(record.studentAssignments),
     status,

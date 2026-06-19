@@ -7045,6 +7045,21 @@
       return null;
     }
 
+    const studentBaseLevelToken = normalizeLevelToken(student.classLevel || student.baseLevel || "");
+    const normalizeArmToken = (value = "") => normalizeLevelToken(String(value || "").replace(/^arm\s+/i, ""));
+    const studentArmToken = normalizeArmToken(student.classArm || student.arm || "");
+    if (studentArmToken) {
+      const baseTokens = [studentBaseLevelToken, studentLevelToken].filter(Boolean);
+      const byArm = classes.find((record) => {
+        const recordLevelToken = normalizeLevelToken(record.level);
+        const recordArmToken = normalizeArmToken(record.name || record.arm || "");
+        return recordArmToken === studentArmToken && baseTokens.includes(recordLevelToken);
+      });
+      if (byArm) {
+        return byArm;
+      }
+    }
+
     return (
       classes.find((record) => normalizeLevelToken(getClassDisplayName(record)) === studentLevelToken) ||
       classes.find((record) => normalizeLevelToken(`${record.level || ""} ${record.name || ""}`) === studentLevelToken) ||
@@ -9534,6 +9549,7 @@
     const templateType = document.querySelector("[data-course-template-type]");
     const templateList = document.querySelector("[data-course-library-list]");
     const classManager = getClassManager();
+    const allClassArmsValue = "__all_class_arms__";
     const normalizeLookupToken = (value) => String(value || "").trim().toLowerCase();
     const facultyDepartments = getConfiguredHigherInstitutionDepartmentMap();
     const subjectTemplates = {
@@ -9718,9 +9734,14 @@
 
     const getSelectedCourseClassRecord = () => {
       const classId = String(classArmSelect?.value || "").trim();
+      if (classId === allClassArmsValue) {
+        return null;
+      }
       const options = getClassArmOptionsForLevel(String(levelSelect?.value || "").trim());
       return options.find((record) => String(record.id || "").trim() === classId) || null;
     };
+
+    const isAllClassArmsSelected = () => String(classArmSelect?.value || "").trim() === allClassArmsValue;
 
     const renderCourseArmOptions = (selectedClassId = "") => {
       if (!(classArmSelect instanceof HTMLSelectElement)) {
@@ -9731,14 +9752,16 @@
       const selected = String(selectedClassId || classArmSelect.value || "").trim();
       const hasSelected = options.some((record) => String(record.id || "").trim() === selected);
       classArmSelect.innerHTML = options.length
-        ? `<option value="">Select class arm</option>${options
+        ? `<option value="">Choose all arms or one arm</option>
+            <option value="${allClassArmsValue}" ${selected === allClassArmsValue ? "selected" : ""}>All arms for this class</option>
+            ${options
             .map((record) => {
               const id = String(record.id || "").trim();
               return `<option value="${escapeHtml(id)}" ${id === selected ? "selected" : ""}>${escapeHtml(getClassDisplayName(record))}</option>`;
             })
             .join("")}`
         : `<option value="">No class arms found</option>`;
-      classArmSelect.value = hasSelected ? selected : "";
+      classArmSelect.value = hasSelected || selected === allClassArmsValue ? selected : "";
       classArmSelect.disabled = !isAdmin || !options.length;
       if (classArmFieldWrap) {
         classArmFieldWrap.hidden = !String(levelSelect?.value || "").trim() || !options.length;
@@ -9835,8 +9858,11 @@
       const type = String(templateType?.value || "").trim();
       const selectedDepartment = getResolvedDepartment();
       const selectedLevel = String(levelSelect?.value || "").trim();
+      const classArmOptions = getClassArmOptionsForLevel(selectedLevel);
+      const armSelectionReady = !classArmOptions.length || Boolean(String(classArmSelect?.value || "").trim());
       const usesSubjectPicker =
         Boolean(selectedLevel) &&
+        armSelectionReady &&
         (type === "nursery" ||
           type === "primary" ||
           (type === "secondary" && Boolean(String(categoryField?.value || "").trim())) ||
@@ -9902,6 +9928,7 @@
       const classArmOptions = getClassArmOptionsForLevel(selectedLevel);
       const selectedClassArm = String(classArmSelect?.value || "").trim();
       const hasClassArmOptions = Boolean(classArmOptions.length);
+      const armSelectionReady = !hasClassArmOptions || Boolean(selectedClassArm);
       const canChooseLevel =
         type === "nursery" ||
         type === "primary" ||
@@ -9909,7 +9936,7 @@
         (type === "higher" &&
           Boolean(String(facultySelect?.value || "").trim()) &&
           Boolean(getResolvedDepartment()));
-      const showFinalDetails = Boolean(selectedSubject && selectedLevel && (!hasClassArmOptions || selectedClassArm));
+      const showFinalDetails = Boolean(selectedSubject && selectedLevel && armSelectionReady);
 
       if (heading) {
         heading.textContent = `${label} Management`;
@@ -9991,6 +10018,11 @@
       const selectedSubject = String(form.elements.name?.value || "").trim();
       const selectedLevel = String(levelSelect?.value || "").trim();
       const selectedClassRecord = getSelectedCourseClassRecord();
+      const selectedClassArmLabel = isAllClassArmsSelected()
+        ? "All arms for this class"
+        : selectedClassRecord
+          ? getClassDisplayName(selectedClassRecord)
+          : "";
       const selectedTeacher = String(teacherSelect?.value || "").trim();
       const selectedTeacherLabel = getTeacherDisplayNameForValue(selectedTeacher);
       const selectedCategory =
@@ -10006,7 +10038,7 @@
         { label: "Type", value: template.label === "Courses" ? "Higher Institution" : selectedTypeLabel },
         { label: type === "higher" ? `${getHigherInstitutionUnitLabel(getConfiguredHigherInstitutionType())} / department` : "Stream", value: selectedCategory },
         { label: "Class / level", value: selectedLevel },
-        { label: "Class arm", value: selectedClassRecord ? getClassDisplayName(selectedClassRecord) : "" },
+        { label: "Arm selection", value: selectedClassArmLabel },
         { label: type === "higher" ? "Course" : "Subject", value: selectedSubject },
         { label: "Teacher", value: selectedTeacherLabel },
       ].filter((item) => String(item.value || "").trim());
@@ -10139,7 +10171,14 @@
 
     if (levelSelect) {
       levelSelect.addEventListener("change", () => {
+        if (form.elements.name) {
+          form.elements.name.value = "";
+        }
+        if (customSubjectField) {
+          customSubjectField.value = "";
+        }
         renderCourseArmOptions("");
+        renderSubjectPickerOptions("");
         updateCourseTerminology();
         renderSubjectLibrary();
       });
@@ -10147,6 +10186,13 @@
 
     if (classArmSelect) {
       classArmSelect.addEventListener("change", () => {
+        if (form.elements.name) {
+          form.elements.name.value = "";
+        }
+        if (customSubjectField) {
+          customSubjectField.value = "";
+        }
+        renderSubjectPickerOptions("");
         updateCourseTerminology();
         renderSubjectLibrary();
       });
@@ -10236,6 +10282,9 @@
       const courseId = form.elements.courseId.value;
       const selectedLevels = [String(form.elements.level.value || "").trim()].filter(Boolean);
       const selectedClassRecord = getSelectedCourseClassRecord();
+      const selectedArmValue = String(classArmSelect?.value || "").trim();
+      const classArmOptions = getClassArmOptionsForLevel(selectedLevels[0] || "");
+      const isAllArmsCourse = selectedArmValue === allClassArmsValue;
       const isHigherCourse = String(templateType?.value || "").trim() === "higher" || getLevelSchoolType(selectedLevels[0]) === "higher";
       const faculty = String(form.elements.faculty?.value || "").trim();
       const selectedDepartment = String(form.elements.department?.value || "").trim();
@@ -10255,10 +10304,11 @@
         creditUnit: String(form.elements.creditUnit?.value || "").trim(),
         description: form.elements.description.value.trim(),
         level: selectedLevels[0] || "",
-        classId: selectedClassRecord?.id || "",
-        classRecordId: selectedClassRecord?.id || "",
-        classLabel: selectedClassRecord ? getClassDisplayName(selectedClassRecord) : "",
-        classArm: selectedClassRecord?.name || "",
+        classScope: isAllArmsCourse ? "all-arms" : "",
+        classId: isAllArmsCourse ? "" : selectedClassRecord?.id || "",
+        classRecordId: isAllArmsCourse ? "" : selectedClassRecord?.id || "",
+        classLabel: isAllArmsCourse ? `${selectedLevels[0] || "Class"} - All arms` : selectedClassRecord ? getClassDisplayName(selectedClassRecord) : "",
+        classArm: isAllArmsCourse ? "All arms" : selectedClassRecord?.name || "",
         teacherAssignments: form.elements.teacherAssignments.value.trim()
           ? [form.elements.teacherAssignments.value.trim()]
           : [],
@@ -10277,8 +10327,8 @@
         hasError = true;
       }
 
-      if (getClassArmOptionsForLevel(payload.level).length && !payload.classId) {
-        setPortalCourseError(form, "classId", "Select the exact class arm for this subject/course.");
+      if (classArmOptions.length && !selectedArmValue) {
+        setPortalCourseError(form, "classId", "Choose all arms or one class arm for this subject/course.");
         hasError = true;
       }
 
@@ -10297,16 +10347,22 @@
       }
 
       const duplicate = manager.getCourses().find((record) =>
-        selectedLevels.some(
-          (level) =>
+        (() => {
+          const recordClassId = String(record.classId || record.classRecordId || "").trim();
+          const recordScope = String(record.classScope || "").trim().toLowerCase();
+          const sameTarget = isAllArmsCourse
+            ? recordScope === "all-arms"
+            : payload.classId
+              ? recordClassId === payload.classId
+              : !recordClassId && recordScope !== "all-arms";
+          return (
             record.id !== courseId &&
-            normalizeLevelToken(record.level) === normalizeLevelToken(level) &&
-            (payload.classId
-              ? String(record.classId || record.classRecordId || "").trim() === payload.classId
-              : !String(record.classId || record.classRecordId || "").trim()) &&
+            normalizeLevelToken(record.level) === normalizeLevelToken(payload.level) &&
+            sameTarget &&
             ((payload.code && String(record.code || "").toLowerCase() === payload.code.toLowerCase()) ||
-              String(record.name || "").toLowerCase() === payload.name.toLowerCase()),
-        ),
+              String(record.name || "").toLowerCase() === payload.name.toLowerCase())
+          );
+        })(),
       );
 
       if (duplicate) {
@@ -10324,15 +10380,12 @@
       }
 
       const currentRecord = manager.getCourses().find((record) => record.id === courseId) || null;
-      const levelsToSave = currentRecord ? [payload.level] : selectedLevels;
-      levelsToSave.forEach((level, index) => {
-        manager.upsertCourse({
-          ...(index === 0 ? currentRecord : null),
-          ...payload,
-          id: index === 0 ? payload.id : undefined,
-          level,
-          status: currentRecord ? currentRecord.status : "active",
-        });
+      const targetSummary = isAllArmsCourse ? "all arms" : payload.classLabel || "class / level";
+      manager.upsertCourse({
+        ...(currentRecord || null),
+        ...payload,
+        id: currentRecord ? currentRecord.id : payload.id,
+        status: currentRecord ? currentRecord.status : "active",
       });
       recordAuditEvent({
         action: currentRecord ? "updated" : "created",
@@ -10341,7 +10394,7 @@
         summary: currentRecord
           ? `Updated course ${payload.code} · ${payload.name}`
           : `Created course ${payload.code || "New"} · ${payload.name}`,
-        details: `${levelsToSave.join(", ")} • ${payload.teacherAssignments.length} teacher assignment`,
+        details: `${payload.level} • ${targetSummary} • ${payload.teacherAssignments.length} teacher assignment`,
       });
 
       resetCourseWizardState();
@@ -10355,7 +10408,7 @@
             )}</strong> updated and now controls assignment data.`
           : `Course <strong>${escapeHtml(payload.code || "New")} · ${escapeHtml(
               payload.name,
-            )}</strong> created and assigned to ${levelsToSave.length} class${levelsToSave.length === 1 ? "" : "es"}.`,
+            )}</strong> created and assigned to ${targetSummary}.`,
       );
     });
 
@@ -10387,12 +10440,16 @@
       clearPortalCourseErrors(form);
 
       if (action === "edit") {
+        const courseArmValue =
+          String(record.classScope || "").trim().toLowerCase() === "all-arms"
+            ? allClassArmsValue
+            : record.classId || record.classRecordId || "";
         if (templateType) {
           templateType.value = getLevelSchoolType(record.level);
         }
         renderTemplateCategories();
         renderClassLevelOptions([record.level || ""]);
-        renderCourseArmOptions(record.classId || record.classRecordId || "");
+        renderCourseArmOptions(courseArmValue);
         updateCourseTerminology();
         const [faculty = "", department = ""] = String(record.category || "")
           .split("/")
@@ -10400,7 +10457,7 @@
         renderFacultyOptions(faculty);
         renderDepartmentOptions(department);
         populatePortalCourseForm(form, record, isAdmin);
-        renderCourseArmOptions(record.classId || record.classRecordId || "");
+        renderCourseArmOptions(courseArmValue);
         renderSubjectPickerOptions(record.name || "");
         renderTeacherOptions((record.teacherAssignments || [])[0] || "");
         updateCourseTerminology();
@@ -20186,9 +20243,14 @@
   function courseAppliesToClassRecord(course = {}, classRecord = {}) {
     const courseClassId = String(course.classId || course.classRecordId || "").trim();
     const classId = String(classRecord.id || "").trim();
+    const courseScope = String(course.classScope || "").trim().toLowerCase();
 
     if (courseClassId) {
       return Boolean(classId && courseClassId === classId);
+    }
+
+    if (courseScope === "all-arms") {
+      return normalizeLevelToken(course.level) === normalizeLevelToken(classRecord.level);
     }
 
     const classTokens = [
@@ -20231,7 +20293,11 @@
     const courseLevelTokens = new Set(
       teacherCourses
         .filter((course) => !String(course.classId || course.classRecordId || "").trim())
-        .map((course) => normalizeLevelToken(course.classLabel || course.level))
+        .map((course) =>
+          String(course.classScope || "").trim().toLowerCase() === "all-arms"
+            ? normalizeLevelToken(course.level)
+            : normalizeLevelToken(course.classLabel || course.level),
+        )
         .filter(Boolean),
     );
     const assigned = classes.filter((classRecord) => {
@@ -20243,6 +20309,7 @@
         return normalizeEmail(assignmentTeacher) === teacherEmail || assignmentTeacher.toLowerCase() === teacherName;
       });
       const exactClassTokens = [
+        normalizeLevelToken(classRecord.level),
         normalizeLevelToken(getClassDisplayName(classRecord)),
         normalizeLevelToken(`${classRecord.level || ""} ${classRecord.name || ""}`),
       ].filter(Boolean);
@@ -26328,20 +26395,27 @@
       }
 
       const courseClassId = String(course.classId || course.classRecordId || "").trim();
-      const matchedClass =
-        assignedClasses.find((classRecord) => courseClassId && String(classRecord.id || "").trim() === courseClassId) ||
-        assignedClasses.find(
-          (classRecord) =>
-            normalizeLevelToken(getClassDisplayName(classRecord)) === normalizeLevelToken(course.classLabel || course.level) ||
-            normalizeLevelToken(classRecord.level) === normalizeLevelToken(course.level),
-        );
-      pushRow({
-        classId: matchedClass?.id || "",
-        classRecord: matchedClass || null,
-        classLabel: matchedClass ? getClassDisplayName(matchedClass) : course.classLabel || course.level || "Assigned level",
-        subject: course.name || course.code || "Course",
-        subjectCode: course.code || "",
-        role: course.creditUnit ? "Course lecturer" : "Subject teacher",
+      const matchedClasses =
+        String(course.classScope || "").trim().toLowerCase() === "all-arms"
+          ? assignedClasses.filter((classRecord) => courseAppliesToClassRecord(course, classRecord))
+          : [
+              assignedClasses.find((classRecord) => courseClassId && String(classRecord.id || "").trim() === courseClassId) ||
+                assignedClasses.find(
+                  (classRecord) =>
+                    normalizeLevelToken(getClassDisplayName(classRecord)) === normalizeLevelToken(course.classLabel || course.level) ||
+                    normalizeLevelToken(classRecord.level) === normalizeLevelToken(course.level),
+                ) ||
+                null,
+            ];
+      (matchedClasses.length ? matchedClasses : [null]).forEach((matchedClass) => {
+        pushRow({
+          classId: matchedClass?.id || "",
+          classRecord: matchedClass || null,
+          classLabel: matchedClass ? getClassDisplayName(matchedClass) : course.classLabel || course.level || "Assigned level",
+          subject: course.name || course.code || "Course",
+          subjectCode: course.code || "",
+          role: course.creditUnit ? "Course lecturer" : "Subject teacher",
+        });
       });
     });
 
@@ -27285,10 +27359,11 @@
   }
 
   function getAnnouncementToastSessionKey(session = {}, user = {}) {
+    const workspaceId = normalizeWorkspaceId(user.workspaceId || session.workspaceId || getCurrentWorkspaceId());
     const identity =
       normalizeEmail(user.email || session.email || "") ||
       String(user.id || session.userId || "user").trim().toLowerCase();
-    return `${ANNOUNCEMENT_TOAST_SESSION_PREFIX}:${identity}:${String(session.signedInAt || "current").trim()}`;
+    return `${ANNOUNCEMENT_TOAST_SESSION_PREFIX}:${workspaceId}:${identity}`;
   }
 
   function initPortalAnnouncementToasts(session = null, user = null) {
@@ -27308,7 +27383,7 @@
     const sessionKey = getAnnouncementToastSessionKey(scopedSession, user);
     let savedIds = [];
     try {
-      savedIds = parseJSON(sessionStorage.getItem(sessionKey), []);
+      savedIds = parseJSON(localStorage.getItem(sessionKey), []);
     } catch {
       savedIds = [];
     }
@@ -27318,9 +27393,9 @@
 
     const saveShownIds = () => {
       try {
-        sessionStorage.setItem(sessionKey, JSON.stringify(Array.from(shownIds).slice(-80)));
+        localStorage.setItem(sessionKey, JSON.stringify(Array.from(shownIds).slice(-80)));
       } catch {
-        // The toast still works when session storage is unavailable.
+        // The toast still works when persistent storage is unavailable.
       }
     };
 
@@ -27827,7 +27902,7 @@
                 (plan.classId && classIds.has(String(plan.classId || "").trim())) ||
                 classTokens.has(normalizeLevelToken(plan.classLevel)),
             )
-            .filter((plan) => plan.attachments.length || plan.homework?.title || plan.homework?.instructions)
+            .filter((plan) => (plan.attachments || []).length)
             .slice(0, 12)
         : [];
     target.innerHTML = `
@@ -27865,7 +27940,7 @@
         <div class="admin-surface-head">
           <div>
             <h2>Lesson Resources</h2>
-            <span>Materials and homework shared by teachers.</span>
+            <span>Study materials shared by teachers.</span>
           </div>
         </div>
         <div class="student-lesson-resource-list">
@@ -27883,15 +27958,6 @@
                           </div>
                           <em>${escapeHtml(getLessonPlanStatusLabel(plan.status))}</em>
                         </div>
-                        ${
-                          plan.homework?.title || plan.homework?.instructions
-                            ? `<div class="student-lesson-homework">
-                                <strong>${escapeHtml(plan.homework.title || "Homework")}</strong>
-                                <span>${escapeHtml(plan.homework.instructions || "No instructions added.")}</span>
-                                ${plan.homework.dueDate ? `<small>Due ${escapeHtml(plan.homework.dueDate)}</small>` : ""}
-                              </div>`
-                            : ""
-                        }
                         <div class="lesson-plan-resource-row">
                           ${renderLessonPlanAttachments(plan.attachments)}
                         </div>
@@ -29819,10 +29885,7 @@
       const selectedAssignment = assignments[selectedAssignmentIndex] || assignments[0] || null;
       const coverage = getLessonPlanCoverageInfo(plans, selectedAssignment, openTerm?.id || "");
       const submittedCount = plans.filter((plan) => plan.status === "submitted" || plan.status === "delivered").length;
-      const deliveredCount = plans.filter((plan) => plan.status === "delivered" || plan.delivery?.taught).length;
-      const upcomingPlans = plans
-        .filter((plan) => plan.planDate && plan.planDate >= getTodayDateValue())
-        .slice(0, 6);
+      const resourceCount = plans.reduce((count, plan) => count + (Array.isArray(plan.attachments) ? plan.attachments.length : 0), 0);
 
       target.hidden = false;
       target.innerHTML = `
@@ -29830,7 +29893,7 @@
           <div class="admin-surface-head">
             <div>
               <h2>Lesson Plans</h2>
-              <span>Plan instruction, submit weekly work, and publish resources for students.</span>
+              <span>Create simple plans and publish study resources for students.</span>
             </div>
           </div>
           <div class="staff-portal-grid lesson-plan-metrics">
@@ -29845,14 +29908,9 @@
               <p>Plans ready for review and student resources.</p>
             </article>
             <article class="staff-portal-tile">
-              <span>Delivered</span>
-              <strong>${deliveredCount}</strong>
-              <p>Lessons marked as taught.</p>
-            </article>
-            <article class="staff-portal-tile">
-              <span>Syllabus coverage</span>
-              <strong>${coverage.percent}%</strong>
-              <p>${coverage.completed} completed, ${coverage.pending} pending topic${coverage.pending === 1 ? "" : "s"}.</p>
+              <span>Study resources</span>
+              <strong>${resourceCount}</strong>
+              <p>Files shared for students to study.</p>
             </article>
           </div>
         </section>
@@ -29862,11 +29920,16 @@
             <div class="admin-surface-head">
               <div>
                 <h2>Create Lesson Plan</h2>
-                <span>Draft, submit, duplicate, and track delivery.</span>
+                <span>Keep the plan short, then attach study files separately.</span>
               </div>
             </div>
             <form id="staff-lesson-plan-form" class="lesson-plan-form">
               <input type="hidden" name="planId" />
+              <input type="hidden" name="planView" value="lesson" />
+              <input type="hidden" name="weekNumber" value="1" />
+              <input type="hidden" name="planDate" value="${escapeHtml(getTodayDateValue())}" />
+              <input type="hidden" name="syllabusOrder" value="${escapeHtml(String(coverage.nextOrder))}" />
+              <input type="hidden" name="coverageStatus" value="planned" />
               <div class="portal-settings-grid">
                 <label class="portal-field portal-field-span-2">
                   <span>Subject and class</span>
@@ -29916,27 +29979,6 @@
                     }
                   </select>
                 </label>
-                <label class="portal-field">
-                  <span>Planning horizon</span>
-                  <select name="planView">
-                    <option value="day">Day</option>
-                    <option value="week" selected>Week</option>
-                    <option value="month">Month</option>
-                    <option value="term">Term</option>
-                  </select>
-                </label>
-                <label class="portal-field">
-                  <span>Week number</span>
-                  <input name="weekNumber" type="number" min="1" value="1" />
-                </label>
-                <label class="portal-field">
-                  <span>Date</span>
-                  <input name="planDate" type="date" value="${escapeHtml(getTodayDateValue())}" />
-                </label>
-                <label class="portal-field">
-                  <span>Syllabus order</span>
-                  <input name="syllabusOrder" type="number" min="1" value="${escapeHtml(String(coverage.nextOrder))}" />
-                </label>
                 <label class="portal-field portal-field-span-2">
                   <span>Topic</span>
                   <input name="topic" type="text" placeholder="Lesson topic" />
@@ -29945,91 +29987,6 @@
                   <span>Sub-topic</span>
                   <input name="subTopic" type="text" placeholder="Sub-topic or focus area" />
                 </label>
-                <label class="portal-field portal-field-span-2">
-                  <span>Learning objectives / outcomes</span>
-                  <textarea name="objectives" rows="3" placeholder="What students should know or be able to do"></textarea>
-                </label>
-                <label class="portal-field portal-field-span-2">
-                  <span>Teaching materials / resources</span>
-                  <textarea name="materials" rows="2" placeholder="Textbook, worksheets, slides, lab materials"></textarea>
-                </label>
-                <label class="portal-field portal-field-span-2">
-                  <span>Teaching methods</span>
-                  <input name="teachingMethods" type="text" placeholder="Discussion, demonstration, group work" />
-                </label>
-                <label class="portal-field portal-field-span-2">
-                  <span>Class activities</span>
-                  <textarea name="classActivities" rows="3" placeholder="Student and teacher activities"></textarea>
-                </label>
-                <label class="portal-field portal-field-span-2">
-                  <span>Assessment / evaluation activities</span>
-                  <textarea name="assessment" rows="2" placeholder="Quiz, oral questions, classwork, exit ticket"></textarea>
-                </label>
-                <label class="portal-field">
-                  <span>Coverage status</span>
-                  <select name="coverageStatus">
-                    <option value="planned">Planned</option>
-                    <option value="in-progress">In progress</option>
-                    <option value="completed">Completed</option>
-                    <option value="pending">Pending</option>
-                  </select>
-                </label>
-                <label class="portal-field">
-                  <span>Homework due date</span>
-                  <input name="homeworkDueDate" type="date" />
-                </label>
-                <label class="portal-field portal-field-span-2">
-                  <span>Homework / assignment</span>
-                  <input name="homeworkTitle" type="text" placeholder="Assignment title" />
-                </label>
-                <label class="portal-field portal-field-span-2">
-                  <span>Assignment instructions</span>
-                  <textarea name="homeworkInstructions" rows="2" placeholder="Homework instructions or assessment link"></textarea>
-                </label>
-                <label class="portal-field portal-field-span-2">
-                  <span>Remarks / reflection</span>
-                  <textarea name="remarks" rows="2" placeholder="Teacher reflection after planning or delivery"></textarea>
-                </label>
-              </div>
-
-              <details class="lesson-plan-delivery">
-                <summary>Lesson delivery tracking</summary>
-                <div class="portal-settings-grid">
-                  <label class="portal-field lesson-plan-check-field">
-                    <span>Lesson taught</span>
-                    <input name="lessonTaught" type="checkbox" />
-                  </label>
-                  <label class="portal-field">
-                    <span>Delivery date</span>
-                    <input name="deliveryDate" type="date" />
-                  </label>
-                  <label class="portal-field">
-                    <span>Time spent</span>
-                    <input name="timeSpent" type="text" placeholder="e.g. 45 minutes" />
-                  </label>
-                  <label class="portal-field portal-field-span-2">
-                    <span>Topics covered</span>
-                    <textarea name="topicsCovered" rows="2" placeholder="What was actually covered"></textarea>
-                  </label>
-                  <label class="portal-field portal-field-span-2">
-                    <span>Attendance summary</span>
-                    <input name="attendanceSummary" type="text" placeholder="e.g. 32 present, 2 absent" />
-                  </label>
-                  <label class="portal-field portal-field-span-2">
-                    <span>Challenges encountered</span>
-                    <textarea name="challenges" rows="2" placeholder="Instructional challenges or follow-up needed"></textarea>
-                  </label>
-                </div>
-              </details>
-
-              <div class="lesson-plan-upload">
-                <label class="portal-field">
-                  <span>Upload resources</span>
-                  <input name="attachments" type="file" multiple accept=".pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,.mp4,.mov,.txt" />
-                </label>
-                <div class="lesson-plan-attachment-list" data-lesson-attachments>
-                  ${renderLessonPlanAttachments(editingAttachments, { editable: true })}
-                </div>
               </div>
 
               <div id="staff-lesson-plan-status" class="portal-inline-status" aria-live="polite"></div>
@@ -30042,58 +29999,21 @@
           </article>
 
           <aside class="lesson-plan-side">
-            <article class="admin-surface-card lesson-plan-progress-card">
+            <article class="admin-surface-card lesson-plan-resource-card">
               <div class="admin-surface-head">
                 <div>
-                  <h2>Syllabus Coverage</h2>
-                  <span>${escapeHtml(selectedAssignment ? `${selectedAssignment.subject} - ${selectedAssignment.classLabel}` : "No assignment selected")}</span>
+                  <h2>Study Resources</h2>
+                  <span>Upload files students can open from their portal.</span>
                 </div>
               </div>
-              <div class="lesson-plan-progress-ring" style="--lesson-progress:${coverage.percent}%">
-                <strong>${coverage.percent}%</strong>
-                <span>${coverage.completed}/${coverage.total || 0} topics</span>
-              </div>
-              <div class="lesson-plan-progress-list">
-                <span>Submitted topics <strong>${coverage.submitted}</strong></span>
-                <span>Pending topics <strong>${coverage.pending}</strong></span>
-              </div>
-            </article>
-
-            <article class="admin-surface-card">
-              <div class="admin-surface-head">
-                <div>
-                  <h2>Planning Calendar</h2>
-                  <span>${escapeHtml(new Date().toLocaleString(undefined, { month: "long", year: "numeric" }))}</span>
+              <div class="lesson-plan-upload">
+                <label class="portal-field">
+                  <span>Upload files</span>
+                  <input data-lesson-resource-input type="file" multiple accept=".pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,.mp4,.mov,.txt" />
+                </label>
+                <div class="lesson-plan-attachment-list" data-lesson-attachments>
+                  ${renderLessonPlanAttachments(editingAttachments, { editable: true })}
                 </div>
-              </div>
-              ${renderLessonPlanCalendar(plans)}
-            </article>
-
-            <article class="admin-surface-card">
-              <div class="admin-surface-head">
-                <div>
-                  <h2>Upcoming Lessons</h2>
-                  <span>${upcomingPlans.length} planned</span>
-                </div>
-              </div>
-              <div class="staff-portal-list">
-                ${
-                  upcomingPlans.length
-                    ? upcomingPlans
-                        .map(
-                          (plan) => `
-                            <article class="staff-portal-row">
-                              <div>
-                                <strong>${escapeHtml(plan.topic || "Untitled topic")}</strong>
-                                <span>${escapeHtml(`${plan.subject} - ${plan.classLevel}`)}</span>
-                              </div>
-                              <small>${escapeHtml(plan.planDate || `Week ${plan.weekNumber}`)}</small>
-                            </article>
-                          `,
-                        )
-                        .join("")
-                    : `<article class="portal-class-empty"><strong>No upcoming lessons</strong><p>Submitted and draft plans with future dates will appear here.</p></article>`
-                }
               </div>
             </article>
           </aside>
@@ -30116,11 +30036,10 @@
                           <div class="lesson-plan-history-main">
                             <span class="lesson-plan-status ${getLessonPlanStatusClass(plan.status)}">${escapeHtml(getLessonPlanStatusLabel(plan.status))}</span>
                             <h3>${escapeHtml(plan.topic || "Untitled lesson")}</h3>
-                            <p>${escapeHtml([plan.subject, plan.classLevel, plan.termName || plan.sessionName, `Week ${plan.weekNumber}`].filter(Boolean).join(" - "))}</p>
+                            <p>${escapeHtml([plan.subject, plan.classLevel, plan.termName || plan.sessionName].filter(Boolean).join(" - "))}</p>
                             <div class="lesson-plan-history-meta">
                               <span>${escapeHtml(plan.planDate || "No date")}</span>
-                              <span>${escapeHtml(`Topic ${plan.syllabusOrder}`)}</span>
-                              <span>${escapeHtml(plan.attachments.length ? `${plan.attachments.length} resource${plan.attachments.length === 1 ? "" : "s"}` : "No resources")}</span>
+                              <span>${escapeHtml((plan.attachments || []).length ? `${(plan.attachments || []).length} resource${(plan.attachments || []).length === 1 ? "" : "s"}` : "No resources")}</span>
                             </div>
                           </div>
                           <div class="lesson-plan-history-actions">
@@ -30154,8 +30073,12 @@
         form.elements.planDate.value = getTodayDateValue();
         form.elements.weekNumber.value = "1";
         form.elements.syllabusOrder.value = "1";
-        form.elements.planView.value = "week";
+        form.elements.planView.value = "lesson";
         form.elements.coverageStatus.value = "planned";
+        const resourceInput = target.querySelector("[data-lesson-resource-input]");
+        if (resourceInput) {
+          resourceInput.value = "";
+        }
         target.querySelector("[data-lesson-attachments]").innerHTML = renderLessonPlanAttachments(editingAttachments, { editable: true });
         return;
       }
@@ -30166,29 +30089,18 @@
       form.elements.assignmentIndex.value = String(Math.max(0, assignmentIndex));
       form.elements.sessionId.value = plan.sessionId || openSession?.id || "";
       form.elements.termId.value = plan.termId || openTerm?.id || "";
-      form.elements.planView.value = plan.planView || "week";
+      form.elements.planView.value = plan.planView || "lesson";
       form.elements.weekNumber.value = String(plan.weekNumber || 1);
       form.elements.planDate.value = plan.planDate || getTodayDateValue();
       form.elements.syllabusOrder.value = String(plan.syllabusOrder || 1);
       form.elements.topic.value = plan.topic || "";
       form.elements.subTopic.value = plan.subTopic || "";
-      form.elements.objectives.value = plan.objectives || "";
-      form.elements.materials.value = plan.materials || "";
-      form.elements.teachingMethods.value = (plan.teachingMethods || []).join(", ");
-      form.elements.classActivities.value = plan.classActivities || "";
-      form.elements.assessment.value = plan.assessment || "";
       form.elements.coverageStatus.value = plan.coverageStatus || "planned";
-      form.elements.homeworkDueDate.value = plan.homework?.dueDate || "";
-      form.elements.homeworkTitle.value = plan.homework?.title || "";
-      form.elements.homeworkInstructions.value = plan.homework?.instructions || "";
-      form.elements.remarks.value = plan.remarks || plan.reflection || "";
-      form.elements.lessonTaught.checked = Boolean(plan.delivery?.taught);
-      form.elements.deliveryDate.value = plan.delivery?.deliveryDate || "";
-      form.elements.timeSpent.value = plan.delivery?.timeSpent || "";
-      form.elements.topicsCovered.value = plan.delivery?.topicsCovered || "";
-      form.elements.attendanceSummary.value = plan.delivery?.attendanceSummary || "";
-      form.elements.challenges.value = plan.delivery?.challenges || "";
       editingAttachments = Array.isArray(plan.attachments) ? [...plan.attachments] : [];
+      const resourceInput = target.querySelector("[data-lesson-resource-input]");
+      if (resourceInput) {
+        resourceInput.value = "";
+      }
       target.querySelector("[data-lesson-attachments]").innerHTML = renderLessonPlanAttachments(editingAttachments, { editable: true });
       form.scrollIntoView({ behavior: "smooth", block: "start" });
     };
@@ -30198,7 +30110,7 @@
       const assignment = assignments[Number.parseInt(form.elements.assignmentIndex.value, 10)] || assignments[0] || null;
       const session = sessions.find((item) => item.id === form.elements.sessionId.value) || openSession || null;
       const term = terms.find((item) => item.id === form.elements.termId.value) || openTerm || null;
-      const files = Array.from(form.elements.attachments?.files || []);
+      const files = Array.from(target.querySelector("[data-lesson-resource-input]")?.files || []);
       const maxBytes = 3 * 1024 * 1024;
 
       if (!assignment) {
@@ -30244,51 +30156,39 @@
         curriculumTopic: form.elements.topic.value,
         syllabusOrder: form.elements.syllabusOrder.value,
         coverageStatus: form.elements.coverageStatus.value,
-        objectives: form.elements.objectives.value,
-        materials: form.elements.materials.value,
-        teachingMethods: form.elements.teachingMethods.value,
-        classActivities: form.elements.classActivities.value,
-        assessment: form.elements.assessment.value,
+        objectives: "",
+        materials: "",
+        teachingMethods: "",
+        classActivities: "",
+        assessment: "",
         homework: {
-          title: form.elements.homeworkTitle.value,
-          instructions: form.elements.homeworkInstructions.value,
-          dueDate: form.elements.homeworkDueDate.value,
-          linkedAssessment: form.elements.assessment.value,
+          title: "",
+          instructions: "",
+          dueDate: "",
+          linkedAssessment: "",
         },
-        remarks: form.elements.remarks.value,
-        reflection: form.elements.remarks.value,
+        remarks: "",
+        reflection: "",
         delivery: {
-          taught: form.elements.lessonTaught.checked,
-          deliveryDate: form.elements.deliveryDate.value,
-          topicsCovered: form.elements.topicsCovered.value,
-          timeSpent: form.elements.timeSpent.value,
-          attendanceSummary: form.elements.attendanceSummary.value,
-          challenges: form.elements.challenges.value,
+          taught: false,
+          deliveryDate: "",
+          topicsCovered: "",
+          timeSpent: "",
+          attendanceSummary: "",
+          challenges: "",
         },
         attachments: [...editingAttachments, ...newAttachments],
-        status: form.elements.lessonTaught.checked ? "delivered" : requestedStatus,
+        status: requestedStatus,
       };
 
       if (requestedStatus !== "draft") {
         const requiredFields = [
           ["topic", payload.topic, "Enter the topic."],
-          ["objectives", payload.objectives, "Enter learning objectives."],
-          ["classActivities", payload.classActivities, "Enter class activities."],
         ];
         const missing = requiredFields.find(([, value]) => !String(value || "").trim());
         if (missing) {
           setStatus(statusTarget, "error", missing[2]);
           form.elements[missing[0]]?.focus?.();
-          return null;
-        }
-
-        const missingOrders = getLessonPlanMissingOrders(getTeacherLessonPlans(user), payload);
-        if (missingOrders.length) {
-          setStatus(
-            statusTarget,
-            "error",
-            `Complete syllabus topic ${missingOrders[0]} before submitting topic ${payload.syllabusOrder}. Save this as a draft for now.`,
-          );
           return null;
         }
       }
@@ -30305,10 +30205,12 @@
         target.dataset.lessonAssignmentIndex = form.elements.assignmentIndex.value || "0";
         const assignment = assignments[Number.parseInt(form.elements.assignmentIndex.value, 10)] || assignments[0] || null;
         const coverage = getLessonPlanCoverageInfo(getTeacherLessonPlans(user), assignment, openTerm?.id || "");
-        form.elements.syllabusOrder.value = String(coverage.nextOrder);
+        if (form.elements.syllabusOrder) {
+          form.elements.syllabusOrder.value = String(coverage.nextOrder);
+        }
       });
 
-      form.addEventListener("click", (event) => {
+      target.querySelector("[data-lesson-attachments]")?.addEventListener("click", (event) => {
         const removeButton = event.target.closest("[data-lesson-attachment-remove]");
         if (removeButton) {
           editingAttachments = editingAttachments.filter((file) => file.id !== removeButton.dataset.lessonAttachmentRemove);
@@ -30346,13 +30248,11 @@
           details: `${payload.classLevel} - ${payload.topic}`,
           visibleToRoles: payload.status === "draft" ? ["Teacher"] : ["Admin", "Teacher", "Student"],
         });
-        setStatus(
-          statusTarget,
-          "success",
-          payload.status === "draft" ? "Lesson plan draft saved." : "Lesson plan submitted and resources are available to students.",
-        );
+        const successMessage =
+          payload.status === "draft" ? "Lesson plan draft saved." : "Lesson plan submitted and resources are available to students.";
         editingAttachments = [];
         render();
+        setStatus(target.querySelector("#staff-lesson-plan-status"), "success", successMessage);
       });
 
       target.querySelectorAll("[data-lesson-action]").forEach((button) => {
@@ -32367,11 +32267,20 @@
     const cycleState = cycleManager && typeof cycleManager.getState === "function"
       ? cycleManager.getState()
       : { sessions: [], terms: [] };
-    const openTerm = (cycleState.terms || []).find((term) => term.status === "open") || null;
+    const studentSchoolType = inferSchoolTypeFromLevel(getStudentBaseClassLevel(student) || student?.level || "");
+    const isHigherStudent = studentSchoolType === "higher";
+    const isSemesterPeriod = (term = {}) =>
+      String(term.periodType || "").trim().toLowerCase() === "semester" ||
+      /\bsemester\b/i.test(String(term.name || ""));
+    const relevantTerms = (cycleState.terms || []).filter((term) =>
+      isHigherStudent ? isSemesterPeriod(term) : !isSemesterPeriod(term),
+    );
+    const sessionLookup = new Map((cycleState.sessions || []).map((session) => [session.id, session]));
+    const openTerm = relevantTerms.find((term) => term.status === "open") || relevantTerms[0] || null;
     const currentTermLabel = openTerm?.name || "Current Term";
     const currentSession =
       openTerm
-        ? (cycleState.sessions || []).find((session) => session.id === openTerm.sessionId)?.name || "Active Session"
+        ? sessionLookup.get(openTerm.sessionId)?.name || "Active Session"
         : "Active Session";
     const attendanceManager = getAttendanceManager();
     const attendanceRecords =
@@ -32411,15 +32320,27 @@
     };
     const currentCounts = countStudentAttendance(openTerm);
 
-    const history = (cycleState.terms || [])
+    const getTermSortDate = (term = {}) =>
+      String(term.startDate || term.endDate || term.createdAt || term.name || "");
+    const history = relevantTerms
       .slice()
-      .sort((left, right) => String(right.createdAt || "").localeCompare(String(left.createdAt || "")))
+      .sort((left, right) => {
+        const leftSession = sessionLookup.get(left.sessionId) || {};
+        const rightSession = sessionLookup.get(right.sessionId) || {};
+        const sessionComparison = String(rightSession.startDate || rightSession.createdAt || rightSession.name || "").localeCompare(
+          String(leftSession.startDate || leftSession.createdAt || leftSession.name || ""),
+        );
+        if (sessionComparison) {
+          return sessionComparison;
+        }
+        return getTermSortDate(right).localeCompare(getTermSortDate(left));
+      })
       .map((term) => {
         const counts = countStudentAttendance(term);
         return {
           id: term.id,
           term: term.name,
-          session: (cycleState.sessions || []).find((item) => item.id === term.sessionId)?.name || "Session",
+          session: sessionLookup.get(term.sessionId)?.name || "Session",
           present: counts.present,
           absent: counts.absent,
         };
@@ -32440,22 +32361,14 @@
       return [];
     }
 
-    const classManager = getClassManager();
     const courseManager = getCourseManager();
-    const classes = classManager && typeof classManager.getClasses === "function"
-      ? classManager.getClasses().filter((item) => item.status !== "archived")
-      : [];
     const courses = courseManager && typeof courseManager.getCourses === "function"
       ? courseManager.getCourses().filter((item) => item.status !== "archived")
       : [];
     const studentLevelToken = normalizeLevelToken(student.level);
     const studentBaseLevelToken = normalizeLevelToken(getStudentBaseClassLevel(student));
     const studentClassId = String(student.classId || student.classRecordId || "").trim();
-    const classMatch =
-      classes.find((item) => String(item.id || "").trim() === studentClassId) ||
-      classes.find((item) => normalizeLevelToken(getClassDisplayName(item)) === studentLevelToken) ||
-      classes.find((item) => normalizeLevelToken(item.level) === studentBaseLevelToken || normalizeLevelToken(item.level) === studentLevelToken) ||
-      null;
+    const classMatch = findClassRecordForStudent(student);
     const effectiveStudentClassId = studentClassId || String(classMatch?.id || "").trim();
     const subjectsFromClass = classMatch?.subjects || [];
     const matchedByLevel = courses.filter((course) => {
@@ -32464,8 +32377,12 @@
         return Boolean(effectiveStudentClassId && courseClassId === effectiveStudentClassId);
       }
 
+      if (String(course.classScope || "").trim().toLowerCase() === "all-arms") {
+        return normalizeLevelToken(course.level) === studentBaseLevelToken || normalizeLevelToken(course.level) === studentLevelToken;
+      }
+
       const courseToken = normalizeLevelToken(course.classLabel || course.level);
-      return courseToken === studentLevelToken || courseToken === studentBaseLevelToken;
+      return [studentLevelToken, studentBaseLevelToken, normalizeLevelToken(getClassDisplayName(classMatch))].filter(Boolean).includes(courseToken);
     });
 
     const merged = [];
@@ -32509,10 +32426,6 @@
   }
 
   function getParentTeacherGroups(students = []) {
-    const classManager = getClassManager();
-    const classes = classManager && typeof classManager.getClasses === "function"
-      ? classManager.getClasses().filter((item) => item.status !== "archived")
-      : [];
     const users = getUsers();
     const teacherByEmail = users.reduce((lookup, user) => {
       if (normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE) !== "Teacher") {
@@ -32525,38 +32438,6 @@
       return lookup;
     }, {});
 
-    const resolveClassForStudent = (student = {}) => {
-      const classId = String(student.classId || student.classRecordId || "").trim();
-      if (classId) {
-        const byId = classes.find((item) => String(item.id || "").trim() === classId);
-        if (byId) {
-          return byId;
-        }
-      }
-
-      const studentLevelToken = normalizeLevelToken(student.level);
-      if (!studentLevelToken) {
-        return null;
-      }
-
-      const exactDisplayMatch = classes.find((item) => normalizeLevelToken(getClassDisplayName(item)) === studentLevelToken);
-      if (exactDisplayMatch) {
-        return exactDisplayMatch;
-      }
-
-      const levelMatches = classes.filter((item) => normalizeLevelToken(item.level) === studentLevelToken);
-      if (levelMatches.length === 1) {
-        return levelMatches[0];
-      }
-
-      return (
-        levelMatches.find((item) => String(item.classTeacher || "").trim()) ||
-        levelMatches.find((item) => (item.teacherAssignments || []).length) ||
-        levelMatches[0] ||
-        null
-      );
-    };
-
     const getTeacherInfo = (value = "") => {
       const raw = String(value || "").trim();
       const normalized = normalizeEmail(raw);
@@ -32568,7 +32449,11 @@
     };
 
     const addTeacherRow = (rows, seen, row = {}) => {
-      const key = normalizeEmail(row.email || "") || `${row.role}:${row.name}:${row.subject}`.toLowerCase();
+      const emailKey = normalizeEmail(row.email || "");
+      const key =
+        row.role === "Class Teacher" && emailKey
+          ? `class:${emailKey}`
+          : `${emailKey || row.name}:${row.role}:${row.subject}`.toLowerCase();
       if (!row.name || seen.has(key)) {
         return;
       }
@@ -32578,18 +32463,20 @@
 
     const resolvedGroups = students
       .map((student) => {
-        const classRecord = resolveClassForStudent(student);
+        const classRecord = findClassRecordForStudent(student);
         return classRecord ? { student, classRecord } : null;
       })
       .filter(Boolean);
 
     return resolvedGroups.map(({ student, classRecord }) => {
-      const teacherRows = [];
-      const seenTeachers = new Set();
+      const classTeacherRows = [];
+      const subjectTeacherRows = [];
+      const seenClassTeachers = new Set();
+      const seenSubjectTeachers = new Set();
 
       if (classRecord.classTeacher) {
         const teacher = getTeacherInfo(classRecord.classTeacher);
-        addTeacherRow(teacherRows, seenTeachers, {
+        addTeacherRow(classTeacherRows, seenClassTeachers, {
           role: "Class Teacher",
           name: teacher.name,
           email: teacher.email,
@@ -32599,7 +32486,7 @@
 
       (classRecord.teacherAssignments || []).forEach((assignment) => {
         const teacher = getTeacherInfo(assignment.teacher || "");
-        addTeacherRow(teacherRows, seenTeachers, {
+        addTeacherRow(subjectTeacherRows, seenSubjectTeachers, {
           role: "Subject Teacher",
           name: teacher.name,
           email: teacher.email,
@@ -32610,7 +32497,7 @@
       getParentCoursesForStudent(student).forEach((course) => {
         (course.teacherAssignments || []).forEach((teacherValue) => {
           const teacher = getTeacherInfo(teacherValue);
-          addTeacherRow(teacherRows, seenTeachers, {
+          addTeacherRow(subjectTeacherRows, seenSubjectTeachers, {
             role: course.creditUnit ? "Course Teacher" : "Subject Teacher",
             name: teacher.name,
             email: teacher.email,
@@ -32623,7 +32510,9 @@
         id: classRecord.id,
         className: getClassDisplayName(classRecord),
         studentName: student.fullName || "",
-        teachers: teacherRows,
+        classTeachers: classTeacherRows,
+        subjectTeachers: subjectTeacherRows,
+        teachers: [...classTeacherRows, ...subjectTeacherRows],
       };
     });
   }
@@ -32828,6 +32717,22 @@
     }
 
     const groups = getParentTeacherGroups(students);
+    const renderTeacherRows = (rows = [], emptyLabel = "No teacher assigned yet.") =>
+      rows.length
+        ? rows
+            .map(
+              (teacher) => `
+                <article class="admin-event-row">
+                  <div class="admin-event-time">${escapeHtml(teacher.role)}</div>
+                  <div class="admin-event-copy">
+                    <strong>${escapeHtml(teacher.name)}</strong>
+                    <span>${escapeHtml(teacher.subject)}</span>
+                  </div>
+                </article>
+              `,
+            )
+            .join("")
+        : `<article class="portal-class-empty"><strong>${escapeHtml(emptyLabel)}</strong></article>`;
 
     if (!groups.length) {
       target.innerHTML = `
@@ -32847,22 +32752,21 @@
           <article class="admin-surface-card">
             <div class="admin-surface-head">
               <h2>${escapeHtml(group.className || "Class")}</h2>
-              <span>Teacher list grouped by class.</span>
+              <span>${escapeHtml(group.studentName ? `For ${group.studentName}` : "Teachers assigned to this child.")}</span>
             </div>
-            <div class="admin-event-list">
-              ${group.teachers
-                .map(
-                  (teacher) => `
-                    <article class="admin-event-row">
-                      <div class="admin-event-time">${escapeHtml(teacher.role)}</div>
-                      <div class="admin-event-copy">
-                        <strong>${escapeHtml(teacher.name)}</strong>
-                        <span>${escapeHtml(teacher.subject)}</span>
-                      </div>
-                    </article>
-                  `,
-                )
-                .join("")}
+            <div class="parent-teacher-breakdown">
+              <section class="parent-teacher-panel">
+                <h3>Class Teacher</h3>
+                <div class="admin-event-list">
+                  ${renderTeacherRows(group.classTeachers, "No class teacher assigned yet.")}
+                </div>
+              </section>
+              <section class="parent-teacher-panel">
+                <h3>Subject / Course Teachers</h3>
+                <div class="admin-event-list">
+                  ${renderTeacherRows(group.subjectTeachers, "No subject teacher assigned yet.")}
+                </div>
+              </section>
             </div>
           </article>
         `,
