@@ -17295,6 +17295,84 @@
     return "Owner-managed password";
   }
 
+  function getStaffTeachingAssignments(user = {}) {
+    const classManager = getClassManager();
+    const courseManager = getCourseManager();
+    const classes =
+      classManager && typeof classManager.getClasses === "function"
+        ? classManager.getClasses().filter((record) => record.status !== "archived")
+        : [];
+    const courses =
+      courseManager && typeof courseManager.getCourses === "function"
+        ? courseManager.getCourses().filter((record) => record.status !== "archived")
+        : [];
+    const rows = [];
+    const seen = new Set();
+    const addRow = (row = {}) => {
+      const subject = String(row.subject || "").trim();
+      const classLabel = String(row.classLabel || "").trim();
+      const role = String(row.role || "").trim();
+      const key = [role, subject, classLabel, row.code || ""].join(":").toLowerCase();
+      if (!subject || !classLabel || seen.has(key)) {
+        return;
+      }
+      seen.add(key);
+      rows.push({
+        role,
+        subject,
+        code: String(row.code || "").trim().toUpperCase(),
+        classLabel,
+      });
+    };
+
+    classes.forEach((classRecord) => {
+      const classLabel = getClassDisplayName(classRecord);
+      if (staffValueMatchesUser(classRecord.classTeacher, user)) {
+        addRow({
+          role: "Class teacher",
+          subject: "Class register",
+          classLabel,
+        });
+      }
+
+      (classRecord.teacherAssignments || []).forEach((assignment) => {
+        if (!staffValueMatchesUser(assignment.teacher, user)) {
+          return;
+        }
+        addRow({
+          role: "Subject teacher",
+          subject: assignment.subject || "Subject",
+          classLabel,
+        });
+      });
+    });
+
+    courses.forEach((course) => {
+      const isAssigned = (course.teacherAssignments || []).some((teacher) => staffValueMatchesUser(teacher, user));
+      if (!isAssigned) {
+        return;
+      }
+      const classLabel =
+        String(course.classScope || "").trim().toLowerCase() === "all-arms"
+          ? `${course.level || "Class"} - All arms`
+          : course.classLabel || course.level || "Assigned level";
+      addRow({
+        role: course.creditUnit ? "Course lecturer" : "Subject teacher",
+        subject: course.name || course.code || "Course",
+        code: course.code || "",
+        classLabel,
+      });
+    });
+
+    return rows.sort((left, right) =>
+      `${left.classLabel}:${left.subject}:${left.role}`.localeCompare(
+        `${right.classLabel}:${right.subject}:${right.role}`,
+        undefined,
+        { numeric: true },
+      ),
+    );
+  }
+
   function renderPortalStaffManagementSection({
     isAdmin,
     summaryTarget,
@@ -17366,6 +17444,8 @@
         ${filteredUsers
       .map((user) => {
         const isActive = normalizeUserStatus(user.status) === "active";
+        const teachingAssignments = getStaffTeachingAssignments(user);
+        const subjectCount = teachingAssignments.filter((entry) => entry.subject !== "Class register").length;
         return `
           <button class="portal-staff-row" type="button" data-staff-open="${escapeHtml(user.id)}">
             <span class="portal-staff-avatar">${escapeHtml(getInitials(user.displayName || user.email || "T").slice(0, 2))}</span>
@@ -17378,8 +17458,8 @@
               <small>${escapeHtml(user.department || "No department")}</small>
             </span>
             <span class="portal-staff-detail">
-              <strong>${escapeHtml(getStaffSignInLabel(user))}</strong>
-              <small>Sign-in</small>
+              <strong>${escapeHtml(String(subjectCount))}</strong>
+              <small>${subjectCount === 1 ? "Subject / course" : "Subjects / courses"}</small>
             </span>
             <span class="portal-class-status ${isActive ? "is-active" : "is-archived"}">
               ${isActive ? "Active" : "Deactivated"}
@@ -17485,6 +17565,8 @@
       const createdLabel = user.createdAt ? formatTimestamp(user.createdAt) : "Not recorded";
       const updatedLabel = user.updatedAt ? formatTimestamp(user.updatedAt) : "Not recorded";
       const lastLoginLabel = user.lastLoginAt ? formatTimestamp(user.lastLoginAt) : "Not signed in";
+      const teachingAssignments = getStaffTeachingAssignments(user);
+      const subjectCount = teachingAssignments.filter((entry) => entry.subject !== "Class register").length;
       staffViewGrid.innerHTML = `
         <section class="portal-staff-profile-hero">
           <span class="portal-staff-profile-avatar">${escapeHtml(initials)}</span>
@@ -17517,6 +17599,10 @@
               <article>
                 <span>Last login</span>
                 <strong>${escapeHtml(lastLoginLabel)}</strong>
+              </article>
+              <article>
+                <span>Subjects / courses</span>
+                <strong>${escapeHtml(String(subjectCount))}</strong>
               </article>
             </div>
           </section>
@@ -17551,6 +17637,33 @@
                 <strong>${escapeHtml(updatedLabel)}</strong>
               </article>
             </div>
+          </section>
+          <section class="portal-staff-view-card">
+            <div class="portal-staff-view-card-head">
+              <strong>Assigned subjects / courses</strong>
+              <span>${teachingAssignments.length} active assignment${teachingAssignments.length === 1 ? "" : "s"}</span>
+            </div>
+            ${
+              teachingAssignments.length
+                ? `<div class="portal-staff-assignment-list">
+                    ${teachingAssignments
+                      .map(
+                        (assignment) => `
+                          <article class="portal-staff-assignment-row">
+                            <div>
+                              <strong>${escapeHtml(assignment.subject)}</strong>
+                              <span>${escapeHtml(assignment.classLabel)}</span>
+                            </div>
+                            <small>${escapeHtml(
+                              [assignment.role, assignment.code ? `Code ${assignment.code}` : ""].filter(Boolean).join(" • "),
+                            )}</small>
+                          </article>
+                        `,
+                      )
+                      .join("")}
+                  </div>`
+                : `<article class="portal-class-empty"><strong>No subject assignment yet</strong><p>Assign this staff member from Class Management or Course Management.</p></article>`
+            }
           </section>
         </div>
       `;

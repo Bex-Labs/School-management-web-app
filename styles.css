@@ -11368,6 +11368,49 @@ body.admin-dashboard-page .portal-staff-detail-grid strong {
   line-height: 1.35;
 }
 
+body.admin-dashboard-page .portal-staff-assignment-list {
+  display: grid;
+  gap: 9px;
+}
+
+body.admin-dashboard-page .portal-staff-assignment-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 56px;
+  padding: 11px 12px;
+  border: 1px solid #edf2f8;
+  border-radius: 14px;
+  background: #fbfdff;
+}
+
+body.admin-dashboard-page .portal-staff-assignment-row div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+body.admin-dashboard-page .portal-staff-assignment-row strong {
+  overflow: hidden;
+  color: #17233a;
+  font-size: 0.9rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.admin-dashboard-page .portal-staff-assignment-row span,
+body.admin-dashboard-page .portal-staff-assignment-row small {
+  color: #667188;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+body.admin-dashboard-page .portal-staff-assignment-row small {
+  flex: 0 0 auto;
+  text-align: right;
+}
+
 body.admin-dashboard-page .portal-staff-view-actions {
   position: sticky;
   bottom: 0;
