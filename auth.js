@@ -12113,6 +12113,16 @@
 
     const getSubjectOptions = () => {
       const selectedClass = getSelectedClass();
+      const getSubjectTeacherAssignments = (subjectName = "") => {
+        const normalizedSubject = String(subjectName || "").trim().toLowerCase();
+        if (!selectedClass || !normalizedSubject) {
+          return [];
+        }
+        return (selectedClass.teacherAssignments || [])
+          .filter((assignment) => String(assignment.subject || "").trim().toLowerCase() === normalizedSubject)
+          .map((assignment) => assignment.teacher)
+          .filter(Boolean);
+      };
       const courseOptions =
         courseManager && typeof courseManager.getCourses === "function"
           ? courseManager
@@ -12126,22 +12136,97 @@
                 id: course.id,
                 label: course.code ? `${course.code} - ${course.name}` : course.name,
                 name: course.name,
+                teacherAssignments: Array.isArray(course.teacherAssignments) ? [...course.teacherAssignments] : [],
               }))
           : [];
       const classSubjects = (selectedClass?.subjects || []).map((subject) => ({
         id: `subject:${subject}`,
         label: subject,
         name: subject,
+        teacherAssignments: getSubjectTeacherAssignments(subject),
       }));
-      const seen = new Set();
-      return courseOptions.concat(classSubjects).filter((subject) => {
+      const merged = new Map();
+      courseOptions.concat(classSubjects).forEach((subject) => {
         const key = String(subject.name || subject.label || "").trim().toLowerCase();
-        if (!key || seen.has(key)) {
-          return false;
+        if (!key) {
+          return;
         }
-        seen.add(key);
-        return true;
+        if (!merged.has(key)) {
+          merged.set(key, {
+            ...subject,
+            teacherAssignments: Array.isArray(subject.teacherAssignments) ? [...subject.teacherAssignments] : [],
+          });
+          return;
+        }
+        const existing = merged.get(key);
+        const nextTeachers = Array.isArray(subject.teacherAssignments) ? subject.teacherAssignments : [];
+        const seenTeachers = new Set(existing.teacherAssignments.map((teacher) => String(teacher || "").trim().toLowerCase()));
+        nextTeachers.forEach((teacher) => {
+          const teacherKey = String(teacher || "").trim().toLowerCase();
+          if (teacherKey && !seenTeachers.has(teacherKey)) {
+            seenTeachers.add(teacherKey);
+            existing.teacherAssignments.push(teacher);
+          }
+        });
       });
+      return Array.from(merged.values());
+    };
+
+    const resolveTeacherDirectoryValue = (value = "") => {
+      const raw = String(value || "").trim();
+      if (!raw) {
+        return null;
+      }
+      const rawLower = raw.toLowerCase();
+      const emailValue = normalizeEmail(raw);
+      return (
+        getTeacherDirectory().find(
+          (teacher) =>
+            String(teacher.id || "").trim().toLowerCase() === rawLower ||
+            normalizeEmail(teacher.email || "") === emailValue ||
+            String(teacher.name || "").trim().toLowerCase() === rawLower,
+        ) || null
+      );
+    };
+
+    const getAutoAssignedTeacherForSubject = () => {
+      const subjectSelect = form.elements.subjectId;
+      const selectedSubjectId = String(subjectSelect?.value || "").trim();
+      if (!selectedSubjectId || selectedSubjectId === "__custom") {
+        return null;
+      }
+      const selectedSubject = getSubjectOptions().find((subject) => subject.id === selectedSubjectId) || null;
+      const assignedValues = Array.isArray(selectedSubject?.teacherAssignments)
+        ? selectedSubject.teacherAssignments
+        : [];
+      for (const teacherValue of assignedValues) {
+        const teacher = resolveTeacherDirectoryValue(teacherValue);
+        if (teacher) {
+          return teacher;
+        }
+      }
+      return null;
+    };
+
+    const updateTimetableTeacherAssignment = () => {
+      const teacherSelect = form.elements.teacherId;
+      if (!(teacherSelect instanceof HTMLSelectElement)) {
+        return;
+      }
+      const teacherField = teacherSelect.closest(".portal-field");
+      const autoTeacher = getAutoAssignedTeacherForSubject();
+      if (autoTeacher) {
+        teacherSelect.value = autoTeacher.id;
+        teacherSelect.disabled = true;
+        if (teacherField) {
+          teacherField.hidden = true;
+        }
+        return;
+      }
+      if (teacherField) {
+        teacherField.hidden = false;
+      }
+      teacherSelect.disabled = !isAdmin || !getTeacherDirectory().length;
     };
 
     const applySessionTermClassOptions = () => {
@@ -12243,6 +12328,8 @@
         }
         form.elements.subjectId.disabled = !isAdmin;
       }
+
+      updateTimetableTeacherAssignment();
     };
 
     const updateCustomSubjectVisibility = () => {
@@ -12268,11 +12355,14 @@
 
     const buildEntryPayloadFromForm = () => {
       const selectedClass = getSelectedClass();
-      const selectedTeacher = getTeacherDirectory().find((teacher) => teacher.id === String(form.elements.teacherId?.value || "").trim()) || null;
       const selectedPeriod = getSelectedPeriod();
       const subjectOptions = getSubjectOptions();
       const selectedSubjectId = String(form.elements.subjectId?.value || "").trim();
       const selectedSubject = subjectOptions.find((subject) => subject.id === selectedSubjectId) || null;
+      const selectedTeacher =
+        getAutoAssignedTeacherForSubject() ||
+        getTeacherDirectory().find((teacher) => teacher.id === String(form.elements.teacherId?.value || "").trim()) ||
+        null;
       const customSubject = String(form.elements.subject?.value || "").trim();
       return {
         id: String(form.elements.timetableEntryId?.value || "").trim() || undefined,
@@ -12328,6 +12418,7 @@
     const refresh = () => {
       applySessionTermClassOptions();
       updateCustomSubjectVisibility();
+      updateTimetableTeacherAssignment();
       renderTimetableSection({
         isAdmin,
         manager,
@@ -12363,6 +12454,7 @@
     form.addEventListener("change", () => {
       clearPortalTimetableErrors(form);
       updateCustomSubjectVisibility();
+      updateTimetableTeacherAssignment();
       updateRealtimeConflictStatus();
     });
 
@@ -12764,6 +12856,7 @@
           }
         }
         updateCustomSubjectVisibility();
+        updateTimetableTeacherAssignment();
         if (deleteButton) deleteButton.hidden = !entry;
         setFormVisibility(true);
         return;
@@ -12788,6 +12881,7 @@
             teachers: getTeacherDirectory(),
           });
           updateCustomSubjectVisibility();
+          updateTimetableTeacherAssignment();
           setFormVisibility(true);
           if (deleteButton) deleteButton.hidden = false;
           setStatus(status, "info", `Editing lesson for <strong>${escapeHtml(row.classLevel)}</strong>.`);
