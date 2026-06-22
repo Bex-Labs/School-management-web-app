@@ -27138,6 +27138,277 @@
     };
   }
 
+  function formatReportSummaryList(items = []) {
+    const values = (Array.isArray(items) ? items : [])
+      .map((item) => String(item || "").trim())
+      .filter(Boolean);
+
+    if (values.length <= 1) {
+      return values[0] || "";
+    }
+
+    if (values.length === 2) {
+      return `${values[0]} and ${values[1]}`;
+    }
+
+    return `${values.slice(0, -1).join(", ")}, and ${values[values.length - 1]}`;
+  }
+
+  function getReportSummaryRecommendation(subjectNames = []) {
+    const normalized = subjectNames.join(" ").toLowerCase();
+
+    if (/\b(english|literature|comprehension|language|writing|reading)\b/.test(normalized)) {
+      return "Regular reading practice and guided written exercises are recommended.";
+    }
+
+    if (/\b(math|mathematics|further mathematics|physics|chemistry|basic science|science)\b/.test(normalized)) {
+      return "More guided practice with class examples and problem-solving exercises is recommended.";
+    }
+
+    return "Regular revision, class participation, and guided practice are recommended.";
+  }
+
+  function cleanReportSummaryClause(value = "") {
+    return String(value || "")
+      .replace(/\s+/g, " ")
+      .replace(/[.!?]+$/g, "")
+      .trim();
+  }
+
+  function getReportSummaryPeriodRank(record = {}, cycleState = {}) {
+    const sessions = Array.isArray(cycleState.sessions) ? cycleState.sessions : [];
+    const terms = Array.isArray(cycleState.terms) ? cycleState.terms : [];
+    const sessionIndex = sessions.findIndex((session) => session.id === record.sessionId);
+    const termIndex = terms.findIndex((term) => term.id === record.termId);
+
+    if (sessionIndex >= 0 || termIndex >= 0) {
+      return Math.max(0, sessionIndex) * 1000 + Math.max(0, termIndex);
+    }
+
+    const timestamp = new Date(record.releasedAt || record.updatedAt || record.createdAt || 0).getTime();
+    return Number.isFinite(timestamp) ? timestamp / 1000000000 : 0;
+  }
+
+  function getReportSummaryPreviousCard(options = {}) {
+    const allReportCards = Array.isArray(options.allReportCards) ? options.allReportCards : [];
+    const cycleState = options.cycleState || {};
+    const currentRank = getReportSummaryPeriodRank(
+      { sessionId: options.session?.id || "", termId: options.term?.id || "", updatedAt: nowIso() },
+      cycleState,
+    );
+    const previousCards = allReportCards
+      .filter(
+        (record) =>
+          record.studentId === options.student?.id &&
+          record.subjects?.length &&
+          !(record.sessionId === options.session?.id && record.termId === options.term?.id),
+      )
+      .map((record) => ({
+        record,
+        summary: summarizeReportCardSubjects(record.subjects),
+        rank: getReportSummaryPeriodRank(record, cycleState),
+      }))
+      .filter((entry) => entry.summary.subjectCount)
+      .sort((left, right) => {
+        const leftBeforeCurrent = left.rank < currentRank;
+        const rightBeforeCurrent = right.rank < currentRank;
+
+        if (leftBeforeCurrent !== rightBeforeCurrent) {
+          return leftBeforeCurrent ? -1 : 1;
+        }
+
+        return right.rank - left.rank;
+      });
+
+    return previousCards.find((entry) => entry.rank < currentRank) || previousCards[0] || null;
+  }
+
+  function getReportSummaryClassAverage(options = {}) {
+    const allReportCards = Array.isArray(options.allReportCards) ? options.allReportCards : [];
+    const selectedClass = options.classRecord || {};
+    const classLabel = selectedClass ? getClassDisplayName(selectedClass) : "";
+    const classToken = normalizeLevelToken(classLabel);
+    const averages = allReportCards
+      .filter((record) => {
+        const sameStudent = record.studentId === options.student?.id;
+        const samePeriod = record.sessionId === options.session?.id && record.termId === options.term?.id;
+        const sameClass =
+          (selectedClass.id && record.classId === selectedClass.id) ||
+          (classToken && normalizeLevelToken(record.classLevel) === classToken);
+
+        return !sameStudent && samePeriod && sameClass && record.subjects?.length;
+      })
+      .map((record) => summarizeReportCardSubjects(record.subjects).averageScore)
+      .filter((score) => Number.isFinite(score));
+
+    if (!averages.length) {
+      return null;
+    }
+
+    return Math.round((averages.reduce((sum, score) => sum + score, 0) / averages.length) * 100) / 100;
+  }
+
+  function getReportSummaryAttendanceInsight(options = {}) {
+    const attendanceManager = getAttendanceManager();
+    const selectedClass = options.classRecord || {};
+    const selectedStudent = options.student || {};
+    const selectedTerm = options.term || {};
+    const selectedSession = options.session || {};
+    const cycleState = options.cycleState || {};
+    const records =
+      attendanceManager && typeof attendanceManager.getRecords === "function"
+        ? attendanceManager.getRecords()
+        : [];
+    const classLabel = selectedClass ? getClassDisplayName(selectedClass) : "";
+    const classToken = normalizeLevelToken(classLabel);
+    const classLevelToken = normalizeLevelToken(selectedClass.level || "");
+    const relevantRecords = records.filter((record) => {
+      const recordClassToken = normalizeLevelToken(record.className || record.level || "");
+      const classMatches =
+        (selectedClass.id && record.classId === selectedClass.id) ||
+        (classToken && recordClassToken === classToken) ||
+        (classLevelToken && normalizeLevelToken(record.level || "") === classLevelToken);
+      const periodMatches =
+        (selectedTerm.id && record.termId === selectedTerm.id) ||
+        (!record.termId && selectedSession.id && record.sessionId === selectedSession.id) ||
+        (selectedTerm.id && attendanceRecordMatchesAcademicTerm(record, selectedTerm, cycleState));
+
+      return classMatches && periodMatches;
+    });
+    const attendance = summarizeAttendancePeriodForStudents([selectedStudent], relevantRecords).rows[0] || null;
+
+    if (!attendance || !attendance.recordedDays) {
+      return null;
+    }
+
+    return attendance;
+  }
+
+  function buildReportSummaryAssessmentInsight(subjects = [], scoreStructure = {}) {
+    const caMaximum = Number.parseFloat(scoreStructure.caMaximum) || 40;
+    const examMaximum = Number.parseFloat(scoreStructure.examMaximum) || 60;
+    const subjectsWithDifference = subjects
+      .map((subject) => {
+        const caPercent = caMaximum ? (normalizeReportCardScore(subject.caScore) / caMaximum) * 100 : 0;
+        const examPercent = examMaximum ? (normalizeReportCardScore(subject.examScore) / examMaximum) * 100 : 0;
+        return {
+          name: subject.name,
+          difference: Math.round((examPercent - caPercent) * 100) / 100,
+        };
+      })
+      .filter((subject) => subject.name);
+    const examDrop = subjectsWithDifference
+      .filter((subject) => subject.difference <= -20)
+      .sort((left, right) => left.difference - right.difference)
+      .slice(0, 2);
+    const examLift = subjectsWithDifference
+      .filter((subject) => subject.difference >= 20)
+      .sort((left, right) => right.difference - left.difference)
+      .slice(0, 2);
+
+    if (examDrop.length) {
+      return `Classwork was stronger than examination performance in ${formatReportSummaryList(
+        examDrop.map((subject) => subject.name),
+      )}, so exam-focused practice will help.`;
+    }
+
+    if (examLift.length) {
+      return `Examination performance was especially strong in ${formatReportSummaryList(
+        examLift.map((subject) => subject.name),
+      )}.`;
+    }
+
+    return "";
+  }
+
+  function generateStaffResultSummary(studentName = "", subjects = [], options = {}) {
+    const summary = summarizeReportCardSubjects(subjects);
+    const normalizedSubjects = [...summary.subjects].sort((left, right) => right.totalScore - left.totalScore);
+
+    if (!normalizedSubjects.length) {
+      return "";
+    }
+
+    const firstName = String(studentName || "").trim().split(/\s+/).filter(Boolean)[0] || "The student";
+    const average = formatReportCardScore(summary.averageScore);
+    const strongSubjects = normalizedSubjects.filter((subject) => subject.totalScore >= 70).slice(0, 3);
+    const improvementSubjects = [...summary.subjects]
+      .filter((subject) => subject.totalScore < 50)
+      .sort((left, right) => left.totalScore - right.totalScore)
+      .slice(0, 3);
+    const bestSubjects = strongSubjects.length ? strongSubjects : normalizedSubjects.slice(0, 2);
+    const needsAttention = improvementSubjects.length ? improvementSubjects : [...normalizedSubjects].reverse().slice(0, 1);
+    const bestSubjectNames = bestSubjects.map((subject) => subject.name);
+    const attentionSubjectNames = needsAttention.map((subject) => subject.name);
+    const previousCard = getReportSummaryPreviousCard(options);
+    const classAverage = getReportSummaryClassAverage(options);
+    const attendance = getReportSummaryAttendanceInsight(options);
+    const assessmentInsight = cleanReportSummaryClause(
+      buildReportSummaryAssessmentInsight(summary.subjects, options.scoreStructure),
+    );
+    const movement = previousCard
+      ? Math.round((summary.averageScore - previousCard.summary.averageScore) * 100) / 100
+      : null;
+    const classDifference =
+      Number.isFinite(classAverage) ? Math.round((summary.averageScore - classAverage) * 100) / 100 : null;
+    const performanceLabel =
+      summary.averageScore >= 75
+        ? "an excellent"
+        : summary.averageScore >= 60
+          ? "a good"
+          : summary.averageScore >= 50
+            ? "a satisfactory"
+            : summary.averageScore >= 40
+              ? "a fair"
+              : "a weak";
+    const trendInsight =
+      movement === null
+        ? ""
+        : Math.abs(movement) < 3
+          ? `performance is steady compared with the previous report`
+          : movement > 0
+            ? `improved by ${formatReportCardScore(movement)} percentage points from the previous report`
+            : `declined by ${formatReportCardScore(Math.abs(movement))} percentage points from the previous report`;
+    const classInsight =
+      classDifference === null
+        ? ""
+        : Math.abs(classDifference) < 3
+          ? `close to the class average of ${formatReportCardScore(classAverage)}%`
+          : classDifference > 0
+            ? `${formatReportCardScore(classDifference)} percentage points above the class average`
+            : `${formatReportCardScore(Math.abs(classDifference))} percentage points below the class average`;
+    const attendanceInsight = attendance
+      ? `attendance is ${formatReportCardScore(attendance.attendanceRate || 0)}% with ${attendance.counts.absent} absence${
+          attendance.counts.absent === 1 ? "" : "s"
+        } and ${attendance.counts.late} late mark${attendance.counts.late === 1 ? "" : "s"}`
+      : "";
+    const meaningfulTrend = movement !== null && Math.abs(movement) >= 3 ? trendInsight : "";
+    const attendanceNeedsAttention = attendance && (attendance.counts.absent || attendance.counts.late) ? attendanceInsight : "";
+    const optionalContext =
+      meaningfulTrend ||
+      classInsight ||
+      attendanceNeedsAttention ||
+      trendInsight ||
+      assessmentInsight;
+    const firstSentenceParts = [
+      `${firstName} had ${performanceLabel} overall performance with an average of ${average}% and grade ${summary.grade}`,
+      bestSubjectNames.length ? `performed well in ${formatReportSummaryList(bestSubjectNames)}` : "",
+      optionalContext,
+    ].filter(Boolean);
+    const recommendation = cleanReportSummaryClause(getReportSummaryRecommendation(attentionSubjectNames));
+    const secondSentence =
+      attentionSubjectNames.length && (improvementSubjects.length || summary.averageScore < 70)
+        ? `More attention is needed in ${formatReportSummaryList(attentionSubjectNames)}; ${recommendation}`
+        : "The student should maintain steady study habits and keep participating actively in class";
+
+    return [
+      `${firstSentenceParts.join("; ")}.`,
+      `${secondSentence}.`,
+    ]
+      .filter(Boolean)
+      .join(" ");
+  }
+
   function formatReportCardScore(value) {
     const score = Number.parseFloat(value);
 
@@ -30064,10 +30335,17 @@
                   </div>
 
                   <div class="portal-settings-grid staff-result-comment-grid">
-                    <label class="portal-field" for="staff-result-teacher-comment">
-                      <span>Teacher&apos;s comment</span>
+                    <div class="portal-field">
+                      <div class="staff-result-comment-head">
+                        <label for="staff-result-teacher-comment">Teacher&apos;s comment</label>
+                        ${
+                          isReleased
+                            ? ""
+                            : `<button class="portal-class-button staff-result-summary-button" type="button" data-result-generate-summary>Generate summary</button>`
+                        }
+                      </div>
                       <textarea id="staff-result-teacher-comment" name="teacherComment" rows="4" placeholder="Summarize the student's performance." ${isReleased ? "disabled" : ""}>${escapeHtml(String(currentCard?.teacherComment || ""))}</textarea>
-                    </label>
+                    </div>
                     <label class="portal-field" for="staff-result-school-comment">
                       <span>School comment</span>
                       <textarea id="staff-result-school-comment" name="schoolComment" rows="4" placeholder="Add the final school comment." ${isReleased ? "disabled" : ""}>${escapeHtml(String(currentCard?.schoolComment || ""))}</textarea>
@@ -30258,6 +30536,34 @@
           if (firstCell) firstCell.textContent = String(index + 1);
         });
         refreshEditorSummary();
+        return;
+      }
+
+      if (event.target.closest("[data-result-generate-summary]")) {
+        const result = collectStaffReportCardSubjects(cardForm, scoreStructure);
+        if (result.error) {
+          setStatus(statusTarget, "error", escapeHtml(result.error));
+          return;
+        }
+
+        const generatedSummary = generateStaffResultSummary(selectedStudent.fullName, result.subjects, {
+          student: selectedStudent,
+          classRecord: selectedClass,
+          session: selectedSession,
+          term: selectedTerm,
+          cycleState,
+          allReportCards,
+          scoreStructure,
+        });
+        const commentField = cardForm.elements.teacherComment;
+        if (!generatedSummary || !commentField) {
+          setStatus(statusTarget, "error", "Enter at least one valid subject score before generating a summary.");
+          return;
+        }
+
+        commentField.value = generatedSummary;
+        commentField.focus();
+        setStatus(statusTarget, "success", "Summary generated from scores, trends, class comparison, and attendance where available. You can edit it before saving.");
         return;
       }
 

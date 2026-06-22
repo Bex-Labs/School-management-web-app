@@ -9866,6 +9866,30 @@ body.admin-dashboard-page .staff-result-comment-grid {
   align-items: start;
 }
 
+body.admin-dashboard-page .staff-result-comment-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+body.admin-dashboard-page .staff-result-comment-head label {
+  color: var(--navy-900);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+body.admin-dashboard-page .staff-result-summary-button {
+  min-height: 32px;
+  padding: 0 10px;
+  border-color: #cfe0ff;
+  background: #eef5ff;
+  color: #234a84;
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
 body.admin-dashboard-page .staff-result-actions {
   justify-content: flex-end;
   margin-top: 0;
@@ -14476,6 +14500,11 @@ body.admin-dashboard-page .portal-class-empty p {
 
   body.admin-dashboard-page .portal-class-timetable-preview-meta strong {
     text-align: left;
+  }
+
+  body.admin-dashboard-page .staff-result-comment-head {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   body.admin-dashboard-page .staff-portal-row small {
