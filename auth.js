@@ -34440,6 +34440,402 @@
     wireReportCardDocumentActions(target);
   }
 
+  function getParentChatbotFeeContext(student = null, user = {}) {
+    if (!student) {
+      return null;
+    }
+
+    const workspaceId = normalizeWorkspaceId(user?.workspaceId || getCurrentWorkspaceId());
+    const storedFeeRecord = readParentFeesState(workspaceId)[student.id] || null;
+    const configuredFeeRecord = buildConfiguredParentFeeSnapshot(student);
+    return storedFeeRecord?.invoiceNo || storedFeeRecord?.invoiceItems?.length
+      ? storedFeeRecord
+      : configuredFeeRecord || {
+          studentId: student.id,
+          studentName: student.fullName,
+          classLevel: getStudentBaseClassLevel(student) || student.level || "",
+          totalDue: 0,
+          balance: 0,
+          dueDate: "Not set",
+          invoiceStatus: "not configured",
+        };
+  }
+
+  function getParentChatbotTodayAttendance(student = null) {
+    if (!student) {
+      return null;
+    }
+
+    const today = getTodayDateValue();
+    const attendanceManager = getAttendanceManager();
+    const records =
+      attendanceManager && typeof attendanceManager.getRecords === "function"
+        ? attendanceManager.getRecords()
+        : [];
+    const matchingRecord = records
+      .filter((record) => String(record.date || "") === today)
+      .find((record) => (record.entries || []).some((entry) => String(entry.studentId || "") === String(student.id || "")));
+    const entry = matchingRecord?.entries?.find((item) => String(item.studentId || "") === String(student.id || "")) || null;
+
+    return {
+      date: today,
+      record: matchingRecord || null,
+      entry,
+      label: entry ? getAttendanceStatusLabel(entry.status) : "Not marked yet",
+    };
+  }
+
+  function getParentChatbotNextExam() {
+    const calendarManager = getAcademicCalendarManager();
+    const today = getTodayDateValue();
+    const events =
+      calendarManager && typeof calendarManager.getEvents === "function"
+        ? calendarManager.getEvents()
+        : [];
+
+    return events
+      .filter((event) => event.status !== "archived")
+      .filter((event) => normalizeCalendarType(event.type) === "exam")
+      .filter((event) => String(event.endDate || "") >= today)
+      .sort((left, right) => {
+        const startComparison = String(left.startDate || "").localeCompare(String(right.startDate || ""));
+        return startComparison || String(left.endDate || "").localeCompare(String(right.endDate || ""));
+      })[0] || null;
+  }
+
+  function getParentChatbotLatestReport(student = null) {
+    const reportManager = getReportCardManager();
+    const records =
+      reportManager && typeof reportManager.getRecords === "function"
+        ? reportManager.getRecords()
+        : [];
+
+    return records
+      .filter((record) => String(record.studentId || "") === String(student?.id || ""))
+      .filter((record) => record.status === "released")
+      .sort((left, right) =>
+        String(right.releasedAt || right.updatedAt || right.createdAt || "").localeCompare(
+          String(left.releasedAt || left.updatedAt || left.createdAt || ""),
+        ),
+      )[0] || null;
+  }
+
+  function getParentChatbotClassTimetableEntries(student = null) {
+    const timetableManager = getTimetableManager();
+    const entries =
+      timetableManager && typeof timetableManager.getEntries === "function"
+        ? timetableManager.getEntries()
+        : [];
+    const classRecord = findClassRecordForStudent(student || {});
+    const classId = String(student?.classId || student?.classRecordId || classRecord?.id || "").trim();
+    const tokens = [
+      normalizeLevelToken(student?.level),
+      normalizeLevelToken(student?.classLevel || student?.baseLevel),
+      normalizeLevelToken(getStudentBaseClassLevel(student || {})),
+      normalizeLevelToken(classRecord ? getClassDisplayName(classRecord) : ""),
+    ].filter(Boolean);
+
+    return entries
+      .filter((entry) => entry.status !== "archived")
+      .filter((entry) => {
+        const entryClassId = String(entry.classId || "").trim();
+        if (classId && entryClassId && entryClassId === classId) {
+          return true;
+        }
+        return tokens.includes(normalizeLevelToken(entry.classLevel));
+      })
+      .sort((left, right) => {
+        const dayComparison = String(left.day || "").localeCompare(String(right.day || ""));
+        return dayComparison || String(left.startTime || "").localeCompare(String(right.startTime || ""));
+      });
+  }
+
+  function getParentChatbotClosingTime(student = null) {
+    const entries = getParentChatbotClassTimetableEntries(student);
+    return entries
+      .filter((entry) => String(entry.endTime || "").trim())
+      .sort((left, right) => String(right.endTime || "").localeCompare(String(left.endTime || "")))[0] || null;
+  }
+
+  function getParentChatbotAnnouncements(user = {}, student = null) {
+    return getParentPortalAnnouncements(user, student).slice(0, 3);
+  }
+
+  function buildParentChatbotAnswer(question = "", { student = null, children = [], user = {} } = {}) {
+    const rawQuestion = String(question || "").trim();
+    const normalized = rawQuestion.toLowerCase();
+    const studentName = student?.fullName || "your child";
+
+    if (!student) {
+      return "I can only answer after a child is linked to this parent account. No linked child is available for this login yet.";
+    }
+
+    const asksFee =
+      /\b(fee|fees|balance|owe|owing|outstanding|invoice|payment|pay)\b/.test(normalized);
+    const asksExam = /\b(exam|exams|test|assessment|calendar)\b/.test(normalized);
+    const asksAttendance = /\b(attendance|present|absent|late|marked|register|today)\b/.test(normalized);
+    const asksReport = /\b(report|result|card|pdf|download|print|grade)\b/.test(normalized);
+    const asksClosing = /\b(close|closing|dismiss|dismissal|school\s*time|end\s*time)\b/.test(normalized);
+    const asksAnnouncement = /\b(announcement|notice|update|news|deadline|registration)\b/.test(normalized);
+    const asksTeacher = /\b(teacher|teachers|lecturer|class\s*teacher)\b/.test(normalized);
+    const asksCourse = /\b(subject|subjects|course|courses|classwork)\b/.test(normalized);
+    const asksChild = /\b(child|children|student|class|level|admission)\b/.test(normalized);
+
+    if (asksFee) {
+      const fee = getParentChatbotFeeContext(student, user);
+      const totalDue = Number(fee?.totalDue || 0);
+      const balance = Number(fee?.balance || 0);
+      const paid = Math.max(0, totalDue - balance);
+      return [
+        `${studentName}'s fee balance is ${formatCurrencyAmount(balance)}.`,
+        `Total due: ${formatCurrencyAmount(totalDue)}.`,
+        `Paid: ${formatCurrencyAmount(paid)}.`,
+        fee?.invoiceNo ? `Invoice: ${fee.invoiceNo}.` : "",
+        fee?.dueDate ? `Due date: ${fee.dueDate}.` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+    }
+
+    if (asksClosing) {
+      const closingEntry = getParentChatbotClosingTime(student);
+      if (!closingEntry) {
+        const schoolSettings = getConfiguredSchoolSettings();
+        return [
+          "I could not find a closing time from this child's saved timetable.",
+          schoolSettings.phone ? `You can contact the school office on ${schoolSettings.phone}.` : "",
+        ]
+          .filter(Boolean)
+          .join("\n");
+      }
+      return `Based on ${studentName}'s timetable, the latest scheduled lesson ends at ${closingEntry.endTime}.`;
+    }
+
+    if (asksAttendance) {
+      const attendance = getParentChatbotTodayAttendance(student);
+      const termSummary = deriveParentAttendanceSummary(student);
+      return [
+        `Today's attendance for ${studentName}: ${attendance?.label || "Not marked yet"}.`,
+        `Current period summary: ${termSummary.present} present, ${termSummary.absent} absent.`,
+        attendance?.entry?.note ? `Note: ${attendance.entry.note}.` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+    }
+
+    if (asksExam) {
+      const nextExam = getParentChatbotNextExam();
+      if (!nextExam) {
+        return "No upcoming exam period has been published on the school calendar yet.";
+      }
+      return [
+        `The next exam event is ${nextExam.title}.`,
+        `Date: ${formatCalendarRange(nextExam.startDate, nextExam.endDate)}.`,
+        nextExam.notes ? `Note: ${nextExam.notes}.` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+    }
+
+    if (asksReport) {
+      const report = getParentChatbotLatestReport(student);
+      if (!report) {
+        return `${studentName} does not have any released report card yet. Once the school releases one, it will appear under Reports.`;
+      }
+      const context = getReportCardDisplayContext(report);
+      return [
+        `${studentName}'s latest released report card is for ${context.termName}, ${context.sessionName}.`,
+        `Average: ${formatReportCardScore(context.averageScore)}%. Grade: ${context.overallGrade}.`,
+        "To download it, open Reports in the parent portal and click Download PDF beside the released report card.",
+      ].join("\n");
+    }
+
+    if (asksAnnouncement) {
+      const announcements = getParentChatbotAnnouncements(user, student);
+      if (!announcements.length) {
+        return `There are no current announcements for ${studentName}'s class or the whole school.`;
+      }
+      return [
+        `Latest announcements for ${studentName}:`,
+        ...announcements.map((entry, index) => `${index + 1}. ${entry.title || "Announcement"} - ${entry.message || "No extra details."}`),
+      ].join("\n");
+    }
+
+    if (asksTeacher) {
+      const groups = getParentTeacherGroups([student]);
+      const classTeachers = groups.flatMap((group) => group.classTeachers || []);
+      const subjectTeachers = groups.flatMap((group) => group.subjectTeachers || []);
+      if (!classTeachers.length && !subjectTeachers.length) {
+        return `No teacher assignments are saved yet for ${studentName}'s class.`;
+      }
+      return [
+        `Teachers connected to ${studentName}:`,
+        classTeachers.length ? `Class teacher: ${classTeachers.map((teacher) => teacher.name).join(", ")}.` : "",
+        subjectTeachers.length
+          ? `Subject/course teachers: ${subjectTeachers.map((teacher) => `${teacher.name} (${teacher.subject})`).join(", ")}.`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+    }
+
+    if (asksCourse) {
+      const courses = getParentCoursesForStudent(student);
+      if (!courses.length) {
+        return `No subjects or courses are assigned yet for ${studentName}.`;
+      }
+      return `${studentName}'s assigned subjects/courses are: ${courses.map((course) => course.name).join(", ")}.`;
+    }
+
+    if (asksChild) {
+      return [
+        `${studentName} is linked to this parent account.`,
+        `Class/level: ${getStudentLevelDisplayLabel(student.level || getStudentBaseClassLevel(student)) || "Not assigned"}.`,
+        student.admissionNo ? `Admission number: ${student.admissionNo}.` : "",
+        children.length > 1 ? `You have ${children.length} linked children. Use the child selector at the top to switch context.` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+    }
+
+    return [
+      "I can answer questions from your child's school records only.",
+      "Try asking about fee balance, today's attendance, next exam, report-card download, school closing time, announcements, teachers, or subjects.",
+    ].join("\n");
+  }
+
+  function initParentFloatingChatbot(student, children, user) {
+    const suggestions = [
+      "What is my child's fee balance?",
+      "What is today's attendance status?",
+      "When is the next exam?",
+      "How do I download the report card?",
+      "What time does school close?",
+    ];
+    const existing = document.getElementById("parent-floating-chatbot");
+    existing?.remove();
+
+    if (!canAccessPermission("Parent", "parent_chatbot_view")) {
+      return;
+    }
+
+    const wrapper = document.createElement("section");
+    wrapper.id = "parent-floating-chatbot";
+    wrapper.className = "parent-floating-chatbot";
+    wrapper.innerHTML = `
+      <button class="parent-floating-chatbot-toggle" type="button" data-parent-chatbot-toggle aria-expanded="false" aria-controls="parent-floating-chatbot-panel">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path>
+          <path d="M8 9h8"></path>
+          <path d="M8 13h5"></path>
+        </svg>
+        <span>Ask AI</span>
+      </button>
+      <div id="parent-floating-chatbot-panel" class="parent-floating-chatbot-panel" data-parent-chatbot-panel hidden>
+        <header class="parent-floating-chatbot-head">
+          <div>
+            <strong>AI Parent Chatbot</strong>
+            <span>${student ? `Using ${escapeHtml(student.fullName)}'s school data` : "No linked child found"}</span>
+          </div>
+          <button type="button" data-parent-chatbot-close aria-label="Close parent chatbot">&times;</button>
+        </header>
+        <div class="parent-chatbot-thread" data-parent-chatbot-thread aria-live="polite">
+          <article class="parent-chatbot-message is-bot">
+            <span>Assistant</span>
+            <p>${
+              student
+                ? `Ask me about ${escapeHtml(student.fullName)}'s fees, attendance, report cards, exams, announcements, teachers, or timetable.`
+                : "I can answer after a child is linked to this parent account."
+            }</p>
+          </article>
+        </div>
+        <div class="parent-chatbot-suggestions" aria-label="Suggested questions">
+            ${suggestions
+              .map(
+                (question) => `
+                  <button class="parent-chatbot-chip" type="button" data-parent-chatbot-question="${escapeHtml(question)}">
+                    ${escapeHtml(question)}
+                  </button>
+                `,
+              )
+              .join("")}
+        </div>
+        <form class="parent-chatbot-form" data-parent-chatbot-form novalidate>
+          <label class="portal-field" for="parent-floating-chatbot-input">
+            <span>Ask a question</span>
+            <textarea id="parent-floating-chatbot-input" name="question" rows="2" placeholder="Ask about fees, attendance, reports, or school updates"></textarea>
+          </label>
+          <button class="button button-primary" type="submit">Ask</button>
+        </form>
+      </div>
+    `;
+    document.body.appendChild(wrapper);
+
+    const toggle = wrapper.querySelector("[data-parent-chatbot-toggle]");
+    const panel = wrapper.querySelector("[data-parent-chatbot-panel]");
+    const closeButton = wrapper.querySelector("[data-parent-chatbot-close]");
+    const thread = wrapper.querySelector("[data-parent-chatbot-thread]");
+    const form = wrapper.querySelector("[data-parent-chatbot-form]");
+    const input = form?.elements.question;
+    const setOpen = (isOpen) => {
+      if (!panel || !toggle) {
+        return;
+      }
+      panel.hidden = !isOpen;
+      wrapper.classList.toggle("is-open", isOpen);
+      toggle.setAttribute("aria-expanded", String(isOpen));
+      if (isOpen) {
+        window.setTimeout(() => input?.focus(), 0);
+      }
+    };
+    const appendMessage = (kind, label, message) => {
+      if (!thread) {
+        return;
+      }
+      thread.insertAdjacentHTML(
+        "beforeend",
+        `
+          <article class="parent-chatbot-message ${kind === "user" ? "is-user" : "is-bot"}">
+            <span>${escapeHtml(label)}</span>
+            <p>${escapeHtml(message).replace(/\n/g, "<br>")}</p>
+          </article>
+        `,
+      );
+      thread.scrollTop = thread.scrollHeight;
+    };
+    const submitQuestion = (question) => {
+      const value = String(question || "").trim();
+      if (!value) {
+        input?.focus();
+        return;
+      }
+      appendMessage("user", "You", value);
+      appendMessage("bot", "Assistant", buildParentChatbotAnswer(value, { student, children, user }));
+      if (input) {
+        input.value = "";
+        input.focus();
+      }
+    };
+
+    toggle?.addEventListener("click", () => {
+      setOpen(panel?.hidden !== false);
+    });
+    closeButton?.addEventListener("click", () => {
+      setOpen(false);
+    });
+    form?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      submitQuestion(input?.value || "");
+    });
+
+    wrapper.querySelectorAll("[data-parent-chatbot-question]").forEach((button) => {
+      button.addEventListener("click", () => {
+        setOpen(true);
+        submitQuestion(button.dataset.parentChatbotQuestion || button.textContent || "");
+      });
+    });
+  }
+
   function renderParentPermissionRestrictedPage(target, page) {
     const label = PARENT_PAGE_LABELS[page] || "Parent section";
     target.innerHTML = `
@@ -34552,6 +34948,7 @@
       { ...session, role: "Parent", workspaceId: user.workspaceId || session.workspaceId },
       user,
     );
+    initParentFloatingChatbot(selectedChild, children, user);
 
     const contentHost = document.getElementById("parent-page-content");
     if (!contentHost) {

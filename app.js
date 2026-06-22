@@ -327,6 +327,7 @@ const ROLE_PERMISSION_OPTIONS_BY_ROLE = {
     { key: "parent_fees_view", label: "Fees and Balance", description: "Invoices, balances, and payments" },
     { key: "parent_reports_view", label: "Reports", description: "Released report cards and PDFs" },
     { key: "parent_messages_view", label: "Messages", description: "Message school admin and teachers" },
+    { key: "parent_chatbot_view", label: "AI Parent Chatbot", description: "Ask questions about the linked child and school records" },
   ],
   Student: [
     { key: "student_dashboard_view", label: "Dashboard", description: "Student home and school updates" },
