@@ -2171,6 +2171,428 @@
     );
   }
 
+  function normalizeWhatsAppPhone(value = "") {
+    const rawValue = String(value || "").trim();
+    if (!rawValue) {
+      return "";
+    }
+
+    let digits = rawValue.startsWith("+")
+      ? rawValue.slice(1).replace(/\D/g, "")
+      : rawValue.replace(/\D/g, "");
+
+    if (digits.startsWith("00")) {
+      digits = digits.slice(2);
+    }
+
+    if (digits.length === 11 && digits.startsWith("0")) {
+      digits = `234${digits.slice(1)}`;
+    } else if (digits.length === 10 && /^[789]/.test(digits)) {
+      digits = `234${digits}`;
+    }
+
+    return digits.length >= 10 ? digits : "";
+  }
+
+  function buildWhatsAppAlertUrl(phone = "", message = "") {
+    const normalizedPhone = normalizeWhatsAppPhone(phone);
+    const body = String(message || "").trim();
+    if (!normalizedPhone || !body) {
+      return "";
+    }
+    return `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(body)}`;
+  }
+
+  function showWhatsAppAlertToast(type = "info", message = "") {
+    if (!message) {
+      return;
+    }
+
+    let toast = document.getElementById("portal-whatsapp-toast");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = "portal-whatsapp-toast";
+      toast.className = "portal-toast portal-toast--info";
+      toast.setAttribute("role", "status");
+      toast.setAttribute("aria-live", "polite");
+      document.body.appendChild(toast);
+    }
+
+    toast.className = `portal-toast portal-toast--${type || "info"}`;
+    toast.innerHTML = message;
+    toast.hidden = false;
+    window.clearTimeout(showWhatsAppAlertToast.timer);
+    showWhatsAppAlertToast.timer = window.setTimeout(() => {
+      toast.hidden = true;
+    }, 4200);
+  }
+
+  function getStudentWhatsAppPhone(student = {}) {
+    return (
+      student.whatsApp ||
+      student.whatsapp ||
+      student.whatsappPhone ||
+      student.studentPhone ||
+      student.phone ||
+      student.mobile ||
+      ""
+    );
+  }
+
+  function getStudentById(studentId = "") {
+    const targetId = String(studentId || "").trim();
+    if (!targetId) {
+      return null;
+    }
+    const studentManager = getStudentManager();
+    const students =
+      studentManager && typeof studentManager.getStudents === "function"
+        ? studentManager.getStudents()
+        : [];
+    return students.find((student) => String(student.id || "").trim() === targetId) || null;
+  }
+
+  function findStudentForMessageContact(contact = {}, workspaceId = null) {
+    const studentManager = getStudentManager();
+    const students =
+      studentManager && typeof studentManager.getStudents === "function"
+        ? studentManager
+            .getStudents()
+            .filter((student) => !workspaceId || normalizeWorkspaceId(student.workspaceId || workspaceId) === normalizeWorkspaceId(workspaceId))
+        : [];
+    const contactStudentId = String(contact.studentId || contact.studentRecordId || "").trim();
+    const contactAdmissionNo = String(contact.admissionNo || "").trim().toLowerCase();
+    const contactEmail = normalizeEmail(contact.email || "");
+
+    return (
+      students.find((student) => contactStudentId && String(student.id || "").trim() === contactStudentId) ||
+      students.find(
+        (student) =>
+          contactAdmissionNo &&
+          String(student.admissionNo || "").trim().toLowerCase() === contactAdmissionNo,
+      ) ||
+      students.find((student) => {
+        if (!contactEmail) {
+          return false;
+        }
+        const studentEmail = normalizeEmail(student.studentEmail || student.email || "");
+        return (
+          studentEmail === contactEmail ||
+          (student.guardians || []).some((guardian) => normalizeEmail(guardian.email || "") === contactEmail)
+        );
+      }) ||
+      null
+    );
+  }
+
+  function getStudentWhatsAppRecipients(student = {}, options = {}) {
+    const includeParent = options.includeParent !== false;
+    const includeHigherStudent = options.includeHigherStudent !== false;
+    const recipients = [];
+    const seen = new Set();
+    const addRecipient = (phone, name, role) => {
+      const normalizedPhone = normalizeWhatsAppPhone(phone);
+      if (!normalizedPhone || seen.has(normalizedPhone)) {
+        return;
+      }
+      seen.add(normalizedPhone);
+      recipients.push({
+        phone: normalizedPhone,
+        name: name || role || "Recipient",
+        role: role || "Recipient",
+      });
+    };
+
+    if (includeParent) {
+      (student.guardians || []).forEach((guardian) => {
+        addRecipient(guardian.phone || guardian.whatsappPhone, guardian.name || "Parent/Guardian", "Parent");
+      });
+      addRecipient(student.guardianPhone || student.parentPhone, student.guardianName || "Parent/Guardian", "Parent");
+    }
+
+    const baseLevel = getStudentBaseClassLevel(student) || student.level || "";
+    if (includeHigherStudent && inferSchoolTypeFromLevel(baseLevel) === "higher") {
+      addRecipient(getStudentWhatsAppPhone(student), student.fullName || student.admissionNo || "Student", "Student");
+    }
+
+    return recipients;
+  }
+
+  function collectStudentWhatsAppRecipients(students = [], options = {}) {
+    const recipients = [];
+    const seen = new Set();
+    (Array.isArray(students) ? students : []).forEach((student) => {
+      getStudentWhatsAppRecipients(student, options).forEach((recipient) => {
+        const phone = normalizeWhatsAppPhone(recipient.phone);
+        if (!phone || seen.has(phone)) {
+          return;
+        }
+        seen.add(phone);
+        recipients.push({ ...recipient, phone, student });
+      });
+    });
+    return recipients;
+  }
+
+  function getMessageContactWhatsAppRecipients(contact = {}, workspaceId = null) {
+    const role = normalizeRoleLabel(contact.role || "");
+    const recipients = [];
+    const seen = new Set();
+    const addRecipient = (phone, name, recipientRole) => {
+      const normalizedPhone = normalizeWhatsAppPhone(phone);
+      if (!normalizedPhone || seen.has(normalizedPhone)) {
+        return;
+      }
+      seen.add(normalizedPhone);
+      recipients.push({
+        phone: normalizedPhone,
+        name: name || contact.displayName || contact.email || recipientRole || "Recipient",
+        role: recipientRole || role || "Recipient",
+      });
+    };
+
+    if (role === "Parent") {
+      addRecipient(contact.phone || contact.guardianPhone, contact.baseDisplayName || contact.displayName, "Parent");
+      const student = findStudentForMessageContact(contact, workspaceId);
+      if (student) {
+        (student.guardians || [])
+          .filter((guardian) => !contact.email || normalizeEmail(guardian.email || "") === normalizeEmail(contact.email || ""))
+          .forEach((guardian) => addRecipient(guardian.phone, guardian.name || contact.displayName, "Parent"));
+        if (!recipients.length) {
+          getStudentWhatsAppRecipients(student, { includeHigherStudent: false }).forEach((recipient) =>
+            addRecipient(recipient.phone, recipient.name, recipient.role),
+          );
+        }
+      }
+      return recipients;
+    }
+
+    if (role === "Student") {
+      const student = findStudentForMessageContact(contact, workspaceId);
+      const studentType = student
+        ? inferSchoolTypeFromLevel(getStudentBaseClassLevel(student) || student.level)
+        : inferSchoolTypeFromLevel(contact.classLevel || contact.level || "");
+      if (studentType === "higher") {
+        addRecipient(
+          student ? getStudentWhatsAppPhone(student) : contact.phone,
+          student?.fullName || contact.displayName || contact.email,
+          "Student",
+        );
+      }
+      return recipients;
+    }
+
+    addRecipient(contact.phone, contact.displayName || contact.email, role);
+    return recipients;
+  }
+
+  function openWhatsAppAlerts(recipients = [], message = "", options = {}) {
+    const body = String(message || "").trim();
+    const uniqueRecipients = [];
+    const seen = new Set();
+    (Array.isArray(recipients) ? recipients : []).forEach((recipient) => {
+      const phone = normalizeWhatsAppPhone(recipient.phone || recipient);
+      if (!phone || seen.has(phone)) {
+        return;
+      }
+      seen.add(phone);
+      uniqueRecipients.push({ ...recipient, phone });
+    });
+
+    if (!body || !uniqueRecipients.length) {
+      if (options.showToast !== false) {
+        showWhatsAppAlertToast("error", "No WhatsApp number was found for this recipient.");
+      }
+      return { opened: 0, total: uniqueRecipients.length };
+    }
+
+    let opened = 0;
+    uniqueRecipients.forEach((recipient, index) => {
+      const url = buildWhatsAppAlertUrl(recipient.phone, body);
+      if (!url) {
+        return;
+      }
+      const openWindow = () => {
+        const handle = window.open(url, "_blank", "noopener");
+        if (handle) {
+          opened += 1;
+        }
+      };
+      if (index === 0) {
+        openWindow();
+      } else {
+        window.setTimeout(openWindow, index * 240);
+      }
+    });
+
+    if (options.showToast !== false) {
+      showWhatsAppAlertToast(
+        "info",
+        uniqueRecipients.length === 1
+          ? "Opening WhatsApp alert for the selected recipient."
+          : `Opening WhatsApp alerts for <strong>${uniqueRecipients.length}</strong> recipients. Your browser may ask you to allow pop-ups.`,
+      );
+    }
+
+    return { opened, total: uniqueRecipients.length };
+  }
+
+  function openWhatsAppAlertItems(items = [], options = {}) {
+    const uniqueItems = [];
+    const seen = new Set();
+    (Array.isArray(items) ? items : []).forEach((item) => {
+      const phone = normalizeWhatsAppPhone(item.phone || "");
+      const message = String(item.message || "").trim();
+      const key = `${phone}:${message}`;
+      if (!phone || !message || seen.has(key)) {
+        return;
+      }
+      seen.add(key);
+      uniqueItems.push({ ...item, phone, message });
+    });
+
+    if (!uniqueItems.length) {
+      if (options.showToast !== false) {
+        showWhatsAppAlertToast("error", "No WhatsApp number was found for this alert.");
+      }
+      return { opened: 0, total: 0 };
+    }
+
+    let opened = 0;
+    uniqueItems.forEach((item, index) => {
+      const url = buildWhatsAppAlertUrl(item.phone, item.message);
+      const openWindow = () => {
+        const handle = window.open(url, "_blank", "noopener");
+        if (handle) {
+          opened += 1;
+        }
+      };
+      if (index === 0) {
+        openWindow();
+      } else {
+        window.setTimeout(openWindow, index * 240);
+      }
+    });
+
+    if (options.showToast !== false) {
+      showWhatsAppAlertToast(
+        "info",
+        uniqueItems.length === 1
+          ? "Opening WhatsApp alert."
+          : `Opening <strong>${uniqueItems.length}</strong> WhatsApp alerts. Your browser may ask you to allow pop-ups.`,
+      );
+    }
+
+    return { opened, total: uniqueItems.length };
+  }
+
+  function buildFeePaymentWhatsAppMessage(invoice = {}) {
+    const lines = [
+      `Fee payment notice for ${invoice.studentName || "your child"}.`,
+      invoice.invoiceNo ? `Invoice: ${invoice.invoiceNo}` : "",
+      invoice.classLevel ? `Class: ${invoice.classLevel}` : "",
+      [invoice.sessionName, invoice.termName].filter(Boolean).join(" - "),
+      `Amount due: ${formatCurrencyAmount(invoice.totalDue || 0)}`,
+      `Balance: ${formatCurrencyAmount(invoice.balance || invoice.totalDue || 0)}`,
+      invoice.dueDate && invoice.dueDate !== "Not set" ? `Due date: ${invoice.dueDate}` : "",
+      "Please log in to the school portal to view or download the invoice.",
+    ];
+    return lines.filter(Boolean).join("\n");
+  }
+
+  function buildReportCardWhatsAppMessage({ student = {}, session = {}, term = {}, classLabel = "" } = {}) {
+    return [
+      `Report card ready for ${student.fullName || "your child"}.`,
+      classLabel ? `Class: ${classLabel}` : "",
+      [session.name, term.name].filter(Boolean).join(" - "),
+      "Please log in to the school portal to view, download, or print the report card.",
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  function buildAnnouncementWhatsAppMessage({ title = "", message = "", scope = "" } = {}) {
+    return [`${title || "School announcement"}`, scope === "class" ? "Class notice" : "School-wide notice", message]
+      .filter(Boolean)
+      .join("\n\n");
+  }
+
+  function openFeeInvoiceWhatsAppAlerts(invoices = []) {
+    const items = [];
+    (Array.isArray(invoices) ? invoices : []).forEach((invoice) => {
+      const student = getStudentById(invoice.studentId) || {
+        id: invoice.studentId,
+        fullName: invoice.studentName,
+        admissionNo: invoice.admissionNo,
+        level: invoice.classLevel,
+      };
+      getStudentWhatsAppRecipients(student, { includeParent: true, includeHigherStudent: true }).forEach((recipient) => {
+        items.push({
+          phone: recipient.phone,
+          name: recipient.name,
+          message: buildFeePaymentWhatsAppMessage(invoice),
+        });
+      });
+    });
+    return openWhatsAppAlertItems(items);
+  }
+
+  function openReportCardWhatsAppAlerts({ student = {}, session = {}, term = {}, classLabel = "" } = {}) {
+    const message = buildReportCardWhatsAppMessage({ student, session, term, classLabel });
+    return openWhatsAppAlerts(
+      getStudentWhatsAppRecipients(student, { includeParent: true, includeHigherStudent: true }),
+      message,
+    );
+  }
+
+  function openAnnouncementWhatsAppAlerts({
+    workspaceId = null,
+    scope = "school",
+    selectedRoles = [],
+    selectedClasses = [],
+    title = "",
+    message = "",
+  } = {}) {
+    const roles = new Set((Array.isArray(selectedRoles) ? selectedRoles : []).map((role) => normalizeRoleLabel(role)));
+    const includeParent = roles.has("Parent");
+    const includeHigherStudent = roles.has("Student");
+    if (!includeParent && !includeHigherStudent) {
+      showWhatsAppAlertToast("error", "WhatsApp alerts are available for parents and higher institution students.");
+      return { opened: 0, total: 0 };
+    }
+
+    const targetClassTokens = new Set(
+      (Array.isArray(selectedClasses) ? selectedClasses : []).map((label) => normalizeLevelToken(label)).filter(Boolean),
+    );
+    const studentManager = getStudentManager();
+    const students =
+      studentManager && typeof studentManager.getStudents === "function"
+        ? studentManager.getStudents().filter((student) => {
+            if (student.status !== "active") {
+              return false;
+            }
+            if (workspaceId && student.workspaceId && normalizeWorkspaceId(student.workspaceId) !== normalizeWorkspaceId(workspaceId)) {
+              return false;
+            }
+            if (String(scope || "").toLowerCase() !== "class") {
+              return true;
+            }
+            const tokens = [
+              normalizeLevelToken(student.level),
+              normalizeLevelToken(student.classLevel || student.baseLevel),
+              normalizeLevelToken(getStudentBaseClassLevel(student)),
+              normalizeLevelToken(student.classArm),
+            ].filter(Boolean);
+            return tokens.some((token) => targetClassTokens.has(token));
+          })
+        : [];
+    const recipients = collectStudentWhatsAppRecipients(students, { includeParent, includeHigherStudent });
+    return openWhatsAppAlerts(
+      recipients,
+      buildAnnouncementWhatsAppMessage({ title, message, scope }),
+    );
+  }
+
   function markNotificationsRead(notificationIds = [], workspaceId = null) {
     const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId || getCurrentWorkspaceId());
     const idSet = new Set(notificationIds.map((id) => String(id || "").trim()).filter(Boolean));
@@ -13046,6 +13468,7 @@
       classLevel: document.getElementById("fee-invoice-class"),
       student: document.getElementById("fee-invoice-student"),
       dueDate: document.getElementById("fee-invoice-due-date"),
+      whatsApp: document.getElementById("fee-invoice-whatsapp"),
       singleButton: document.querySelector("[data-fee-invoice-generate-single]"),
     };
     const invoiceOverlay = document.getElementById("portal-fee-invoice-overlay");
@@ -13825,6 +14248,9 @@
                     <button class="button button-outline" type="button" data-fee-invoice-generate-class="${escapeHtml(
                       classLevel,
                     )}" ${canGenerateClass ? "" : "disabled"}>Generate for class</button>
+                    <button class="button button-primary" type="button" data-fee-invoice-generate-class-whatsapp="${escapeHtml(
+                      classLevel,
+                    )}" ${canGenerateClass ? "" : "disabled"}>Generate + WhatsApp</button>
                   </div>
                   <div class="portal-fee-invoice-table">
                     ${
@@ -13949,6 +14375,9 @@
       if (invoiceControls.dueDate) {
         invoiceControls.dueDate.disabled = !isAdmin;
       }
+      if (invoiceControls.whatsApp) {
+        invoiceControls.whatsApp.disabled = !isAdmin;
+      }
 
       const canGenerate = isAdmin && Boolean(sessionId && termId && classLevel && students.length && feeItems.length);
       if (invoiceControls.singleButton) {
@@ -13956,7 +14385,7 @@
       }
     };
 
-    const generateInvoices = (studentsToInvoice, invoiceContext = null) => {
+    const generateInvoices = (studentsToInvoice, invoiceContext = null, options = {}) => {
       if (!isAdmin) {
         setStatus(invoiceStatus || status, "info", "Only administrators can generate invoices.");
         return;
@@ -13982,6 +14411,7 @@
       const workspaceId = normalizeWorkspaceId(getCurrentWorkspaceId());
       const currentState = readParentFeesState(workspaceId);
       const nextState = { ...currentState };
+      const generatedInvoices = [];
       studentsForInvoice.forEach((student) => {
         nextState[student.id] = buildFeeInvoiceRecord({
           student,
@@ -13989,6 +14419,7 @@
           context,
           existing: currentState[student.id] || {},
         });
+        generatedInvoices.push(nextState[student.id]);
       });
       saveParentFeesState(nextState, workspaceId);
 
@@ -14026,6 +14457,9 @@
           context.classLevel,
         )}</strong>.`,
       );
+      if (options.sendWhatsApp || invoiceControls.whatsApp?.checked) {
+        openFeeInvoiceWhatsAppAlerts(generatedInvoices);
+      }
       return true;
     };
 
@@ -14239,6 +14673,15 @@
         const context = getSelectedInvoiceContext({ classLevel });
         feeState.expandedInvoiceClasses.add(normalizeLevelToken(classLevel));
         generateInvoices(context.students, context);
+        return;
+      }
+
+      const generateClassWhatsAppButton = event.target.closest("[data-fee-invoice-generate-class-whatsapp]");
+      if (generateClassWhatsAppButton) {
+        const classLevel = String(generateClassWhatsAppButton.dataset.feeInvoiceGenerateClassWhatsapp || "").trim();
+        const context = getSelectedInvoiceContext({ classLevel });
+        feeState.expandedInvoiceClasses.add(normalizeLevelToken(classLevel));
+        generateInvoices(context.students, context, { sendWhatsApp: true });
         return;
       }
 
@@ -29639,6 +30082,10 @@
                           <button class="portal-class-button is-archive" type="button" data-report-card-return-draft>Return to draft</button>
                         `
                         : `
+                          <label class="portal-settings-toggle portal-whatsapp-field staff-result-whatsapp-toggle">
+                            <input name="sendWhatsAppRelease" type="checkbox" />
+                            <span>Send WhatsApp alert on release</span>
+                          </label>
                           <button class="portal-class-button" type="submit">Save draft</button>
                           <button class="button button-primary" type="button" data-report-card-release>Release report card</button>
                         `
@@ -29840,6 +30287,14 @@
           details: `${getClassDisplayName(selectedClass)} • ${selectedSession.name} • ${selectedTerm.name}`,
           visibleToRoles: ["Admin", "Parent", "Student"],
         });
+        if (cardForm.elements.sendWhatsAppRelease?.checked) {
+          openReportCardWhatsAppAlerts({
+            student: selectedStudent,
+            session: selectedSession,
+            term: selectedTerm,
+            classLabel: getClassDisplayName(selectedClass),
+          });
+        }
         showReportCardToast("success", "<strong>Report card released</strong><span>Linked parents and the student can now view, download, and print it.</span>");
         return;
       }
@@ -30667,6 +31122,7 @@
             ? "Search School Admin or connected teachers"
             : "Search parents, teachers or students");
     const totalUnread = threads.reduce((count, thread) => count + thread.unreadIds.length, 0);
+    const canSendWhatsApp = Boolean(options.enableWhatsAppToggle) && ["Admin", "Teacher"].includes(role);
     const conversationRows = activeThread
       ? conversationThreads
           .map((thread) => {
@@ -30816,6 +31272,16 @@
                       ? `<input name="subject" type="text" placeholder="Message subject" aria-label="Message subject" />`
                       : ""
                   }
+                  ${
+                    canSendWhatsApp
+                      ? `
+                        <label class="portal-whatsapp-toggle">
+                          <input name="sendWhatsApp" type="checkbox" />
+                          <span>Send same message on WhatsApp</span>
+                        </label>
+                      `
+                      : ""
+                  }
                   <div class="portal-chat-compose-row">
                     <textarea name="message" rows="1" placeholder="${escapeHtml(
                       options.composerPlaceholder || `Reply to ${activeThread.name}`,
@@ -30950,6 +31416,7 @@
         options.onSend(activeThread, {
           message,
           subject: String(form.elements.subject?.value || "").trim(),
+          sendWhatsApp: Boolean(form.elements.sendWhatsApp?.checked),
         });
       }
       form.reset();
@@ -30991,6 +31458,7 @@
             role: "Admin",
             email: normalizeEmail(admin.email || ""),
             displayName: admin.displayName || admin.email || "School Admin",
+            phone: admin.phone || "",
           },
         });
       });
@@ -31019,8 +31487,10 @@
               role: "Parent",
               email: parentEmail,
               displayName: parentLabel,
+              phone: guardian.phone || parentUser?.phone || "",
               studentId: student.id,
               studentName: student.fullName || "",
+              admissionNo: student.admissionNo || "",
               classLevel: student.level || getClassDisplayName(classRecord),
             },
             searchText: `${parentName} ${student.fullName || ""} ${student.admissionNo || ""} ${
@@ -31049,8 +31519,10 @@
               role: "Student",
               email: recipientEmail,
               displayName: student.fullName || studentUser?.displayName || recipientEmail,
+              phone: getStudentWhatsAppPhone(student) || studentUser?.phone || "",
               studentId: student.id || "",
               studentName: student.fullName || "",
+              admissionNo: student.admissionNo || "",
               classLevel: student.level || getClassDisplayName(classRecord),
             },
             searchText: `${student.fullName || ""} ${student.admissionNo || ""} ${
@@ -31131,6 +31603,13 @@
 
   function renderStaffMessagesInbox(target, user) {
     const threads = buildStaffMessageThreads(user);
+    const sendWhatsAppCopy = (thread, payload = {}) => {
+      if (!payload.sendWhatsApp) {
+        return;
+      }
+      const message = [payload.subject, payload.message].filter(Boolean).join("\n\n");
+      openWhatsAppAlerts(getMessageContactWhatsAppRecipients(thread?.contact, user.workspaceId), message);
+    };
     renderPortalMessageInbox(target, {
       threads,
       user,
@@ -31138,6 +31617,7 @@
       heading: "Conversations",
       emptyMessage: "Messages from parents will appear here.",
       composerPlaceholder: "Type your reply",
+      enableWhatsAppToggle: true,
       onRefresh: () => renderStaffMessagesInbox(target, user),
       onSend: (thread, payload) => {
         if (thread?.contact?.role === "Admin") {
@@ -31150,6 +31630,7 @@
               conversationId: getSchoolMessageConversationId("Teacher", user.email),
             },
           });
+          sendWhatsAppCopy(thread, payload);
           return;
         }
         const anchor = thread?.messages.find(
@@ -31157,6 +31638,7 @@
         );
         if (anchor) {
           sendParentMessageReply(anchor, user, payload.message);
+          sendWhatsAppCopy(thread, payload);
           return;
         }
         if (["Parent", "Student"].includes(thread?.contact?.role)) {
@@ -31172,6 +31654,7 @@
               classLevel: thread.contact.classLevel || "",
             },
           });
+          sendWhatsAppCopy(thread, payload);
         }
       },
     });
@@ -35708,6 +36191,7 @@
         studentId: contact.studentId || existing?.studentId || "",
         admissionNo: contact.admissionNo || existing?.admissionNo || "",
         classLevel: contact.classLevel || existing?.classLevel || "",
+        phone: contact.phone || existing?.phone || "",
         detail:
           role === "Parent"
             ? studentNames.length
@@ -35743,6 +36227,7 @@
             displayName: user.displayName || user.email,
             studentId: user.studentRecordId || "",
             admissionNo: user.admissionNo || "",
+            phone: user.phone || "",
           });
         }
       });
@@ -35758,7 +36243,11 @@
           role: "Parent",
           email: guardian.email,
           displayName: guardian.name || guardian.email,
+          phone: guardian.phone || "",
           studentNames: [student.fullName || student.admissionNo || "Student"],
+          studentId: student.id,
+          admissionNo: student.admissionNo,
+          classLevel: student.level,
         });
       });
 
@@ -35776,6 +36265,7 @@
         role: "Student",
         email: studentUser?.email || studentEmail,
         displayName: student.fullName || studentUser?.displayName || studentEmail,
+        phone: getStudentWhatsAppPhone(student) || studentUser?.phone || "",
         studentId: student.id,
         admissionNo: student.admissionNo,
         classLevel: student.level,
@@ -35896,6 +36386,13 @@
 
   function renderAdminMessageInbox(target, user) {
     const threads = buildAdminMessageThreads(user);
+    const sendWhatsAppCopy = (thread, payload = {}) => {
+      if (!payload.sendWhatsApp) {
+        return;
+      }
+      const message = [payload.subject, payload.message].filter(Boolean).join("\n\n");
+      openWhatsAppAlerts(getMessageContactWhatsAppRecipients(thread?.contact, user.workspaceId), message);
+    };
     renderPortalMessageInbox(target, {
       threads,
       user,
@@ -35903,6 +36400,7 @@
       heading: "Conversations",
       emptyMessage: "Parent and teacher contacts will appear here.",
       composerPlaceholder: "Type your message",
+      enableWhatsAppToggle: true,
       onRefresh: () => renderAdminMessageInbox(target, user),
       onSend: (thread, payload) => {
         if (!thread?.contact) {
@@ -35918,6 +36416,7 @@
             studentName: thread.contact.studentNames?.[0] || "",
           },
         });
+        sendWhatsAppCopy(thread, payload);
       },
     });
   }
@@ -36770,6 +37269,8 @@
         const scope = String(announcementForm.elements.scope?.value || "school").trim().toLowerCase();
         const title = String(announcementForm.elements.title?.value || "").trim();
         const message = String(announcementForm.elements.message?.value || "").trim();
+        const alertType = String(announcementForm.elements.alertType?.value || "general").trim().toLowerCase();
+        const sendWhatsApp = Boolean(announcementForm.elements.sendWhatsApp?.checked);
         const selectedRoles = Array.from(
           announcementForm.querySelectorAll('input[name="roleTargets"]:checked'),
         )
@@ -36817,6 +37318,7 @@
                 visibleToRoles: selectedRoles,
                 metadata: {
                   announcementScope: "class",
+                  alertType,
                   targetClassLabel: classLabel,
                   targetRoles: selectedRoles,
                 },
@@ -36836,6 +37338,7 @@
               visibleToRoles: selectedRoles,
               metadata: {
                 announcementScope: "school",
+                alertType,
                 targetRoles: selectedRoles,
               },
             },
@@ -36854,6 +37357,17 @@
               : `Whole school • ${selectedRoles.join(", ")}`,
           workspaceId,
         });
+
+        if (sendWhatsApp) {
+          openAnnouncementWhatsAppAlerts({
+            workspaceId,
+            scope,
+            selectedRoles,
+            selectedClasses,
+            title: alertType === "registration-deadline" ? `Registration deadline: ${title}` : title,
+            message,
+          });
+        }
 
         announcementForm.reset();
         setStatus(

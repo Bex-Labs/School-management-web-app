@@ -525,6 +525,17 @@
                     <span>Message</span>
                     <textarea id="admin-announcement-message" name="message" rows="4" placeholder="Write the announcement message"></textarea>
                   </label>
+                  <label class="portal-field" for="admin-announcement-alert-type">
+                    <span>Alert type</span>
+                    <select id="admin-announcement-alert-type" name="alertType">
+                      <option value="general">General announcement</option>
+                      <option value="registration-deadline">Registration deadline</option>
+                    </select>
+                  </label>
+                  <label class="portal-settings-toggle portal-whatsapp-field" for="admin-announcement-whatsapp">
+                    <input id="admin-announcement-whatsapp" name="sendWhatsApp" type="checkbox" />
+                    <span>Send WhatsApp alert</span>
+                  </label>
                 </div>
 
                 <div class="admin-announcement-config-grid">

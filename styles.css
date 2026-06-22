@@ -6492,6 +6492,23 @@ body.admin-dashboard-page .portal-settings-toggle input {
   accent-color: #2f6fed;
 }
 
+body.admin-dashboard-page .portal-whatsapp-field,
+body.admin-dashboard-page .portal-whatsapp-toggle {
+  border-color: #caeadb;
+  background: #f4fcf7;
+  color: #176b4d;
+}
+
+body.admin-dashboard-page .portal-whatsapp-field input,
+body.admin-dashboard-page .portal-whatsapp-toggle input {
+  accent-color: #176b4d;
+}
+
+body.admin-dashboard-page .portal-whatsapp-field span,
+body.admin-dashboard-page .portal-whatsapp-toggle span {
+  overflow-wrap: anywhere;
+}
+
 body.admin-dashboard-page .staff-gradebook-command,
 body.admin-dashboard-page .staff-gradebook-context {
   width: 100%;
@@ -9355,6 +9372,25 @@ body.admin-dashboard-page .portal-chat-composer textarea {
 body.admin-dashboard-page .portal-chat-composer > input {
   min-height: 36px;
   padding: 7px 10px;
+}
+
+body.admin-dashboard-page .portal-whatsapp-toggle {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  gap: 8px;
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 1px solid #caeadb;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+body.admin-dashboard-page .portal-whatsapp-toggle input {
+  width: 16px;
+  height: 16px;
 }
 
 body.admin-dashboard-page .portal-chat-compose-row {
