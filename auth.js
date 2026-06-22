@@ -21514,6 +21514,11 @@
           classId: record.classId,
           className: record.className,
           level: record.level,
+          lessonId: record.lessonId || "",
+          subject: record.subject || "",
+          periodId: record.periodId || "",
+          startTime: record.startTime || "",
+          endTime: record.endTime || "",
           submittedByName: record.submittedByName,
           submittedByEmail: record.submittedByEmail,
           takenAt: record.takenAt,
@@ -26485,17 +26490,24 @@
     const selectedDate = target.dataset.attendanceDate || getTodayDateValue();
     const flashMessage = target.dataset.attendanceFlash || "";
     delete target.dataset.attendanceFlash;
-    const selectedClassId = assignedClasses.some((classRecord) => classRecord.id === target.dataset.attendanceClassId)
-      ? target.dataset.attendanceClassId
-      : assignedClasses[0]?.id || "";
+    const lessonOptions = getTeacherAttendanceLessonOptions(user, selectedDate, assignedClasses);
+    const selectedLessonId = lessonOptions.some((lesson) => lesson.id === target.dataset.attendanceLessonId)
+      ? target.dataset.attendanceLessonId
+      : lessonOptions[0]?.id || "";
+    const selectedLesson = lessonOptions.find((lesson) => lesson.id === selectedLessonId) || null;
+    const selectedLessonRecordId = selectedLesson?.isTimetableLesson ? selectedLesson.id : "";
+    const selectedClassId = selectedLesson?.classId ||
+      (assignedClasses.some((classRecord) => classRecord.id === target.dataset.attendanceClassId)
+        ? target.dataset.attendanceClassId
+        : assignedClasses[0]?.id || "");
     const selectedClass = assignedClasses.find((classRecord) => classRecord.id === selectedClassId) || null;
     const roster = selectedClass ? getActiveStudentsForClass(selectedClass) : [];
     const existingRecord =
       manager && selectedClass && typeof manager.getRecordForClassDate === "function"
-        ? manager.getRecordForClassDate(selectedClass.id, selectedDate)
+        ? manager.getRecordForClassDate(selectedClass.id, selectedDate, selectedLessonRecordId)
         : null;
     const attendanceDraftKey = selectedClass
-      ? `teacher-attendance:${user.id || user.email || "teacher"}:${selectedClass.id}:${selectedDate}`
+      ? `teacher-attendance:${user.id || user.email || "teacher"}:${selectedClass.id}:${selectedDate}:${selectedLesson?.id || "general"}`
       : "";
     const attendanceDraft = readFormDraft(attendanceDraftKey);
     const draftEntries = Array.isArray(attendanceDraft?.entries)
@@ -26510,6 +26522,7 @@
     target.hidden = false;
     target.dataset.attendanceDate = selectedDate;
     target.dataset.attendanceClassId = selectedClassId;
+    target.dataset.attendanceLessonId = selectedLessonId;
 
     if (!manager) {
       target.innerHTML = `
@@ -26546,9 +26559,9 @@
             <p>Classes where you are class teacher, subject teacher, or course teacher.</p>
           </article>
           <article class="portal-class-stat portal-class-stat-green">
-            <span>Marked today</span>
+            <span>Marked for lesson</span>
             <strong>${escapeHtml(markedLabel)}</strong>
-            <p>${selectedClass ? escapeHtml(getClassDisplayName(selectedClass)) : "Select a class to start."}</p>
+            <p>${selectedLesson ? escapeHtml(selectedLesson.label) : selectedClass ? escapeHtml(getClassDisplayName(selectedClass)) : "Select a lesson to start."}</p>
           </article>
           <article class="portal-class-stat portal-class-stat-amber">
             <span>Register date</span>
@@ -26562,21 +26575,21 @@
             <span>Date</span>
             <input id="teacher-attendance-date" type="date" value="${escapeHtml(selectedDate)}" data-teacher-attendance-date />
           </label>
-          <label class="portal-field" for="teacher-attendance-class">
-            <span>Class</span>
-            <select id="teacher-attendance-class" data-teacher-attendance-class>
+          <label class="portal-field" for="teacher-attendance-lesson">
+            <span>Lesson / subject</span>
+            <select id="teacher-attendance-lesson" data-teacher-attendance-lesson>
               ${
-                assignedClasses.length
-                  ? assignedClasses
+                lessonOptions.length
+                  ? lessonOptions
                       .map(
-                        (classRecord) => `
-                          <option value="${escapeHtml(classRecord.id)}" ${classRecord.id === selectedClassId ? "selected" : ""}>
-                            ${escapeHtml(getClassDisplayName(classRecord))}
+                        (lesson) => `
+                          <option value="${escapeHtml(lesson.id)}" ${lesson.id === selectedLessonId ? "selected" : ""}>
+                            ${escapeHtml(lesson.label)}
                           </option>
                         `,
                       )
                       .join("")
-                  : `<option value="">No assigned classes</option>`
+                  : `<option value="">No timetable lessons</option>`
               }
             </select>
           </label>
@@ -26633,7 +26646,7 @@
                   <p>${
                     selectedClass
                       ? "Add students to this class level from Student Management before taking attendance."
-                      : "Ask an admin to assign you as class teacher, subject teacher, or course teacher."
+                      : "Ask an admin to add your lesson to the timetable or assign you to a class."
                   }</p>
                 </article>
               `
@@ -26643,7 +26656,7 @@
     `;
 
     const dateInput = target.querySelector("[data-teacher-attendance-date]");
-    const classSelect = target.querySelector("[data-teacher-attendance-class]");
+    const lessonSelect = target.querySelector("[data-teacher-attendance-lesson]");
     const form = target.querySelector("[data-teacher-attendance-form]");
     const statusTarget = target.querySelector("#teacher-attendance-status");
 
@@ -26658,9 +26671,11 @@
       });
     }
 
-    if (classSelect instanceof HTMLSelectElement) {
-      classSelect.addEventListener("change", () => {
-        target.dataset.attendanceClassId = classSelect.value;
+    if (lessonSelect instanceof HTMLSelectElement) {
+      lessonSelect.addEventListener("change", () => {
+        const lesson = lessonOptions.find((option) => option.id === lessonSelect.value) || null;
+        target.dataset.attendanceLessonId = lessonSelect.value;
+        target.dataset.attendanceClassId = lesson?.classId || "";
         renderTeacherAttendanceWorkspace(target, user);
       });
     }
@@ -26710,6 +26725,7 @@
         writeFormDraft(attendanceDraftKey, {
           classId: selectedClass.id,
           date: selectedDate,
+          lessonId: selectedLessonRecordId,
           entries,
           updatedAt: nowIso(),
         });
@@ -26757,6 +26773,14 @@
           id: existingRecord?.id,
           date: selectedDate,
           classId: selectedClass.id,
+          lessonId: selectedLessonRecordId,
+          timetableEntryId: selectedLesson?.timetableEntryId || "",
+          subject: selectedLesson?.subject || "",
+          periodId: selectedLesson?.periodId || "",
+          day: selectedLesson?.day || getDayNameFromDateValue(selectedDate),
+          startTime: selectedLesson?.startTime || "",
+          endTime: selectedLesson?.endTime || "",
+          weekType: selectedLesson?.weekType || "",
           sessionId: existingRecord?.sessionId || academicTerm?.sessionId || "",
           termId: existingRecord?.termId || academicTerm?.id || "",
           className: getClassDisplayName(selectedClass),
@@ -26767,7 +26791,12 @@
           entries,
         });
         const savedRecord =
-          savedRecords.find((record) => record.classId === selectedClass.id && record.date === selectedDate) || null;
+          savedRecords.find(
+            (record) =>
+              record.classId === selectedClass.id &&
+              record.date === selectedDate &&
+              String(record.lessonId || "") === selectedLessonRecordId,
+          ) || null;
 
         syncAttendanceAbsenceNotifications(savedRecord, user.workspaceId || getCurrentWorkspaceId());
         clearFormDraft(attendanceDraftKey);
@@ -26776,13 +26805,15 @@
           action: existingRecord ? "updated" : "submitted",
           entityType: "attendance",
           entityId: savedRecord?.id || selectedClass.id,
-          summary: `${existingRecord ? "Updated" : "Submitted"} attendance for ${getClassDisplayName(selectedClass)}`,
+          summary: `${existingRecord ? "Updated" : "Submitted"} ${selectedLesson?.subject || "class"} attendance for ${getClassDisplayName(selectedClass)}`,
           details: `${entries.length} student${entries.length === 1 ? "" : "s"} marked by ${
             user.displayName || user.email
-          }`,
+          }${selectedLesson?.startTime ? ` • ${selectedLesson.startTime}-${selectedLesson.endTime}` : ""}`,
         });
 
-        target.dataset.attendanceFlash = `Attendance saved for <strong>${escapeHtml(getClassDisplayName(selectedClass))}</strong>.`;
+        target.dataset.attendanceFlash = `Attendance saved for <strong>${escapeHtml(
+          selectedLesson?.label || getClassDisplayName(selectedClass),
+        )}</strong>.`;
         renderTeacherAttendanceWorkspace(target, user);
       });
     }
@@ -27217,6 +27248,7 @@
             status,
             entry?.submittedByName,
             entry?.submittedByEmail,
+            entry?.subject,
             entry?.note,
           ]
             .filter(Boolean)
@@ -27308,7 +27340,16 @@
                 <article class="attendance-submission-row">
                   <div>
                     <strong>${escapeHtml(record.className || record.level || "Class")}</strong>
-                    <span>${escapeHtml(record.submittedByName || record.submittedByEmail || "Unknown teacher")} • ${escapeHtml(record.date || "Date not set")}</span>
+                    <span>${escapeHtml(
+                      [
+                        record.subject || "Class register",
+                        record.startTime && record.endTime ? `${record.startTime}-${record.endTime}` : "",
+                        record.submittedByName || record.submittedByEmail || "Unknown teacher",
+                        record.date || "Date not set",
+                      ]
+                        .filter(Boolean)
+                        .join(" • "),
+                    )}</span>
                   </div>
                   <div class="attendance-submission-counts">
                     <span class="attendance-chip is-present">${counts.present}</span>
@@ -27371,6 +27412,22 @@
     ];
   }
 
+  function getDayNameFromDateValue(dateValue = "") {
+    const normalizedDate = String(dateValue || "").trim();
+    const dateParts = normalizedDate.split("-").map((part) => Number.parseInt(part, 10));
+
+    if (dateParts.length !== 3 || dateParts.some((part) => !Number.isFinite(part))) {
+      return getStaffTodayName();
+    }
+
+    const date = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
+    if (Number.isNaN(date.getTime())) {
+      return getStaffTodayName();
+    }
+
+    return ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][date.getDay()];
+  }
+
   function getStaffActiveTermContext() {
     const cycleManager = getAcademicCycleManager();
     const cycleState =
@@ -27427,6 +27484,88 @@
         }
         return String(left.startTime || "").localeCompare(String(right.startTime || ""));
       });
+  }
+
+  function getTeacherAttendanceLessonOptions(user = {}, selectedDate = "", assignedClasses = []) {
+    const selectedDay = getDayNameFromDateValue(selectedDate);
+    const classes = Array.isArray(assignedClasses) ? assignedClasses : [];
+    const classById = new Map(classes.map((classRecord) => [String(classRecord.id || "").trim(), classRecord]));
+    const findClassForEntry = (entry = {}) => {
+      const entryClassId = String(entry.classId || "").trim();
+      if (entryClassId && classById.has(entryClassId)) {
+        return classById.get(entryClassId);
+      }
+
+      const entryClassToken = normalizeLevelToken(entry.classLevel);
+      return (
+        classes.find((classRecord) =>
+          [
+            normalizeLevelToken(getClassDisplayName(classRecord)),
+            normalizeLevelToken(`${classRecord.level || ""} ${classRecord.name || ""}`),
+            normalizeLevelToken(classRecord.level),
+          ]
+            .filter(Boolean)
+            .includes(entryClassToken),
+        ) || null
+      );
+    };
+    const seen = new Set();
+    const options = getTeacherPortalTimetableEntries(user)
+      .filter((entry) => !selectedDay || entry.day === selectedDay)
+      .map((entry) => {
+        const classRecord = findClassForEntry(entry);
+        if (!classRecord) {
+          return null;
+        }
+        const classLabel = getClassDisplayName(classRecord);
+        const subject = entry.subject || "Lesson";
+        const timeLabel = [entry.startTime, entry.endTime].filter(Boolean).join("-");
+        const id = String(entry.id || `${classRecord.id}:${entry.periodId}:${subject}:${timeLabel}`).trim();
+        return {
+          id,
+          timetableEntryId: String(entry.id || "").trim(),
+          classId: classRecord.id || "",
+          classRecord,
+          classLabel,
+          subject,
+          periodId: String(entry.periodId || "").trim(),
+          day: entry.day || selectedDay,
+          startTime: String(entry.startTime || "").trim(),
+          endTime: String(entry.endTime || "").trim(),
+          weekType: String(entry.weekType || "").trim(),
+          isTimetableLesson: true,
+          label: `${subject} - ${classLabel}${timeLabel ? ` (${timeLabel})` : ""}`,
+        };
+      })
+      .filter(Boolean)
+      .filter((option) => {
+        const key = [option.id, option.classId, option.subject, option.startTime, option.endTime].join(":").toLowerCase();
+        if (seen.has(key)) {
+          return false;
+        }
+        seen.add(key);
+        return true;
+      });
+
+    if (options.length) {
+      return options;
+    }
+
+    return classes.map((classRecord) => ({
+      id: `general:${classRecord.id || getClassDisplayName(classRecord)}`,
+      timetableEntryId: "",
+      classId: classRecord.id || "",
+      classRecord,
+      classLabel: getClassDisplayName(classRecord),
+      subject: "Class register",
+      periodId: "",
+      day: selectedDay,
+      startTime: "",
+      endTime: "",
+      weekType: "",
+      isTimetableLesson: false,
+      label: `Class register - ${getClassDisplayName(classRecord)}`,
+    }));
   }
 
   function getTeacherPortalAssignments(user = {}) {
@@ -29742,10 +29881,15 @@
     const notifications = getTeacherPortalNotifications(user).slice(0, 5);
     const attendanceManager = getAttendanceManager();
     const todayValue = getTodayDateValue();
-    const pendingRegisters = assignedClasses.filter((classRecord) => {
+    const attendanceLessonOptions = getTeacherAttendanceLessonOptions(user, todayValue, assignedClasses);
+    const pendingRegisters = attendanceLessonOptions.filter((lesson) => {
       const record =
         attendanceManager && typeof attendanceManager.getRecordForClassDate === "function"
-          ? attendanceManager.getRecordForClassDate(classRecord.id, todayValue)
+          ? attendanceManager.getRecordForClassDate(
+              lesson.classId,
+              todayValue,
+              lesson.isTimetableLesson ? lesson.id : "",
+            )
           : null;
       return !record;
     }).length;

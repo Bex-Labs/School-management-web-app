@@ -3391,6 +3391,14 @@ function normalizeAttendanceRecord(record = {}) {
     id: String(record.id || createStorageId("attendance")),
     date,
     classId,
+    lessonId: String(record.lessonId || record.timetableEntryId || record.lesson_id || "").trim(),
+    timetableEntryId: String(record.timetableEntryId || record.timetable_entry_id || record.lessonId || "").trim(),
+    subject: String(record.subject || record.course || record.lessonSubject || "").trim(),
+    periodId: String(record.periodId || record.period_id || "").trim(),
+    day: String(record.day || record.dayOfWeek || record.day_of_week || "").trim(),
+    startTime: String(record.startTime || record.start_time || "").trim(),
+    endTime: String(record.endTime || record.end_time || "").trim(),
+    weekType: String(record.weekType || record.week_type || "").trim(),
     sessionId: String(record.sessionId || record.session_id || mappedTerm?.sessionId || "").trim(),
     termId: String(providedTermId || mappedTerm?.id || "").trim(),
     className: String(record.className || "").trim(),
@@ -3451,7 +3459,11 @@ function upsertAttendanceRecord(record) {
     takenAt: record.takenAt || timestamp,
   });
   const existingIndex = records.findIndex(
-    (entry) => entry.id === incoming.id || (entry.classId === incoming.classId && entry.date === incoming.date),
+    (entry) =>
+      entry.id === incoming.id ||
+      (entry.classId === incoming.classId &&
+        entry.date === incoming.date &&
+        String(entry.lessonId || "") === String(incoming.lessonId || "")),
   );
 
   if (existingIndex === -1) {
@@ -3473,13 +3485,17 @@ function upsertAttendanceRecord(record) {
   return saveAttendanceRecords(records);
 }
 
-function getAttendanceRecordForClassDate(classId, date) {
+function getAttendanceRecordForClassDate(classId, date, lessonId = "") {
   const normalizedClassId = String(classId || "").trim();
   const normalizedDate = String(date || "").trim();
+  const normalizedLessonId = String(lessonId || "").trim();
 
   return (
     getAttendanceRecords().find(
-      (record) => record.classId === normalizedClassId && record.date === normalizedDate,
+      (record) =>
+        record.classId === normalizedClassId &&
+        record.date === normalizedDate &&
+        (!normalizedLessonId || String(record.lessonId || "") === normalizedLessonId),
     ) || null
   );
 }
