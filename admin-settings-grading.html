@@ -231,6 +231,48 @@
             </div>
           </form>
         </article>
+
+        <article class="admin-surface-card">
+          <div class="admin-surface-head">
+            <div>
+              <h2>School Comments</h2>
+              <span>Admin-only final comments for draft or released report cards.</span>
+            </div>
+          </div>
+
+          <form id="portal-report-school-comment-form" class="portal-settings-form" novalidate>
+            <div id="portal-report-school-comment-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+            <div class="portal-settings-grid staff-result-context-grid">
+              <label class="portal-field" for="report-school-comment-class">
+                <span>Class</span>
+                <select id="report-school-comment-class" name="classId"></select>
+              </label>
+              <label class="portal-field" for="report-school-comment-student">
+                <span>Student</span>
+                <select id="report-school-comment-student" name="studentId"></select>
+              </label>
+              <label class="portal-field" for="report-school-comment-session">
+                <span>Academic session</span>
+                <select id="report-school-comment-session" name="sessionId"></select>
+              </label>
+              <label class="portal-field" for="report-school-comment-term">
+                <span>Term / semester</span>
+                <select id="report-school-comment-term" name="termId"></select>
+              </label>
+            </div>
+
+            <div id="portal-report-school-comment-summary" class="staff-result-score-policy"></div>
+
+            <label class="portal-field" for="report-school-comment-text">
+              <span>School comment</span>
+              <textarea id="report-school-comment-text" name="schoolComment" rows="4" placeholder="Type the final school comment for this report card."></textarea>
+            </label>
+
+            <div class="utility-actions">
+              <button class="button button-primary" type="submit">Save school comment</button>
+            </div>
+          </form>
+        </article>
       </section>
     </section>
   </main>

@@ -20981,6 +20981,26 @@
     });
   }
 
+  function getTeacherResultManagedClasses(user = {}) {
+    const classManager = getClassManager();
+    const classes =
+      classManager && typeof classManager.getClasses === "function"
+        ? classManager.getClasses().filter((record) => record.status !== "archived")
+        : [];
+    const seen = new Set();
+
+    return classes
+      .filter((classRecord) => staffValueMatchesUser(classRecord.classTeacher, user))
+      .filter((classRecord) => {
+        const key = classRecord.id || `${classRecord.level}:${classRecord.name}`;
+        if (seen.has(key)) {
+          return false;
+        }
+        seen.add(key);
+        return true;
+      });
+  }
+
   function getAttendanceRecordEntryMap(record = null) {
     return new Map(
       (record?.entries || []).map((entry) => [
@@ -30093,7 +30113,7 @@
         scoreStructure: { caMaximum: 40, examMaximum: 60 },
       };
     const scoreStructure = reportConfiguration.scoreStructure || { caMaximum: 40, examMaximum: 60 };
-    const assignedClasses = getTeacherAssignedClasses(user);
+    const assignedClasses = getTeacherResultManagedClasses(user);
     const { cycleState, openSession, openTerm } = getStaffActiveTermContext();
     const sessions = Array.isArray(cycleState.sessions) ? cycleState.sessions : [];
     const allTerms = Array.isArray(cycleState.terms) ? cycleState.terms : [];
@@ -30173,9 +30193,9 @@
         </div>
         <div class="staff-portal-grid">
           <article class="staff-portal-tile">
-            <span>Assigned classes</span>
+            <span>Managed classes</span>
             <strong>${assignedClasses.length}</strong>
-            <p>Only your assigned classes are available.</p>
+            <p>Only classes where you are the class teacher are available.</p>
           </article>
           <article class="staff-portal-tile">
             <span>Released report cards</span>
@@ -30205,7 +30225,7 @@
                           `,
                         )
                         .join("")
-                    : `<option value="">No assigned classes</option>`
+                    : `<option value="">No class-teacher classes</option>`
                 }
               </select>
             </label>
@@ -30282,7 +30302,7 @@
               <section class="staff-portal-section admin-surface-card">
                 <article class="portal-class-empty">
                   <strong>Choose a complete result context</strong>
-                  <p>Assign a class, enrol students, and configure an academic session with a term or semester.</p>
+                  <p>Only the assigned class teacher can manage exam scores, subjects, and teacher comments. Enrol students and configure an academic session with a term or semester.</p>
                 </article>
               </section>
             `
@@ -30315,17 +30335,13 @@
                       <tbody id="staff-result-subject-rows">
                         ${editableSubjects
                           .map((subject, index) =>
-                            renderStaffReportSubjectRow(subject, index, isReleased, scoreStructure),
+                            renderStaffReportSubjectRow(subject, index, false, scoreStructure),
                           )
                           .join("")}
                       </tbody>
                     </table>
                   </div>
-                  ${
-                    isReleased
-                      ? ""
-                      : `<button class="portal-class-button staff-result-add-subject" type="button" data-report-subject-add>Add subject</button>`
-                  }
+                  <button class="portal-class-button staff-result-add-subject" type="button" data-report-subject-add>Add subject</button>
 
                   <div class="staff-result-live-summary">
                     <article><span>Subjects</span><strong data-report-editor-summary="subjects">0</strong></article>
@@ -30338,17 +30354,14 @@
                     <div class="portal-field">
                       <div class="staff-result-comment-head">
                         <label for="staff-result-teacher-comment">Teacher&apos;s comment</label>
-                        ${
-                          isReleased
-                            ? ""
-                            : `<button class="portal-class-button staff-result-summary-button" type="button" data-result-generate-summary>Generate summary</button>`
-                        }
+                        <button class="portal-class-button staff-result-summary-button" type="button" data-result-generate-summary>Generate summary</button>
                       </div>
-                      <textarea id="staff-result-teacher-comment" name="teacherComment" rows="4" placeholder="Summarize the student's performance." ${isReleased ? "disabled" : ""}>${escapeHtml(String(currentCard?.teacherComment || ""))}</textarea>
+                      <textarea id="staff-result-teacher-comment" name="teacherComment" rows="4" placeholder="Summarize the student's performance.">${escapeHtml(String(currentCard?.teacherComment || ""))}</textarea>
                     </div>
                     <label class="portal-field" for="staff-result-school-comment">
                       <span>School comment</span>
-                      <textarea id="staff-result-school-comment" name="schoolComment" rows="4" placeholder="Add the final school comment." ${isReleased ? "disabled" : ""}>${escapeHtml(String(currentCard?.schoolComment || ""))}</textarea>
+                      <textarea id="staff-result-school-comment" name="schoolComment" rows="4" placeholder="Admin enters the school comment." disabled>${escapeHtml(String(currentCard?.schoolComment || ""))}</textarea>
+                      <span class="portal-field-hint">Only admin can type or update the school comment.</span>
                     </label>
                   </div>
 
@@ -30356,6 +30369,7 @@
                     ${
                       isReleased
                         ? `
+                          <button class="button button-primary" type="submit">Save released changes</button>
                           <button class="portal-class-button" type="button" data-report-card-action="view" data-report-card-id="${escapeHtml(String(currentCard.id))}">View report card</button>
                           <button class="portal-class-button is-archive" type="button" data-report-card-return-draft>Return to draft</button>
                         `
@@ -30487,8 +30501,12 @@
       }
 
       const timestamp = nowIso();
+      const savedCard =
+        selectedStudent && selectedSession && selectedTerm && typeof reportManager?.getForStudentPeriod === "function"
+          ? reportManager.getForStudentPeriod(selectedStudent.id, selectedSession.id, selectedTerm.id)
+          : currentCard;
       return {
-        id: currentCard?.id,
+        id: savedCard?.id,
         studentId: selectedStudent.id,
         studentName: selectedStudent.fullName,
         admissionNo: selectedStudent.admissionNo,
@@ -30500,14 +30518,14 @@
         termName: selectedTerm.name,
         subjects: result.subjects,
         teacherComment: String(cardForm.elements.teacherComment?.value || "").trim(),
-        schoolComment: String(cardForm.elements.schoolComment?.value || "").trim(),
+        schoolComment: String(savedCard?.schoolComment || "").trim(),
         status,
-        createdById: currentCard?.createdById || user.id,
-        createdByName: currentCard?.createdByName || user.displayName || user.email,
-        releasedAt: status === "released" ? timestamp : null,
-        releasedById: status === "released" ? user.id : "",
-        releasedByName: status === "released" ? user.displayName || user.email : "",
-        createdAt: currentCard?.createdAt,
+        createdById: savedCard?.createdById || user.id,
+        createdByName: savedCard?.createdByName || user.displayName || user.email,
+        releasedAt: status === "released" ? savedCard?.releasedAt || timestamp : null,
+        releasedById: status === "released" ? savedCard?.releasedById || user.id : "",
+        releasedByName: status === "released" ? savedCard?.releasedByName || user.displayName || user.email : "",
+        createdAt: savedCard?.createdAt,
       };
     };
 
@@ -30630,7 +30648,7 @@
     });
     cardForm.addEventListener("submit", (event) => {
       event.preventDefault();
-      const payload = buildReportCardPayload("draft");
+      const payload = buildReportCardPayload(isReleased ? "released" : "draft");
       if (!payload) {
         return;
       }
@@ -30639,11 +30657,16 @@
         action: currentCard ? "updated" : "created",
         entityType: "report-card",
         entityId: selectedStudent.id,
-        summary: `${currentCard ? "Updated" : "Created"} report card draft for ${selectedStudent.fullName}`,
+        summary: `${currentCard ? "Updated" : "Created"} ${isReleased ? "released report card" : "report card draft"} for ${selectedStudent.fullName}`,
         details: `${getClassDisplayName(selectedClass)} • ${selectedSession.name} • ${selectedTerm.name}`,
-        visibleToRoles: ["Admin"],
+        visibleToRoles: isReleased ? ["Admin", "Parent", "Student"] : ["Admin"],
       });
-      showReportCardToast("success", "<strong>Draft saved</strong><span>The report card is ready for further review.</span>");
+      showReportCardToast(
+        "success",
+        isReleased
+          ? "<strong>Released report card updated</strong><span>Parents and the student will see the latest scores and teacher comment.</span>"
+          : "<strong>Draft saved</strong><span>The report card is ready for further review.</span>",
+      );
     });
 
     refreshEditorSummary();
@@ -38397,6 +38420,192 @@
     }
   }
 
+  function initReportSchoolCommentControls({ isAdmin, form, status, summaryTarget }) {
+    if (!form || !status || !summaryTarget) {
+      return;
+    }
+
+    const manager = getReportCardManager();
+    const classManager = getClassManager();
+    const cycleManager = getAcademicCycleManager();
+    const classSelect = form.elements.classId;
+    const studentSelect = form.elements.studentId;
+    const sessionSelect = form.elements.sessionId;
+    const termSelect = form.elements.termId;
+    const commentField = form.elements.schoolComment;
+    const submitButton = form.querySelector('button[type="submit"]');
+    const renderOptions = (items = [], selected = "", emptyLabel = "No options", formatter = (item) => item.name) => {
+      if (!items.length) {
+        return `<option value="">${escapeHtml(emptyLabel)}</option>`;
+      }
+
+      return items
+        .map(
+          (item) => `
+            <option value="${escapeHtml(String(item.id))}" ${item.id === selected ? "selected" : ""}>
+              ${escapeHtml(formatter(item))}
+            </option>
+          `,
+        )
+        .join("");
+    };
+    const getContext = () => {
+      const classes =
+        classManager && typeof classManager.getClasses === "function"
+          ? classManager.getClasses().filter((record) => record.status !== "archived")
+          : [];
+      const cycleState =
+        cycleManager && typeof cycleManager.getState === "function"
+          ? cycleManager.getState()
+          : { sessions: [], terms: [] };
+      const sessions = Array.isArray(cycleState.sessions) ? cycleState.sessions : [];
+      const terms = Array.isArray(cycleState.terms) ? cycleState.terms : [];
+      const openTerm = terms.find((term) => term.status === "open") || null;
+      const openSession = openTerm
+        ? sessions.find((session) => session.id === openTerm.sessionId) || null
+        : sessions.find((session) => session.status === "open") || null;
+      const selectedClass =
+        classes.find((classRecord) => classRecord.id === form.dataset.schoolCommentClassId) || classes[0] || null;
+      const roster = selectedClass ? getActiveStudentsForClass(selectedClass) : [];
+      const selectedStudent =
+        roster.find((student) => student.id === form.dataset.schoolCommentStudentId) || roster[0] || null;
+      const selectedSession =
+        sessions.find((session) => session.id === form.dataset.schoolCommentSessionId) ||
+        openSession ||
+        sessions[0] ||
+        null;
+      const termsForSession = selectedSession ? terms.filter((term) => term.sessionId === selectedSession.id) : [];
+      const selectedTerm =
+        termsForSession.find((term) => term.id === form.dataset.schoolCommentTermId) ||
+        (openTerm && openTerm.sessionId === selectedSession?.id ? openTerm : null) ||
+        termsForSession[0] ||
+        null;
+      const records = manager && typeof manager.getRecords === "function" ? manager.getRecords() : [];
+      const reportCard =
+        selectedStudent && selectedSession && selectedTerm && typeof manager?.getForStudentPeriod === "function"
+          ? manager.getForStudentPeriod(selectedStudent.id, selectedSession.id, selectedTerm.id)
+          : records.find(
+              (record) =>
+                record.studentId === selectedStudent?.id &&
+                record.sessionId === selectedSession?.id &&
+                record.termId === selectedTerm?.id,
+            ) || null;
+
+      return {
+        classes,
+        roster,
+        sessions,
+        termsForSession,
+        selectedClass,
+        selectedStudent,
+        selectedSession,
+        selectedTerm,
+        reportCard,
+      };
+    };
+    const render = () => {
+      const context = getContext();
+      const disabled = !isAdmin;
+      form.dataset.schoolCommentClassId = context.selectedClass?.id || "";
+      form.dataset.schoolCommentStudentId = context.selectedStudent?.id || "";
+      form.dataset.schoolCommentSessionId = context.selectedSession?.id || "";
+      form.dataset.schoolCommentTermId = context.selectedTerm?.id || "";
+      form.dataset.schoolCommentCardId = context.reportCard?.id || "";
+
+      classSelect.innerHTML = renderOptions(context.classes, context.selectedClass?.id || "", "No classes", getClassDisplayName);
+      studentSelect.innerHTML = renderOptions(
+        context.roster,
+        context.selectedStudent?.id || "",
+        "No students in class",
+        (student) => `${student.fullName}${student.admissionNo ? ` - ${student.admissionNo}` : ""}`,
+      );
+      sessionSelect.innerHTML = renderOptions(context.sessions, context.selectedSession?.id || "", "No sessions");
+      termSelect.innerHTML = renderOptions(context.termsForSession, context.selectedTerm?.id || "", "No terms or semesters");
+
+      [classSelect, studentSelect, sessionSelect, termSelect].forEach((select) => {
+        select.disabled = disabled || !select.options.length || !select.value;
+      });
+
+      if (context.reportCard) {
+        const reportSummary = summarizeReportCardSubjects(context.reportCard.subjects);
+        summaryTarget.innerHTML = `
+          <strong>${context.reportCard.status === "released" ? "Released report card" : "Draft report card"}</strong>
+          <span>${escapeHtml(getClassDisplayName(context.selectedClass || {}))} • ${escapeHtml(String(context.selectedTerm?.name || "Term not set"))} • Average ${escapeHtml(formatReportCardScore(reportSummary.averageScore))}%</span>
+        `;
+        commentField.value = context.reportCard.schoolComment || "";
+      } else {
+        summaryTarget.innerHTML = `
+          <strong>No report card found</strong>
+          <span>The assigned class teacher needs to save scores before admin can add a school comment.</span>
+        `;
+        commentField.value = "";
+      }
+
+      commentField.disabled = disabled || !context.reportCard;
+      submitButton.disabled = disabled || !context.reportCard;
+    };
+
+    if (form.dataset.schoolCommentBound !== "true") {
+      classSelect?.addEventListener("change", () => {
+        form.dataset.schoolCommentClassId = classSelect.value;
+        form.dataset.schoolCommentStudentId = "";
+        render();
+      });
+      studentSelect?.addEventListener("change", () => {
+        form.dataset.schoolCommentStudentId = studentSelect.value;
+        render();
+      });
+      sessionSelect?.addEventListener("change", () => {
+        form.dataset.schoolCommentSessionId = sessionSelect.value;
+        form.dataset.schoolCommentTermId = "";
+        render();
+      });
+      termSelect?.addEventListener("change", () => {
+        form.dataset.schoolCommentTermId = termSelect.value;
+        render();
+      });
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        if (!isAdmin || !manager) {
+          return;
+        }
+
+        const context = getContext();
+        if (!context.reportCard) {
+          setStatus(status, "error", "No saved report card was found for this student and period.");
+          return;
+        }
+
+        manager.upsertRecord({
+          ...context.reportCard,
+          schoolComment: String(commentField.value || "").trim(),
+        });
+        recordAuditEvent({
+          action: "updated",
+          entityType: "report-card",
+          entityId: context.reportCard.studentId,
+          summary: `Updated school comment for ${context.reportCard.studentName}`,
+          details: `${context.reportCard.classLevel} • ${context.reportCard.sessionName} • ${context.reportCard.termName}`,
+          visibleToRoles: context.reportCard.status === "released" ? ["Admin", "Parent", "Student"] : ["Admin"],
+        });
+        setStatus(
+          status,
+          "success",
+          context.reportCard.status === "released"
+            ? "School comment saved and updated on the released report card."
+            : "School comment saved on the draft report card.",
+        );
+        render();
+      });
+      form.dataset.schoolCommentBound = "true";
+    }
+
+    render();
+    [manager?.eventName, classManager?.eventName, cycleManager?.eventName, getStudentManager()?.eventName]
+      .filter(Boolean)
+      .forEach((eventName) => window.addEventListener(eventName, render));
+  }
+
   function initAdminSettingsPage() {
     const page = getPage();
 
@@ -38431,6 +38640,9 @@
     const reportConfigurationForm = document.getElementById("portal-report-configuration-form");
     const reportConfigurationStatus = document.getElementById("portal-report-configuration-status");
     const gradingScaleList = document.getElementById("portal-grading-scale-list");
+    const reportSchoolCommentForm = document.getElementById("portal-report-school-comment-form");
+    const reportSchoolCommentStatus = document.getElementById("portal-report-school-comment-status");
+    const reportSchoolCommentSummary = document.getElementById("portal-report-school-comment-summary");
 
     initSchoolSettingsControls({
       isAdmin: canManageSettings,
@@ -38480,6 +38692,13 @@
       form: reportConfigurationForm,
       status: reportConfigurationStatus,
       listTarget: gradingScaleList,
+    });
+
+    initReportSchoolCommentControls({
+      isAdmin: canManageSettings,
+      form: reportSchoolCommentForm,
+      status: reportSchoolCommentStatus,
+      summaryTarget: reportSchoolCommentSummary,
     });
 
   }
