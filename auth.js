@@ -30004,10 +30004,102 @@
     `;
   }
 
-  function buildStaffTimetableSection(user) {
+  function renderStaffTimetableGridView(timetableEntries = []) {
+    const baseDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+    const extraDays = ["Saturday", "Sunday"].filter((day) => timetableEntries.some((entry) => entry.day === day));
+    const days = [...baseDays, ...extraDays];
+    const slotRows = Array.from(
+      timetableEntries.reduce((slots, entry) => {
+        const key = `${entry.startTime || ""}-${entry.endTime || ""}`;
+        if (!slots.has(key)) {
+          slots.set(key, {
+            key,
+            startTime: entry.startTime || "",
+            endTime: entry.endTime || "",
+          });
+        }
+        return slots;
+      }, new Map()).values(),
+    ).sort((left, right) => String(left.startTime || "").localeCompare(String(right.startTime || "")));
+    const entriesBySlotDay = timetableEntries.reduce((map, entry) => {
+      const key = `${entry.startTime || ""}-${entry.endTime || ""}:${entry.day || ""}`;
+      if (!map.has(key)) {
+        map.set(key, []);
+      }
+      map.get(key).push(entry);
+      return map;
+    }, new Map());
+
+    if (!timetableEntries.length) {
+      return `
+        <article class="portal-class-empty">
+          <strong>No timetable entries yet</strong>
+          <p>Saved lessons assigned to this staff account will appear here.</p>
+        </article>
+      `;
+    }
+
+    return `
+      <div class="staff-timetable-grid-wrap">
+        <table class="staff-timetable-grid">
+          <thead>
+            <tr>
+              <th>Time</th>
+              ${days.map((day) => `<th>${escapeHtml(day)}</th>`).join("")}
+            </tr>
+          </thead>
+          <tbody>
+            ${slotRows
+              .map(
+                (slot) => `
+                  <tr>
+                    <th>
+                      <strong>${escapeHtml(slot.startTime || "--:--")}</strong>
+                      <span>${escapeHtml(slot.endTime || "--:--")}</span>
+                    </th>
+                    ${days
+                      .map((day) => {
+                        const entries = entriesBySlotDay.get(`${slot.key}:${day}`) || [];
+                        return `
+                          <td>
+                            ${
+                              entries.length
+                                ? entries
+                                    .map(
+                                      (entry) => `
+                                        <article class="staff-timetable-grid-lesson">
+                                          <strong>${escapeHtml(entry.subject || "Lesson")}</strong>
+                                          <span>${escapeHtml(entry.classLevel || "Class")}</span>
+                                          ${
+                                            entry.weekType && entry.weekType !== "all"
+                                              ? `<small>${escapeHtml(entry.weekType)}</small>`
+                                              : ""
+                                          }
+                                        </article>
+                                      `,
+                                    )
+                                    .join("")
+                                : `<span class="staff-timetable-free">Free</span>`
+                            }
+                          </td>
+                        `;
+                      })
+                      .join("")}
+                  </tr>
+                `,
+              )
+              .join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  function buildStaffTimetableSection(user, view = "list") {
     const timetableEntries = getTeacherPortalTimetableEntries(user);
     const { openSession, openTerm } = getStaffActiveTermContext();
     const activePeriodLabel = [openSession?.name, openTerm?.name].filter(Boolean).join(" - ") || "Active term";
+    const selectedView = view === "grid" ? "grid" : "list";
 
     return `
       <section class="staff-portal-section admin-surface-card">
@@ -30016,8 +30108,12 @@
             <h2>My Timetable</h2>
             <span>${escapeHtml(activePeriodLabel)}</span>
           </div>
+          <div class="staff-timetable-view-toggle" role="group" aria-label="Timetable view">
+            <button type="button" data-staff-timetable-view="list" class="${selectedView === "list" ? "is-active" : ""}">List</button>
+            <button type="button" data-staff-timetable-view="grid" class="${selectedView === "grid" ? "is-active" : ""}">Grid</button>
+          </div>
         </div>
-        <div class="staff-portal-list">
+        <div class="staff-portal-list staff-timetable-list-view" ${selectedView === "list" ? "" : "hidden"}>
           ${
             timetableEntries.length
               ? timetableEntries
@@ -30046,8 +30142,34 @@
               `
           }
         </div>
+        <div class="staff-timetable-grid-view" ${selectedView === "grid" ? "" : "hidden"}>
+          ${renderStaffTimetableGridView(timetableEntries)}
+        </div>
       </section>
     `;
+  }
+
+  function renderStaffTimetableWorkspace(target, user) {
+    if (!target) {
+      return;
+    }
+
+    const selectedView = target.dataset.staffTimetableView === "grid" ? "grid" : "list";
+    target.hidden = false;
+    target.innerHTML = buildStaffTimetableSection(user, selectedView);
+
+    target.querySelectorAll("[data-staff-timetable-view]").forEach((button) => {
+      button.addEventListener("click", () => {
+        target.dataset.staffTimetableView = button.dataset.staffTimetableView === "grid" ? "grid" : "list";
+        renderStaffTimetableWorkspace(target, user);
+      });
+    });
+
+    const manager = getTimetableManager();
+    if (manager?.eventName && target.dataset.staffTimetableListenerBound !== "true") {
+      target.dataset.staffTimetableListenerBound = "true";
+      window.addEventListener(manager.eventName, () => renderStaffTimetableWorkspace(target, user));
+    }
   }
 
   function buildStaffClassesSection(user) {
@@ -32941,6 +33063,11 @@
       return;
     }
 
+    if (page === "staff-timetable") {
+      renderStaffTimetableWorkspace(target, user);
+      return;
+    }
+
     if (page === "staff-results") {
       renderStaffResultsWorkspace(target, user);
       return;
@@ -32967,7 +33094,6 @@
     }
 
     const contentByPage = {
-      "staff-timetable": buildStaffTimetableSection(user),
       "staff-classes": buildStaffClassesSection(user),
     };
 

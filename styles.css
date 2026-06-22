@@ -7900,6 +7900,133 @@ body.admin-dashboard-page .student-timetable-grid-view .portal-timetable-print-s
     #ffffff;
 }
 
+body.admin-dashboard-page .staff-timetable-view-toggle {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid #dbe5f2;
+  border-radius: 999px;
+  background: #f7fbff;
+}
+
+body.admin-dashboard-page .staff-timetable-view-toggle button {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #53627a;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+body.admin-dashboard-page .staff-timetable-view-toggle button.is-active {
+  background: #2f6fed;
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(47, 111, 237, 0.18);
+}
+
+body.admin-dashboard-page .staff-timetable-grid-view {
+  margin-top: 12px;
+}
+
+body.admin-dashboard-page .staff-timetable-list-view[hidden],
+body.admin-dashboard-page .staff-timetable-grid-view[hidden] {
+  display: none;
+}
+
+body.admin-dashboard-page .staff-timetable-grid-wrap {
+  overflow-x: auto;
+  padding-bottom: 4px;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+body.admin-dashboard-page .staff-timetable-grid {
+  width: 100%;
+  min-width: 920px;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+  border: 1px solid #dfe7f2;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+body.admin-dashboard-page .staff-timetable-grid th,
+body.admin-dashboard-page .staff-timetable-grid td {
+  border-right: 1px solid #e4ebf5;
+  border-bottom: 1px solid #e4ebf5;
+  padding: 12px;
+  vertical-align: top;
+}
+
+body.admin-dashboard-page .staff-timetable-grid thead th {
+  background: #17233a;
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+body.admin-dashboard-page .staff-timetable-grid tbody th {
+  width: 120px;
+  background: #f6f8fc;
+  color: #17233a;
+  text-align: left;
+}
+
+body.admin-dashboard-page .staff-timetable-grid tbody th strong,
+body.admin-dashboard-page .staff-timetable-grid tbody th span {
+  display: block;
+}
+
+body.admin-dashboard-page .staff-timetable-grid tbody th span {
+  margin-top: 3px;
+  color: #6f788c;
+  font-size: 0.74rem;
+}
+
+body.admin-dashboard-page .staff-timetable-grid-lesson {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid #d9e6ff;
+  border-radius: 12px;
+  background: #f5f9ff;
+}
+
+body.admin-dashboard-page .staff-timetable-grid-lesson + .staff-timetable-grid-lesson {
+  margin-top: 8px;
+}
+
+body.admin-dashboard-page .staff-timetable-grid-lesson strong,
+body.admin-dashboard-page .staff-timetable-grid-lesson span,
+body.admin-dashboard-page .staff-timetable-grid-lesson small {
+  overflow-wrap: anywhere;
+}
+
+body.admin-dashboard-page .staff-timetable-grid-lesson strong {
+  color: #17233a;
+  font-size: 0.84rem;
+}
+
+body.admin-dashboard-page .staff-timetable-grid-lesson span,
+body.admin-dashboard-page .staff-timetable-grid-lesson small,
+body.admin-dashboard-page .staff-timetable-free {
+  color: #6f788c;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+body.admin-dashboard-page .staff-timetable-free {
+  display: block;
+  padding: 8px 0;
+  color: #8a95a7;
+}
+
 body.admin-dashboard-page .portal-class-form-shell {
   display: grid;
   gap: 12px;
@@ -14711,6 +14838,10 @@ body.admin-dashboard-page .portal-class-empty p {
     left: 0;
     right: auto;
     width: min(100%, calc(100vw - 32px));
+  }
+
+  body.admin-dashboard-page .staff-timetable-view-toggle {
+    align-self: flex-start;
   }
 }
 
