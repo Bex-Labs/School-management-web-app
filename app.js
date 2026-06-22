@@ -271,6 +271,9 @@ const SCHOOL_GRADEBOOK_EVENT = "schoolsphere:gradebook-updated";
 const DEFAULT_LESSON_PLAN_RECORDS = [];
 const SCHOOL_LESSON_PLANS_STORAGE_KEY = "schoolsphere.lessonPlans.v1";
 const SCHOOL_LESSON_PLANS_EVENT = "schoolsphere:lesson-plans-updated";
+const DEFAULT_LEAVE_REQUEST_RECORDS = [];
+const SCHOOL_LEAVE_REQUESTS_STORAGE_KEY = "schoolsphere.leaveRequests.v1";
+const SCHOOL_LEAVE_REQUESTS_EVENT = "schoolsphere:leave-requests-updated";
 const DEFAULT_REPORT_CONFIGURATION = {
   scoreStructure: {
     caMaximum: 40,
@@ -468,6 +471,7 @@ function clearLegacySharedState() {
     SCHOOL_REPORT_CONFIGURATION_STORAGE_KEY,
     SCHOOL_GRADEBOOK_STORAGE_KEY,
     SCHOOL_LESSON_PLANS_STORAGE_KEY,
+    SCHOOL_LEAVE_REQUESTS_STORAGE_KEY,
     AUDIT_TRAIL_STORAGE_KEY,
     FEATURE_TOGGLE_STORAGE_KEY,
     ROLE_PERMISSIONS_STORAGE_KEY,
@@ -2844,6 +2848,166 @@ function summarizeLessonPlans() {
   };
 }
 
+function normalizeLeaveAttachment(file = {}) {
+  const timestamp = new Date().toISOString();
+
+  return {
+    id: String(file.id || createStorageId("leave-doc")),
+    name: String(file.name || "").trim(),
+    type: String(file.type || file.mimeType || "").trim(),
+    size: Math.max(0, Number.parseInt(file.size || file.sizeBytes, 10) || 0),
+    dataUrl: String(file.dataUrl || file.url || "").trim(),
+    uploadedAt: String(file.uploadedAt || timestamp),
+  };
+}
+
+function calculateLeaveDays(startDate = "", endDate = "") {
+  const start = new Date(`${String(startDate || "").trim()}T00:00:00`);
+  const end = new Date(`${String(endDate || "").trim()}T00:00:00`);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
+    return 0;
+  }
+
+  return Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
+}
+
+function normalizeLeaveRequest(record = {}) {
+  const timestamp = new Date().toISOString();
+  const status = ["pending", "approved", "rejected", "cancelled"].includes(
+    String(record.status || "").trim().toLowerCase(),
+  )
+    ? String(record.status).trim().toLowerCase()
+    : "pending";
+  const startDate = String(record.startDate || "").trim();
+  const endDate = String(record.endDate || "").trim();
+  const requestedDays = Number.parseInt(record.requestedDays || record.numberOfDays, 10);
+
+  return {
+    id: String(record.id || createStorageId("leave-request")),
+    staffId: String(record.staffId || "").trim(),
+    staffName: String(record.staffName || "").trim(),
+    staffEmail: String(record.staffEmail || "").trim(),
+    staffPhone: String(record.staffPhone || "").trim(),
+    rolePosition: String(record.rolePosition || record.position || "").trim(),
+    department: String(record.department || "").trim(),
+    leaveType: String(record.leaveType || "annual").trim().toLowerCase(),
+    startDate,
+    endDate,
+    requestedDays: Number.isFinite(requestedDays) && requestedDays > 0 ? requestedDays : calculateLeaveDays(startDate, endDate),
+    reason: String(record.reason || "").trim(),
+    coveringStaffId: String(record.coveringStaffId || "").trim(),
+    coveringStaffName: String(record.coveringStaffName || "").trim(),
+    coveringStaffEmail: String(record.coveringStaffEmail || "").trim(),
+    affectedDuties: String(record.affectedDuties || record.affectedClasses || "").trim(),
+    handoverNotes: String(record.handoverNotes || "").trim(),
+    attachment: normalizeLeaveAttachment(record.attachment || {}),
+    annualAllowance: Math.max(0, Number.parseInt(record.annualAllowance, 10) || 20),
+    status,
+    approvedBy: String(record.approvedBy || "").trim(),
+    approvedById: String(record.approvedById || "").trim(),
+    approvalDate: String(record.approvalDate || "").trim(),
+    adminComment: String(record.adminComment || "").trim(),
+    rejectionReason: String(record.rejectionReason || "").trim(),
+    createdAt: record.createdAt || timestamp,
+    updatedAt: record.updatedAt || timestamp,
+  };
+}
+
+function compareLeaveRequests(left, right) {
+  const createdComparison = String(right.createdAt || "").localeCompare(String(left.createdAt || ""));
+  if (createdComparison !== 0) return createdComparison;
+
+  return String(right.startDate || "").localeCompare(String(left.startDate || ""));
+}
+
+function getLeaveRequests() {
+  const stored = readWorkspaceState(SCHOOL_LEAVE_REQUESTS_STORAGE_KEY, DEFAULT_LEAVE_REQUEST_RECORDS);
+  const source = Array.isArray(stored) ? stored : DEFAULT_LEAVE_REQUEST_RECORDS;
+
+  return source.map((record) => normalizeLeaveRequest(record)).sort(compareLeaveRequests);
+}
+
+function emitLeaveRequestsUpdate(records = getLeaveRequests()) {
+  window.dispatchEvent(
+    new CustomEvent(SCHOOL_LEAVE_REQUESTS_EVENT, {
+      detail: { records },
+    }),
+  );
+}
+
+function saveLeaveRequests(records) {
+  const normalized = (Array.isArray(records) ? records : [])
+    .map((record) => normalizeLeaveRequest(record))
+    .filter((record) => record.staffId && record.startDate && record.endDate)
+    .sort(compareLeaveRequests);
+  writeWorkspaceState(SCHOOL_LEAVE_REQUESTS_STORAGE_KEY, normalized);
+  emitLeaveRequestsUpdate(normalized);
+  return normalized;
+}
+
+function upsertLeaveRequest(record) {
+  const records = getLeaveRequests();
+  const timestamp = new Date().toISOString();
+  const nextRecord = normalizeLeaveRequest({
+    ...record,
+    updatedAt: timestamp,
+  });
+  const existingIndex = records.findIndex((entry) => entry.id === nextRecord.id);
+
+  if (existingIndex === -1) {
+    records.push({
+      ...nextRecord,
+      createdAt: nextRecord.createdAt || timestamp,
+    });
+  } else {
+    records[existingIndex] = {
+      ...records[existingIndex],
+      ...nextRecord,
+      id: records[existingIndex].id,
+      createdAt: records[existingIndex].createdAt,
+      updatedAt: timestamp,
+    };
+  }
+
+  return saveLeaveRequests(records);
+}
+
+function setLeaveRequestStatus(requestId, status, approval = {}) {
+  const normalizedStatus = String(status || "").trim().toLowerCase();
+  if (!["pending", "approved", "rejected", "cancelled"].includes(normalizedStatus)) {
+    return getLeaveRequests();
+  }
+
+  return saveLeaveRequests(
+    getLeaveRequests().map((record) =>
+      record.id === requestId
+        ? {
+            ...record,
+            status: normalizedStatus,
+            approvedBy: String(approval.approvedBy || record.approvedBy || "").trim(),
+            approvedById: String(approval.approvedById || record.approvedById || "").trim(),
+            approvalDate: approval.approvalDate || new Date().toISOString(),
+            adminComment: String(approval.adminComment || record.adminComment || "").trim(),
+            rejectionReason: String(approval.rejectionReason || record.rejectionReason || "").trim(),
+            updatedAt: new Date().toISOString(),
+          }
+        : record,
+    ),
+  );
+}
+
+function summarizeLeaveRequests() {
+  const records = getLeaveRequests();
+
+  return {
+    records,
+    pendingCount: records.filter((record) => record.status === "pending").length,
+    approvedCount: records.filter((record) => record.status === "approved").length,
+    rejectedCount: records.filter((record) => record.status === "rejected").length,
+  };
+}
+
 function normalizeGuardianContact(contact = {}) {
   return {
     id: String(contact.id || createStorageId("guardian")),
@@ -4103,6 +4267,17 @@ window.SchoolSphereLessonPlans = {
   eventName: SCHOOL_LESSON_PLANS_EVENT,
 };
 
+window.SchoolSphereLeaveRequests = {
+  defaults: DEFAULT_LEAVE_REQUEST_RECORDS,
+  getRequests: getLeaveRequests,
+  summarize: summarizeLeaveRequests,
+  saveRequests: saveLeaveRequests,
+  upsertRequest: upsertLeaveRequest,
+  setStatus: setLeaveRequestStatus,
+  calculateDays: calculateLeaveDays,
+  eventName: SCHOOL_LEAVE_REQUESTS_EVENT,
+};
+
 window.SchoolSphereStudents = {
   defaults: DEFAULT_STUDENT_RECORDS,
   getStudents: getSchoolStudents,
@@ -4228,6 +4403,10 @@ window.addEventListener("storage", (event) => {
         detail: { records: getGradebookRecords() },
       }),
     );
+  }
+
+  if (isWorkspaceScopedStorageEventKey(event.key, SCHOOL_LEAVE_REQUESTS_STORAGE_KEY)) {
+    emitLeaveRequestsUpdate(getLeaveRequests());
   }
 
   if (isWorkspaceScopedStorageEventKey(event.key, AUDIT_TRAIL_STORAGE_KEY)) {

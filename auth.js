@@ -7008,6 +7008,10 @@
     return window.SchoolSphereGradebook || null;
   }
 
+  function getLeaveRequestManager() {
+    return window.SchoolSphereLeaveRequests || null;
+  }
+
   function getDefaultAdminSchoolSettings() {
     return {
       schoolName: "SchoolSphere",
@@ -18651,6 +18655,265 @@
         resetPortalStaffForm(form, isAdmin);
         setStatus(status, "", "");
       });
+    }
+  }
+
+  function renderAdminStaffLeaveReviewSection({
+    isAdmin,
+    summaryTarget,
+    listTarget,
+    statusTarget,
+    statusFilter = "all",
+  }) {
+    if (!summaryTarget || !listTarget) {
+      return;
+    }
+
+    const manager = getLeaveRequestManager();
+    if (!manager || typeof manager.getRequests !== "function") {
+      summaryTarget.innerHTML = `
+        <article>
+          <span>Leave requests</span>
+          <strong>Unavailable</strong>
+        </article>
+      `;
+      listTarget.innerHTML = `
+        <article class="portal-class-empty">
+          <strong>Leave requests unavailable</strong>
+          <p>The leave request manager could not be loaded on this page.</p>
+        </article>
+      `;
+      return;
+    }
+
+    const requests = manager.getRequests();
+    const normalizedFilter = String(statusFilter || "all").trim().toLowerCase() || "all";
+    const filteredRequests =
+      normalizedFilter === "all"
+        ? requests
+        : requests.filter((request) => String(request.status || "pending").trim().toLowerCase() === normalizedFilter);
+    const counts = {
+      total: requests.length,
+      pending: requests.filter((request) => request.status === "pending").length,
+      approved: requests.filter((request) => request.status === "approved").length,
+      rejected: requests.filter((request) => request.status === "rejected").length,
+      cancelled: requests.filter((request) => request.status === "cancelled").length,
+    };
+
+    summaryTarget.innerHTML = `
+      <article>
+        <span>Pending review</span>
+        <strong>${counts.pending.toLocaleString()}</strong>
+      </article>
+      <article>
+        <span>Approved</span>
+        <strong>${counts.approved.toLocaleString()}</strong>
+      </article>
+      <article>
+        <span>Rejected</span>
+        <strong>${counts.rejected.toLocaleString()}</strong>
+      </article>
+      <article>
+        <span>Total requests</span>
+        <strong>${counts.total.toLocaleString()}</strong>
+      </article>
+    `;
+
+    if (!filteredRequests.length) {
+      listTarget.innerHTML = `
+        <article class="portal-class-empty">
+          <strong>No ${escapeHtml(normalizedFilter === "all" ? "" : `${normalizedFilter} `)}leave requests</strong>
+          <p>Staff leave submissions will appear here for admin review.</p>
+        </article>
+      `;
+      return;
+    }
+
+    listTarget.innerHTML = filteredRequests
+      .map((request) => {
+        const status = String(request.status || "pending").trim().toLowerCase() || "pending";
+        const requestedDays = Number(request.requestedDays || 0);
+        const canReview = isAdmin && status === "pending";
+        const decidedBy = [request.approvedBy, request.approvalDate ? formatTimestamp(request.approvalDate) : ""]
+          .filter(Boolean)
+          .join(" • ");
+        return `
+          <article class="staff-leave-card staff-leave-admin-card" data-leave-request-card="${escapeHtml(request.id)}">
+            <header>
+              <div>
+                <strong>${escapeHtml(request.staffName || request.staffEmail || "Staff member")}</strong>
+                <span>${escapeHtml(request.rolePosition || "Staff")} • ${escapeHtml(request.department || "No department")}</span>
+              </div>
+              <small class="${escapeHtml(getStaffLeaveStatusClass(status))}">${escapeHtml(getStaffLeaveStatusLabel(status))}</small>
+            </header>
+            <div class="staff-leave-admin-title">
+              <div>
+                <span>${escapeHtml(getStaffLeaveTypeLabel(request.leaveType))}</span>
+                <strong>${escapeHtml(formatCalendarRange(request.startDate, request.endDate))}</strong>
+              </div>
+              <div>
+                <span>Requested days</span>
+                <strong>${requestedDays.toLocaleString()} day${requestedDays === 1 ? "" : "s"}</strong>
+              </div>
+              <div>
+                <span>Submitted</span>
+                <strong>${escapeHtml(formatTimestamp(request.createdAt || nowIso()))}</strong>
+              </div>
+            </div>
+            <div class="staff-leave-note">
+              <span>Reason</span>
+              <p>${escapeHtml(request.reason || "No reason provided.")}</p>
+            </div>
+            <div class="staff-leave-meta">
+              <article>
+                <span>Covering staff</span>
+                <strong>${escapeHtml(request.coveringStaffName || "Not assigned")}</strong>
+              </article>
+              <article>
+                <span>Affected classes / duties</span>
+                <strong>${escapeHtml(request.affectedDuties || "Not specified")}</strong>
+              </article>
+              <article>
+                <span>Supporting document</span>
+                ${renderStaffLeaveAttachment(request.attachment)}
+              </article>
+            </div>
+            ${
+              request.handoverNotes
+                ? `<div class="staff-leave-note"><span>Handover notes</span><p>${escapeHtml(request.handoverNotes)}</p></div>`
+                : ""
+            }
+            ${
+              request.adminComment || request.rejectionReason
+                ? `<div class="staff-leave-note"><span>Admin decision note</span><p>${escapeHtml(request.adminComment || request.rejectionReason)}</p></div>`
+                : ""
+            }
+            ${decidedBy ? `<footer>Reviewed by ${escapeHtml(decidedBy)}</footer>` : ""}
+            ${
+              canReview
+                ? `<div class="staff-leave-admin-review">
+                    <label class="portal-field" for="leave-comment-${escapeHtml(request.id)}">
+                      <span>Admin comment / rejection reason</span>
+                      <textarea id="leave-comment-${escapeHtml(request.id)}" rows="3" placeholder="Add a short decision note. Required when rejecting."></textarea>
+                    </label>
+                    <div class="utility-actions staff-leave-admin-actions">
+                      <button class="button button-primary" type="button" data-leave-approve="${escapeHtml(request.id)}">Approve</button>
+                      <button class="portal-class-button is-danger" type="button" data-leave-reject="${escapeHtml(request.id)}">Reject</button>
+                    </div>
+                  </div>`
+                : ""
+            }
+          </article>
+        `;
+      })
+      .join("");
+
+    if (statusTarget) {
+      setStatus(statusTarget, "", "");
+    }
+  }
+
+  function initAdminStaffLeaveReviewControls({ isAdmin, summaryTarget, listTarget, statusTarget, filterTarget }) {
+    if (!summaryTarget || !listTarget) {
+      return;
+    }
+
+    const manager = getLeaveRequestManager();
+    let statusFilter = String(filterTarget?.value || "all").trim().toLowerCase() || "all";
+
+    const refreshLeaveReview = () => {
+      renderAdminStaffLeaveReviewSection({
+        isAdmin,
+        summaryTarget,
+        listTarget,
+        statusTarget,
+        statusFilter,
+      });
+    };
+
+    refreshLeaveReview();
+
+    if (filterTarget) {
+      filterTarget.addEventListener("change", () => {
+        statusFilter = String(filterTarget.value || "all").trim().toLowerCase() || "all";
+        refreshLeaveReview();
+      });
+    }
+
+    listTarget.addEventListener("click", (event) => {
+      const approveButton = event.target.closest("[data-leave-approve]");
+      const rejectButton = event.target.closest("[data-leave-reject]");
+      const actionButton = approveButton || rejectButton;
+      if (!actionButton) {
+        return;
+      }
+
+      if (!isAdmin) {
+        setStatus(statusTarget, "info", "Only administrators can review leave requests.");
+        return;
+      }
+
+      if (!manager || typeof manager.setStatus !== "function") {
+        setStatus(statusTarget, "error", "Leave review is not available right now.");
+        return;
+      }
+
+      const requestId = approveButton ? approveButton.dataset.leaveApprove : rejectButton.dataset.leaveReject;
+      const request = manager.getRequests().find((entry) => entry.id === requestId);
+      if (!request) {
+        setStatus(statusTarget, "error", "Could not find this leave request.");
+        refreshLeaveReview();
+        return;
+      }
+
+      const card = actionButton.closest("[data-leave-request-card]");
+      const comment = String(card?.querySelector("textarea")?.value || "").trim();
+      const nextStatus = approveButton ? "approved" : "rejected";
+      if (nextStatus === "rejected" && !comment) {
+        setStatus(statusTarget, "error", "Enter a rejection reason before rejecting this request.");
+        card?.querySelector("textarea")?.focus();
+        return;
+      }
+
+      const session = getSession();
+      const adminUser = session ? getUsers().find((user) => user.id === session.userId) || null : null;
+      manager.setStatus(requestId, nextStatus, {
+        approvedBy: adminUser?.displayName || adminUser?.email || "School Admin",
+        approvedById: adminUser?.id || "",
+        approvalDate: nowIso(),
+        adminComment: comment,
+        rejectionReason: nextStatus === "rejected" ? comment : "",
+      });
+
+      recordAuditEvent({
+        action: nextStatus,
+        entityType: "leave-request",
+        entityId: requestId,
+        title: `Leave request ${nextStatus}`,
+        message: `${request.staffName || request.staffEmail || "Staff member"} leave request was ${nextStatus}.`,
+        summary: `${nextStatus === "approved" ? "Approved" : "Rejected"} leave request for ${request.staffName || request.staffEmail || "staff"}`,
+        details: `${getStaffLeaveTypeLabel(request.leaveType)} • ${formatCalendarRange(request.startDate, request.endDate)}`,
+        visibleToRoles: ["Admin", "Teacher"],
+        metadata: {
+          staffId: request.staffId || "",
+          staffEmail: request.staffEmail || "",
+          status: nextStatus,
+        },
+      });
+
+      refreshLeaveReview();
+      setStatus(
+        statusTarget,
+        "success",
+        `Leave request ${nextStatus === "approved" ? "approved" : "rejected"} for <strong>${escapeHtml(
+          request.staffName || request.staffEmail || "staff",
+        )}</strong>.`,
+      );
+    });
+
+    if (manager?.eventName && listTarget.dataset.leaveReviewListenerBound !== "true") {
+      listTarget.dataset.leaveReviewListenerBound = "true";
+      window.addEventListener(manager.eventName, refreshLeaveReview);
     }
   }
 
@@ -31989,29 +32252,384 @@
     });
   }
 
-  function buildStaffLeaveSection() {
-    return `
-      <section class="staff-portal-section admin-surface-card">
+  const STAFF_LEAVE_TYPES = [
+    { value: "annual", label: "Annual leave" },
+    { value: "sick", label: "Sick leave" },
+    { value: "emergency", label: "Emergency leave" },
+    { value: "maternity-paternity", label: "Maternity / paternity leave" },
+    { value: "study", label: "Study leave" },
+    { value: "casual", label: "Casual / personal leave" },
+    { value: "unpaid", label: "Unpaid leave" },
+  ];
+
+  function getStaffLeaveTypeLabel(value = "") {
+    const normalized = String(value || "").trim().toLowerCase();
+    return STAFF_LEAVE_TYPES.find((type) => type.value === normalized)?.label || "Leave";
+  }
+
+  function getStaffLeaveStatusLabel(value = "") {
+    const normalized = String(value || "pending").trim().toLowerCase();
+    if (normalized === "approved") return "Approved";
+    if (normalized === "rejected") return "Rejected";
+    if (normalized === "cancelled") return "Cancelled";
+    return "Pending";
+  }
+
+  function getStaffLeaveStatusClass(value = "") {
+    return `is-${String(value || "pending").trim().toLowerCase() || "pending"}`;
+  }
+
+  function getStaffLeaveRequestsForUser(user = {}) {
+    const manager = getLeaveRequestManager();
+    const requests = manager && typeof manager.getRequests === "function" ? manager.getRequests() : [];
+    const userId = String(user.id || "").trim();
+    const userEmail = normalizeEmail(user.email || "");
+
+    return requests.filter(
+      (request) =>
+        (userId && request.staffId === userId) ||
+        (userEmail && normalizeEmail(request.staffEmail || "") === userEmail),
+    );
+  }
+
+  function getCoveringStaffOptions(user = {}) {
+    const workspaceId = getCurrentWorkspaceId();
+    const currentId = String(user.id || "").trim();
+    const currentEmail = normalizeEmail(user.email || "");
+
+    return getUsers()
+      .filter(
+        (entry) =>
+          normalizeWorkspaceId(entry.workspaceId) === workspaceId &&
+          normalizeRoleLabel(entry.role || DEFAULT_AUTH_ROLE) === "Teacher" &&
+          normalizeUserStatus(entry.status) === "active" &&
+          String(entry.id || "").trim() !== currentId &&
+          normalizeEmail(entry.email || "") !== currentEmail,
+      )
+      .sort((left, right) => String(left.displayName || left.email || "").localeCompare(String(right.displayName || right.email || "")));
+  }
+
+  function getStaffLeaveDays(startDate = "", endDate = "") {
+    const manager = getLeaveRequestManager();
+    if (manager && typeof manager.calculateDays === "function") {
+      return manager.calculateDays(startDate, endDate);
+    }
+
+    const start = new Date(`${String(startDate || "").trim()}T00:00:00`);
+    const end = new Date(`${String(endDate || "").trim()}T00:00:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
+      return 0;
+    }
+    return Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
+  }
+
+  function renderStaffLeaveAttachment(attachment = {}) {
+    if (!attachment?.name) {
+      return `<span>No document attached</span>`;
+    }
+
+    const meta = [attachment.type || "File", attachment.size ? formatFileSize(attachment.size) : ""].filter(Boolean).join(" • ");
+    return attachment.dataUrl
+      ? `<a href="${escapeHtml(attachment.dataUrl)}" download="${escapeHtml(attachment.name)}">${escapeHtml(attachment.name)}</a><span>${escapeHtml(meta)}</span>`
+      : `<span>${escapeHtml(attachment.name)}${meta ? ` • ${escapeHtml(meta)}` : ""}</span>`;
+  }
+
+  function renderStaffLeaveRows(requests = []) {
+    if (!requests.length) {
+      return `
+        <article class="portal-class-empty">
+          <strong>No leave requests yet</strong>
+          <p>Submitted leave requests and approval status will appear here.</p>
+        </article>
+      `;
+    }
+
+    return requests
+      .map(
+        (request) => `
+          <article class="staff-leave-card">
+            <header>
+              <div>
+                <strong>${escapeHtml(getStaffLeaveTypeLabel(request.leaveType))}</strong>
+                <span>${escapeHtml(formatCalendarRange(request.startDate, request.endDate))} • ${Number(request.requestedDays || 0).toLocaleString()} day${Number(request.requestedDays || 0) === 1 ? "" : "s"}</span>
+              </div>
+              <small class="${escapeHtml(getStaffLeaveStatusClass(request.status))}">${escapeHtml(getStaffLeaveStatusLabel(request.status))}</small>
+            </header>
+            <p>${escapeHtml(request.reason || "No reason provided.")}</p>
+            <div class="staff-leave-meta">
+              <article>
+                <span>Covering staff</span>
+                <strong>${escapeHtml(request.coveringStaffName || "Not assigned")}</strong>
+              </article>
+              <article>
+                <span>Affected classes / duties</span>
+                <strong>${escapeHtml(request.affectedDuties || "Not specified")}</strong>
+              </article>
+              <article>
+                <span>Supporting document</span>
+                ${renderStaffLeaveAttachment(request.attachment)}
+              </article>
+            </div>
+            ${
+              request.handoverNotes
+                ? `<div class="staff-leave-note"><span>Handover notes</span><p>${escapeHtml(request.handoverNotes)}</p></div>`
+                : ""
+            }
+            ${
+              request.adminComment || request.rejectionReason
+                ? `<div class="staff-leave-note"><span>Admin comment</span><p>${escapeHtml(request.adminComment || request.rejectionReason)}</p></div>`
+                : ""
+            }
+            <footer>Submitted ${escapeHtml(formatTimestamp(request.createdAt || nowIso()))}</footer>
+          </article>
+        `,
+      )
+      .join("");
+  }
+
+  function renderStaffLeaveWorkspace(target, user = {}) {
+    if (!target) {
+      return;
+    }
+
+    const manager = getLeaveRequestManager();
+    const requests = getStaffLeaveRequestsForUser(user);
+    const currentYear = String(new Date().getFullYear());
+    const annualAllowance = 20;
+    const approvedAnnualDays = requests
+      .filter((request) => request.status === "approved" && request.leaveType === "annual")
+      .filter((request) => String(request.startDate || "").startsWith(currentYear))
+      .reduce((sum, request) => sum + (Number(request.requestedDays) || 0), 0);
+    const pendingCount = requests.filter((request) => request.status === "pending").length;
+    const remainingAnnualDays = Math.max(0, annualAllowance - approvedAnnualDays);
+    const coveringStaff = getCoveringStaffOptions(user);
+    const staffName = user.displayName || user.email || "Staff member";
+    const staffRole = user.title || normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE) || "Staff";
+    const staffDepartment = user.department || "Not assigned";
+    const staffPhone = user.phone || "Not provided";
+    const staffEmail = user.email || "No email";
+
+    target.hidden = false;
+    target.innerHTML = `
+      <section class="staff-portal-section admin-surface-card staff-leave-command">
         <div class="admin-surface-head">
           <div>
             <h2>Leave Requests</h2>
-            <span>Approval status</span>
+            <span>Submit a simple leave request and track approval status.</span>
           </div>
         </div>
+
         <div class="staff-portal-grid">
           <article class="staff-portal-tile">
-            <span>Open requests</span>
-            <strong>0</strong>
-            <p>No active leave request is recorded for this account.</p>
+            <span>Pending requests</span>
+            <strong>${pendingCount}</strong>
+            <p>Requests waiting for review.</p>
           </article>
           <article class="staff-portal-tile">
-            <span>Calendar year</span>
-            <strong>${new Date().getFullYear()}</strong>
-            <p>Approved leave will appear with status history.</p>
+            <span>Annual allowance</span>
+            <strong>${annualAllowance}</strong>
+            <p>${approvedAnnualDays} used • ${remainingAnnualDays} remaining.</p>
           </article>
+          <article class="staff-portal-tile">
+            <span>Requested days</span>
+            <strong data-leave-days-output>0</strong>
+            <p>Calculated from selected dates.</p>
+          </article>
+        </div>
+
+        <div class="staff-leave-profile">
+          <article><span>Staff name</span><strong>${escapeHtml(staffName)}</strong></article>
+          <article><span>Staff ID</span><strong>${escapeHtml(user.id || "Not assigned")}</strong></article>
+          <article><span>Role / position</span><strong>${escapeHtml(staffRole)}</strong></article>
+          <article><span>Department</span><strong>${escapeHtml(staffDepartment)}</strong></article>
+          <article><span>Phone</span><strong>${escapeHtml(staffPhone)}</strong></article>
+          <article><span>Email</span><strong>${escapeHtml(staffEmail)}</strong></article>
+        </div>
+
+        <form id="staff-leave-form" class="portal-settings-form staff-leave-form" novalidate>
+          <div id="staff-leave-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+          <div class="portal-settings-section-head">
+            <strong>Leave details</strong>
+            <span>Enter the dates, reason, and basic handover details.</span>
+          </div>
+          <div class="portal-settings-grid">
+            <label class="portal-field" for="staff-leave-type">
+              <span>Leave type</span>
+              <select id="staff-leave-type" name="leaveType" required>
+                ${STAFF_LEAVE_TYPES.map((type) => `<option value="${escapeHtml(type.value)}">${escapeHtml(type.label)}</option>`).join("")}
+              </select>
+            </label>
+            <label class="portal-field" for="staff-leave-days">
+              <span>Number of days</span>
+              <input id="staff-leave-days" name="requestedDays" type="number" min="0" value="0" readonly />
+            </label>
+            <label class="portal-field" for="staff-leave-start">
+              <span>Start date</span>
+              <input id="staff-leave-start" name="startDate" type="date" required />
+            </label>
+            <label class="portal-field" for="staff-leave-end">
+              <span>End date</span>
+              <input id="staff-leave-end" name="endDate" type="date" required />
+            </label>
+            <label class="portal-field portal-field-span-2" for="staff-leave-reason">
+              <span>Reason for leave</span>
+              <textarea id="staff-leave-reason" name="reason" rows="4" placeholder="Briefly explain the reason for this leave request." required></textarea>
+            </label>
+          </div>
+
+          <div class="portal-settings-section-head">
+            <strong>Work coverage</strong>
+            <span>Help the school know who will cover duties while you are away.</span>
+          </div>
+          <div class="portal-settings-grid">
+            <label class="portal-field" for="staff-leave-covering">
+              <span>Covering staff</span>
+              <select id="staff-leave-covering" name="coveringStaffId">
+                <option value="">Select covering staff</option>
+                ${coveringStaff
+                  .map(
+                    (staff) => `
+                      <option value="${escapeHtml(String(staff.id))}" data-email="${escapeHtml(staff.email || "")}" data-name="${escapeHtml(staff.displayName || staff.email || "Staff")}">
+                        ${escapeHtml(staff.displayName || staff.email || "Staff")}
+                      </option>
+                    `,
+                  )
+                  .join("")}
+              </select>
+            </label>
+            <label class="portal-field" for="staff-leave-document">
+              <span>Supporting document</span>
+              <input id="staff-leave-document" name="supportingDocument" type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp" />
+              <span class="portal-field-hint">Optional. Medical report, official letter, or related document.</span>
+            </label>
+            <label class="portal-field portal-field-span-2" for="staff-leave-duties">
+              <span>Affected classes / duties</span>
+              <textarea id="staff-leave-duties" name="affectedDuties" rows="3" placeholder="Example: JSS 2 Mathematics, JSS 3 revision class, morning duty."></textarea>
+            </label>
+            <label class="portal-field portal-field-span-2" for="staff-leave-handover">
+              <span>Handover notes</span>
+              <textarea id="staff-leave-handover" name="handoverNotes" rows="3" placeholder="Example: Lesson notes for Week 5 have been uploaded. Pending scripts are on my desk."></textarea>
+            </label>
+          </div>
+
+          <div class="utility-actions staff-result-actions">
+            <button class="button button-primary" type="submit" ${manager ? "" : "disabled"}>Submit leave request</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="staff-portal-section admin-surface-card">
+        <div class="admin-surface-head">
+          <div>
+            <h2>Request History</h2>
+            <span>Submitted requests and approval status.</span>
+          </div>
+        </div>
+        <div class="staff-portal-list staff-leave-list">
+          ${renderStaffLeaveRows(requests)}
         </div>
       </section>
     `;
+
+    const form = target.querySelector("#staff-leave-form");
+    const status = target.querySelector("#staff-leave-status");
+    const flashMessage = target.dataset.leaveFlash || "";
+    delete target.dataset.leaveFlash;
+    const startInput = form?.elements.startDate;
+    const endInput = form?.elements.endDate;
+    const daysInput = form?.elements.requestedDays;
+    const daysOutput = target.querySelector("[data-leave-days-output]");
+    const syncRequestedDays = () => {
+      const days = getStaffLeaveDays(startInput?.value || "", endInput?.value || "");
+      if (daysInput) daysInput.value = String(days);
+      if (daysOutput) daysOutput.textContent = String(days);
+      return days;
+    };
+
+    startInput?.addEventListener("change", syncRequestedDays);
+    endInput?.addEventListener("change", syncRequestedDays);
+    syncRequestedDays();
+    if (flashMessage) {
+      setStatus(status, "success", escapeHtml(flashMessage));
+    }
+
+    form?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (!manager || typeof manager.upsertRequest !== "function") {
+        setStatus(status, "error", "Leave requests are not available right now.");
+        return;
+      }
+
+      const requestedDays = syncRequestedDays();
+      if (!form.elements.startDate.value || !form.elements.endDate.value || requestedDays <= 0) {
+        setStatus(status, "error", "Select a valid start date and end date.");
+        return;
+      }
+      if (!String(form.elements.reason.value || "").trim()) {
+        setStatus(status, "error", "Enter the reason for this leave request.");
+        return;
+      }
+
+      const selectedCovering = form.elements.coveringStaffId?.selectedOptions?.[0] || null;
+      const file = form.elements.supportingDocument?.files?.[0] || null;
+      const maxBytes = 2 * 1024 * 1024;
+      let attachment = {};
+
+      if (file) {
+        if (file.size > maxBytes) {
+          setStatus(status, "error", `${escapeHtml(file.name)} is too large. Keep supporting documents under 2MB.`);
+          return;
+        }
+        attachment = {
+          id: createId(),
+          name: file.name || "Supporting document",
+          type: file.type || "",
+          size: file.size || 0,
+          dataUrl: await readFileAsDataUrl(file),
+          uploadedAt: nowIso(),
+        };
+      }
+
+      const payload = {
+        id: createId(),
+        staffId: user.id || "",
+        staffName,
+        staffEmail: user.email || "",
+        staffPhone: user.phone || "",
+        rolePosition: staffRole,
+        department: user.department || "",
+        leaveType: form.elements.leaveType.value,
+        startDate: form.elements.startDate.value,
+        endDate: form.elements.endDate.value,
+        requestedDays,
+        reason: form.elements.reason.value,
+        coveringStaffId: form.elements.coveringStaffId.value,
+        coveringStaffName: selectedCovering?.dataset.name || "",
+        coveringStaffEmail: selectedCovering?.dataset.email || "",
+        affectedDuties: form.elements.affectedDuties.value,
+        handoverNotes: form.elements.handoverNotes.value,
+        attachment,
+        annualAllowance,
+        status: "pending",
+      };
+      target.dataset.leaveFlash = "Leave request submitted. Approval status will update here.";
+      const saved = manager.upsertRequest(payload).find((request) => request.id === payload.id) || payload;
+      recordAuditEvent({
+        action: "created",
+        entityType: "leave-request",
+        entityId: saved.id || payload.staffId,
+        title: "Leave request submitted",
+        message: `${staffName} requested ${requestedDays} leave day${requestedDays === 1 ? "" : "s"} from ${payload.startDate} to ${payload.endDate}.`,
+        summary: `Leave request submitted by ${staffName}`,
+        details: `${getStaffLeaveTypeLabel(payload.leaveType)} • ${requestedDays} day${requestedDays === 1 ? "" : "s"}`,
+        visibleToRoles: ["Admin"],
+      });
+    });
+
+    if (manager?.eventName && target.dataset.leaveListenerBound !== "true") {
+      window.addEventListener(manager.eventName, () => renderStaffLeaveWorkspace(target, user));
+      target.dataset.leaveListenerBound = "true";
+    }
   }
 
   function renderStaffStandaloneSection(target, page, user) {
@@ -32044,10 +32662,14 @@
       return;
     }
 
+    if (page === "staff-leave") {
+      renderStaffLeaveWorkspace(target, user);
+      return;
+    }
+
     const contentByPage = {
       "staff-timetable": buildStaffTimetableSection(user),
       "staff-classes": buildStaffClassesSection(user),
-      "staff-leave": buildStaffLeaveSection(user),
     };
 
     target.hidden = false;
@@ -36600,6 +37222,10 @@
     const staffForm = document.getElementById("portal-staff-form");
     const staffStatus = document.getElementById("portal-staff-status");
     const staffList = document.getElementById("portal-staff-list");
+    const leaveSummary = document.getElementById("portal-staff-leave-summary");
+    const leaveList = document.getElementById("portal-staff-leave-list");
+    const leaveStatus = document.getElementById("portal-staff-leave-review-status");
+    const leaveFilter = document.getElementById("portal-staff-leave-status-filter");
 
     initStaffManagementControls({
       isAdmin: canManageTeachers,
@@ -36607,6 +37233,14 @@
       form: staffForm,
       status: staffStatus,
       listTarget: staffList,
+    });
+
+    initAdminStaffLeaveReviewControls({
+      isAdmin: canManageTeachers,
+      summaryTarget: leaveSummary,
+      listTarget: leaveList,
+      statusTarget: leaveStatus,
+      filterTarget: leaveFilter,
     });
   }
 

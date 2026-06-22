@@ -193,6 +193,28 @@
             </div>
             <div id="portal-staff-list" class="portal-class-list"></div>
           </article>
+
+          <article class="admin-surface-card portal-staff-leave-review-card">
+            <div class="admin-surface-head portal-staff-leave-review-head">
+              <div>
+                <h2>Leave Requests</h2>
+                <span>Review, approve, or reject staff leave submissions.</span>
+              </div>
+              <label class="portal-field portal-staff-leave-filter" for="portal-staff-leave-status-filter">
+                <span>Status</span>
+                <select id="portal-staff-leave-status-filter">
+                  <option value="all">All requests</option>
+                  <option value="pending">Pending</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </label>
+            </div>
+            <div id="portal-staff-leave-review-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+            <div id="portal-staff-leave-summary" class="staff-portal-grid portal-staff-leave-summary"></div>
+            <div id="portal-staff-leave-list" class="staff-portal-list staff-leave-admin-list"></div>
+          </article>
         </section>
       </section>
     </main>

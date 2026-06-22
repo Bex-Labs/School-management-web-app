@@ -13011,6 +13011,214 @@ body.admin-dashboard-page .staff-portal-list {
   gap: 10px;
 }
 
+body.admin-dashboard-page .staff-leave-command {
+  display: grid;
+  gap: 18px;
+}
+
+body.admin-dashboard-page .portal-staff-leave-review-card {
+  display: grid;
+  gap: 16px;
+}
+
+body.admin-dashboard-page .portal-staff-leave-review-head {
+  align-items: flex-start;
+}
+
+body.admin-dashboard-page .portal-staff-leave-review-head > div {
+  display: grid;
+  gap: 4px;
+}
+
+body.admin-dashboard-page .portal-staff-leave-filter {
+  width: min(220px, 100%);
+  margin: 0;
+}
+
+body.admin-dashboard-page .portal-staff-leave-summary article,
+body.admin-dashboard-page .staff-leave-admin-title > div {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #dfe7f2;
+  border-radius: 14px;
+  background: #f8fbff;
+}
+
+body.admin-dashboard-page .portal-staff-leave-summary span,
+body.admin-dashboard-page .staff-leave-admin-title span {
+  display: block;
+  color: #68758a;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+body.admin-dashboard-page .portal-staff-leave-summary strong,
+body.admin-dashboard-page .staff-leave-admin-title strong {
+  display: block;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+  color: #17233a;
+  font-size: 0.95rem;
+  font-weight: 900;
+}
+
+body.admin-dashboard-page .staff-leave-admin-list {
+  gap: 14px;
+}
+
+body.admin-dashboard-page .staff-leave-admin-title {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+body.admin-dashboard-page .staff-leave-admin-review {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #dfe7f2;
+  border-radius: 14px;
+  background: #fbfdff;
+}
+
+body.admin-dashboard-page .staff-leave-admin-review .portal-field {
+  margin: 0;
+}
+
+body.admin-dashboard-page .staff-leave-admin-actions {
+  justify-content: flex-end;
+  margin-top: 0;
+}
+
+body.admin-dashboard-page .staff-leave-form {
+  display: grid;
+  gap: 18px;
+  margin-top: 0;
+}
+
+body.admin-dashboard-page .staff-leave-profile,
+body.admin-dashboard-page .staff-leave-meta {
+  display: grid;
+  gap: 10px;
+}
+
+body.admin-dashboard-page .staff-leave-profile {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+body.admin-dashboard-page .staff-leave-meta {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+body.admin-dashboard-page .staff-leave-profile article,
+body.admin-dashboard-page .staff-leave-meta article {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #dfe7f2;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+
+body.admin-dashboard-page .staff-leave-profile span,
+body.admin-dashboard-page .staff-leave-meta span,
+body.admin-dashboard-page .staff-leave-note span {
+  display: block;
+  color: #68758a;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+body.admin-dashboard-page .staff-leave-profile strong,
+body.admin-dashboard-page .staff-leave-meta strong,
+body.admin-dashboard-page .staff-leave-meta a {
+  display: block;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+  color: #17233a;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+body.admin-dashboard-page .staff-leave-meta a {
+  color: #2f6fed;
+  text-decoration: none;
+}
+
+body.admin-dashboard-page .staff-leave-card {
+  display: grid;
+  gap: 13px;
+  padding: 16px;
+  border: 1px solid #e1e8f2;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(38, 48, 72, 0.06);
+}
+
+body.admin-dashboard-page .staff-leave-card header,
+body.admin-dashboard-page .staff-leave-card footer {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+body.admin-dashboard-page .staff-leave-card header > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+body.admin-dashboard-page .staff-leave-card header strong {
+  color: #17233a;
+  font-size: 0.96rem;
+}
+
+body.admin-dashboard-page .staff-leave-card header span,
+body.admin-dashboard-page .staff-leave-card p,
+body.admin-dashboard-page .staff-leave-card footer {
+  margin: 0;
+  color: #667188;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+body.admin-dashboard-page .staff-leave-card header small {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #fff9eb;
+  color: #9a6508;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+body.admin-dashboard-page .staff-leave-card header small.is-approved {
+  background: #eaf8f0;
+  color: #14804a;
+}
+
+body.admin-dashboard-page .staff-leave-card header small.is-rejected,
+body.admin-dashboard-page .staff-leave-card header small.is-cancelled {
+  background: #fff1f2;
+  color: #b4233c;
+}
+
+body.admin-dashboard-page .staff-leave-note {
+  padding: 12px;
+  border: 1px solid #e4ebf5;
+  border-radius: 12px;
+  background: #fbfcff;
+}
+
+body.admin-dashboard-page .staff-leave-note p {
+  margin-top: 6px;
+}
+
 body.admin-dashboard-page .parent-dashboard-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -14439,8 +14647,17 @@ body.admin-dashboard-page .portal-class-empty p {
   body.admin-dashboard-page .portal-attendance-history-row,
   body.admin-dashboard-page .portal-message-composer-grid,
   body.admin-dashboard-page .portal-class-meta,
-  body.admin-dashboard-page .portal-class-extended {
+  body.admin-dashboard-page .portal-class-extended,
+  body.admin-dashboard-page .staff-leave-profile,
+  body.admin-dashboard-page .staff-leave-meta,
+  body.admin-dashboard-page .staff-leave-admin-title {
     grid-template-columns: 1fr;
+  }
+
+  body.admin-dashboard-page .staff-leave-card header,
+  body.admin-dashboard-page .staff-leave-card footer {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   body.admin-dashboard-page .portal-message-bubble {
