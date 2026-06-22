@@ -34301,7 +34301,6 @@
       user,
       role: "Parent",
       heading: "Conversations",
-      showSubject: true,
       emptyMessage: "School Admin and linked teachers will appear here.",
       composerPlaceholder: "Type your message",
       onRefresh: () => renderParentMessagesPage(target, student, children, user),
