@@ -18658,6 +18658,90 @@
     }
   }
 
+  function renderAdminStaffLeaveRequestDetails(request = {}, isAdmin = false) {
+    const status = String(request.status || "pending").trim().toLowerCase() || "pending";
+    const requestedDays = Number(request.requestedDays || 0);
+    const canReview = isAdmin && status === "pending";
+    const decidedBy = [request.approvedBy, request.approvalDate ? formatTimestamp(request.approvalDate) : ""]
+      .filter(Boolean)
+      .join(" • ");
+
+    return `
+      <div class="staff-leave-modal-body" data-leave-request-card="${escapeHtml(request.id)}">
+        <section class="staff-leave-modal-hero">
+          <div>
+            <span>${escapeHtml(request.rolePosition || "Staff")}</span>
+            <h4>${escapeHtml(request.staffName || request.staffEmail || "Staff member")}</h4>
+            <p>${escapeHtml(request.staffEmail || "No email")} ${request.department ? `• ${escapeHtml(request.department)}` : ""}</p>
+          </div>
+          <small class="${escapeHtml(getStaffLeaveStatusClass(status))}">${escapeHtml(getStaffLeaveStatusLabel(status))}</small>
+        </section>
+
+        <div class="staff-leave-admin-title">
+          <div>
+            <span>${escapeHtml(getStaffLeaveTypeLabel(request.leaveType))}</span>
+            <strong>${escapeHtml(formatCalendarRange(request.startDate, request.endDate))}</strong>
+          </div>
+          <div>
+            <span>Requested days</span>
+            <strong>${requestedDays.toLocaleString()} day${requestedDays === 1 ? "" : "s"}</strong>
+          </div>
+          <div>
+            <span>Submitted</span>
+            <strong>${escapeHtml(formatTimestamp(request.createdAt || nowIso()))}</strong>
+          </div>
+        </div>
+
+        <div class="staff-leave-note">
+          <span>Reason</span>
+          <p>${escapeHtml(request.reason || "No reason provided.")}</p>
+        </div>
+
+        <div class="staff-leave-meta">
+          <article>
+            <span>Covering staff</span>
+            <strong>${escapeHtml(request.coveringStaffName || "Not assigned")}</strong>
+          </article>
+          <article>
+            <span>Affected classes / duties</span>
+            <strong>${escapeHtml(request.affectedDuties || "Not specified")}</strong>
+          </article>
+          <article>
+            <span>Supporting document</span>
+            ${renderStaffLeaveAttachment(request.attachment)}
+          </article>
+        </div>
+
+        ${
+          request.handoverNotes
+            ? `<div class="staff-leave-note"><span>Handover notes</span><p>${escapeHtml(request.handoverNotes)}</p></div>`
+            : ""
+        }
+        ${
+          request.adminComment || request.rejectionReason
+            ? `<div class="staff-leave-note"><span>Admin decision note</span><p>${escapeHtml(request.adminComment || request.rejectionReason)}</p></div>`
+            : ""
+        }
+        ${decidedBy ? `<footer class="staff-leave-modal-footer">Reviewed by ${escapeHtml(decidedBy)}</footer>` : ""}
+
+        ${
+          canReview
+            ? `<div class="staff-leave-admin-review">
+                <label class="portal-field" for="leave-comment-${escapeHtml(request.id)}">
+                  <span>Admin comment / rejection reason</span>
+                  <textarea id="leave-comment-${escapeHtml(request.id)}" rows="3" placeholder="Add a short decision note. Required when rejecting."></textarea>
+                </label>
+                <div class="utility-actions staff-leave-admin-actions">
+                  <button class="button button-primary" type="button" data-leave-approve="${escapeHtml(request.id)}">Approve</button>
+                  <button class="portal-class-button is-danger" type="button" data-leave-reject="${escapeHtml(request.id)}">Reject</button>
+                </div>
+              </div>`
+            : ""
+        }
+      </div>
+    `;
+  }
+
   function renderAdminStaffLeaveReviewSection({
     isAdmin,
     summaryTarget,
@@ -18729,84 +18813,38 @@
       return;
     }
 
-    listTarget.innerHTML = filteredRequests
-      .map((request) => {
-        const status = String(request.status || "pending").trim().toLowerCase() || "pending";
-        const requestedDays = Number(request.requestedDays || 0);
-        const canReview = isAdmin && status === "pending";
-        const decidedBy = [request.approvedBy, request.approvalDate ? formatTimestamp(request.approvalDate) : ""]
-          .filter(Boolean)
-          .join(" • ");
-        return `
-          <article class="staff-leave-card staff-leave-admin-card" data-leave-request-card="${escapeHtml(request.id)}">
-            <header>
-              <div>
-                <strong>${escapeHtml(request.staffName || request.staffEmail || "Staff member")}</strong>
-                <span>${escapeHtml(request.rolePosition || "Staff")} • ${escapeHtml(request.department || "No department")}</span>
-              </div>
-              <small class="${escapeHtml(getStaffLeaveStatusClass(status))}">${escapeHtml(getStaffLeaveStatusLabel(status))}</small>
-            </header>
-            <div class="staff-leave-admin-title">
-              <div>
-                <span>${escapeHtml(getStaffLeaveTypeLabel(request.leaveType))}</span>
-                <strong>${escapeHtml(formatCalendarRange(request.startDate, request.endDate))}</strong>
-              </div>
-              <div>
-                <span>Requested days</span>
-                <strong>${requestedDays.toLocaleString()} day${requestedDays === 1 ? "" : "s"}</strong>
-              </div>
-              <div>
-                <span>Submitted</span>
-                <strong>${escapeHtml(formatTimestamp(request.createdAt || nowIso()))}</strong>
-              </div>
-            </div>
-            <div class="staff-leave-note">
-              <span>Reason</span>
-              <p>${escapeHtml(request.reason || "No reason provided.")}</p>
-            </div>
-            <div class="staff-leave-meta">
-              <article>
-                <span>Covering staff</span>
-                <strong>${escapeHtml(request.coveringStaffName || "Not assigned")}</strong>
-              </article>
-              <article>
-                <span>Affected classes / duties</span>
-                <strong>${escapeHtml(request.affectedDuties || "Not specified")}</strong>
-              </article>
-              <article>
-                <span>Supporting document</span>
-                ${renderStaffLeaveAttachment(request.attachment)}
-              </article>
-            </div>
-            ${
-              request.handoverNotes
-                ? `<div class="staff-leave-note"><span>Handover notes</span><p>${escapeHtml(request.handoverNotes)}</p></div>`
-                : ""
-            }
-            ${
-              request.adminComment || request.rejectionReason
-                ? `<div class="staff-leave-note"><span>Admin decision note</span><p>${escapeHtml(request.adminComment || request.rejectionReason)}</p></div>`
-                : ""
-            }
-            ${decidedBy ? `<footer>Reviewed by ${escapeHtml(decidedBy)}</footer>` : ""}
-            ${
-              canReview
-                ? `<div class="staff-leave-admin-review">
-                    <label class="portal-field" for="leave-comment-${escapeHtml(request.id)}">
-                      <span>Admin comment / rejection reason</span>
-                      <textarea id="leave-comment-${escapeHtml(request.id)}" rows="3" placeholder="Add a short decision note. Required when rejecting."></textarea>
-                    </label>
-                    <div class="utility-actions staff-leave-admin-actions">
-                      <button class="button button-primary" type="button" data-leave-approve="${escapeHtml(request.id)}">Approve</button>
-                      <button class="portal-class-button is-danger" type="button" data-leave-reject="${escapeHtml(request.id)}">Reject</button>
-                    </div>
-                  </div>`
-                : ""
-            }
-          </article>
-        `;
-      })
-      .join("");
+    listTarget.innerHTML = `
+      <div class="staff-leave-admin-table" role="list">
+        ${filteredRequests
+          .map((request) => {
+            const status = String(request.status || "pending").trim().toLowerCase() || "pending";
+            const requestedDays = Number(request.requestedDays || 0);
+            return `
+              <button class="staff-leave-admin-row" type="button" data-leave-open="${escapeHtml(request.id)}" role="listitem">
+                <span class="staff-leave-admin-person">
+                  <strong>${escapeHtml(request.staffName || request.staffEmail || "Staff member")}</strong>
+                  <small>${escapeHtml(request.rolePosition || "Staff")} • ${escapeHtml(request.department || "No department")}</small>
+                </span>
+                <span>
+                  <strong>${escapeHtml(getStaffLeaveTypeLabel(request.leaveType))}</strong>
+                  <small>${escapeHtml(formatCalendarRange(request.startDate, request.endDate))}</small>
+                </span>
+                <span>
+                  <strong>${requestedDays.toLocaleString()} day${requestedDays === 1 ? "" : "s"}</strong>
+                  <small>Requested</small>
+                </span>
+                <span>
+                  <strong>${escapeHtml(formatTimestamp(request.createdAt || nowIso()))}</strong>
+                  <small>Submitted</small>
+                </span>
+                <small class="staff-leave-admin-status ${escapeHtml(getStaffLeaveStatusClass(status))}">${escapeHtml(getStaffLeaveStatusLabel(status))}</small>
+                <span class="staff-leave-admin-view">View</span>
+              </button>
+            `;
+          })
+          .join("")}
+      </div>
+    `;
 
     if (statusTarget) {
       setStatus(statusTarget, "", "");
@@ -18820,57 +18858,102 @@
 
     const manager = getLeaveRequestManager();
     let statusFilter = String(filterTarget?.value || "all").trim().toLowerCase() || "all";
+    let selectedLeaveRequestId = "";
+    let leaveReviewOverlay = null;
+    let leaveReviewContent = null;
+    let leaveReviewTitle = null;
+    let leaveReviewStatus = null;
 
-    const refreshLeaveReview = () => {
-      renderAdminStaffLeaveReviewSection({
-        isAdmin,
-        summaryTarget,
-        listTarget,
-        statusTarget,
-        statusFilter,
-      });
-    };
-
-    refreshLeaveReview();
-
-    if (filterTarget) {
-      filterTarget.addEventListener("change", () => {
-        statusFilter = String(filterTarget.value || "all").trim().toLowerCase() || "all";
-        refreshLeaveReview();
-      });
-    }
-
-    listTarget.addEventListener("click", (event) => {
-      const approveButton = event.target.closest("[data-leave-approve]");
-      const rejectButton = event.target.closest("[data-leave-reject]");
-      const actionButton = approveButton || rejectButton;
-      if (!actionButton) {
-        return;
+    const ensureLeaveReviewOverlay = () => {
+      if (leaveReviewOverlay) {
+        return leaveReviewOverlay;
       }
 
+      let overlay = document.getElementById("portal-staff-leave-review-overlay");
+      if (!overlay) {
+        document.body.insertAdjacentHTML(
+          "beforeend",
+          `
+          <div id="portal-staff-leave-review-overlay" class="portal-overlay" hidden>
+            <button class="portal-overlay-backdrop" type="button" data-leave-review-close aria-label="Close leave request"></button>
+            <section class="portal-overlay-panel portal-staff-leave-modal-panel" role="dialog" aria-modal="true" aria-labelledby="portal-staff-leave-review-title">
+              <header class="portal-overlay-head">
+                <div>
+                  <span class="portal-overlay-kicker">Leave request</span>
+                  <h3 id="portal-staff-leave-review-title">Review request</h3>
+                </div>
+                <button class="portal-overlay-close" type="button" data-leave-review-close aria-label="Close leave request">&times;</button>
+              </header>
+              <div id="portal-staff-leave-modal-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+              <div id="portal-staff-leave-review-content"></div>
+            </section>
+          </div>
+          `,
+        );
+        overlay = document.getElementById("portal-staff-leave-review-overlay");
+      }
+
+      leaveReviewOverlay = overlay;
+      leaveReviewContent = document.getElementById("portal-staff-leave-review-content");
+      leaveReviewTitle = document.getElementById("portal-staff-leave-review-title");
+      leaveReviewStatus = document.getElementById("portal-staff-leave-modal-status");
+      return overlay;
+    };
+
+    const setLeaveReviewOverlayState = (isVisible) => {
+      const overlay = ensureLeaveReviewOverlay();
+      if (!overlay) {
+        return;
+      }
+      overlay.hidden = !isVisible;
+      const hasOpenOverlay = Boolean(document.querySelector(".portal-overlay:not([hidden])"));
+      document.body.classList.toggle("portal-overlay-open", hasOpenOverlay);
+      if (!isVisible) {
+        selectedLeaveRequestId = "";
+        setStatus(leaveReviewStatus, "", "");
+      }
+    };
+
+    const getLeaveRequestById = (requestId) =>
+      manager && typeof manager.getRequests === "function"
+        ? manager.getRequests().find((entry) => entry.id === requestId)
+        : null;
+
+    const renderLeaveReviewModal = (request) => {
+      const overlay = ensureLeaveReviewOverlay();
+      if (!overlay || !leaveReviewContent || !request) {
+        return;
+      }
+      selectedLeaveRequestId = request.id;
+      if (leaveReviewTitle) {
+        leaveReviewTitle.textContent = request.staffName || request.staffEmail || "Review request";
+      }
+      leaveReviewContent.innerHTML = renderAdminStaffLeaveRequestDetails(request, isAdmin);
+      setLeaveReviewOverlayState(true);
+    };
+
+    const applyLeaveDecision = (requestId, nextStatus, sourceElement) => {
       if (!isAdmin) {
-        setStatus(statusTarget, "info", "Only administrators can review leave requests.");
+        setStatus(leaveReviewStatus || statusTarget, "info", "Only administrators can review leave requests.");
         return;
       }
 
       if (!manager || typeof manager.setStatus !== "function") {
-        setStatus(statusTarget, "error", "Leave review is not available right now.");
+        setStatus(leaveReviewStatus || statusTarget, "error", "Leave review is not available right now.");
         return;
       }
 
-      const requestId = approveButton ? approveButton.dataset.leaveApprove : rejectButton.dataset.leaveReject;
-      const request = manager.getRequests().find((entry) => entry.id === requestId);
+      const request = getLeaveRequestById(requestId);
       if (!request) {
-        setStatus(statusTarget, "error", "Could not find this leave request.");
+        setStatus(leaveReviewStatus || statusTarget, "error", "Could not find this leave request.");
         refreshLeaveReview();
         return;
       }
 
-      const card = actionButton.closest("[data-leave-request-card]");
+      const card = sourceElement?.closest("[data-leave-request-card]") || leaveReviewContent;
       const comment = String(card?.querySelector("textarea")?.value || "").trim();
-      const nextStatus = approveButton ? "approved" : "rejected";
       if (nextStatus === "rejected" && !comment) {
-        setStatus(statusTarget, "error", "Enter a rejection reason before rejecting this request.");
+        setStatus(leaveReviewStatus || statusTarget, "error", "Enter a rejection reason before rejecting this request.");
         card?.querySelector("textarea")?.focus();
         return;
       }
@@ -18903,13 +18986,85 @@
 
       refreshLeaveReview();
       setStatus(
-        statusTarget,
+        leaveReviewStatus || statusTarget,
         "success",
         `Leave request ${nextStatus === "approved" ? "approved" : "rejected"} for <strong>${escapeHtml(
           request.staffName || request.staffEmail || "staff",
         )}</strong>.`,
       );
+    };
+
+    const refreshLeaveReview = () => {
+      renderAdminStaffLeaveReviewSection({
+        isAdmin,
+        summaryTarget,
+        listTarget,
+        statusTarget,
+        statusFilter,
+      });
+      if (selectedLeaveRequestId && leaveReviewOverlay && !leaveReviewOverlay.hidden) {
+        const request = getLeaveRequestById(selectedLeaveRequestId);
+        if (request) {
+          renderLeaveReviewModal(request);
+        } else {
+          setLeaveReviewOverlayState(false);
+        }
+      }
+    };
+
+    refreshLeaveReview();
+
+    if (filterTarget) {
+      filterTarget.addEventListener("change", () => {
+        statusFilter = String(filterTarget.value || "all").trim().toLowerCase() || "all";
+        refreshLeaveReview();
+      });
+    }
+
+    listTarget.addEventListener("click", (event) => {
+      const openButton = event.target.closest("[data-leave-open]");
+      if (!openButton) {
+        return;
+      }
+
+      const request = getLeaveRequestById(openButton.dataset.leaveOpen);
+      if (!request) {
+        setStatus(statusTarget, "error", "Could not find this leave request.");
+        return;
+      }
+
+      setStatus(statusTarget, "", "");
+      setStatus(leaveReviewStatus, "", "");
+      renderLeaveReviewModal(request);
     });
+
+    const overlay = ensureLeaveReviewOverlay();
+    if (overlay) {
+      overlay.addEventListener("click", (event) => {
+        const closeButton = event.target.closest("[data-leave-review-close]");
+        if (closeButton) {
+          setLeaveReviewOverlayState(false);
+          return;
+        }
+
+        const approveButton = event.target.closest("[data-leave-approve]");
+        if (approveButton) {
+          applyLeaveDecision(approveButton.dataset.leaveApprove, "approved", approveButton);
+          return;
+        }
+
+        const rejectButton = event.target.closest("[data-leave-reject]");
+        if (rejectButton) {
+          applyLeaveDecision(rejectButton.dataset.leaveReject, "rejected", rejectButton);
+        }
+      });
+
+      window.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !overlay.hidden) {
+          setLeaveReviewOverlayState(false);
+        }
+      });
+    }
 
     if (manager?.eventName && listTarget.dataset.leaveReviewListenerBound !== "true") {
       listTarget.dataset.leaveReviewListenerBound = "true";
@@ -35679,7 +35834,7 @@
           <path d="M8 9h8"></path>
           <path d="M8 13h5"></path>
         </svg>
-        <span>Ask AI</span>
+        <span>Get Help</span>
       </button>
       <div id="parent-floating-chatbot-panel" class="parent-floating-chatbot-panel" data-parent-chatbot-panel hidden>
         <header class="parent-floating-chatbot-head">
