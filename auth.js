@@ -30190,11 +30190,11 @@
                   .map((classRecord) => {
                     const roster = getActiveStudentsForClass(classRecord);
                     return `
-                      <article class="staff-portal-tile">
+                      <button class="staff-portal-tile staff-class-tile-button" type="button" data-staff-class-open="${escapeHtml(classRecord.id || "")}">
                         <span>Class</span>
                         <strong>${escapeHtml(getClassDisplayName(classRecord))}</strong>
                         <p>${roster.length} student${roster.length === 1 ? "" : "s"} enrolled</p>
-                      </article>
+                      </button>
                     `;
                   })
                   .join("")
@@ -30208,6 +30208,186 @@
         </div>
       </section>
     `;
+  }
+
+  function renderStaffClassRosterModalContent(classRecord = {}) {
+    const roster = getActiveStudentsForClass(classRecord);
+    const classLabel = getClassDisplayName(classRecord);
+
+    return `
+      <div class="staff-class-roster-modal-body">
+        <section class="staff-class-roster-summary">
+          <article>
+            <span>Class</span>
+            <strong>${escapeHtml(classLabel)}</strong>
+          </article>
+          <article>
+            <span>Students</span>
+            <strong>${roster.length.toLocaleString()}</strong>
+          </article>
+          <article>
+            <span>Class teacher</span>
+            <strong>${escapeHtml(getTeacherDisplayNameForValue(classRecord.classTeacher) || "Not assigned")}</strong>
+          </article>
+        </section>
+        ${
+          roster.length
+            ? `<div class="staff-class-roster-list">
+                ${roster
+                  .map(
+                    (student, index) => `
+                      <article class="staff-class-roster-row">
+                        <span class="staff-class-roster-index">${index + 1}</span>
+                        <div>
+                          <strong>${escapeHtml(student.fullName || "Student")}</strong>
+                          <span>${escapeHtml(student.admissionNo || "No admission no.")} • ${escapeHtml(student.level || classLabel)}</span>
+                        </div>
+                        <small>${escapeHtml(student.gender || "Student")}</small>
+                      </article>
+                    `,
+                  )
+                  .join("")}
+              </div>`
+            : `<article class="portal-class-empty">
+                <strong>No enrolled students found</strong>
+                <p>Students assigned to ${escapeHtml(classLabel)} will appear here.</p>
+              </article>`
+        }
+      </div>
+    `;
+  }
+
+  function renderStaffClassesWorkspace(target, user) {
+    if (!target) {
+      return;
+    }
+
+    const assignedClasses = getTeacherAssignedClasses(user);
+    let activeClassId = "";
+    let classRosterOverlay = null;
+    let classRosterTitle = null;
+    let classRosterBody = null;
+
+    const ensureClassRosterOverlay = () => {
+      if (classRosterOverlay) {
+        return classRosterOverlay;
+      }
+
+      let overlay = document.getElementById("staff-class-roster-overlay");
+      if (!overlay) {
+        document.body.insertAdjacentHTML(
+          "beforeend",
+          `
+          <div id="staff-class-roster-overlay" class="portal-overlay staff-class-roster-overlay" hidden>
+            <button class="portal-overlay-backdrop" type="button" data-staff-class-roster-close aria-label="Close class roster"></button>
+            <section class="portal-overlay-panel staff-class-roster-modal-panel" role="dialog" aria-modal="true" aria-labelledby="staff-class-roster-title">
+              <header class="portal-overlay-head">
+                <div>
+                  <span class="portal-overlay-kicker">Class roster</span>
+                  <h3 id="staff-class-roster-title">Students</h3>
+                </div>
+                <button class="portal-overlay-close" type="button" data-staff-class-roster-close aria-label="Close class roster">&times;</button>
+              </header>
+              <div id="staff-class-roster-body"></div>
+            </section>
+          </div>
+          `,
+        );
+        overlay = document.getElementById("staff-class-roster-overlay");
+      }
+
+      classRosterOverlay = overlay;
+      classRosterTitle = document.getElementById("staff-class-roster-title");
+      classRosterBody = document.getElementById("staff-class-roster-body");
+      return overlay;
+    };
+
+    const setRosterOverlayState = (visible) => {
+      const overlay = ensureClassRosterOverlay();
+      if (!overlay) {
+        return;
+      }
+      overlay.hidden = !visible;
+      document.body.classList.toggle("portal-overlay-open", Boolean(document.querySelector(".portal-overlay:not([hidden])")));
+      if (!visible) {
+        activeClassId = "";
+      }
+    };
+
+    const openRosterModal = (classRecord = {}) => {
+      const overlay = ensureClassRosterOverlay();
+      if (!overlay || !classRosterBody) {
+        return;
+      }
+      activeClassId = String(classRecord.id || "").trim();
+      if (classRosterTitle) {
+        classRosterTitle.textContent = `${getClassDisplayName(classRecord)} students`;
+      }
+      classRosterBody.innerHTML = renderStaffClassRosterModalContent(classRecord);
+      setRosterOverlayState(true);
+    };
+
+    target.hidden = false;
+    target.innerHTML = buildStaffClassesSection(user);
+
+    if (target.dataset.staffClassClickBound !== "true") {
+      target.dataset.staffClassClickBound = "true";
+      target.addEventListener("click", (event) => {
+        const classButton = event.target.closest("[data-staff-class-open]");
+        if (!classButton) {
+          return;
+        }
+
+        const classRecord = getTeacherAssignedClasses(user).find(
+          (record) => String(record.id || "") === String(classButton.dataset.staffClassOpen || ""),
+        );
+        if (classRecord) {
+          openRosterModal(classRecord);
+        }
+      });
+    }
+
+    const overlay = ensureClassRosterOverlay();
+    if (overlay && overlay.dataset.staffClassRosterBound !== "true") {
+      overlay.dataset.staffClassRosterBound = "true";
+      overlay.addEventListener("click", (event) => {
+        if (event.target.closest("[data-staff-class-roster-close]")) {
+          setRosterOverlayState(false);
+        }
+      });
+      window.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !overlay.hidden) {
+          setRosterOverlayState(false);
+        }
+      });
+    }
+
+    const refreshModalIfOpen = () => {
+      if (!activeClassId || !classRosterOverlay || classRosterOverlay.hidden) {
+        return;
+      }
+      const refreshedClasses = getTeacherAssignedClasses(user);
+      const refreshedClass = refreshedClasses.find((record) => String(record.id || "") === activeClassId);
+      if (refreshedClass && classRosterBody) {
+        classRosterBody.innerHTML = renderStaffClassRosterModalContent(refreshedClass);
+        if (classRosterTitle) {
+          classRosterTitle.textContent = `${getClassDisplayName(refreshedClass)} students`;
+        }
+      } else {
+        setRosterOverlayState(false);
+      }
+    };
+
+    const classManager = getClassManager();
+    const studentManager = getStudentManager();
+    if (classManager?.eventName && target.dataset.staffClassListenerBound !== "true") {
+      target.dataset.staffClassListenerBound = "true";
+      window.addEventListener(classManager.eventName, refreshModalIfOpen);
+    }
+    if (studentManager?.eventName && target.dataset.staffStudentListenerBound !== "true") {
+      target.dataset.staffStudentListenerBound = "true";
+      window.addEventListener(studentManager.eventName, refreshModalIfOpen);
+    }
   }
 
   function getStaffGradebookAssignments(user = {}) {
@@ -33068,6 +33248,11 @@
       return;
     }
 
+    if (page === "staff-classes") {
+      renderStaffClassesWorkspace(target, user);
+      return;
+    }
+
     if (page === "staff-results") {
       renderStaffResultsWorkspace(target, user);
       return;
@@ -33094,7 +33279,6 @@
     }
 
     const contentByPage = {
-      "staff-classes": buildStaffClassesSection(user),
     };
 
     target.hidden = false;

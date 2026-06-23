@@ -13848,6 +13848,119 @@ body.admin-dashboard-page .staff-portal-tile {
   padding: 16px;
 }
 
+body.admin-dashboard-page .staff-class-tile-button {
+  width: 100%;
+  border: 1px solid #e1e8f2;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+body.admin-dashboard-page .staff-class-tile-button:hover,
+body.admin-dashboard-page .staff-class-tile-button:focus-visible {
+  border-color: #bfd3ff;
+  box-shadow: 0 16px 28px rgba(47, 111, 237, 0.1);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+body.admin-dashboard-page .staff-class-roster-modal-panel {
+  width: min(860px, 100%);
+  overflow: hidden;
+  background: #f7fbff;
+}
+
+body.admin-dashboard-page .staff-class-roster-modal-body {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+body.admin-dashboard-page .staff-class-roster-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+body.admin-dashboard-page .staff-class-roster-summary article {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #dfe7f2;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+body.admin-dashboard-page .staff-class-roster-summary span,
+body.admin-dashboard-page .staff-class-roster-row small {
+  display: block;
+  color: #68758a;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+body.admin-dashboard-page .staff-class-roster-summary strong {
+  display: block;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+  color: #17233a;
+  font-size: 0.95rem;
+  font-weight: 900;
+}
+
+body.admin-dashboard-page .staff-class-roster-list {
+  display: grid;
+  gap: 8px;
+}
+
+body.admin-dashboard-page .staff-class-roster-row {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #e1e8f2;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+body.admin-dashboard-page .staff-class-roster-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  background: #eef5ff;
+  color: #315d9b;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+body.admin-dashboard-page .staff-class-roster-row div {
+  min-width: 0;
+}
+
+body.admin-dashboard-page .staff-class-roster-row strong,
+body.admin-dashboard-page .staff-class-roster-row div span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+body.admin-dashboard-page .staff-class-roster-row strong {
+  color: #17233a;
+  font-size: 0.9rem;
+}
+
+body.admin-dashboard-page .staff-class-roster-row div span {
+  margin-top: 3px;
+  color: #6f788c;
+  font-size: 0.78rem;
+}
+
 body.admin-dashboard-page .staff-portal-link-tile {
   color: inherit;
   text-decoration: none;
@@ -14924,7 +15037,9 @@ body.admin-dashboard-page .portal-class-empty p {
   body.admin-dashboard-page .portal-class-extended,
   body.admin-dashboard-page .staff-leave-profile,
   body.admin-dashboard-page .staff-leave-meta,
-  body.admin-dashboard-page .staff-leave-admin-title {
+  body.admin-dashboard-page .staff-leave-admin-title,
+  body.admin-dashboard-page .staff-class-roster-summary,
+  body.admin-dashboard-page .staff-class-roster-row {
     grid-template-columns: 1fr;
   }
 
