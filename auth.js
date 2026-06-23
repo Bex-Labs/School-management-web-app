@@ -28799,6 +28799,217 @@
     `;
   }
 
+  function formatStudentAttendanceDate(value = "") {
+    const rawValue = String(value || "").trim();
+    if (!rawValue) {
+      return "Not dated";
+    }
+    const parsed = new Date(rawValue.length === 10 ? `${rawValue}T00:00:00` : rawValue);
+    if (Number.isNaN(parsed.getTime())) {
+      return rawValue;
+    }
+    return new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(parsed);
+  }
+
+  function formatStudentAttendanceRate(value) {
+    return Number.isFinite(value) ? `${Math.round(value)}%` : "No records";
+  }
+
+  function calculateStudentAttendanceRate(counts = {}) {
+    const present = Number(counts.present || 0);
+    const late = Number(counts.late || 0);
+    const absent = Number(counts.absent || 0);
+    const denominator = present + late + absent;
+    return denominator ? ((present + late) / denominator) * 100 : null;
+  }
+
+  function deriveStudentAttendanceDetails(student = null) {
+    if (!student) {
+      return {
+        overall: { present: 0, absent: 0, late: 0, excused: 0, recorded: 0, rate: null },
+        periods: [],
+        subjectNames: [],
+      };
+    }
+
+    const cycleManager = getAcademicCycleManager();
+    const cycleState =
+      cycleManager && typeof cycleManager.getState === "function"
+        ? cycleManager.getState()
+        : { sessions: [], terms: [] };
+    const sessionLookup = new Map((cycleState.sessions || []).map((session) => [String(session.id || ""), session]));
+    const termLookup = new Map((cycleState.terms || []).map((term) => [String(term.id || ""), term]));
+    const attendanceManager = getAttendanceManager();
+    const attendanceRecords =
+      attendanceManager && typeof attendanceManager.getRecords === "function"
+        ? attendanceManager.getRecords()
+        : [];
+    const timetableEntries = getStudentPortalTimetableEntries(student, { activeTermOnly: false });
+    const timetableById = new Map();
+    timetableEntries.forEach((entry) => {
+      [entry.id, entry.timetableEntryId, entry.lessonId].forEach((id) => {
+        const key = String(id || "").trim();
+        if (key) {
+          timetableById.set(key, entry);
+        }
+      });
+    });
+
+    const subjectNames = [];
+    const subjectKeys = new Set();
+    const addSubjectName = (value = "") => {
+      const name = String(value || "").trim();
+      const key = name.toLowerCase();
+      if (!name || subjectKeys.has(key)) {
+        return;
+      }
+      subjectKeys.add(key);
+      subjectNames.push(name);
+    };
+
+    getParentCoursesForStudent(student).forEach((course) => addSubjectName(course.name || course.code));
+    timetableEntries.forEach((entry) => addSubjectName(entry.subject || entry.course || entry.subjectName));
+
+    const periodMap = new Map();
+    const overall = { present: 0, absent: 0, late: 0, excused: 0, recorded: 0, rate: null };
+
+    const getPeriodRecord = (attendanceRecord = {}) => {
+      const recordTermId = String(attendanceRecord.termId || "").trim();
+      const inferredTerm = recordTermId
+        ? termLookup.get(recordTermId)
+        : getAttendanceAcademicTermForDate(cycleState, attendanceRecord.date);
+      const termId = String(inferredTerm?.id || recordTermId || "unmapped").trim();
+      const sessionId = String(attendanceRecord.sessionId || inferredTerm?.sessionId || "").trim();
+      const key = termId || `${sessionId || "session"}:${attendanceRecord.date || "date"}`;
+
+      if (!periodMap.has(key)) {
+        const session = sessionLookup.get(sessionId) || {};
+        periodMap.set(key, {
+          id: key,
+          termId,
+          sessionId,
+          termName: inferredTerm
+            ? getTermLabelFromCycle(cycleState, inferredTerm.id)
+            : recordTermId
+              ? getTermLabelFromCycle(cycleState, recordTermId)
+              : "Unmapped period",
+          sessionName: session.name || getSessionLabelFromCycle(cycleState, sessionId) || "Session",
+          sortValue: String(
+            inferredTerm?.startDate ||
+              inferredTerm?.endDate ||
+              session.startDate ||
+              attendanceRecord.date ||
+              inferredTerm?.createdAt ||
+              "",
+          ),
+          subjects: new Map(),
+          counts: { present: 0, absent: 0, late: 0, excused: 0, recorded: 0, rate: null },
+        });
+      }
+
+      return periodMap.get(key);
+    };
+
+    const studentSchoolType = inferSchoolTypeFromLevel(getStudentBaseClassLevel(student) || student.level || "");
+    const isHigherStudent = studentSchoolType === "higher";
+    const isSemesterPeriod = (term = {}) =>
+      String(term.periodType || "").trim().toLowerCase() === "semester" ||
+      /\bsemester\b/i.test(String(term.name || ""));
+    (cycleState.terms || [])
+      .filter((term) => (isHigherStudent ? isSemesterPeriod(term) : !isSemesterPeriod(term)))
+      .forEach((term) => {
+        getPeriodRecord({
+          date: term.startDate || term.endDate || "",
+          sessionId: term.sessionId || "",
+          termId: term.id || "",
+        });
+      });
+
+    attendanceRecords.forEach((record) => {
+      const entry = (record.entries || []).find((item) => String(item.studentId || "") === String(student.id || ""));
+      if (!entry) {
+        return;
+      }
+
+      const timetableEntry =
+        timetableById.get(String(record.lessonId || "").trim()) ||
+        timetableById.get(String(record.timetableEntryId || "").trim()) ||
+        null;
+      const subjectName = String(record.subject || timetableEntry?.subject || "General register").trim();
+      addSubjectName(subjectName);
+
+      const period = getPeriodRecord(record);
+      const subjectKey = subjectName.toLowerCase();
+      if (!period.subjects.has(subjectKey)) {
+        period.subjects.set(subjectKey, {
+          name: subjectName,
+          present: 0,
+          absent: 0,
+          late: 0,
+          excused: 0,
+          recorded: 0,
+          rate: null,
+          latestDate: "",
+          latestStatus: "",
+        });
+      }
+
+      const status = normalizeAttendanceStatus(entry.status);
+      const subject = period.subjects.get(subjectKey);
+      subject[status] += 1;
+      subject.recorded += 1;
+      period.counts[status] += 1;
+      period.counts.recorded += 1;
+      overall[status] += 1;
+      overall.recorded += 1;
+
+      if (!subject.latestDate || String(record.date || "").localeCompare(subject.latestDate) > 0) {
+        subject.latestDate = record.date || "";
+        subject.latestStatus = status;
+      }
+    });
+
+    const sortedSubjectNames = subjectNames.sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
+    periodMap.forEach((period) => {
+      sortedSubjectNames.forEach((name) => {
+        const key = name.toLowerCase();
+        if (!period.subjects.has(key)) {
+          period.subjects.set(key, {
+            name,
+            present: 0,
+            absent: 0,
+            late: 0,
+            excused: 0,
+            recorded: 0,
+            rate: null,
+            latestDate: "",
+            latestStatus: "",
+          });
+        }
+      });
+    });
+
+    overall.rate = calculateStudentAttendanceRate(overall);
+    const periods = Array.from(periodMap.values())
+      .map((period) => {
+        period.counts.rate = calculateStudentAttendanceRate(period.counts);
+        const subjects = Array.from(period.subjects.values())
+          .map((subject) => ({
+            ...subject,
+            rate: calculateStudentAttendanceRate(subject),
+          }))
+          .sort((left, right) => left.name.localeCompare(right.name, undefined, { numeric: true }));
+        return { ...period, subjects };
+      })
+      .sort((left, right) => String(right.sortValue || "").localeCompare(String(left.sortValue || "")));
+
+    return {
+      overall,
+      periods,
+      subjectNames: sortedSubjectNames,
+    };
+  }
+
   function getStudentPortalTimetableEntries(student = null, options = {}) {
     if (!student) {
       return [];
@@ -29643,8 +29854,105 @@
       return;
     }
 
-    renderParentAttendancePage(target, student);
-    target.querySelector(".admin-surface-head h2")?.replaceChildren(document.createTextNode(`Attendance: ${student.fullName}`));
+    const attendance = deriveStudentAttendanceDetails(student);
+    const periodRows = attendance.periods.length
+      ? attendance.periods
+          .map(
+            (period, index) => `
+              <details class="student-attendance-period-card" ${index === 0 ? "open" : ""}>
+                <summary>
+                  <div>
+                    <span>${escapeHtml(period.sessionName)}</span>
+                    <strong>${escapeHtml(period.termName)}</strong>
+                  </div>
+                  <div class="student-attendance-period-score">
+                    <span>Average</span>
+                    <strong>${escapeHtml(formatStudentAttendanceRate(period.counts.rate))}</strong>
+                  </div>
+                </summary>
+                <div class="student-attendance-subject-list">
+                  ${period.subjects
+                    .map(
+                      (subject) => `
+                        <article class="student-attendance-subject-row">
+                          <div class="student-attendance-subject-main">
+                            <span>Subject/Course</span>
+                            <strong>${escapeHtml(subject.name)}</strong>
+                            <small>${
+                              subject.recorded
+                                ? `Last marked ${escapeHtml(formatStudentAttendanceDate(subject.latestDate))} as ${escapeHtml(getAttendanceStatusLabel(subject.latestStatus))}`
+                                : "No register recorded for this subject yet"
+                            }</small>
+                          </div>
+                          <div class="student-attendance-count is-present">
+                            <span>Present</span>
+                            <strong>${escapeHtml(String(subject.present + subject.late))}</strong>
+                          </div>
+                          <div class="student-attendance-count is-absent">
+                            <span>Absent</span>
+                            <strong>${escapeHtml(String(subject.absent))}</strong>
+                          </div>
+                          <div class="student-attendance-count">
+                            <span>Excused</span>
+                            <strong>${escapeHtml(String(subject.excused))}</strong>
+                          </div>
+                          <div class="student-attendance-count is-average">
+                            <span>Average</span>
+                            <strong>${escapeHtml(formatStudentAttendanceRate(subject.rate))}</strong>
+                          </div>
+                        </article>
+                      `,
+                    )
+                    .join("")}
+                </div>
+              </details>
+            `,
+          )
+          .join("")
+      : `
+        <article class="portal-class-empty">
+          <strong>No attendance history yet</strong>
+          <p>Subject attendance will appear after teachers submit registers for your classes.</p>
+        </article>
+      `;
+
+    target.innerHTML = `
+      <article class="admin-surface-card student-attendance-workspace">
+        <div class="admin-surface-head">
+          <div>
+            <h2>Attendance: ${escapeHtml(student.fullName)}</h2>
+            <span>Subject/course attendance by term or semester</span>
+          </div>
+        </div>
+        <div class="admin-session-grid student-attendance-overview">
+          <div class="admin-session-card">
+            <span>Overall average</span>
+            <strong>${escapeHtml(formatStudentAttendanceRate(attendance.overall.rate))}</strong>
+          </div>
+          <div class="admin-session-card">
+            <span>Present/Late</span>
+            <strong>${escapeHtml(String(attendance.overall.present + attendance.overall.late))}</strong>
+          </div>
+          <div class="admin-session-card">
+            <span>Absent</span>
+            <strong>${escapeHtml(String(attendance.overall.absent))}</strong>
+          </div>
+          <div class="admin-session-card">
+            <span>Subjects tracked</span>
+            <strong>${escapeHtml(String(attendance.subjectNames.length))}</strong>
+          </div>
+        </div>
+        <div class="portal-attendance-history-card student-attendance-history-card">
+          <div class="admin-surface-head">
+            <div>
+              <h2>Attendance History</h2>
+              <span>Open a period to view each subject/course</span>
+            </div>
+          </div>
+          <div class="student-attendance-period-list">${periodRows}</div>
+        </div>
+      </article>
+    `;
   }
 
   function renderStudentFeesSection(target, student = null, user = {}) {

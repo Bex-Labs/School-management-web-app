@@ -8865,6 +8865,149 @@ body.admin-dashboard-page .portal-attendance-history-count.is-absent strong {
   color: #b4233c;
 }
 
+body.admin-dashboard-page .student-attendance-workspace {
+  display: grid;
+  gap: 18px;
+}
+
+body.admin-dashboard-page .student-attendance-overview .admin-session-card:first-child {
+  border-color: #cfe0ff;
+  background: #f5f8ff;
+}
+
+body.admin-dashboard-page .student-attendance-period-list {
+  display: grid;
+  gap: 12px;
+}
+
+body.admin-dashboard-page .student-attendance-period-card {
+  overflow: hidden;
+  border: 1px solid #dce5f2;
+  border-radius: 18px;
+  background: #ffffff;
+}
+
+body.admin-dashboard-page .student-attendance-period-card summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 16px;
+  cursor: pointer;
+  list-style: none;
+}
+
+body.admin-dashboard-page .student-attendance-period-card summary::-webkit-details-marker {
+  display: none;
+}
+
+body.admin-dashboard-page .student-attendance-period-card summary::after {
+  content: "›";
+  justify-self: end;
+  color: #5f6d83;
+  font-size: 1.25rem;
+  font-weight: 900;
+  transform: rotate(90deg);
+  transition: transform 180ms ease;
+}
+
+body.admin-dashboard-page .student-attendance-period-card[open] summary::after {
+  transform: rotate(270deg);
+}
+
+body.admin-dashboard-page .student-attendance-period-card summary > div:first-child,
+body.admin-dashboard-page .student-attendance-subject-main {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+body.admin-dashboard-page .student-attendance-period-card summary span,
+body.admin-dashboard-page .student-attendance-subject-main span,
+body.admin-dashboard-page .student-attendance-count span {
+  color: #667188;
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+body.admin-dashboard-page .student-attendance-period-card summary strong,
+body.admin-dashboard-page .student-attendance-subject-main strong,
+body.admin-dashboard-page .student-attendance-count strong {
+  color: #17233a;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+body.admin-dashboard-page .student-attendance-period-score {
+  display: grid;
+  gap: 4px;
+  min-width: 94px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #eef5ff;
+  text-align: center;
+}
+
+body.admin-dashboard-page .student-attendance-subject-list {
+  display: grid;
+  gap: 9px;
+  padding: 0 14px 14px;
+}
+
+body.admin-dashboard-page .student-attendance-subject-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.4fr) repeat(4, minmax(82px, 0.55fr));
+  gap: 10px;
+  align-items: stretch;
+  padding: 12px;
+  border: 1px solid #e3eaf4;
+  border-radius: 16px;
+  background: #f8fbff;
+}
+
+body.admin-dashboard-page .student-attendance-subject-main small {
+  color: #6f788c;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+body.admin-dashboard-page .student-attendance-count {
+  display: grid;
+  place-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 10px;
+  border-radius: 14px;
+  background: #ffffff;
+  text-align: center;
+}
+
+body.admin-dashboard-page .student-attendance-count.is-present {
+  background: #edfdf4;
+}
+
+body.admin-dashboard-page .student-attendance-count.is-present strong {
+  color: #14804a;
+}
+
+body.admin-dashboard-page .student-attendance-count.is-absent {
+  background: #fff1f2;
+}
+
+body.admin-dashboard-page .student-attendance-count.is-absent strong {
+  color: #b4233c;
+}
+
+body.admin-dashboard-page .student-attendance-count.is-average {
+  background: #eef5ff;
+}
+
+body.admin-dashboard-page .student-attendance-count.is-average strong {
+  color: #315d9b;
+}
+
 body.admin-dashboard-page .portal-conversation-inbox {
   display: flex;
   flex-direction: column;
@@ -13778,6 +13921,17 @@ body.admin-dashboard-page[data-page^="parent-"] .admin-dashboard-tools {
   body.admin-dashboard-page[data-page^="parent-"] .admin-dashboard-tools {
     align-items: stretch;
     flex-wrap: wrap;
+  }
+
+  body.admin-dashboard-page .student-attendance-period-card summary,
+  body.admin-dashboard-page .student-attendance-subject-row {
+    grid-template-columns: 1fr;
+  }
+
+  body.admin-dashboard-page .student-attendance-period-score,
+  body.admin-dashboard-page .student-attendance-count {
+    justify-items: start;
+    text-align: left;
   }
 }
 
