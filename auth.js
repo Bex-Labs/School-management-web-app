@@ -318,13 +318,6 @@
       permissionKey: "staff_leave_manage",
       description: "Apply for leave and view approval status",
     },
-    {
-      key: "settings",
-      label: "Settings",
-      href: "./staff-settings.html",
-      permissionKey: "staff_profile_manage",
-      description: "Account info, password, and profile picture",
-    },
   ];
 
   const STAFF_PORTAL_PAGE_CONFIG = {
@@ -40024,7 +40017,7 @@
 
     applyAdminBranding(brandMark, brandName, brandSubtitle, getSchoolSettingsManager());
     if (heading && isStaffSettingsPage) {
-      heading.textContent = "Settings";
+      heading.textContent = "My Settings";
     } else if (heading && isParentSettingsPage) {
       heading.textContent = "Parent Settings";
     } else if (heading && normalizedRole === "Student") {
