@@ -5968,7 +5968,7 @@
   function upsertLocalUserFromSupabase(authUser, roleOverride, workspaceOverride) {
     const email = authUser.email || "";
     const normalizedEmail = normalizeEmail(email);
-    const provider =
+    const rawProvider =
       authUser.app_metadata?.provider ||
       authUser.identities?.[0]?.provider ||
       "password";
@@ -5992,6 +5992,10 @@
         (existingIndex >= 0 ? users[existingIndex].workspaceId : null) ||
         (role === "Admin" ? normalizedEmail : null),
     );
+    const provider =
+      existingIndex >= 0 && users[existingIndex].provider === "google" && users[existingIndex].passwordHash
+        ? "google"
+        : normalizeAuthProvider(rawProvider);
     const record = {
       id: authUser.id,
       email,
@@ -17993,7 +17997,7 @@
       return "Password";
     }
     if (user.provider === "google") {
-      return "Google sign-in";
+      return user.passwordHash ? "Google + app password" : "Google sign-in";
     }
     if (user.mustChangePassword) {
       return "Default password (change required)";
@@ -25269,7 +25273,6 @@
             if (
               fallbackUser &&
               !isUserDeactivated(fallbackUser) &&
-              fallbackUser.provider !== "google" &&
               fallbackUser.isConfirmed &&
               fallbackUser.passwordHash
             ) {
@@ -25393,11 +25396,11 @@
         return;
       }
 
-      if (user.provider === "google") {
+      if (user.provider === "google" && !user.passwordHash) {
         setStatus(
           status,
           "info",
-          `This account uses Google sign-in. Use <strong>Continue with Google</strong> instead.`,
+          `This account uses Google sign-in. Add an app password from settings before using email/password login.`,
         );
         return;
       }
@@ -25521,7 +25524,7 @@
           setStatus(status, "error", formatSupabaseAuthError(error, "Could not send the password reset email."));
           return;
         }
-      } else if (user && !isUserDeactivated(user) && user.provider !== "google") {
+      } else if (user && !isUserDeactivated(user) && (user.provider !== "google" || user.passwordHash)) {
         const recoveryRequest = createLocalPasswordRecoveryRequest(user, user.email);
         storePasswordRecoveryMail(user, recoveryRequest);
         resetUrl = buildPasswordRecoveryUrl(recoveryRequest.token);
@@ -25666,8 +25669,8 @@
         return;
       }
 
-      if (activeUser.provider === "google" && !hasSupabaseRecoverySession) {
-        setStatus(status, "info", "This account uses Google sign-in. Reset the password from your Google account instead.");
+      if (activeUser.provider === "google" && !activeUser.passwordHash && !hasSupabaseRecoverySession) {
+        setStatus(status, "info", "This account uses Google sign-in and has no app password yet. Add an app password from settings first.");
         return;
       }
 
@@ -41142,19 +41145,57 @@
       setStatus(profileStatus, "success", "Profile updated successfully.");
     });
 
-    const isGoogleAccount = activeUser.provider === "google";
-    if (isGoogleAccount) {
-      hint.textContent = "This account uses Google sign-in. Password changes should be done from your Google account.";
-      form.querySelectorAll("input, button").forEach((field) => {
-        field.disabled = true;
-      });
-      setStatus(status, "info", "Google accounts do not use local passwords in this app.");
-      return;
-    }
+    const passwordCardHeading = form.closest(".admin-surface-card")?.querySelector(".admin-surface-head h2");
+    const currentPasswordField = form.elements.currentPassword?.closest(".portal-field") || null;
+    const submitPasswordButton = form.querySelector('button[type="submit"]');
+    const syncPasswordFormMode = () => {
+      const isGoogleAccount = activeUser.provider === "google";
+      const hasAppPassword = Boolean(activeUser.passwordHash);
+      const isAddingGoogleAppPassword = isGoogleAccount && !hasAppPassword;
 
-    if (activeUser.mustChangePassword) {
-      hint.textContent = "You are using a default password. Only you can change it from this page.";
-    }
+      if (passwordCardHeading) {
+        passwordCardHeading.textContent = isGoogleAccount
+          ? isAddingGoogleAppPassword
+            ? "Add App Password"
+            : "Change App Password"
+          : "Change Password";
+      }
+      if (currentPasswordField) {
+        currentPasswordField.hidden = isAddingGoogleAppPassword;
+      }
+      if (form.elements.currentPassword) {
+        form.elements.currentPassword.disabled = isAddingGoogleAppPassword;
+        form.elements.currentPassword.required = !isAddingGoogleAppPassword;
+        if (isAddingGoogleAppPassword) {
+          form.elements.currentPassword.value = "";
+        }
+      }
+      if (submitPasswordButton) {
+        submitPasswordButton.textContent = isGoogleAccount
+          ? isAddingGoogleAppPassword
+            ? "Add app password"
+            : "Save app password"
+          : "Save new password";
+      }
+      if (isGoogleAccount) {
+        hint.textContent = isAddingGoogleAppPassword
+          ? "Create an app password so this Google account can also sign in with email and password."
+          : "This Google account also has an app password. You can change only the app password here.";
+        setStatus(
+          status,
+          "info",
+          isAddingGoogleAppPassword
+            ? "Google sign-in will still work. This adds a separate app password for email/password login."
+            : "Google sign-in remains managed by Google. This changes only your app password.",
+        );
+      } else if (activeUser.mustChangePassword) {
+        hint.textContent = "You are using a default password. Only you can change it from this page.";
+      } else {
+        hint.textContent = "Use a strong password with letters and numbers.";
+      }
+    };
+
+    syncPasswordFormMode();
 
     form.addEventListener("input", () => {
       clearFieldErrors(form);
@@ -41170,9 +41211,10 @@
       const currentPassword = form.elements.currentPassword.value;
       const nextPassword = form.elements.newPassword.value;
       const confirmPassword = form.elements.confirmPassword.value;
+      const isAddingGoogleAppPassword = activeUser.provider === "google" && !activeUser.passwordHash;
       let hasError = false;
 
-      if (!currentPassword) {
+      if (!isAddingGoogleAppPassword && !currentPassword) {
         setFieldError(form, "currentPassword", "Enter your current password.");
         hasError = true;
       }
@@ -41198,15 +41240,15 @@
         return;
       }
 
-      const currentPasswordHash = await hashSecret(currentPassword);
+      const currentPasswordHash = isAddingGoogleAppPassword ? null : await hashSecret(currentPassword);
 
-      if (activeUser.passwordHash && currentPasswordHash !== activeUser.passwordHash) {
+      if (!isAddingGoogleAppPassword && activeUser.passwordHash && currentPasswordHash !== activeUser.passwordHash) {
         setFieldError(form, "currentPassword", "Current password is incorrect.");
         setStatus(status, "error", "Current password is incorrect.");
         return;
       }
 
-      if (!activeUser.passwordHash && session.source !== "supabase") {
+      if (!isAddingGoogleAppPassword && !activeUser.passwordHash && session.source !== "supabase") {
         setFieldError(form, "currentPassword", "Sign in again before changing this password.");
         setStatus(status, "error", "We could not verify the current password for this account.");
         return;
@@ -41214,7 +41256,7 @@
 
       const nextPasswordHash = await hashSecret(nextPassword);
 
-      if (nextPasswordHash === currentPasswordHash) {
+      if (currentPasswordHash && nextPasswordHash === currentPasswordHash) {
         setFieldError(form, "newPassword", "Choose a different password from your current one.");
         setStatus(status, "error", "New password must be different from the current password.");
         return;
@@ -41267,8 +41309,16 @@
 
       form.reset();
       clearFormDraftFor(form);
-      hint.textContent = "Password updated. Keep it safe and private.";
-      setStatus(status, "success", "Password changed successfully.");
+      syncPasswordFormMode();
+      setStatus(
+        status,
+        "success",
+        activeUser.provider === "google"
+          ? isAddingGoogleAppPassword
+            ? "App password added. You can now sign in with Google or email and app password."
+            : "App password changed successfully."
+          : "Password changed successfully.",
+      );
     });
   }
 
@@ -41803,7 +41853,7 @@
         </div>
         <div class="admin-session-card">
           <span>Sign-in method</span>
-          <strong>${user.provider === "google" ? "Google" : "Email and password"}</strong>
+          <strong>${user.provider === "google" ? (user.passwordHash ? "Google + app password" : "Google") : "Email and password"}</strong>
         </div>
         <div class="admin-session-card">
           <span>Email confirmed</span>
@@ -41819,7 +41869,15 @@
         </div>
         <div class="admin-session-card">
           <span>Password status</span>
-          <strong>${user.provider === "google" ? "Managed by Google" : user.mustChangePassword ? "Default password active" : "Updated password"}</strong>
+          <strong>${
+            user.provider === "google"
+              ? user.passwordHash
+                ? "App password active"
+                : "Managed by Google"
+              : user.mustChangePassword
+                ? "Default password active"
+                : "Updated password"
+          }</strong>
         </div>
       `;
     }
