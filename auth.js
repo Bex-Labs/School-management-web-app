@@ -9930,6 +9930,9 @@
 
   function initCourseManagementControls({
     isAdmin,
+    canManageAllCourses = isAdmin,
+    managedClassRecords = [],
+    currentUser = null,
     manager,
     summaryTarget,
     form,
@@ -9973,6 +9976,7 @@
     const classManager = getClassManager();
     const cycleManager = getAcademicCycleManager();
     const allClassArmsValue = "__all_class_arms__";
+    const scopedManagedClassRecords = Array.isArray(managedClassRecords) ? managedClassRecords : [];
     const normalizeLookupToken = (value) => String(value || "").trim().toLowerCase();
     const facultyDepartments = getConfiguredHigherInstitutionDepartmentMap();
     const subjectTemplates = {
@@ -10141,11 +10145,13 @@
         return [];
       }
 
+      const sourceRecords = canManageAllCourses
+        ? classManager.getClasses().filter((record) => record.status !== "archived")
+        : scopedManagedClassRecords;
+
       return Array.from(
         new Set(
-          classManager
-            .getClasses()
-            .filter((record) => record.status !== "archived")
+          sourceRecords
             .filter(
               (record) =>
                 inferSchoolTypeFromLevel(record.level) !== "higher" ||
@@ -10203,9 +10209,11 @@
         return [];
       }
 
-      return classManager
-        .getClasses()
-        .filter((record) => record.status !== "archived")
+      const sourceRecords = canManageAllCourses
+        ? classManager.getClasses().filter((record) => record.status !== "archived")
+        : scopedManagedClassRecords;
+
+      return sourceRecords
         .filter(
           (record) =>
             normalizeLevelToken(record.level) === levelToken ||
@@ -10234,8 +10242,12 @@
       const selected = String(selectedClassId || classArmSelect.value || "").trim();
       const hasSelected = options.some((record) => String(record.id || "").trim() === selected);
       classArmSelect.innerHTML = options.length
-        ? `<option value="">Choose all arms or one arm</option>
-            <option value="${allClassArmsValue}" ${selected === allClassArmsValue ? "selected" : ""}>All arms for this class</option>
+        ? `<option value="">${canManageAllCourses ? "Choose all arms or one arm" : "Choose your assigned arm"}</option>
+            ${
+              canManageAllCourses
+                ? `<option value="${allClassArmsValue}" ${selected === allClassArmsValue ? "selected" : ""}>All arms for this class</option>`
+                : ""
+            }
             ${options
             .map((record) => {
               const id = String(record.id || "").trim();
@@ -10243,7 +10255,7 @@
             })
             .join("")}`
         : `<option value="">No class arms found</option>`;
-      classArmSelect.value = hasSelected || selected === allClassArmsValue ? selected : "";
+      classArmSelect.value = hasSelected || (canManageAllCourses && selected === allClassArmsValue) ? selected : "";
       classArmSelect.disabled = !isAdmin || !options.length;
       if (classArmFieldWrap) {
         classArmFieldWrap.hidden = !String(levelSelect?.value || "").trim() || !options.length;
@@ -10607,6 +10619,8 @@
     const refreshCourseManagementSection = () => {
       renderPortalCourseManagementSection({
         isAdmin,
+        canManageAllCourses,
+        managedClassRecords: scopedManagedClassRecords,
         manager,
         summaryTarget,
         form,
@@ -10790,7 +10804,7 @@
       const selectedClassRecord = getSelectedCourseClassRecord();
       const selectedArmValue = String(classArmSelect?.value || "").trim();
       const classArmOptions = getClassArmOptionsForLevel(selectedLevels[0] || "");
-      const isAllArmsCourse = selectedArmValue === allClassArmsValue;
+      const isAllArmsCourse = canManageAllCourses && selectedArmValue === allClassArmsValue;
       const isHigherCourse = String(templateType?.value || "").trim() === "higher" || getLevelSchoolType(selectedLevels[0]) === "higher";
       const faculty = String(form.elements.faculty?.value || "").trim();
       const selectedDepartment = String(form.elements.department?.value || "").trim();
@@ -10855,6 +10869,11 @@
         hasError = true;
       }
 
+      if (selectedArmValue === allClassArmsValue && !canManageAllCourses) {
+        setPortalCourseError(form, "classId", "Class teachers can register courses only for their assigned class arm.");
+        hasError = true;
+      }
+
       if (isHigherCourse && (!faculty || !department)) {
         setPortalCourseError(
           form,
@@ -10874,9 +10893,11 @@
           const recordClassId = String(record.classId || record.classRecordId || "").trim();
           const recordScope = String(record.classScope || "").trim().toLowerCase();
           const sameTarget = isAllArmsCourse
-            ? recordScope === "all-arms"
+            ? normalizeLevelToken(record.level) === normalizeLevelToken(payload.level)
             : payload.classId
-              ? recordClassId === payload.classId
+              ? selectedClassRecord
+                ? courseAppliesToClassRecord(record, selectedClassRecord)
+                : recordClassId === payload.classId
               : !recordClassId && recordScope !== "all-arms";
           return (
             record.id !== courseId &&
@@ -10905,6 +10926,10 @@
       }
 
       const currentRecord = manager.getCourses().find((record) => record.id === courseId) || null;
+      if (currentRecord && !courseEditableByRegistrar(currentRecord, canManageAllCourses, scopedManagedClassRecords)) {
+        setStatus(status, "error", "You can update only subjects/courses for class arms where you are the class teacher.");
+        return;
+      }
       const targetSummary = isAllArmsCourse ? "all arms" : payload.classLabel || "class / level";
       manager.upsertCourse({
         ...(currentRecord || null),
@@ -10959,6 +10984,12 @@
       const record = manager.getCourses().find((item) => item.id === courseId);
 
       if (!record) {
+        return;
+      }
+
+      const canManageRecord = courseEditableByRegistrar(record, canManageAllCourses, scopedManagedClassRecords);
+      if (!canManageRecord) {
+        setStatus(status, "error", "You can manage only subjects/courses for class arms where you are the class teacher.");
         return;
       }
 
@@ -11094,6 +11125,8 @@
         renderCourseTermOptions(termSelect?.value || "");
         renderPortalCourseManagementSection({
           isAdmin,
+          canManageAllCourses,
+          managedClassRecords: scopedManagedClassRecords,
           manager,
           summaryTarget,
           form,
@@ -19641,6 +19674,8 @@
 
   function renderPortalCourseManagementSection({
     isAdmin,
+    canManageAllCourses = isAdmin,
+    managedClassRecords = [],
     manager,
     summaryTarget,
     form,
@@ -19665,11 +19700,22 @@
 
     const {
       courses,
-      activeCount,
-      archivedCount,
-      levelCount,
-      teacherAssignmentCount,
     } = manager.summarize();
+    const scopedManagedClassRecords = Array.isArray(managedClassRecords) ? managedClassRecords : [];
+    const visibleCourses = canManageAllCourses
+      ? courses
+      : courses.filter((record) => courseVisibleToRegistrar(record, false, scopedManagedClassRecords));
+    const activeCount = visibleCourses.filter((record) => record.status !== "archived").length;
+    const archivedCount = visibleCourses.filter((record) => record.status === "archived").length;
+    const levelCount = new Set(
+      visibleCourses
+        .filter((record) => record.status !== "archived")
+        .map((record) => normalizeLevelToken(record.level))
+        .filter(Boolean),
+    ).size;
+    const teacherAssignmentCount = visibleCourses
+      .filter((record) => record.status !== "archived")
+      .reduce((sum, record) => sum + (record.teacherAssignments || []).length, 0);
     const sortCourses = (left, right) => {
       const leftStatus = left.status === "archived" ? 1 : 0;
       const rightStatus = right.status === "archived" ? 1 : 0;
@@ -19720,7 +19766,7 @@
       <article class="portal-class-stat portal-class-stat-blue">
         <span>Active courses</span>
         <strong>${activeCount}</strong>
-        <p>Available for class planning and teacher assignment flows.</p>
+        <p>${canManageAllCourses ? "Available for class planning and teacher assignment flows." : "For class arms assigned to you."}</p>
       </article>
       <article class="portal-class-stat portal-class-stat-violet">
         <span>Archived courses</span>
@@ -19739,8 +19785,8 @@
       </article>
       <article class="portal-class-stat portal-class-stat-rose">
         <span>Total courses</span>
-        <strong>${courses.length}</strong>
-        <p>Active and archived courses in the catalog.</p>
+        <strong>${visibleCourses.length}</strong>
+        <p>${canManageAllCourses ? "Active and archived courses in the catalog." : "Visible for your assigned class arms."}</p>
       </article>
     `;
 
@@ -19750,15 +19796,19 @@
       }
     });
 
-    if (!courses.length) {
+    if (!visibleCourses.length) {
       listTarget.innerHTML = `
         <article class="portal-class-empty">
           <strong>No courses yet</strong>
-          <p>Create the first course to define code, level, and assignment ownership from one source of truth.</p>
+          <p>${
+            canManageAllCourses
+              ? "Create the first course to define code, level, and assignment ownership from one source of truth."
+              : "Create the first subject/course for the class arm assigned to you."
+          }</p>
         </article>
       `;
     } else {
-      const groupedCourses = courses.sort(sortCourses).reduce((groups, record) => {
+      const groupedCourses = visibleCourses.sort(sortCourses).reduce((groups, record) => {
         const period = getCourseAcademicPeriodLabel(record);
         const segment = getLevelSchoolType(record.level);
         const level = String(record.level || "Unassigned").trim() || "Unassigned";
@@ -19825,7 +19875,9 @@
                         <div class="portal-class-level-stack portal-course-level-stack-inner">
                           ${records
                             .map(
-                              (record) => `
+                              (record) => {
+                                const canManageRecord = courseEditableByRegistrar(record, canManageAllCourses, scopedManagedClassRecords);
+                                return `
                       <details class="portal-class-card portal-class-list-item ${record.status === "archived" ? "is-archived" : ""}">
                         <summary class="portal-class-list-summary">
                           <div class="portal-class-list-main">
@@ -19888,14 +19940,14 @@
 
                           <div class="portal-class-actions">
                             <button class="portal-class-button" type="button" data-course-action="edit" data-course-id="${record.id}" ${
-                              isAdmin ? "" : "disabled"
+                              isAdmin && canManageRecord ? "" : "disabled"
                             }>Edit</button>
                             <button
                               class="portal-class-button ${record.status === "archived" ? "is-restore" : "is-archive"}"
                               type="button"
                               data-course-action="${record.status === "archived" ? "activate" : "archive"}"
                               data-course-id="${record.id}"
-                              ${isAdmin ? "" : "disabled"}
+                              ${isAdmin && canManageRecord ? "" : "disabled"}
                             >
                               ${record.status === "archived" ? "Reactivate" : "Archive"}
                             </button>
@@ -19904,14 +19956,15 @@
                               type="button"
                               data-course-action="delete"
                               data-course-id="${record.id}"
-                              ${isAdmin ? "" : "disabled"}
+                              ${isAdmin && canManageRecord ? "" : "disabled"}
                             >
                               Delete
                             </button>
                           </div>
                         </div>
                       </details>
-                    `,
+                    `;
+                              },
                             )
                             .join("")}
                         </div>
@@ -19937,7 +19990,13 @@
       setStatus(
         status,
         "info",
-        "Only admin accounts with course permission can create, edit, archive, or reactivate courses.",
+        "Only admin accounts or assigned class teachers can create, edit, archive, or reactivate courses.",
+      );
+    } else if (!canManageAllCourses) {
+      setStatus(
+        status,
+        "info",
+        "You can register subjects/courses only for class arms where you are the class teacher.",
       );
     }
   }
@@ -21552,6 +21611,41 @@
     const sessionLabel = course.sessionName || (course.sessionId ? getSessionLabelFromCycle(cycleState, course.sessionId) : "");
     const termLabel = course.termName || (course.termId ? getTermLabelFromCycle(cycleState, course.termId) : "");
     return [sessionLabel, termLabel].filter(Boolean).join(" - ") || "Legacy / not period scoped";
+  }
+
+  function getClassTeacherManagedClassRecords(user = {}) {
+    if (!user) {
+      return [];
+    }
+
+    const classManager = getClassManager();
+    const classes =
+      classManager && typeof classManager.getClasses === "function"
+        ? classManager.getClasses().filter((record) => record.status !== "archived")
+        : [];
+
+    return classes.filter((classRecord) => staffValueMatchesUser(classRecord.classTeacher, user));
+  }
+
+  function courseVisibleToRegistrar(course = {}, canManageAllCourses = false, managedClassRecords = []) {
+    if (canManageAllCourses) {
+      return true;
+    }
+
+    return managedClassRecords.some((classRecord) => courseAppliesToClassRecord(course, classRecord));
+  }
+
+  function courseEditableByRegistrar(course = {}, canManageAllCourses = false, managedClassRecords = []) {
+    if (canManageAllCourses) {
+      return true;
+    }
+
+    const courseClassId = String(course.classId || course.classRecordId || "").trim();
+    if (!courseClassId) {
+      return false;
+    }
+
+    return managedClassRecords.some((classRecord) => String(classRecord.id || "").trim() === courseClassId);
   }
 
   function getTeacherAssignedClasses(user = {}) {
@@ -30923,6 +31017,7 @@
 
   function buildStaffClassesSection(user) {
     const assignedClasses = getTeacherAssignedClasses(user);
+    const classTeacherClasses = getClassTeacherManagedClassRecords(user);
 
     return `
       <section class="staff-portal-section admin-surface-card">
@@ -30931,6 +31026,11 @@
             <h2>My Classes</h2>
             <span>${assignedClasses.length} assigned class${assignedClasses.length === 1 ? "" : "es"}</span>
           </div>
+          ${
+            classTeacherClasses.length
+              ? `<a class="portal-class-button" href="./admin-courses.html">Manage subjects/courses</a>`
+              : ""
+          }
         </div>
         <div class="staff-portal-grid">
           ${
@@ -38650,8 +38750,13 @@
       return;
     }
 
-    const { isAdmin, roleLabel } = getAdminAccessContext();
-    const canManageCourses = isAdmin && canAccessPermission(roleLabel, PAGE_PERMISSION_KEYS["admin-courses"]);
+    const { isAdmin, roleLabel, user } = getAdminAccessContext();
+    const normalizedRole = normalizeRoleLabel(roleLabel || DEFAULT_AUTH_ROLE);
+    const classTeacherManagedClassRecords = normalizedRole === "Teacher"
+      ? getClassTeacherManagedClassRecords(user)
+      : [];
+    const canManageAllCourses = isAdmin && canAccessPermission(roleLabel, PAGE_PERMISSION_KEYS["admin-courses"]);
+    const canManageCourses = canManageAllCourses || classTeacherManagedClassRecords.length > 0;
     const courseManager = getCourseManager();
     const courseSummary = document.getElementById("portal-course-summary");
     const courseForm = document.getElementById("portal-course-form");
@@ -38660,6 +38765,9 @@
 
     initCourseManagementControls({
       isAdmin: canManageCourses,
+      canManageAllCourses,
+      managedClassRecords: classTeacherManagedClassRecords,
+      currentUser: user,
       manager: courseManager,
       summaryTarget: courseSummary,
       form: courseForm,
