@@ -29490,6 +29490,7 @@
       updatedAt: nowIso(),
     };
     const invoiceItems = Array.isArray(current.invoiceItems) ? current.invoiceItems : [];
+    const paymentHistory = Array.isArray(current.payments) ? [...current.payments] : [];
     const invoiceItemRows = invoiceItems.length
       ? invoiceItems
           .map(
@@ -29540,6 +29541,45 @@
               <tbody>${invoiceItemRows}</tbody>
             </table>
           </div>
+        </section>
+        <section class="portal-fee-payment-history student-fee-payment-history">
+          <div class="admin-surface-head">
+            <div>
+              <h2>Payment History</h2>
+              <span>${paymentHistory.length} payment${paymentHistory.length === 1 ? "" : "s"} recorded</span>
+            </div>
+          </div>
+          ${
+            paymentHistory.length
+              ? `
+                <div class="portal-fee-payment-history-list">
+                  ${paymentHistory
+                    .slice()
+                    .reverse()
+                    .map(
+                      (payment) => `
+                        <article class="portal-fee-payment-history-row">
+                          <div>
+                            <strong>${escapeHtml(formatCurrencyAmount(payment.amount || 0))}</strong>
+                            <span>${escapeHtml(payment.method || "payment")} • ${escapeHtml(payment.status || "success")}</span>
+                          </div>
+                          <div>
+                            <strong>${escapeHtml(formatTimestamp(payment.paidAt || payment.createdAt || nowIso()))}</strong>
+                            <span>${escapeHtml(payment.reference || "No reference")}</span>
+                          </div>
+                        </article>
+                      `,
+                    )
+                    .join("")}
+                </div>
+              `
+              : `
+                <article class="portal-class-empty">
+                  <strong>No payment history yet</strong>
+                  <p>Payments recorded for your invoice will appear here.</p>
+                </article>
+              `
+          }
         </section>
       </section>
     `;
