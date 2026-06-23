@@ -28731,6 +28731,74 @@
       .sort((left, right) => left.fullName.localeCompare(right.fullName, undefined, { numeric: true }));
   }
 
+  function getStudentPortalOtherClassRecords(student = null) {
+    if (!student) {
+      return [];
+    }
+
+    const classManager = getClassManager();
+    const classes =
+      classManager && typeof classManager.getClasses === "function"
+        ? classManager.getClasses().filter((record) => record.status !== "archived")
+        : [];
+    const currentClass = findClassRecordForStudent(student);
+    const currentClassId = String(currentClass?.id || student.classId || student.classRecordId || "").trim();
+    const baseLevelToken = normalizeLevelToken(getStudentBaseClassLevel(student) || student.classLevel || student.baseLevel || student.level);
+
+    if (!baseLevelToken) {
+      return [];
+    }
+
+    return classes
+      .filter((record) => normalizeLevelToken(record.level || record.name || getClassDisplayName(record)) === baseLevelToken)
+      .filter((record) => String(record.id || "").trim() !== currentClassId)
+      .sort((left, right) => getClassDisplayName(left).localeCompare(getClassDisplayName(right), undefined, { numeric: true }));
+  }
+
+  function renderStudentClassRosterModalContent(classRecord = {}, currentStudent = null) {
+    const roster = getActiveStudentsForClass(classRecord);
+    const classTeacher = getTeacherDisplayNameForValue(classRecord.classTeacher) || "Class teacher not assigned";
+
+    return `
+      <div class="staff-class-roster-modal-body student-class-roster-modal-body">
+        <section class="staff-class-roster-summary">
+          <article>
+            <span>Class</span>
+            <strong>${escapeHtml(getClassDisplayName(classRecord))}</strong>
+          </article>
+          <article>
+            <span>Class teacher</span>
+            <strong>${escapeHtml(classTeacher)}</strong>
+          </article>
+          <article>
+            <span>Students</span>
+            <strong>${roster.length.toLocaleString()}</strong>
+          </article>
+        </section>
+        ${
+          roster.length
+            ? `<div class="staff-class-roster-list">
+                ${roster
+                  .map(
+                    (record, index) => `
+                      <article class="staff-class-roster-row">
+                        <span class="staff-class-roster-index">${index + 1}</span>
+                        <div>
+                          <strong>${escapeHtml(record.fullName || "Student")}</strong>
+                          <span>${escapeHtml(record.admissionNo || "No admission number")}</span>
+                        </div>
+                        <small>${escapeHtml(record.id === currentStudent?.id ? "You" : record.classArm || getClassDisplayName(classRecord))}</small>
+                      </article>
+                    `,
+                  )
+                  .join("")}
+              </div>`
+            : `<article class="portal-class-empty"><strong>No students yet</strong><p>No active students are enrolled in this arm.</p></article>`
+        }
+      </div>
+    `;
+  }
+
   function getStudentPortalTimetableEntries(student = null, options = {}) {
     if (!student) {
       return [];
@@ -29302,30 +29370,33 @@
       return;
     }
 
-    const classRecords = getStudentPortalClassRecords(student);
-    const roster = getStudentPortalRoster(student);
+    const currentClass = findClassRecordForStudent(student);
+    const fallbackClassRecords = getStudentPortalClassRecords(student);
+    const currentClassRecord = currentClass || fallbackClassRecords[0] || null;
+    const ownRoster = currentClassRecord ? getActiveStudentsForClass(currentClassRecord) : getStudentPortalRoster(student);
+    const otherClassRecords = getStudentPortalOtherClassRecords(student);
+    const classTeacher = currentClassRecord
+      ? getTeacherDisplayNameForValue(currentClassRecord.classTeacher) || "Class teacher not assigned"
+      : "Class teacher not assigned";
     target.innerHTML = `
       <section class="staff-portal-section admin-surface-card">
         <div class="admin-surface-head">
           <div>
             <h2>My Classes</h2>
-            <span>Class workspace and rosters</span>
+            <span>Your current class and arm</span>
           </div>
         </div>
-        <div class="staff-portal-grid">
+        <div class="student-my-class-layout">
           ${
-            classRecords.length
-              ? classRecords
-                  .map(
-                    (classRecord) => `
-                      <article class="staff-portal-tile">
-                        <span>Class</span>
-                        <strong>${escapeHtml(getClassDisplayName(classRecord))}</strong>
-                        <p>${escapeHtml(getTeacherDisplayNameForValue(classRecord.classTeacher) || "Class teacher not assigned")}</p>
-                      </article>
-                    `,
-                  )
-                  .join("")
+            currentClassRecord
+              ? `
+                <article class="staff-portal-tile student-current-class-card">
+                  <span>My class</span>
+                  <strong>${escapeHtml(getClassDisplayName(currentClassRecord))}</strong>
+                  <p>${escapeHtml(classTeacher)}</p>
+                  <small>${ownRoster.length} student${ownRoster.length === 1 ? "" : "s"} in this arm</small>
+                </article>
+              `
               : `
                 <article class="portal-class-empty">
                   <strong>No class workspace found</strong>
@@ -29339,13 +29410,13 @@
         <div class="admin-surface-head">
           <div>
             <h2>Class Roster</h2>
-            <span>${roster.length} student${roster.length === 1 ? "" : "s"} in this class level</span>
+            <span>${ownRoster.length} student${ownRoster.length === 1 ? "" : "s"} in your arm</span>
           </div>
         </div>
         <div class="staff-portal-list">
           ${
-            roster.length
-              ? roster
+            ownRoster.length
+              ? ownRoster
                   .map(
                     (record) => `
                       <article class="staff-portal-row">
@@ -29353,7 +29424,7 @@
                           <strong>${escapeHtml(record.fullName)}</strong>
                           <span>${escapeHtml(record.admissionNo || "No admission number")}</span>
                         </div>
-                        <small>${escapeHtml(record.id === student.id ? "You" : record.level || "Classmate")}</small>
+                        <small>${escapeHtml(record.id === student.id ? "You" : record.classArm || "Classmate")}</small>
                       </article>
                     `,
                   )
@@ -29362,7 +29433,110 @@
           }
         </div>
       </section>
+      <section class="staff-portal-section admin-surface-card">
+        <div class="admin-surface-head">
+          <div>
+            <h2>Other Classes</h2>
+            <span>Other arms in ${escapeHtml(getStudentBaseClassLevel(student) || student.level || "your class")}</span>
+          </div>
+        </div>
+        <div class="staff-portal-grid student-other-class-grid">
+          ${
+            otherClassRecords.length
+              ? otherClassRecords
+                  .map(
+                    (classRecord) => {
+                      const rosterCount = getActiveStudentsForClass(classRecord).length;
+                      return `
+                        <button class="staff-portal-tile staff-class-tile-button student-other-class-button" type="button" data-student-other-class-open="${escapeHtml(classRecord.id || "")}">
+                          <span>Other class</span>
+                          <strong>${escapeHtml(getClassDisplayName(classRecord))}</strong>
+                          <p>${rosterCount} student${rosterCount === 1 ? "" : "s"}</p>
+                        </button>
+                      `;
+                    },
+                  )
+                  .join("")
+              : `<article class="portal-class-empty"><strong>No other arms</strong><p>Other class arms will appear here when they are available.</p></article>`
+          }
+        </div>
+      </section>
     `;
+
+    const ensureStudentRosterOverlay = () => {
+      let overlay = document.getElementById("student-class-roster-overlay");
+      if (!overlay) {
+        document.body.insertAdjacentHTML(
+          "beforeend",
+          `
+          <div id="student-class-roster-overlay" class="portal-overlay staff-class-roster-overlay student-class-roster-overlay" hidden>
+            <button class="portal-overlay-backdrop" type="button" data-student-class-roster-close aria-label="Close class roster"></button>
+            <section class="portal-overlay-panel staff-class-roster-modal-panel" role="dialog" aria-modal="true" aria-labelledby="student-class-roster-title">
+              <header class="portal-overlay-head">
+                <div>
+                  <span class="portal-overlay-kicker">Other class</span>
+                  <h3 id="student-class-roster-title">Students</h3>
+                </div>
+                <button class="portal-overlay-close" type="button" data-student-class-roster-close aria-label="Close class roster">&times;</button>
+              </header>
+              <div id="student-class-roster-body"></div>
+            </section>
+          </div>
+          `,
+        );
+        overlay = document.getElementById("student-class-roster-overlay");
+      }
+      return overlay;
+    };
+
+    const setStudentRosterOverlayState = (visible) => {
+      const overlay = ensureStudentRosterOverlay();
+      if (!overlay) {
+        return;
+      }
+      overlay.hidden = !visible;
+      document.body.classList.toggle("portal-overlay-open", Boolean(document.querySelector(".portal-overlay:not([hidden])")));
+    };
+
+    const openStudentRosterModal = (classRecord = {}) => {
+      const overlay = ensureStudentRosterOverlay();
+      const title = document.getElementById("student-class-roster-title");
+      const body = document.getElementById("student-class-roster-body");
+      if (!overlay || !body) {
+        return;
+      }
+      if (title) {
+        title.textContent = `${getClassDisplayName(classRecord)} students`;
+      }
+      body.innerHTML = renderStudentClassRosterModalContent(classRecord, student);
+      setStudentRosterOverlayState(true);
+    };
+
+    target.querySelectorAll("[data-student-other-class-open]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const classRecord = otherClassRecords.find(
+          (record) => String(record.id || "") === String(button.dataset.studentOtherClassOpen || ""),
+        );
+        if (classRecord) {
+          openStudentRosterModal(classRecord);
+        }
+      });
+    });
+
+    const overlay = ensureStudentRosterOverlay();
+    if (overlay && overlay.dataset.studentClassRosterBound !== "true") {
+      overlay.dataset.studentClassRosterBound = "true";
+      overlay.addEventListener("click", (event) => {
+        if (event.target.closest("[data-student-class-roster-close]")) {
+          setStudentRosterOverlayState(false);
+        }
+      });
+      window.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !overlay.hidden) {
+          setStudentRosterOverlayState(false);
+        }
+      });
+    }
   }
 
   function renderStudentCoursesSection(target, student = null) {
