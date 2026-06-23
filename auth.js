@@ -8652,6 +8652,7 @@
       return courseManager
         .getCourses()
         .filter((course) => course.status !== "archived")
+        .filter((course) => courseMatchesAcademicPeriod(course))
         .filter((course) => courseAppliesToClassRecord(course, classRecord));
     };
 
@@ -9945,6 +9946,8 @@
     const teacherSelect = form.elements.teacherAssignments;
     const levelSelect = form.elements.level;
     const classArmSelect = form.elements.classId;
+    const sessionSelect = form.elements.sessionId;
+    const termSelect = form.elements.termId;
     const categoryField = form.elements.category;
     const creditField = form.elements.creditUnit;
     const codeFieldWrap = document.querySelector("[data-course-code-field]");
@@ -9968,6 +9971,7 @@
     const templateType = document.querySelector("[data-course-template-type]");
     const templateList = document.querySelector("[data-course-library-list]");
     const classManager = getClassManager();
+    const cycleManager = getAcademicCycleManager();
     const allClassArmsValue = "__all_class_arms__";
     const normalizeLookupToken = (value) => String(value || "").trim().toLowerCase();
     const facultyDepartments = getConfiguredHigherInstitutionDepartmentMap();
@@ -10022,6 +10026,65 @@
         }
       }
       return selected;
+    };
+
+    const getCycleState = () =>
+      cycleManager && typeof cycleManager.getState === "function"
+        ? cycleManager.getState()
+        : { sessions: [], terms: [] };
+
+    const getCourseOpenPeriod = () => {
+      const cycleState = getCycleState();
+      const openTerm = (cycleState.terms || []).find((term) => term.status === "open") || null;
+      const openSession = openTerm
+        ? (cycleState.sessions || []).find((session) => session.id === openTerm.sessionId) || null
+        : (cycleState.sessions || []).find((session) => session.status === "open") || null;
+      return { cycleState, openSession, openTerm };
+    };
+
+    const renderCourseSessionOptions = (selectedSessionId = "") => {
+      if (!(sessionSelect instanceof HTMLSelectElement)) {
+        return;
+      }
+
+      const { cycleState, openSession, openTerm } = getCourseOpenPeriod();
+      const sessions = cycleState.sessions || [];
+      const selected = String(selectedSessionId || sessionSelect.value || openTerm?.sessionId || openSession?.id || "").trim();
+      sessionSelect.innerHTML = sessions.length
+        ? `<option value="">Select session</option>${sessions
+            .map(
+              (session) => `
+                <option value="${escapeHtml(session.id)}" ${session.id === selected ? "selected" : ""}>
+                  ${escapeHtml(session.name || "Academic session")}
+                </option>
+              `,
+            )
+            .join("")}`
+        : `<option value="">Create a session in Settings first</option>`;
+      sessionSelect.value = sessions.some((session) => session.id === selected) ? selected : "";
+    };
+
+    const renderCourseTermOptions = (selectedTermId = "") => {
+      if (!(termSelect instanceof HTMLSelectElement)) {
+        return;
+      }
+
+      const { cycleState, openTerm } = getCourseOpenPeriod();
+      const selectedSessionId = String(sessionSelect?.value || openTerm?.sessionId || "").trim();
+      const terms = (cycleState.terms || []).filter((term) => !selectedSessionId || term.sessionId === selectedSessionId);
+      const selected = String(selectedTermId || termSelect.value || (openTerm?.sessionId === selectedSessionId ? openTerm.id : "") || "").trim();
+      termSelect.innerHTML = terms.length
+        ? `<option value="">Select term / semester</option>${terms
+            .map(
+              (term) => `
+                <option value="${escapeHtml(term.id)}" ${term.id === selected ? "selected" : ""}>
+                  ${escapeHtml(term.periodType === "semester" ? `Semester: ${term.name}` : `Term: ${term.name}`)}
+                </option>
+              `,
+            )
+            .join("")}`
+        : `<option value="">Create terms or semesters in Settings first</option>`;
+      termSelect.value = terms.some((term) => term.id === selected) ? selected : "";
     };
 
     const getTeacherDirectory = () => {
@@ -10442,6 +10505,9 @@
         : selectedClassRecord
           ? getClassDisplayName(selectedClassRecord)
           : "";
+      const { cycleState } = getCourseOpenPeriod();
+      const selectedSessionId = String(sessionSelect?.value || "").trim();
+      const selectedTermId = String(termSelect?.value || "").trim();
       const selectedTeacher = String(teacherSelect?.value || "").trim();
       const selectedTeacherLabel = getTeacherDisplayNameForValue(selectedTeacher);
       const selectedCategory =
@@ -10454,6 +10520,8 @@
         ? templateType.options[templateType.selectedIndex]?.text || ""
         : "";
       const summaryItems = [
+        { label: "Academic session", value: selectedSessionId ? getSessionLabelFromCycle(cycleState, selectedSessionId) : "" },
+        { label: "Term / semester", value: selectedTermId ? getTermLabelFromCycle(cycleState, selectedTermId) : "" },
         { label: "Type", value: template.label === "Courses" ? "Higher Institution" : selectedTypeLabel },
         { label: type === "higher" ? `${getHigherInstitutionUnitLabel(getConfiguredHigherInstitutionType())} / department` : "Stream", value: selectedCategory },
         { label: "Class / level", value: selectedLevel },
@@ -10504,6 +10572,8 @@
     const resetCourseWizardState = () => {
       resetPortalCourseForm(form, isAdmin);
       renderTeacherOptions("");
+      renderCourseSessionOptions("");
+      renderCourseTermOptions("");
       renderClassLevelOptions([]);
       renderCourseArmOptions("");
       renderCourseTemplateTypeOptions();
@@ -10544,6 +10614,8 @@
         listTarget,
       });
       renderTeacherOptions(teacherSelect?.value || "");
+      renderCourseSessionOptions(sessionSelect?.value || "");
+      renderCourseTermOptions(termSelect?.value || "");
       renderClassLevelOptions(Array.from(levelSelect?.selectedOptions || []).map((option) => option.value));
       renderCourseArmOptions(classArmSelect?.value || "");
       updateCourseTerminology();
@@ -10561,6 +10633,21 @@
     if (!manager) {
       setCourseFormVisibility(false);
       return;
+    }
+
+    if (sessionSelect) {
+      sessionSelect.addEventListener("change", () => {
+        renderCourseTermOptions("");
+        updateCourseTerminology();
+        renderSubjectLibrary();
+      });
+    }
+
+    if (termSelect) {
+      termSelect.addEventListener("change", () => {
+        updateCourseTerminology();
+        renderSubjectLibrary();
+      });
     }
 
     if (templateType) {
@@ -10715,6 +10802,10 @@
         id: courseId || undefined,
         name: form.elements.name.value.trim(),
         code: form.elements.code.value.trim().toUpperCase(),
+        sessionId: String(form.elements.sessionId?.value || "").trim(),
+        sessionName: "",
+        termId: String(form.elements.termId?.value || "").trim(),
+        termName: "",
         category: isHigherCourse
           ? [faculty, department].filter(Boolean).join(" / ")
           : selectedType === "secondary"
@@ -10733,11 +10824,24 @@
           : [],
         studentAssignments: [],
       };
+      const cycleState = getCycleState();
+      payload.sessionName = payload.sessionId ? getSessionLabelFromCycle(cycleState, payload.sessionId) : "";
+      payload.termName = payload.termId ? getTermLabelFromCycle(cycleState, payload.termId) : "";
 
       let hasError = false;
 
       if (!payload.name) {
         setPortalCourseError(form, "name", "Enter the course name.");
+        hasError = true;
+      }
+
+      if (!payload.sessionId) {
+        setPortalCourseError(form, "sessionId", "Select the academic session for this subject/course.");
+        hasError = true;
+      }
+
+      if (!payload.termId) {
+        setPortalCourseError(form, "termId", "Select the term or semester for this subject/course.");
         hasError = true;
       }
 
@@ -10776,6 +10880,8 @@
               : !recordClassId && recordScope !== "all-arms";
           return (
             record.id !== courseId &&
+            String(record.sessionId || "").trim() === payload.sessionId &&
+            String(record.termId || "").trim() === payload.termId &&
             normalizeLevelToken(record.level) === normalizeLevelToken(payload.level) &&
             sameTarget &&
             ((payload.code && String(record.code || "").toLowerCase() === payload.code.toLowerCase()) ||
@@ -10813,7 +10919,7 @@
         summary: currentRecord
           ? `Updated course ${payload.code} · ${payload.name}`
           : `Created course ${payload.code || "New"} · ${payload.name}`,
-        details: `${payload.level} • ${targetSummary} • ${payload.teacherAssignments.length} teacher assignment`,
+        details: `${payload.sessionName} • ${payload.termName} • ${payload.level} • ${targetSummary} • ${payload.teacherAssignments.length} teacher assignment`,
       });
 
       resetCourseWizardState();
@@ -10824,10 +10930,10 @@
         currentRecord
           ? `Course <strong>${escapeHtml(payload.code || "New")} · ${escapeHtml(
               payload.name,
-            )}</strong> updated and now controls assignment data.`
+            )}</strong> updated for ${escapeHtml(payload.termName || "the selected period")}.`
           : `Course <strong>${escapeHtml(payload.code || "New")} · ${escapeHtml(
               payload.name,
-            )}</strong> created and assigned to ${targetSummary}.`,
+            )}</strong> created for ${escapeHtml(payload.termName || "the selected period")} and assigned to ${targetSummary}.`,
       );
     });
 
@@ -10868,6 +10974,8 @@
         }
         renderTemplateCategories();
         renderClassLevelOptions([record.level || ""]);
+        renderCourseSessionOptions(record.sessionId || "");
+        renderCourseTermOptions(record.termId || "");
         renderCourseArmOptions(courseArmValue);
         updateCourseTerminology();
         const [faculty = "", department = ""] = String(record.category || "")
@@ -10976,6 +11084,22 @@
         renderCourseTemplateTypeOptions();
         renderClassLevelOptions([]);
         renderSubjectPickerOptions("");
+        updateCourseTerminology();
+        renderSubjectLibrary();
+      });
+    }
+    if (cycleManager?.eventName) {
+      window.addEventListener(cycleManager.eventName, () => {
+        renderCourseSessionOptions(sessionSelect?.value || "");
+        renderCourseTermOptions(termSelect?.value || "");
+        renderPortalCourseManagementSection({
+          isAdmin,
+          manager,
+          summaryTarget,
+          form,
+          status,
+          listTarget,
+        });
         updateCourseTerminology();
         renderSubjectLibrary();
       });
@@ -12549,6 +12673,7 @@
               .filter(
                 (course) =>
                   course.status !== "archived" &&
+                  courseMatchesAcademicPeriod(course) &&
                   (!selectedClass || courseAppliesToClassRecord(course, selectedClass)),
               )
               .map((course) => ({
@@ -16406,6 +16531,14 @@
       form.elements.teacherAssignments.value = "";
     }
 
+    if (form.elements.sessionId) {
+      form.elements.sessionId.value = "";
+    }
+
+    if (form.elements.termId) {
+      form.elements.termId.value = "";
+    }
+
     if (form.elements.category) {
       form.elements.category.value = "";
     }
@@ -16465,6 +16598,12 @@
     form.elements.courseId.value = record.id;
     form.elements.name.value = record.name;
     form.elements.code.value = record.code || "";
+    if (form.elements.sessionId) {
+      form.elements.sessionId.value = record.sessionId || "";
+    }
+    if (form.elements.termId) {
+      form.elements.termId.value = record.termId || "";
+    }
     if (form.elements.category) {
       form.elements.category.value = record.category || "";
     }
@@ -17838,7 +17977,10 @@
         : [];
     const courses =
       courseManager && typeof courseManager.getCourses === "function"
-        ? courseManager.getCourses().filter((record) => record.status !== "archived")
+        ? courseManager
+            .getCourses()
+            .filter((record) => record.status !== "archived")
+            .filter((record) => courseMatchesAcademicPeriod(record))
         : [];
     const rows = [];
     const seen = new Set();
@@ -17856,6 +17998,7 @@
         subject,
         code: String(row.code || "").trim().toUpperCase(),
         classLabel,
+        periodLabel: String(row.periodLabel || "").trim(),
       });
     };
 
@@ -17895,6 +18038,7 @@
         subject: course.name || course.code || "Course",
         code: course.code || "",
         classLabel,
+        periodLabel: getCourseAcademicPeriodLabel(course),
       });
     });
 
@@ -18186,7 +18330,7 @@
                           <article class="portal-staff-assignment-row">
                             <div>
                               <strong>${escapeHtml(assignment.subject)}</strong>
-                              <span>${escapeHtml(assignment.classLabel)}</span>
+                              <span>${escapeHtml([assignment.classLabel, assignment.periodLabel].filter(Boolean).join(" - "))}</span>
                             </div>
                             <small>${escapeHtml(
                               [assignment.role, assignment.code ? `Code ${assignment.code}` : ""].filter(Boolean).join(" • "),
@@ -19534,6 +19678,16 @@
         return leftStatus - rightStatus;
       }
 
+      const periodComparison = getCourseAcademicPeriodLabel(left).localeCompare(
+        getCourseAcademicPeriodLabel(right),
+        undefined,
+        { numeric: true },
+      );
+
+      if (periodComparison) {
+        return periodComparison;
+      }
+
       const levelComparison = String(left.level || "").localeCompare(String(right.level || ""), undefined, { numeric: true });
 
       if (levelComparison) {
@@ -19605,41 +19759,60 @@
       `;
     } else {
       const groupedCourses = courses.sort(sortCourses).reduce((groups, record) => {
+        const period = getCourseAcademicPeriodLabel(record);
         const segment = getLevelSchoolType(record.level);
         const level = String(record.level || "Unassigned").trim() || "Unassigned";
 
-        if (!groups.has(segment)) {
-          groups.set(segment, new Map());
+        if (!groups.has(period)) {
+          groups.set(period, new Map());
         }
 
-        if (!groups.get(segment).has(level)) {
-          groups.get(segment).set(level, []);
+        if (!groups.get(period).has(segment)) {
+          groups.get(period).set(segment, new Map());
         }
 
-        groups.get(segment).get(level).push(record);
+        if (!groups.get(period).get(segment).has(level)) {
+          groups.get(period).get(segment).set(level, []);
+        }
+
+        groups.get(period).get(segment).get(level).push(record);
         return groups;
       }, new Map());
 
       listTarget.innerHTML = Array.from(groupedCourses.entries())
-        .sort(([left], [right]) => (groupOrder[left] || 99) - (groupOrder[right] || 99))
+        .sort(([left], [right]) => String(right).localeCompare(String(left), undefined, { numeric: true }))
         .map(
-          ([segment, levels]) => {
-            const segmentRecords = Array.from(levels.values()).flat();
+          ([period, segments]) => {
+            const periodRecords = Array.from(segments.values()).flatMap((levels) => Array.from(levels.values()).flat());
             return `
             <section class="portal-class-group">
               <div class="portal-class-group-head">
                 <div>
-                  <span>${escapeHtml(segment)}</span>
-                  <strong>${segmentRecords.length} ${segment.startsWith("Higher Institution") ? "course" : "subject"}${
-                    segmentRecords.length === 1 ? "" : "s"
-                  }</strong>
+                  <span>Academic period</span>
+                  <strong>${escapeHtml(period)}</strong>
                 </div>
-                <small>${segmentRecords.filter((record) => record.status !== "archived").length} active</small>
+                <small>${periodRecords.filter((record) => record.status !== "archived").length} active</small>
               </div>
               <div class="portal-class-level-stack">
-                ${Array.from(levels.entries())
+                ${Array.from(segments.entries())
+                  .sort(([left], [right]) => (groupOrder[left] || 99) - (groupOrder[right] || 99))
                   .map(
-                    ([level, records]) => `
+                    ([segment, levels]) => {
+                      const segmentRecords = Array.from(levels.values()).flat();
+                      return `
+                      <details class="portal-class-level-group" open>
+                        <summary>
+                          <div>
+                            <strong>${escapeHtml(segment)}</strong>
+                            <span>${segmentRecords.length} ${segment.startsWith("Higher Institution") ? "course" : "subject"}${
+                              segmentRecords.length === 1 ? "" : "s"
+                            }</span>
+                          </div>
+                        </summary>
+                        <div class="portal-class-level-stack portal-course-level-stack-inner">
+                          ${Array.from(levels.entries())
+                            .map(
+                              ([level, records]) => `
                       <details class="portal-class-level-group">
                         <summary>
                           <div>
@@ -19673,6 +19846,10 @@
 
                         <div class="portal-class-list-body">
                           <div class="portal-class-meta">
+                            <div class="portal-class-meta-item">
+                              <span>Period</span>
+                              <strong>${escapeHtml(getCourseAcademicPeriodLabel(record))}</strong>
+                            </div>
                             <div class="portal-class-meta-item">
                               <span>Code</span>
                               <strong>${escapeHtml(record.code || "Not set")}</strong>
@@ -19740,6 +19917,12 @@
                         </div>
                       </details>
                     `,
+                            )
+                            .join("")}
+                        </div>
+                      </details>
+                    `;
+                    },
                   )
                   .join("")}
               </div>
@@ -21327,6 +21510,50 @@
     return courseTokens.some((token) => classTokens.includes(token));
   }
 
+  function courseMatchesAcademicPeriod(course = {}, options = {}) {
+    const activeTermOnly = options.activeTermOnly !== false;
+    const targetTermId = String(options.termId || "").trim();
+    const targetSessionId = String(options.sessionId || "").trim();
+    const courseTermId = String(course.termId || "").trim();
+    const courseSessionId = String(course.sessionId || "").trim();
+
+    if (!courseTermId && !courseSessionId) {
+      return true;
+    }
+
+    if (targetTermId) {
+      return courseTermId ? courseTermId === targetTermId : courseSessionId === targetSessionId;
+    }
+
+    if (targetSessionId && !activeTermOnly) {
+      return courseSessionId === targetSessionId || !courseSessionId;
+    }
+
+    if (!activeTermOnly) {
+      return true;
+    }
+
+    const { openTerm, openSession } = getStaffActiveTermContext();
+    if (openTerm?.id) {
+      return courseTermId ? courseTermId === openTerm.id : courseSessionId === openTerm.sessionId;
+    }
+    if (openSession?.id) {
+      return courseSessionId === openSession.id || !courseSessionId;
+    }
+    return true;
+  }
+
+  function getCourseAcademicPeriodLabel(course = {}) {
+    const cycleManager = getAcademicCycleManager();
+    const cycleState =
+      cycleManager && typeof cycleManager.getState === "function"
+        ? cycleManager.getState()
+        : { sessions: [], terms: [] };
+    const sessionLabel = course.sessionName || (course.sessionId ? getSessionLabelFromCycle(cycleState, course.sessionId) : "");
+    const termLabel = course.termName || (course.termId ? getTermLabelFromCycle(cycleState, course.termId) : "");
+    return [sessionLabel, termLabel].filter(Boolean).join(" - ") || "Legacy / not period scoped";
+  }
+
   function getTeacherAssignedClasses(user = {}) {
     const classManager = getClassManager();
     const courseManager = getCourseManager();
@@ -21338,7 +21565,10 @@
         : [];
     const courses =
       courseManager && typeof courseManager.getCourses === "function"
-        ? courseManager.getCourses().filter((record) => record.status !== "archived")
+        ? courseManager
+            .getCourses()
+            .filter((record) => record.status !== "archived")
+            .filter((record) => courseMatchesAcademicPeriod(record))
         : [];
     const teacherCourses = courses.filter((course) =>
       (course.teacherAssignments || []).some((teacher) => {
@@ -27566,7 +27796,10 @@
     const courseManager = getCourseManager();
     const courses =
       courseManager && typeof courseManager.getCourses === "function"
-        ? courseManager.getCourses().filter((course) => course.status !== "archived")
+        ? courseManager
+            .getCourses()
+            .filter((course) => course.status !== "archived")
+            .filter((course) => courseMatchesAcademicPeriod(course))
         : [];
     const rows = [];
     const seen = new Set();
@@ -27635,6 +27868,7 @@
           subject: course.name || course.code || "Course",
           subjectCode: course.code || "",
           role: course.creditUnit ? "Course lecturer" : "Subject teacher",
+          periodLabel: getCourseAcademicPeriodLabel(course),
         });
       });
     });
@@ -29786,7 +30020,7 @@
         <div class="admin-surface-head">
           <div>
             <h2>Subjects or Courses</h2>
-            <span>Assigned subjects or courses for ${escapeHtml(student.level || "your class")}</span>
+            <span>Registered for the current term or semester</span>
           </div>
         </div>
         <div class="staff-portal-grid">
@@ -29798,7 +30032,7 @@
                       <article class="staff-portal-tile">
                         <span>${escapeHtml(course.code || "Subject")}</span>
                         <strong>${escapeHtml(course.name)}</strong>
-                        <p>${escapeHtml(course.level || student.level || "Assigned")}</p>
+                        <p>${escapeHtml([course.level || student.level || "Assigned", course.periodLabel].filter(Boolean).join(" - "))}</p>
                       </article>
                     `,
                   )
@@ -29806,7 +30040,7 @@
               : `
                 <article class="portal-class-empty">
                   <strong>No subjects or courses yet</strong>
-                  <p>Assigned subjects/courses will appear after admin adds them to your class.</p>
+                  <p>Assigned subjects/courses will appear after admin registers them for the current term or semester.</p>
                 </article>
               `
           }
@@ -30926,6 +31160,8 @@
             ?.getCourses?.()
             .find(
               (course) =>
+                course.status !== "archived" &&
+                courseMatchesAcademicPeriod(course) &&
                 courseAppliesToClassRecord(course, classRecord) &&
                 String(course.name || course.code || "").trim().toLowerCase() === subject.name.toLowerCase() &&
                 (course.teacherAssignments || []).some((teacher) => staffValueMatchesUser(teacher, user)),
@@ -31369,11 +31605,14 @@
     refreshTotals();
   }
 
-  function getReportCardSubjectOptionsForClass(classRecord = {}) {
+  function getReportCardSubjectOptionsForClass(classRecord = {}, periodOptions = {}) {
     const courseManager = getCourseManager();
     const courses =
       courseManager && typeof courseManager.getCourses === "function"
-        ? courseManager.getCourses().filter((course) => course.status !== "archived")
+        ? courseManager
+            .getCourses()
+            .filter((course) => course.status !== "archived")
+            .filter((course) => courseMatchesAcademicPeriod(course, periodOptions))
         : [];
     const classTokens = new Set(
       [
@@ -31527,7 +31766,12 @@
               record.sessionId === selectedSession?.id &&
               record.termId === selectedTerm?.id,
           ) || null;
-    const subjectOptions = selectedClass ? getReportCardSubjectOptionsForClass(selectedClass) : [];
+    const subjectOptions = selectedClass
+      ? getReportCardSubjectOptionsForClass(selectedClass, {
+          sessionId: selectedSession?.id || "",
+          termId: selectedTerm?.id || "",
+        })
+      : [];
     const baseSubjects = currentCard?.subjects?.length
       ? currentCard.subjects
       : subjectOptions.length
@@ -35121,14 +35365,17 @@
     };
   }
 
-  function getParentCoursesForStudent(student = null) {
+  function getParentCoursesForStudent(student = null, options = {}) {
     if (!student) {
       return [];
     }
 
     const courseManager = getCourseManager();
     const courses = courseManager && typeof courseManager.getCourses === "function"
-      ? courseManager.getCourses().filter((item) => item.status !== "archived")
+      ? courseManager
+          .getCourses()
+          .filter((item) => item.status !== "archived")
+          .filter((item) => courseMatchesAcademicPeriod(item, options))
       : [];
     const studentLevelToken = normalizeLevelToken(student.level);
     const studentBaseLevelToken = normalizeLevelToken(getStudentBaseClassLevel(student));
@@ -35163,6 +35410,11 @@
         name: course.name,
         code: course.code,
         level: course.classLabel || course.level,
+        sessionId: course.sessionId || "",
+        sessionName: course.sessionName || "",
+        termId: course.termId || "",
+        termName: course.termName || "",
+        periodLabel: getCourseAcademicPeriodLabel(course),
         classId: course.classId || course.classRecordId || "",
         classLabel: course.classLabel || course.level || "",
         teacherAssignments: Array.isArray(course.teacherAssignments) ? [...course.teacherAssignments] : [],
@@ -35183,6 +35435,7 @@
         name: subjectName,
         code: "",
         level: student.level || "",
+        periodLabel: "Legacy / not period scoped",
         teacherAssignments: [],
       });
     });
@@ -35554,7 +35807,7 @@
       <article class="admin-surface-card">
         <div class="admin-surface-head">
           <h2>Courses for ${escapeHtml(student.fullName)}</h2>
-          <span>Only courses for this child are shown.</span>
+          <span>Current term or semester registrations only.</span>
         </div>
         ${
           courses.length
@@ -35564,6 +35817,7 @@
                   <div class="admin-session-card">
                     <span>${escapeHtml(course.code || "Course")}</span>
                     <strong>${escapeHtml(course.name)}</strong>
+                    <p>${escapeHtml(course.periodLabel || "Current academic period")}</p>
                   </div>
                 `,
                 )

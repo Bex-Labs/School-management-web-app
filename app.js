@@ -2483,6 +2483,10 @@ function normalizeSchoolCourse(record = {}) {
     creditUnit: String(record.creditUnit || "").trim(),
     description: String(record.description || "").trim(),
     level: String(record.level || "").trim(),
+    sessionId: String(record.sessionId || record.session_id || "").trim(),
+    sessionName: String(record.sessionName || record.session_name || "").trim(),
+    termId: String(record.termId || record.term_id || "").trim(),
+    termName: String(record.termName || record.term_name || "").trim(),
     classId: String(record.classId || record.classRecordId || "").trim(),
     classRecordId: String(record.classRecordId || record.classId || "").trim(),
     classLabel: String(record.classLabel || record.classLevel || "").trim(),
@@ -2500,6 +2504,26 @@ function normalizeSchoolCourse(record = {}) {
 function compareSchoolCourses(left, right) {
   if (left.status !== right.status) {
     return left.status === "active" ? -1 : 1;
+  }
+
+  const sessionComparison = String(left.sessionName || left.sessionId || "").localeCompare(
+    String(right.sessionName || right.sessionId || ""),
+    undefined,
+    { numeric: true },
+  );
+
+  if (sessionComparison !== 0) {
+    return sessionComparison;
+  }
+
+  const termComparison = String(left.termName || left.termId || "").localeCompare(
+    String(right.termName || right.termId || ""),
+    undefined,
+    { numeric: true },
+  );
+
+  if (termComparison !== 0) {
+    return termComparison;
   }
 
   const levelComparison = left.level.localeCompare(right.level, undefined, { numeric: true });
