@@ -621,7 +621,12 @@ const SCHOOL_TYPE_OPTIONS = [
   { value: "secondary", label: "Secondary" },
   { value: "higher", label: "Higher Institution" },
 ];
-const HIGHER_INSTITUTION_TYPE_OPTIONS = ["university", "polytechnic", "college-of-education"];
+const HIGHER_INSTITUTION_TYPE_OPTIONS = [
+  "university",
+  "university-foundation",
+  "polytechnic",
+  "college-of-education",
+];
 
 function normalizeSchoolTypeList(value) {
   const rawItems = Array.isArray(value)
@@ -648,6 +653,15 @@ function normalizeHigherInstitutionType(value) {
     normalized === "fce"
   ) {
     return "college-of-education";
+  }
+
+  if (
+    normalized === "foundation" ||
+    normalized === "foundation-program" ||
+    normalized === "university-foundation" ||
+    normalized === "university-foundation-program"
+  ) {
+    return "university-foundation";
   }
 
   if (normalized === "university" || normalized === "uni") {

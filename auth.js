@@ -7046,6 +7046,7 @@
   ];
   const HIGHER_INSTITUTION_TYPE_LABELS = {
     university: "University",
+    "university-foundation": "University Foundation Program",
     polytechnic: "Polytechnic",
     "college-of-education": "Federal College of Education",
   };
@@ -7059,6 +7060,7 @@
       "600 Level",
       "700 Level",
     ],
+    "university-foundation": ["University Foundation Program"],
     polytechnic: ["ND I", "ND II", "HND I", "HND II"],
     "college-of-education": ["NCE I", "NCE II", "NCE III"],
   };
@@ -7114,6 +7116,14 @@
         "Physiology",
       ],
       "Faculty of Law": ["Law"],
+    },
+    "university-foundation": {
+      "Foundation Program": [
+        "Science Foundation",
+        "Arts Foundation",
+        "Business Foundation",
+        "Social Science Foundation",
+      ],
     },
     polytechnic: {
       "School of Engineering Technology": [
@@ -7223,6 +7233,15 @@
       return "college-of-education";
     }
 
+    if (
+      normalized === "foundation" ||
+      normalized === "foundation-program" ||
+      normalized === "university-foundation" ||
+      normalized === "university-foundation-program"
+    ) {
+      return "university-foundation";
+    }
+
     if (normalized === "university" || normalized === "uni") {
       return "university";
     }
@@ -7237,6 +7256,9 @@
 
   function getHigherInstitutionUnitLabel(value) {
     const type = normalizeHigherInstitutionType(value);
+    if (type === "university-foundation") {
+      return "Program";
+    }
     return type === "university" ? "Faculty" : "School";
   }
 
@@ -15560,6 +15582,7 @@
     manager,
     summaryTarget,
     gridTarget,
+    saveButton,
     resetButton,
     statusTarget = null,
   }) {
@@ -15568,6 +15591,18 @@
     }
 
     let isHydratingSupabase = false;
+    let stagedPermissions = null;
+    let hasPendingPermissionChanges = false;
+
+    const cloneRolePermissions = (permissions) =>
+      JSON.parse(JSON.stringify(permissions && typeof permissions === "object" ? permissions : {}));
+
+    const updateSaveButtonState = () => {
+      if (!saveButton) {
+        return;
+      }
+      saveButton.disabled = !isAdmin || !hasPendingPermissionChanges;
+    };
 
     const syncPermissionsToSupabase = async (successMessage = "Role permissions saved online.") => {
       if (!isAdmin || !manager || !isSupabaseConfigured()) {
@@ -15599,7 +15634,9 @@
         manager,
         summaryTarget,
         gridTarget,
+        rolePermissionsOverride: stagedPermissions,
       });
+      updateSaveButtonState();
     };
 
     refreshRolePermissionSection();
@@ -15682,24 +15719,55 @@
         return;
       }
 
-      manager.setPermission(
-        input.dataset.rolePermissionRole,
-        input.dataset.rolePermissionKey,
-        input.checked,
-      );
+      const role = input.dataset.rolePermissionRole;
+      const permissionKey = input.dataset.rolePermissionKey;
+      const validPermission =
+        role &&
+        permissionKey &&
+        typeof manager.getOptions === "function" &&
+        manager.getOptions(role).some((option) => option.key === permissionKey);
 
-      if (!isHydratingSupabase) {
-        syncPermissionsToSupabase();
+      if (!validPermission) {
+        return;
       }
 
-      recordAuditEvent({
-        action: input.checked ? "granted" : "revoked",
-        entityType: "role-permission",
-        entityId: `${input.dataset.rolePermissionRole}:${input.dataset.rolePermissionKey}`,
-        summary: `${input.dataset.rolePermissionRole} permission ${input.checked ? "enabled" : "disabled"}`,
-        details: input.dataset.rolePermissionKey || "",
-      });
+      stagedPermissions = stagedPermissions || cloneRolePermissions(manager.getPermissions());
+      stagedPermissions[role] = stagedPermissions[role] || {};
+      stagedPermissions[role][permissionKey] = input.checked;
+      hasPendingPermissionChanges = true;
+      refreshRolePermissionSection();
+      if (statusTarget) {
+        setStatus(statusTarget, "info", "Role permission changes are ready. Click Save role permissions to apply.");
+      }
     });
+
+    if (saveButton) {
+      saveButton.disabled = !isAdmin;
+      updateSaveButtonState();
+      saveButton.addEventListener("click", async () => {
+        if (!isAdmin || !hasPendingPermissionChanges || !stagedPermissions) {
+          return;
+        }
+
+        const nextPermissions = cloneRolePermissions(stagedPermissions);
+        manager.savePermissions(nextPermissions);
+        stagedPermissions = null;
+        hasPendingPermissionChanges = false;
+        updateSaveButtonState();
+
+        if (!isHydratingSupabase) {
+          await syncPermissionsToSupabase("Role permissions saved.");
+        }
+
+        recordAuditEvent({
+          action: "saved",
+          entityType: "role-permission",
+          summary: "Role permissions saved",
+          details: "Role permission changes were applied from the settings page.",
+        });
+        refreshRolePermissionSection();
+      });
+    }
 
     if (resetButton) {
       resetButton.disabled = !isAdmin;
@@ -15707,6 +15775,9 @@
         if (!isAdmin) {
           return;
         }
+        stagedPermissions = null;
+        hasPendingPermissionChanges = false;
+        updateSaveButtonState();
         manager.resetPermissions();
         if (!isHydratingSupabase) {
           syncPermissionsToSupabase("Role permissions reset and saved online.");
@@ -19314,7 +19385,13 @@
       });
   }
 
-  function renderPortalRolePermissionSection({ isAdmin, manager, summaryTarget, gridTarget }) {
+  function renderPortalRolePermissionSection({
+    isAdmin,
+    manager,
+    summaryTarget,
+    gridTarget,
+    rolePermissionsOverride = null,
+  }) {
     if (!summaryTarget || !gridTarget) {
       return;
     }
@@ -19328,8 +19405,18 @@
       return;
     }
 
-    const { roles, rolePermissions, summary, optionsByRole = {} } = manager.summarize();
-    const summaryText = summary
+    const summaryData = manager.summarize();
+    const { roles, optionsByRole = {} } = summaryData;
+    const rolePermissions = rolePermissionsOverride || summaryData.rolePermissions;
+    const summaryRows = roles.map((role) => {
+      const options =
+        (typeof manager.getOptions === "function" ? manager.getOptions(role) : null) ||
+        optionsByRole[role] ||
+        [];
+      const enabled = options.filter((option) => rolePermissions[role]?.[option.key]).length;
+      return { role, enabled, total: options.length };
+    });
+    const summaryText = summaryRows
       .map((item) => `${item.role}: ${item.enabled}/${item.total}`)
       .join(" • ");
 
@@ -19337,7 +19424,7 @@
       <strong>Managed roles: ${roles.join(", ")}</strong>
       <span>${
         isAdmin
-          ? `Admin has full access. Permission changes save instantly. ${escapeHtml(summaryText)}`
+          ? `Admin has full access. Review changes, then click Save role permissions. ${escapeHtml(summaryText)}`
           : "Admin has full access. Only administrator accounts can change role permissions."
       }</span>
     `;
@@ -19348,7 +19435,7 @@
           (typeof manager.getOptions === "function" ? manager.getOptions(role) : null) ||
           optionsByRole[role] ||
           [];
-        const enabledForRole = options.filter((option) => rolePermissions[role][option.key]).length;
+        const enabledForRole = options.filter((option) => rolePermissions[role]?.[option.key]).length;
 
         return `
           <article class="portal-role-permission-card">
@@ -19369,7 +19456,7 @@
                         type="checkbox"
                         data-role-permission-role="${escapeHtml(role)}"
                         data-role-permission-key="${escapeHtml(option.key)}"
-                        ${rolePermissions[role][option.key] ? "checked" : ""}
+                        ${rolePermissions[role]?.[option.key] ? "checked" : ""}
                         ${isAdmin ? "" : "disabled"}
                       />
                     </label>
@@ -40753,6 +40840,7 @@
     const rolePermissionGrid = document.getElementById("portal-role-permission-grid");
     const rolePermissionStatus = document.getElementById("portal-role-permission-status");
     const resetRolePermissionsButton = document.querySelector("[data-reset-role-permissions]");
+    const saveRolePermissionsButton = document.querySelector("[data-save-role-permissions]");
     const academicCycleSummary = document.getElementById("portal-academic-cycle-summary");
     const sessionForm = document.getElementById("portal-session-form");
     const sessionStatus = document.getElementById("portal-session-status");
@@ -40786,6 +40874,7 @@
       manager: rolePermissionManager,
       summaryTarget: rolePermissionSummary,
       gridTarget: rolePermissionGrid,
+      saveButton: saveRolePermissionsButton,
       resetButton: resetRolePermissionsButton,
       statusTarget: rolePermissionStatus,
     });
