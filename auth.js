@@ -1025,17 +1025,32 @@
     const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection || null;
     let currentState = "clear";
     let dismissedState = null;
+    let slowNetworkTimer = null;
 
-    const isSlow = () => {
+    const clearSlowNetworkTimer = () => {
+      if (!slowNetworkTimer) {
+        return;
+      }
+
+      window.clearTimeout(slowNetworkTimer);
+      slowNetworkTimer = null;
+    };
+
+    const isReallySlow = () => {
       if (!connection) {
         return false;
       }
 
+      const effectiveType = String(connection.effectiveType || "").toLowerCase();
+      const downlink = Number(connection.downlink);
+      const rtt = Number(connection.rtt);
+
       return (
         connection.saveData === true ||
-        connection.effectiveType === "slow-2g" ||
-        connection.effectiveType === "2g" ||
-        connection.effectiveType === "3g"
+        effectiveType === "slow-2g" ||
+        effectiveType === "2g" ||
+        (Number.isFinite(downlink) && downlink > 0 && downlink <= 0.35) ||
+        (Number.isFinite(rtt) && rtt >= 1800)
       );
     };
 
@@ -1064,15 +1079,26 @@
 
     const updateBanner = () => {
       if (!navigator.onLine) {
+        clearSlowNetworkTimer();
         renderBannerState("offline", "No network");
         return;
       }
 
-      if (isSlow()) {
-        renderBannerState("slow", "slow network");
+      if (isReallySlow()) {
+        if (currentState === "slow" || slowNetworkTimer) {
+          return;
+        }
+
+        slowNetworkTimer = window.setTimeout(() => {
+          slowNetworkTimer = null;
+          if (navigator.onLine && isReallySlow()) {
+            renderBannerState("slow", "slow network");
+          }
+        }, 3500);
         return;
       }
 
+      clearSlowNetworkTimer();
       renderBannerState("clear", "");
     };
 
@@ -6806,12 +6832,16 @@
       }
 
       const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection || null;
+      const effectiveType = String(connection?.effectiveType || "").toLowerCase();
+      const downlink = Number(connection?.downlink);
+      const rtt = Number(connection?.rtt);
       const isSlowConnection =
         connection &&
         (connection.saveData === true ||
-          connection.effectiveType === "slow-2g" ||
-          connection.effectiveType === "2g" ||
-          connection.effectiveType === "3g");
+          effectiveType === "slow-2g" ||
+          effectiveType === "2g" ||
+          (Number.isFinite(downlink) && downlink > 0 && downlink <= 0.35) ||
+          (Number.isFinite(rtt) && rtt >= 1800));
 
       return isSlowConnection
         ? "slow network"
@@ -14448,7 +14478,7 @@
         formOverlay.hidden = !visible;
       }
       if (formToggleButton) {
-        formToggleButton.textContent = `Add ${getFeeCategoryLabel(feeState.category)} item`;
+        formToggleButton.textContent = "Add fee item";
         formToggleButton.setAttribute("aria-expanded", String(visible));
       }
       if (visible) {
@@ -15741,7 +15771,7 @@
       renderFeeCategoryOptions();
       renderFeeManagementSection({ isAdmin, manager, summaryTarget, listTarget, selectedCategory: feeState.category });
       if (formToggleButton) {
-        formToggleButton.textContent = `Add ${getFeeCategoryLabel(feeState.category)} item`;
+        formToggleButton.textContent = "Add fee item";
       }
     });
 
@@ -18742,10 +18772,6 @@
       "dr.",
       "prof.",
       "engr.",
-      "rev.",
-      "pastor",
-      "alhaji",
-      "hajiya",
       "chief",
     ]);
     let prefix = "";
@@ -21664,9 +21690,9 @@
         <p>Fee lines currently available to billing operations.</p>
       </article>
       <article class="portal-class-stat portal-class-stat-violet">
-        <span>Fee categories</span>
+        <span>Billing groups</span>
         <strong>${activeCategoryCount}</strong>
-        <p>Active billing categories currently in use.</p>
+        <p>Active item groups currently in use.</p>
       </article>
       <article class="portal-class-stat portal-class-stat-green">
         <span>Classes covered</span>
@@ -21767,7 +21793,7 @@
                     <summary>
                       <div>
                         <strong>${escapeHtml(classGroup.label)}</strong>
-                        <span>${classGroup.categories.size} fee categor${classGroup.categories.size === 1 ? "y" : "ies"} • ${
+                        <span>${classGroup.categories.size} billing group${classGroup.categories.size === 1 ? "" : "s"} • ${
                           classGroup.items.length
                         } item${classGroup.items.length === 1 ? "" : "s"}</span>
                       </div>

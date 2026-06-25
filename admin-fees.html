@@ -142,19 +142,13 @@
             <div id="portal-fee-summary" class="portal-class-summary"></div>
 
             <div class="portal-class-layout portal-fee-layout-wide">
-              <section class="portal-fee-command-panel" aria-labelledby="portal-fee-category-heading">
-                <div class="portal-class-group-head">
-                  <div>
-                    <span>Fee categories</span>
-                    <strong id="portal-fee-category-heading">Choose what you want to bill</strong>
-                  </div>
-                  <button class="button button-primary" type="button" data-fee-form-toggle>
-                    Add fee item
-                  </button>
-                </div>
-                <div id="portal-fee-category-options" class="portal-fee-category-options" role="list"></div>
-                <div id="portal-fee-setup-notice" class="auth-status auth-status--info portal-fee-setup-notice" role="status" hidden></div>
-              </section>
+              <div class="portal-fee-toolbar">
+                <button class="button button-primary" type="button" data-fee-form-toggle>
+                  Add fee item
+                </button>
+              </div>
+              <div id="portal-fee-category-options" class="portal-fee-category-options" role="list" hidden></div>
+              <div id="portal-fee-setup-notice" class="auth-status auth-status--info portal-fee-setup-notice" role="status" hidden></div>
 
               <div id="portal-fee-list" class="portal-class-list"></div>
             </div>

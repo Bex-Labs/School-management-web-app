@@ -7501,6 +7501,17 @@ body.admin-dashboard-page .portal-fee-setup-notice {
   margin-top: 14px;
 }
 
+body.admin-dashboard-page .portal-fee-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin: 4px 0 12px;
+}
+
+body.admin-dashboard-page .portal-fee-toolbar .button {
+  min-height: 40px;
+  white-space: nowrap;
+}
+
 body.admin-dashboard-page .portal-fee-command-panel {
   display: grid;
   gap: 14px;
@@ -7523,6 +7534,10 @@ body.admin-dashboard-page .portal-fee-category-options {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 10px;
+}
+
+body.admin-dashboard-page .portal-fee-category-options[hidden] {
+  display: none;
 }
 
 body.admin-dashboard-page .portal-fee-category-option {
