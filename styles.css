@@ -5376,6 +5376,14 @@ body.admin-dashboard-page .admin-surface-card {
   scroll-margin-top: 76px;
 }
 
+body.admin-dashboard-page .admin-section-page-hidden {
+  display: none !important;
+}
+
+body.admin-dashboard-page .admin-section-page-active {
+  grid-column: 1 / -1;
+}
+
 body.admin-dashboard-page .admin-dashboard-greeting {
   display: grid;
   gap: 10px;
@@ -6125,6 +6133,11 @@ body.admin-dashboard-page .admin-report-workspace {
   display: grid;
   gap: 20px;
   margin-top: 22px;
+}
+
+body.admin-dashboard-page .admin-report-dashboard-card {
+  display: grid;
+  gap: 18px;
 }
 
 body.admin-dashboard-page .admin-report-heading {

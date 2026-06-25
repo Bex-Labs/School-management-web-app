@@ -13078,6 +13078,7 @@
     const courseManager = getCourseManager();
     const lessonOverlay = document.getElementById("portal-timetable-lesson-overlay");
     const periodOverlay = document.getElementById("portal-timetable-period-overlay");
+    const substitutionLogTarget = document.getElementById("portal-calendar-substitution-log");
     const periodForm = document.getElementById("portal-timetable-period-form");
     const periodTitle = document.getElementById("timetable-period-title");
     const sessionSelect = document.getElementById("timetable-session-id");
@@ -13806,6 +13807,7 @@
           teachers: getTeacherDirectory(),
         },
       });
+      renderTimetableSubstitutionLog(manager, substitutionLogTarget);
       syncTimetableInlineStatus();
     };
 
@@ -21442,7 +21444,6 @@
       classCount,
       teacherCount,
       activePeriods,
-      substitutions,
     } = manager.summarize();
     const cycleManager = getAcademicCycleManager();
     const cycleState = cycleManager && typeof cycleManager.getState === "function"
@@ -21622,33 +21623,56 @@
           <button class="button button-outline" type="button" data-timetable-inline-action="print" ${isAdmin ? "" : "disabled"}>Print selected class</button>
         </div>
       </section>
-      <section class="portal-timetable-footer-panels">
+      ${archivedCount ? `<p class="auth-helper-text">${archivedCount} archived timetable lesson${archivedCount === 1 ? "" : "s"} retained for audit history.</p>` : ""}
+    `;
+  }
+
+  function renderTimetableSubstitutionLog(manager, target) {
+    if (!target) {
+      return;
+    }
+
+    if (!manager || typeof manager.summarize !== "function") {
+      target.innerHTML = `
         <article class="portal-class-card portal-timetable-panel">
           <div class="portal-class-title">
             <strong>Substitution log</strong>
-            <span>${substitutions.length} recent replacement${substitutions.length === 1 ? "" : "s"}</span>
+            <span>Timetable tools unavailable</span>
           </div>
           <div class="portal-timetable-entry-list">
-            ${
-              substitutions.length
-                ? substitutions
-                    .slice(0, 6)
-                    .map(
-                      (entry) => `
-                        <div class="portal-timetable-entry-row">
-                          <span>${escapeHtml(entry.substitutionDate || "Today")}</span>
-                          <span>${escapeHtml(entry.classLevel)} - ${escapeHtml(entry.subject)}</span>
-                          <span>${escapeHtml(entry.originalTeacher || "Original")} -> ${escapeHtml(entry.replacementTeacher)}</span>
-                        </div>
-                      `,
-                    )
-                    .join("")
-                : `<p>No substitutions logged yet.</p>`
-            }
+            <p>No substitutions logged yet.</p>
           </div>
         </article>
-      </section>
-      ${archivedCount ? `<p class="auth-helper-text">${archivedCount} archived timetable lesson${archivedCount === 1 ? "" : "s"} retained for audit history.</p>` : ""}
+      `;
+      return;
+    }
+
+    const { substitutions = [] } = manager.summarize();
+    target.innerHTML = `
+      <article class="portal-class-card portal-timetable-panel">
+        <div class="portal-class-title">
+          <strong>Substitution log</strong>
+          <span>${substitutions.length} recent replacement${substitutions.length === 1 ? "" : "s"}</span>
+        </div>
+        <div class="portal-timetable-entry-list">
+          ${
+            substitutions.length
+              ? substitutions
+                  .slice(0, 6)
+                  .map(
+                    (entry) => `
+                      <div class="portal-timetable-entry-row">
+                        <span>${escapeHtml(entry.substitutionDate || "Today")}</span>
+                        <span>${escapeHtml(entry.classLevel)} - ${escapeHtml(entry.subject)}</span>
+                        <span>${escapeHtml(entry.originalTeacher || "Original")} -> ${escapeHtml(entry.replacementTeacher)}</span>
+                      </div>
+                    `,
+                  )
+                  .join("")
+              : `<p>No substitutions logged yet.</p>`
+          }
+        </div>
+      </article>
     `;
   }
 
@@ -36399,6 +36423,9 @@
       return;
     }
 
+    const pagedQuickNavPages = new Set(["admin-schedule", "admin-admissions", "admin-teachers", "admin-reports"]);
+    const currentPage = getPage();
+
     if (
       document.body.classList.contains("staff-portal-page") ||
       document.body.classList.contains("student-portal-page")
@@ -36418,7 +36445,7 @@
       existingNav.remove();
     }
 
-    if (ADMIN_SETTINGS_PAGES.has(getPage()) || getPage() === "admin-feature-modules") {
+    if (ADMIN_SETTINGS_PAGES.has(currentPage) || currentPage === "admin-feature-modules") {
       const settingsLinks = Array.from(main.querySelectorAll(".admin-settings-subnav a"));
 
       const quickSettingsLinks = settingsLinks.filter((link) => link.textContent.trim() !== "All Settings");
@@ -36448,9 +36475,17 @@
       }
     }
 
-    const cards = Array.from(main.querySelectorAll(".admin-surface-card")).filter(
-      (card) => !card.hidden && card.getAttribute("aria-hidden") !== "true" && card.querySelector(".admin-surface-head h2"),
-    );
+    const cards = Array.from(main.querySelectorAll(".admin-surface-card")).filter((card) => {
+      if (!card.querySelector(".admin-surface-head h2, .admin-report-heading h2")) {
+        return false;
+      }
+
+      if (pagedQuickNavPages.has(currentPage)) {
+        return true;
+      }
+
+      return !card.hidden && card.getAttribute("aria-hidden") !== "true";
+    });
 
     if (cards.length < 2) {
       return;
@@ -36459,7 +36494,7 @@
     const usedIds = new Set();
     const items = cards
       .map((card, index) => {
-        const heading = card.querySelector(".admin-surface-head h2");
+        const heading = card.querySelector(".admin-surface-head h2, .admin-report-heading h2");
         const label = heading ? heading.textContent.trim() : `Section ${index + 1}`;
 
         if (!label) {
@@ -36467,17 +36502,17 @@
         }
 
         const base = slugifyAdminSectionTitle(label) || `section-${index + 1}`;
-        let id = `admin-section-${base}`;
+        let id = card.id && card.id.startsWith("admin-section-") ? card.id : `admin-section-${base}`;
         let suffix = 2;
 
-        while (usedIds.has(id) || document.getElementById(id)) {
+        while (usedIds.has(id) || (document.getElementById(id) && document.getElementById(id) !== card)) {
           id = `admin-section-${base}-${suffix}`;
           suffix += 1;
         }
 
         usedIds.add(id);
         card.id = id;
-        return { id, label };
+        return { id, label, card };
       })
       .filter(Boolean);
 
@@ -36511,6 +36546,47 @@
         link.classList.toggle("is-active", link.dataset.sectionTarget === targetId);
       });
     };
+
+    if (pagedQuickNavPages.has(currentPage)) {
+      const validIds = new Set(items.map((item) => item.id));
+      const getInitialTargetId = () => {
+        const hashTarget = decodeURIComponent(String(window.location.hash || "").replace(/^#/, ""));
+        return validIds.has(hashTarget) ? hashTarget : items[0]?.id || "";
+      };
+      const activatePagedSection = (targetId, options = {}) => {
+        const nextTargetId = validIds.has(targetId) ? targetId : items[0]?.id || "";
+        if (!nextTargetId) {
+          return;
+        }
+
+        items.forEach((item) => {
+          const isActive = item.id === nextTargetId;
+          item.card.hidden = !isActive;
+          item.card.classList.toggle("admin-section-page-active", isActive);
+          item.card.classList.toggle("admin-section-page-hidden", !isActive);
+          item.card.setAttribute("aria-hidden", isActive ? "false" : "true");
+        });
+        activate(nextTargetId);
+
+        if (options.updateHash !== false && window.location.hash !== `#${nextTargetId}`) {
+          window.history.replaceState(null, "", `#${nextTargetId}`);
+        }
+      };
+
+      links.forEach((link) => {
+        link.addEventListener("click", (event) => {
+          event.preventDefault();
+          activatePagedSection(link.dataset.sectionTarget || "");
+        });
+      });
+
+      window.addEventListener("hashchange", () => {
+        activatePagedSection(getInitialTargetId(), { updateHash: false });
+      });
+
+      activatePagedSection(getInitialTargetId(), { updateHash: false });
+      return;
+    }
 
     links.forEach((link) => {
       link.addEventListener("click", () => {
