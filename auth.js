@@ -24,6 +24,7 @@
   const NETWORK_RESILIENCE_BANNER_ID = "network-resilience-banner";
   const STUDENT_STORAGE_KEY_BASE = "schoolsphere.students.v1";
   const AUTH_ROLES = ["Admin", "Teacher", "Student", "Parent"];
+  const SCHOOL_ACCOUNT_DELETE_CONFIRMATION = "DELETE ACCOUNT";
   const PARENT_SELECTION_STORAGE_PREFIX = "schoolsphere.parent.selected-child.v1";
   const PARENT_FEES_STORAGE_PREFIX = "schoolsphere.parent.fees.v1";
   const PARENT_FEES_EVENT_NAME = "schoolsphere:parent-fees:updated";
@@ -3342,6 +3343,12 @@
     return configuredName || "submit-admission";
   }
 
+  function getSupabaseAccountDeleteFunctionName() {
+    const config = getSupabaseConfig();
+    const configuredName = String(config?.accountDeleteFunctionName || "").trim();
+    return configuredName || "delete-school-account";
+  }
+
   function normalizeAuthProvider(value) {
     return String(value || "").trim().toLowerCase() === "google" ? "google" : "password";
   }
@@ -3456,6 +3463,92 @@
     }
 
     return collected;
+  }
+
+  function clearLocalSchoolAccountData(workspaceId, currentUser = null) {
+    const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId || getCurrentWorkspaceId());
+    const usersBeforeDelete = getUsers();
+    const deletedUsers = usersBeforeDelete.filter((entry) => {
+      const entryWorkspaceId = normalizeWorkspaceId(entry.workspaceId || entry.id || "public");
+      return entryWorkspaceId === normalizedWorkspaceId || entry.id === currentUser?.id;
+    });
+    const deletedUserIds = new Set(deletedUsers.map((entry) => String(entry.id || "").trim()).filter(Boolean));
+    const deletedEmails = new Set(
+      deletedUsers
+        .map((entry) => normalizeEmail(entry.email || entry.normalizedEmail || ""))
+        .filter(Boolean),
+    );
+
+    WORKSPACE_SCOPED_STATE_KEYS.forEach((baseKey) => {
+      localStorage.removeItem(buildWorkspaceScopedStateKey(baseKey, normalizedWorkspaceId));
+    });
+
+    [
+      `${NOTIFICATION_STORAGE_PREFIX}:${normalizedWorkspaceId}`,
+      `${ADMISSIONS_STORAGE_KEY_BASE}:${normalizedWorkspaceId}`,
+      `${PARENT_FEES_STORAGE_PREFIX}:${normalizedWorkspaceId}`,
+    ].forEach((key) => localStorage.removeItem(key));
+
+    const prefixMatchers = [
+      `${NOTIFICATION_PREFERENCES_STORAGE_PREFIX}:${normalizedWorkspaceId}:`,
+      `${ANNOUNCEMENT_TOAST_SESSION_PREFIX}:${normalizedWorkspaceId}:`,
+      `${PARENT_SELECTION_STORAGE_PREFIX}:${normalizedWorkspaceId}:`,
+      `${PORTAL_ONBOARDING_STORAGE_KEY}::${normalizedWorkspaceId}::`,
+      `${FORM_DRAFT_STORAGE_PREFIX}:`,
+    ];
+
+    Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index))
+      .filter(Boolean)
+      .filter((key) => prefixMatchers.some((prefix) => key.startsWith(prefix)))
+      .forEach((key) => localStorage.removeItem(key));
+
+    const accessGrants = parseJSON(localStorage.getItem(ACCESS_GRANTS_STORAGE_KEY), []);
+    if (Array.isArray(accessGrants)) {
+      localStorage.setItem(
+        ACCESS_GRANTS_STORAGE_KEY,
+        JSON.stringify(
+          accessGrants.filter(
+            (entry) => normalizeWorkspaceId(entry?.workspaceId || "public") !== normalizedWorkspaceId,
+          ),
+        ),
+      );
+    }
+
+    saveUsers(
+      usersBeforeDelete.filter((entry) => {
+        const entryWorkspaceId = normalizeWorkspaceId(entry.workspaceId || entry.id || "public");
+        return entryWorkspaceId !== normalizedWorkspaceId && !deletedUserIds.has(String(entry.id || "").trim());
+      }),
+    );
+
+    const recoveryRequests = getPasswordRecoveryRequests();
+    if (Array.isArray(recoveryRequests)) {
+      savePasswordRecoveryRequests(
+        recoveryRequests.filter((entry) => {
+          const email = normalizeEmail(entry?.email || "");
+          const userId = String(entry?.userId || "").trim();
+          return !deletedEmails.has(email) && !deletedUserIds.has(userId);
+        }),
+      );
+    }
+
+    const mailLog = getMailLog();
+    if (Array.isArray(mailLog) && deletedEmails.size) {
+      saveMailLog(
+        mailLog.filter((entry) => {
+          const raw = JSON.stringify(entry || {}).toLowerCase();
+          return !Array.from(deletedEmails).some((email) => email && raw.includes(email));
+        }),
+      );
+    }
+
+    clearSession();
+    clearSupabaseBrowserSession();
+
+    return {
+      workspaceId: normalizedWorkspaceId,
+      deletedUsers: deletedUsers.length,
+    };
   }
 
   function mapSchoolSettingsToInstitutionPayload(settings = {}, userId) {
@@ -5319,6 +5412,51 @@
     return {
       status: String(payload.status || "deleted").trim().toLowerCase(),
       message: String(payload.message || "").trim(),
+    };
+  }
+
+  async function deleteSupabaseSchoolAccount({ confirmation, schoolName = "" } = {}) {
+    if (!isSupabaseConfigured()) {
+      return { status: "skipped", message: "Online backend is not configured." };
+    }
+
+    const client = await getSupabaseClient();
+    const functionName = getSupabaseAccountDeleteFunctionName();
+    let data;
+    let error;
+
+    try {
+      ({ data, error } = await withNetworkTimeout(
+        client.functions.invoke(functionName, {
+          body: {
+            confirmation,
+            schoolName,
+          },
+        }),
+      ));
+    } catch (requestError) {
+      return {
+        status: "error",
+        message: formatSupabaseAuthError(requestError, "Could not delete this school account online."),
+      };
+    }
+
+    const payload = data && typeof data === "object" ? data : null;
+    if (error || !payload || payload.ok === false) {
+      return {
+        status: "error",
+        message: formatSupabaseAuthError(
+          error || payload,
+          "Could not delete this school account online.",
+        ),
+      };
+    }
+
+    return {
+      status: String(payload.status || "deleted").trim().toLowerCase(),
+      message: String(payload.message || "").trim(),
+      deletedUsers: Number(payload.deletedUsers || 0),
+      failedUsers: Array.isArray(payload.failedUsers) ? payload.failedUsers : [],
     };
   }
 
@@ -41358,6 +41496,101 @@
       .forEach((eventName) => window.addEventListener(eventName, render));
   }
 
+  function initSchoolAccountDeletionControls({ isAdmin, triggerButton, statusTarget }) {
+    if (!triggerButton) {
+      return;
+    }
+
+    triggerButton.disabled = !isAdmin;
+
+    triggerButton.addEventListener("click", async () => {
+      if (!isAdmin) {
+        return;
+      }
+
+      const { session, user, roleLabel } = getAdminAccessContext();
+      if (!session || !user || !/admin/i.test(roleLabel || "")) {
+        setStatus(statusTarget, "error", "Only the school administrator can delete this account.");
+        return;
+      }
+
+      const settings = getConfiguredSchoolSettings();
+      const schoolName = String(settings.schoolName || "this school").trim() || "this school";
+      const firstConfirm = await openAppActionDialog({
+        title: "Delete school account permanently?",
+        message:
+          "This will permanently delete the school workspace, all connected users, and all school records.",
+        details:
+          "Students, staff, parents, classes, attendance, fees, invoices, report cards, admissions, messages, settings, and login accounts will be removed.",
+        confirmLabel: "Continue",
+        cancelLabel: "Cancel",
+        variant: "danger",
+      });
+
+      if (!firstConfirm.confirmed) {
+        return;
+      }
+
+      const typedConfirm = await openAppActionDialog({
+        mode: "prompt",
+        title: "Type DELETE ACCOUNT",
+        message: `To confirm deletion of ${schoolName}, type DELETE ACCOUNT exactly.`,
+        details: "This action cannot be undone after it starts.",
+        inputLabel: "Confirmation phrase",
+        placeholder: SCHOOL_ACCOUNT_DELETE_CONFIRMATION,
+        confirmLabel: "Delete permanently",
+        cancelLabel: "Cancel",
+        required: true,
+        variant: "danger",
+      });
+
+      if (!typedConfirm.confirmed) {
+        return;
+      }
+
+      if (String(typedConfirm.value || "").trim() !== SCHOOL_ACCOUNT_DELETE_CONFIRMATION) {
+        setStatus(statusTarget, "error", "Confirmation phrase did not match. No data was deleted.");
+        return;
+      }
+
+      triggerButton.disabled = true;
+      triggerButton.textContent = "Deleting account...";
+      setStatus(statusTarget, "info", "Deleting the school account. Keep this page open.");
+
+      const onlineResult = await deleteSupabaseSchoolAccount({
+        confirmation: SCHOOL_ACCOUNT_DELETE_CONFIRMATION,
+        schoolName,
+      });
+
+      if (onlineResult.status === "error") {
+        triggerButton.disabled = false;
+        triggerButton.textContent = "Delete school account";
+        setStatus(
+          statusTarget,
+          "error",
+          escapeHtml(onlineResult.message || "Could not delete the school account online."),
+        );
+        return;
+      }
+
+      const cleanup = clearLocalSchoolAccountData(
+        session.workspaceId || user.workspaceId || getCurrentWorkspaceId(),
+        user,
+      );
+      setStatus(
+        statusTarget,
+        "success",
+        `School account deleted. Removed local workspace data and ${cleanup.deletedUsers} local user record${
+          cleanup.deletedUsers === 1 ? "" : "s"
+        }. Redirecting to sign in...`,
+      );
+
+      window.setTimeout(() => {
+        window.location.replace("./login.html");
+      }, 1400);
+    });
+  }
+
   function initAdminSettingsPage() {
     const page = getPage();
 
@@ -41396,6 +41629,8 @@
     const reportSchoolCommentForm = document.getElementById("portal-report-school-comment-form");
     const reportSchoolCommentStatus = document.getElementById("portal-report-school-comment-status");
     const reportSchoolCommentSummary = document.getElementById("portal-report-school-comment-summary");
+    const deleteSchoolAccountButton = document.querySelector("[data-delete-school-account]");
+    const accountDeleteStatus = document.getElementById("portal-account-delete-status");
 
     initSchoolSettingsControls({
       isAdmin: canManageSettings,
@@ -41453,6 +41688,12 @@
       form: reportSchoolCommentForm,
       status: reportSchoolCommentStatus,
       summaryTarget: reportSchoolCommentSummary,
+    });
+
+    initSchoolAccountDeletionControls({
+      isAdmin: canManageSettings,
+      triggerButton: deleteSchoolAccountButton,
+      statusTarget: accountDeleteStatus,
     });
 
   }

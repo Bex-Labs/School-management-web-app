@@ -16,6 +16,7 @@ window.SchoolSphereSupabaseConfig = {
   emailRedirectPath: "login.html",
   userProvisionFunctionName: "provision-user",
   admissionsSubmitFunctionName: "submit-admission",
+  accountDeleteFunctionName: "delete-school-account",
   paystackPublicKey: "pk_test_01b1969efc43b8ce820e4e3dd64d87ac737719bc",
 
   // ─────────────────────────────────────────────────────────────────────────

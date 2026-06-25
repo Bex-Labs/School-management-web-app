@@ -10833,6 +10833,44 @@ body.portal-onboarding-open {
   overflow: hidden;
 }
 
+body.admin-dashboard-page .portal-danger-zone-card {
+  border-color: #fecaca;
+  background: #fffafa;
+}
+
+body.admin-dashboard-page .portal-danger-zone-card .admin-surface-head h2 {
+  color: #9f1d1d;
+}
+
+body.admin-dashboard-page .portal-danger-zone-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px;
+  border: 1px solid #fed7d7;
+  border-radius: 20px;
+  background: #ffffff;
+}
+
+body.admin-dashboard-page .portal-danger-zone-body div {
+  display: grid;
+  gap: 6px;
+}
+
+body.admin-dashboard-page .portal-danger-zone-body strong {
+  color: #7f1d1d;
+  font-size: 1rem;
+}
+
+body.admin-dashboard-page .portal-danger-zone-body p {
+  max-width: 780px;
+  margin: 0;
+  color: #6f3a3a;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
 .portal-onboarding {
   position: fixed;
   inset: 0;
@@ -16964,6 +17002,15 @@ body.admin-dashboard-page .portal-class-button:hover:not(:disabled) {
 }
 
 @media (max-width: 759px) {
+  body.admin-dashboard-page .portal-danger-zone-body {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  body.admin-dashboard-page .portal-danger-zone-body .portal-class-button {
+    width: 100%;
+  }
+
   .portal-onboarding {
     padding: 12px;
   }
