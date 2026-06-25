@@ -7285,12 +7285,26 @@
       });
     }
 
+    const admissionsLinkIcon = `
+      <span class="admin-sidebar-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3 3 7.5 12 12l9-4.5L12 3Z"></path>
+          <path d="M6 10.5V15.8c0 .4.2.8.6 1 1.4.9 3.3 1.5 5.4 1.5s4-.6 5.4-1.5c.4-.2.6-.6.6-1v-5.3"></path>
+        </svg>
+      </span>
+      <span>Admissions</span>
+    `;
+    const existingAdmissionsLink = nav?.querySelector('a[href="./admin-admissions.html"]');
+    if (existingAdmissionsLink) {
+      existingAdmissionsLink.innerHTML = admissionsLinkIcon;
+    }
+
     const shouldInjectAdmissionsLink =
       !isStaffSidebar &&
       !isStudentSidebar &&
       !isAccountSettingsPage &&
       !isParentPage() &&
-      !nav?.querySelector('a[href="./admin-admissions.html"]');
+      !existingAdmissionsLink;
 
     if (nav && shouldInjectAdmissionsLink) {
       const studentsLink = nav.querySelector('a[href="./admin-students.html"]');
@@ -7298,15 +7312,7 @@
       const isAdmissionsPage = getPage() === "admin-admissions";
       admissionsLink.className = `admin-sidebar-link${isAdmissionsPage ? " is-active" : ""}`;
       admissionsLink.href = "./admin-admissions.html";
-      admissionsLink.innerHTML = `
-        <span class="admin-sidebar-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 3 3 7.5 12 12l9-4.5L12 3Z"></path>
-            <path d="M6 10.5V15.8c0 .4.2.8.6 1 1.4.9 3.3 1.5 5.4 1.5s4-.6 5.4-1.5c.4-.2.6-.6.6-1v-5.3"></path>
-          </svg>
-        </span>
-        <span>Admissions</span>
-      `;
+      admissionsLink.innerHTML = admissionsLinkIcon;
 
       if (studentsLink?.nextSibling) {
         nav.insertBefore(admissionsLink, studentsLink.nextSibling);
@@ -38819,12 +38825,12 @@
           <path d="M8 9h8"></path>
           <path d="M8 13h5"></path>
         </svg>
-        <span>Get Help</span>
+        <span>CHAT</span>
       </button>
       <div id="parent-floating-chatbot-panel" class="parent-floating-chatbot-panel" data-parent-chatbot-panel hidden>
         <header class="parent-floating-chatbot-head">
           <div>
-            <strong>AI Parent Chatbot</strong>
+            <strong>CHAT</strong>
             <span>${student ? `Using ${escapeHtml(student.fullName)}'s school data` : "No linked child found"}</span>
           </div>
           <button type="button" data-parent-chatbot-close aria-label="Close parent chatbot">&times;</button>
