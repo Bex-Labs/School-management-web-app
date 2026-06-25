@@ -1,3 +1,25 @@
+(() => {
+  const theme = (() => {
+    try {
+      return localStorage.getItem("schoolsphere.theme.v1") === "dark" ? "dark" : "light";
+    } catch {
+      return "light";
+    }
+  })();
+  const applyTheme = () => {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+    if (document.body) {
+      document.body.dataset.theme = theme;
+      document.body.style.colorScheme = theme;
+    }
+  };
+  applyTheme();
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", applyTheme, { once: true });
+  }
+})();
+
 const homeNavLinks = [
   { label: "Home", href: "./index.html" },
   { label: "Products", href: "./products.html" },

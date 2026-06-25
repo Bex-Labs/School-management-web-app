@@ -9,6 +9,7 @@
   const SUPABASE_SCRIPT_SRC = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
   const SUPABASE_STORAGE_KEY = "schoolsphere.supabase.auth.v1";
   const ADMIN_SIDEBAR_STATE_KEY = "schoolsphere.admin.sidebar.collapsed.v1";
+  const APP_THEME_STORAGE_KEY = "schoolsphere.theme.v1";
   const AUTH_PERSIST_LOCAL_KEY = "schoolsphere.auth.persistence.local.v1";
   const AUTH_PERSIST_SESSION_KEY = "schoolsphere.auth.persistence.session.v1";
   const AUTH_PENDING_ROLE_KEY = "schoolsphere.auth.pending.role.v1";
@@ -594,7 +595,11 @@
   ]);
   let isHydratingWorkspaceStateFromSupabase = false;
 
+  applyThemePreference(getThemePreference());
+
   document.addEventListener("DOMContentLoaded", async () => {
+    applyThemePreference(getThemePreference());
+    initThemeControls();
     wireSignOutButton(document);
 
     try {
@@ -645,6 +650,101 @@
 
   function getPage() {
     return document.body.dataset.page || "";
+  }
+
+  function getThemePreference() {
+    try {
+      return localStorage.getItem(APP_THEME_STORAGE_KEY) === "dark" ? "dark" : "light";
+    } catch {
+      return "light";
+    }
+  }
+
+  function saveThemePreference(theme) {
+    const normalizedTheme = theme === "dark" ? "dark" : "light";
+    try {
+      localStorage.setItem(APP_THEME_STORAGE_KEY, normalizedTheme);
+    } catch {
+      // Theme still applies for this page even if storage is unavailable.
+    }
+    applyThemePreference(normalizedTheme);
+  }
+
+  function syncThemeToggleButton(button, theme) {
+    if (!button) {
+      return;
+    }
+
+    const isDark = theme === "dark";
+    const label = button.querySelector("[data-theme-toggle-label]");
+    const state = button.querySelector("[data-theme-toggle-state]");
+    button.classList.toggle("is-dark", isDark);
+    button.setAttribute("aria-pressed", String(isDark));
+    button.setAttribute("aria-label", isDark ? "Switch to light mode" : "Switch to dark mode");
+    button.setAttribute("title", isDark ? "Switch to light mode" : "Switch to dark mode");
+    if (label) {
+      label.textContent = isDark ? "Light mode" : "Dark mode";
+    }
+    if (state) {
+      state.textContent = isDark ? "Dark" : "Light";
+    }
+  }
+
+  function applyThemePreference(theme = "light") {
+    const normalizedTheme = theme === "dark" ? "dark" : "light";
+    document.documentElement.dataset.theme = normalizedTheme;
+    document.documentElement.style.colorScheme = normalizedTheme;
+    if (document.body) {
+      document.body.dataset.theme = normalizedTheme;
+      document.body.style.colorScheme = normalizedTheme;
+    }
+    document.querySelectorAll("[data-theme-toggle]").forEach((button) => {
+      syncThemeToggleButton(button, normalizedTheme);
+    });
+  }
+
+  function createThemeToggleButton(variant = "sidebar") {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `theme-toggle theme-toggle-${variant}`;
+    button.setAttribute("data-theme-toggle", "");
+    button.innerHTML = `
+      <span class="theme-toggle-track" aria-hidden="true">
+        <span class="theme-toggle-thumb"></span>
+      </span>
+      <span class="theme-toggle-copy">
+        <strong data-theme-toggle-label>Dark mode</strong>
+        <small data-theme-toggle-state>Light</small>
+      </span>
+    `;
+    button.addEventListener("click", () => {
+      saveThemePreference(getThemePreference() === "dark" ? "light" : "dark");
+    });
+    syncThemeToggleButton(button, getThemePreference());
+    return button;
+  }
+
+  function initThemeControls() {
+    const authBrand = document.querySelector(".auth-left-inner .auth-brand");
+    if (authBrand && !document.querySelector(".theme-toggle-auth")) {
+      authBrand.insertAdjacentElement("afterend", createThemeToggleButton("auth"));
+    }
+
+    const sidebar = document.querySelector(".admin-sidebar");
+    if (sidebar && !sidebar.querySelector(".theme-toggle-sidebar")) {
+      const nav = sidebar.querySelector(".admin-sidebar-nav");
+      const profile = sidebar.querySelector(".admin-sidebar-profile");
+      const toggle = createThemeToggleButton("sidebar");
+      if (profile) {
+        sidebar.insertBefore(toggle, profile);
+      } else if (nav) {
+        nav.insertAdjacentElement("afterend", toggle);
+      } else {
+        sidebar.append(toggle);
+      }
+    }
+
+    applyThemePreference(getThemePreference());
   }
 
   function isParentPage(page = getPage()) {
