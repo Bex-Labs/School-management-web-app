@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Self Registration | SchoolSphere</title>
+    <meta name="description" content="Student and staff self-registration form for SchoolSphere schools." />
+    <link rel="stylesheet" href="./styles.css?v=self-registration" />
+  </head>
+  <body data-page="self-register" class="auth-page">
+    <main class="auth-screen">
+      <section class="auth-shell">
+        <article class="auth-pane auth-pane-left">
+          <div class="auth-left-inner">
+            <a class="auth-brand auth-brand-school" href="./index.html" aria-label="SchoolSphere home">
+              <span id="self-register-brand-mark" class="auth-brand-mark">S</span>
+              <span class="auth-brand-copy">
+                <strong id="self-register-school-name" class="auth-brand-text">School Registration</strong>
+                <small>Powered by SchoolSphere</small>
+              </span>
+            </a>
+
+            <div class="auth-copy-block">
+              <h1 id="self-register-title" class="auth-page-title">Self Registration</h1>
+              <p id="self-register-copy" class="auth-flow-note">Complete the form below to submit your details to the school.</p>
+            </div>
+
+            <form id="self-register-form" class="auth-form-clean" novalidate>
+              <div id="self-register-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+              <input id="self-register-workspace-id" name="workspaceId" type="hidden" />
+              <input id="self-register-type" name="registrationType" type="hidden" />
+
+              <section class="self-register-panel" data-self-register-student>
+                <h3>Student details</h3>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="self-student-first-name">First Name <span class="form-required">*</span></label>
+                  <label class="auth-line-field" for="self-student-first-name">
+                    <input id="self-student-first-name" name="firstName" type="text" placeholder="First Name" autocomplete="given-name" />
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="self-student-last-name">Last Name <span class="form-required">*</span></label>
+                  <label class="auth-line-field" for="self-student-last-name">
+                    <input id="self-student-last-name" name="lastName" type="text" placeholder="Last Name" autocomplete="family-name" />
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="self-student-email">Student Email</label>
+                  <label class="auth-line-field" for="self-student-email">
+                    <input id="self-student-email" name="studentEmail" type="email" placeholder="Student email" autocomplete="email" />
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="self-student-gender">Gender</label>
+                  <label class="auth-line-field" for="self-student-gender">
+                    <select id="self-student-gender" name="gender">
+                      <option value="">Select gender</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Prefer not to say">Prefer not to say</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="self-student-date-of-birth">Date of Birth</label>
+                  <label class="auth-line-field" for="self-student-date-of-birth">
+                    <input id="self-student-date-of-birth" name="dateOfBirth" type="date" />
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="self-student-level">Level/Class <span class="form-required">*</span></label>
+                  <label class="auth-line-field" for="self-student-level">
+                    <select id="self-student-level" name="level">
+                      <option value="">Loading classes...</option>
+                    </select>
+                  </label>
+                </div>
+
+                <h3>Parent/Guardian details</h3>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="self-guardian-name">Parent/Guardian Name <span class="form-required">*</span></label>
+                  <label class="auth-line-field" for="self-guardian-name">
+                    <input id="self-guardian-name" name="guardianName" type="text" placeholder="Parent/Guardian Name" autocomplete="name" />
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="self-guardian-relationship">Relationship <span class="form-required">*</span></label>
+                  <label class="auth-line-field" for="self-guardian-relationship">
+                    <input id="self-guardian-relationship" name="guardianRelationship" type="text" placeholder="Relationship" />
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="self-guardian-phone">Phone Number <span class="form-required">*</span></label>
+                  <label class="auth-line-field" for="self-guardian-phone">
+                    <input id="self-guardian-phone" name="guardianPhone" type="text" placeholder="+234 800 000 0000" autocomplete="tel" />
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="self-guardian-email">Email Address</label>
+                  <label class="auth-line-field" for="self-guardian-email">
+                    <input id="self-guardian-email" name="guardianEmail" type="email" placeholder="Guardian email" autocomplete="email" />
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="self-guardian-address">Home Address</label>
+                  <label class="auth-line-field" for="self-guardian-address">
+                    <input id="self-guardian-address" name="guardianAddress" type="text" placeholder="Home address" autocomplete="street-address" />
+                  </label>
+                </div>
+              </section>
+
+              <section class="self-register-panel" data-self-register-staff hidden>
+                <h3>Staff details</h3>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="self-staff-name">Staff Name <span class="form-required">*</span></label>
+                  <label class="auth-line-field" for="self-staff-name">
+                    <input id="self-staff-name" name="displayName" type="text" placeholder="Staff Full Name" autocomplete="name" />
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="self-staff-email">Staff Email <span class="form-required">*</span></label>
+                  <label class="auth-line-field" for="self-staff-email">
+                    <input id="self-staff-email" name="email" type="email" placeholder="staff@school.com" autocomplete="email" />
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="self-staff-phone">Phone Number</label>
+                  <label class="auth-line-field" for="self-staff-phone">
+                    <input id="self-staff-phone" name="phone" type="text" placeholder="+234 800 000 0000" autocomplete="tel" />
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="self-staff-title">Role/Position</label>
+                  <label class="auth-line-field" for="self-staff-title">
+                    <input id="self-staff-title" name="title" type="text" placeholder="Teacher, Nurse, Accountant..." />
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="self-staff-department">Department</label>
+                  <label class="auth-line-field" for="self-staff-department">
+                    <input id="self-staff-department" name="department" type="text" placeholder="Department" />
+                  </label>
+                </div>
+              </section>
+
+              <button id="self-register-submit" class="button button-primary button-full" type="submit">Submit registration</button>
+            </form>
+          </div>
+        </article>
+
+        <aside class="auth-pane auth-pane-right" aria-label="Registration confirmation">
+          <div class="auth-stage-card">
+            <div class="auth-stage-copy">
+              <span id="self-register-side-kicker">School registration</span>
+              <h2 id="self-register-side-title">Your details go directly to the school.</h2>
+              <p id="self-register-side-copy">Use the official link shared by the school admin. The school will manage your access after submission.</p>
+            </div>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+    <script src="./supabase-config.js"></script>
+    <script src="./auth.js"></script>
+  </body>
+</html>

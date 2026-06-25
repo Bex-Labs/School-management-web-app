@@ -631,6 +631,7 @@
     initAdminSettingsPage();
     initUserSettingsPage();
     initAdmissionsApplyPage();
+    initSelfRegisterPage();
     initFormDraftPersistence();
     initSupabaseWorkspaceStateLiveSync();
 
@@ -3343,6 +3344,12 @@
     return configuredName || "submit-admission";
   }
 
+  function getSupabaseSelfRegistrationFunctionName() {
+    const config = getSupabaseConfig();
+    const configuredName = String(config?.selfRegistrationFunctionName || "").trim();
+    return configuredName || "submit-registration";
+  }
+
   function getSupabaseAccountDeleteFunctionName() {
     const config = getSupabaseConfig();
     const configuredName = String(config?.accountDeleteFunctionName || "").trim();
@@ -5533,6 +5540,548 @@
     };
   }
 
+  async function callPublicSelfRegistrationFunction(body = {}) {
+    if (!isSupabaseConfigured()) {
+      return {
+        ok: false,
+        message: "Online registration is not configured yet.",
+      };
+    }
+
+    const config = getSupabaseConfig();
+    const functionName = getSupabaseSelfRegistrationFunctionName();
+    const url = String(config?.url || "").replace(/\/+$/g, "");
+    const anonKey = String(config?.anonKey || "").trim();
+
+    if (!url || !anonKey) {
+      return {
+        ok: false,
+        message: "Online registration configuration is incomplete.",
+      };
+    }
+
+    const endpoint = `${url}/functions/v1/${encodeURIComponent(functionName)}`;
+    let response;
+
+    try {
+      response = await withNetworkTimeout(
+        fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: anonKey,
+          },
+          body: JSON.stringify(body),
+        }),
+      );
+    } catch (error) {
+      return {
+        ok: false,
+        message: formatSupabaseAuthError(error, "Could not reach online registration."),
+      };
+    }
+
+    let responsePayload = null;
+    try {
+      responsePayload = await response.json();
+    } catch {
+      responsePayload = null;
+    }
+
+    if (!response.ok || !responsePayload || responsePayload.ok === false) {
+      return {
+        ok: false,
+        message:
+          sanitizeUserFacingServiceMessage(responsePayload?.message) ||
+          "Could not complete this registration online.",
+      };
+    }
+
+    return {
+      ok: true,
+      ...responsePayload,
+    };
+  }
+
+  async function loadPublicSelfRegistrationConfig({ workspaceId, registrationType }) {
+    const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId || "public");
+    const localConfig = getLocalSelfRegistrationConfig(normalizedWorkspaceId);
+
+    if (!isSupabaseConfigured()) {
+      return localConfig;
+    }
+
+    const onlineResult = await callPublicSelfRegistrationFunction({
+      action: "config",
+      type: registrationType,
+      workspaceId: normalizedWorkspaceId,
+    });
+
+    if (!onlineResult.ok) {
+      return {
+        ...localConfig,
+        warning: onlineResult.message || localConfig.warning || "",
+      };
+    }
+
+    return {
+      schoolName: String(onlineResult.schoolName || localConfig.schoolName || "School").trim(),
+      classes: Array.isArray(onlineResult.classes) ? onlineResult.classes : localConfig.classes,
+      levels: Array.isArray(onlineResult.levels) ? onlineResult.levels : localConfig.levels,
+      institutionId: String(onlineResult.institutionId || "").trim(),
+      warning: "",
+    };
+  }
+
+  async function submitPublicSelfRegistration({ workspaceId, registrationType, payload }) {
+    const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId || "public");
+    const onlineResult = isSupabaseConfigured()
+      ? await callPublicSelfRegistrationFunction({
+          action: "submit",
+          type: registrationType,
+          workspaceId: normalizedWorkspaceId,
+          payload,
+        })
+      : { ok: false, message: "Online registration is not configured yet." };
+
+    if (onlineResult.ok) {
+      mirrorSelfRegistrationSubmissionLocally({
+        workspaceId: normalizedWorkspaceId,
+        registrationType,
+        record: onlineResult.record || payload,
+        user: onlineResult.user || null,
+      });
+      return onlineResult;
+    }
+
+    const localResult = await saveSelfRegistrationLocally({
+      workspaceId: normalizedWorkspaceId,
+      registrationType,
+      payload,
+    });
+
+    if (localResult.ok) {
+      return {
+        ...localResult,
+        offline: true,
+        warning: onlineResult.message || "",
+      };
+    }
+
+    return onlineResult;
+  }
+
+  function getLocalWorkspaceArrayPayload(stateKey, workspaceId) {
+    const storageKey = getWorkspaceStateStorageKeyForState(stateKey, workspaceId);
+    const payload = parseJSON(localStorage.getItem(storageKey), []);
+    return Array.isArray(payload) ? payload : [];
+  }
+
+  function saveLocalWorkspaceArrayPayload(stateKey, workspaceId, payload) {
+    const normalizedPayload = Array.isArray(payload) ? payload : [];
+    localStorage.setItem(
+      getWorkspaceStateStorageKeyForState(stateKey, workspaceId),
+      JSON.stringify(normalizedPayload),
+    );
+    emitHydratedWorkspaceStateEvent(stateKey, workspaceId);
+  }
+
+  function getLocalSelfRegistrationConfig(workspaceId) {
+    const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId || "public");
+    const classes = getLocalWorkspaceArrayPayload(SUPABASE_STATE_KEY_CLASSES, normalizedWorkspaceId)
+      .filter((record) => String(record?.status || "active").trim().toLowerCase() !== "archived")
+      .map((record) => ({
+        id: String(record.id || record.record_id || "").trim(),
+        name: String(record.name || "").trim(),
+        level: String(record.level || "").trim(),
+        label: getClassDisplayName(record),
+        capacity: Number.parseInt(record.capacity, 10) || 0,
+      }))
+      .filter((record) => record.level || record.label);
+    const levels = getSelfRegistrationLevelsFromClasses(classes);
+    const fallbackLevels = getConfiguredStudentLevelOptions();
+    const settingsKey = getWorkspaceStateStorageKeyForState(SUPABASE_STATE_KEY_SCHOOL_SETTINGS, normalizedWorkspaceId);
+    const settings = parseJSON(localStorage.getItem(settingsKey), {});
+    const schoolName = String(settings?.schoolName || settings?.name || "").trim() || "School";
+
+    return {
+      schoolName,
+      classes,
+      levels: levels.length ? levels : fallbackLevels,
+      institutionId: "",
+      warning: "",
+    };
+  }
+
+  function getSelfRegistrationLevelsFromClasses(classes = []) {
+    const seen = new Set();
+    const levels = [];
+
+    classes.forEach((record) => {
+      const level = String(record.level || record.classLevel || record.label || "").trim();
+      const token = normalizeLevelToken(level);
+      if (!level || seen.has(token)) {
+        return;
+      }
+      seen.add(token);
+      levels.push(level);
+    });
+
+    return levels.sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
+  }
+
+  function chooseSelfRegistrationClassForLevel(classes = [], students = [], levelValue = "") {
+    const levelToken = normalizeLevelToken(levelValue);
+    if (!levelToken) {
+      return null;
+    }
+
+    const matchingClasses = classes.filter((record) => {
+      const tokens = [
+        normalizeLevelToken(record.level),
+        normalizeLevelToken(record.label),
+        normalizeLevelToken(getClassDisplayName(record)),
+        normalizeLevelToken(`${record.level || ""} ${record.name || ""}`),
+      ].filter(Boolean);
+      return tokens.includes(levelToken);
+    });
+
+    if (!matchingClasses.length) {
+      return null;
+    }
+
+    const counts = matchingClasses.map((record) => {
+      const classId = String(record.id || "").trim();
+      const classToken = normalizeLevelToken(record.label || getClassDisplayName(record));
+      const count = students.filter((student) => {
+        const studentClassId = String(student.classId || student.classRecordId || "").trim();
+        if (classId && studentClassId === classId) {
+          return true;
+        }
+        return normalizeLevelToken(student.level) === classToken;
+      }).length;
+      return { record, count };
+    });
+    const minCount = Math.min(...counts.map((entry) => entry.count));
+    const candidates = counts.filter((entry) => entry.count === minCount).map((entry) => entry.record);
+
+    return candidates[Math.floor(Math.random() * candidates.length)] || matchingClasses[0] || null;
+  }
+
+  function generateSelfRegistrationAdmissionNumber(levelValue, students = [], schoolName = "") {
+    const words = String(schoolName || "SchoolSphere")
+      .toLowerCase()
+      .split(/[^a-z0-9]+/g)
+      .filter(Boolean);
+    const acronym = (words.length >= 2
+      ? words.slice(0, 3).map((word) => word.charAt(0)).join("")
+      : (words[0] || "sch").slice(0, 3)
+    ).padEnd(3, "x");
+    const yearCode = String(new Date().getFullYear()).slice(-2);
+    const levelCode = normalizeLevelToken(levelValue) || "general";
+    const prefix = `${acronym}${yearCode}/${levelCode}`;
+    const used = new Set(
+      students
+        .map((student) => String(student.admissionNo || student.admission_no || "").trim().toLowerCase())
+        .filter(Boolean),
+    );
+    let sequence = 1;
+    let candidate = `${prefix}/${String(sequence).padStart(3, "0")}`.toLowerCase();
+
+    while (used.has(candidate)) {
+      sequence += 1;
+      candidate = `${prefix}/${String(sequence).padStart(3, "0")}`.toLowerCase();
+    }
+
+    return candidate;
+  }
+
+  function upsertLocalWorkspaceStudent(workspaceId, studentRecord) {
+    const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId || "public");
+    const students = getLocalWorkspaceArrayPayload(SUPABASE_STATE_KEY_STUDENTS, normalizedWorkspaceId);
+    const nextRecord = {
+      ...studentRecord,
+      id: String(studentRecord.id || createId()).trim(),
+      status: String(studentRecord.status || "active").trim() || "active",
+      createdAt: studentRecord.createdAt || nowIso(),
+      updatedAt: nowIso(),
+    };
+    const existingIndex = students.findIndex(
+      (student) =>
+        String(student.id || "") === nextRecord.id ||
+        (nextRecord.admissionNo &&
+          String(student.admissionNo || "").toLowerCase() === String(nextRecord.admissionNo).toLowerCase()),
+    );
+
+    if (existingIndex >= 0) {
+      students[existingIndex] = {
+        ...students[existingIndex],
+        ...nextRecord,
+        createdAt: students[existingIndex].createdAt || nextRecord.createdAt,
+      };
+    } else {
+      students.push(nextRecord);
+    }
+
+    saveLocalWorkspaceArrayPayload(SUPABASE_STATE_KEY_STUDENTS, normalizedWorkspaceId, students);
+    return nextRecord;
+  }
+
+  async function upsertSelfRegistrationLocalUser({
+    email,
+    displayName,
+    role,
+    password,
+    workspaceId,
+    extra = {},
+  }) {
+    const normalizedEmail = String(email || "").trim();
+    if (!normalizedEmail || !EMAIL_REGEX.test(normalizedEmail)) {
+      return { status: "skipped", user: null };
+    }
+
+    const result = await upsertManagedPasswordUser({
+      email: normalizedEmail,
+      displayName,
+      role,
+      password,
+      workspaceId,
+      preserveExistingPassword: true,
+      forcePasswordReset: true,
+    });
+
+    if (!result.user) {
+      return result;
+    }
+
+    const updatedUser =
+      updateUser(result.user.id, (currentUser) => ({
+        ...currentUser,
+        ...extra,
+        displayName: displayName || currentUser.displayName,
+        role,
+        workspaceId: normalizeWorkspaceId(workspaceId),
+        updatedAt: nowIso(),
+      })) || result.user;
+
+    upsertAccessGrant(
+      {
+        email: updatedUser.email,
+        role,
+        authMethod: updatedUser.provider === "google" ? "google" : "password",
+        status: "active",
+      },
+      workspaceId,
+    );
+    markAccessGrantClaimed(
+      updatedUser.email,
+      role,
+      updatedUser.provider === "google" ? "google" : "password",
+      updatedUser.id,
+      workspaceId,
+    );
+
+    return {
+      ...result,
+      user: updatedUser,
+    };
+  }
+
+  function buildSelfRegistrationStudentRecord({ workspaceId, payload, schoolName = "" }) {
+    const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId || "public");
+    const classes = getLocalWorkspaceArrayPayload(SUPABASE_STATE_KEY_CLASSES, normalizedWorkspaceId)
+      .filter((record) => String(record?.status || "active").trim().toLowerCase() !== "archived")
+      .map((record) => ({
+        ...record,
+        id: String(record.id || record.record_id || "").trim(),
+        label: getClassDisplayName(record),
+      }));
+    const students = getLocalWorkspaceArrayPayload(SUPABASE_STATE_KEY_STUDENTS, normalizedWorkspaceId);
+    const selectedClass = chooseSelfRegistrationClassForLevel(classes, students, payload.level);
+    const classAssignment = buildStudentClassAssignment(payload.level, selectedClass);
+    const firstName = String(payload.firstName || "").trim();
+    const lastName = String(payload.lastName || "").trim();
+    const fullName = [firstName, lastName].filter(Boolean).join(" ").trim();
+    const guardians = [
+      {
+        id: createId(),
+        name: String(payload.guardianName || "").trim(),
+        relationship: String(payload.guardianRelationship || "").trim(),
+        phone: String(payload.guardianPhone || "").trim(),
+        email: String(payload.guardianEmail || "").trim(),
+        address: String(payload.guardianAddress || "").trim(),
+      },
+    ].filter((guardian) => guardian.name && guardian.relationship && (guardian.phone || guardian.email));
+
+    return {
+      id: String(payload.id || createId()).trim(),
+      firstName,
+      lastName,
+      fullName,
+      studentEmail: String(payload.studentEmail || payload.email || "").trim(),
+      admissionNo:
+        String(payload.admissionNo || "").trim() ||
+        generateSelfRegistrationAdmissionNumber(payload.level, students, schoolName),
+      ...classAssignment,
+      dateOfBirth: String(payload.dateOfBirth || "").trim(),
+      gender: String(payload.gender || "").trim(),
+      guardians,
+      status: "active",
+      source: "self-registration",
+      createdAt: payload.createdAt || nowIso(),
+      updatedAt: nowIso(),
+    };
+  }
+
+  async function saveSelfRegistrationLocally({ workspaceId, registrationType, payload }) {
+    const normalizedType = String(registrationType || "").trim().toLowerCase();
+    const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId || "public");
+
+    if (normalizedType === "staff") {
+      const displayName = String(payload.displayName || "").trim();
+      const email = String(payload.email || "").trim();
+      const result = await upsertSelfRegistrationLocalUser({
+        email,
+        displayName,
+        role: "Teacher",
+        password: DEFAULT_STAFF_PASSWORD,
+        workspaceId: normalizedWorkspaceId,
+        extra: {
+          phone: String(payload.phone || "").trim(),
+          department: String(payload.department || "").trim(),
+          title: String(payload.title || "").trim(),
+          staffProfileManaged: true,
+          source: "self-registration",
+        },
+      });
+
+      if (!result.user) {
+        return {
+          ok: false,
+          message: result.message || "Could not save this staff registration.",
+        };
+      }
+
+      recordAuditEvent({
+        action: "created",
+        entityType: "staff-account",
+        entityId: email,
+        summary: `Self-registered staff account for ${displayName || email}`,
+        details: "Default password issued; owner must change it.",
+      });
+
+      return {
+        ok: true,
+        status: result.status || "created",
+        user: result.user,
+      };
+    }
+
+    const localConfig = getLocalSelfRegistrationConfig(normalizedWorkspaceId);
+    const studentRecord = buildSelfRegistrationStudentRecord({
+      workspaceId: normalizedWorkspaceId,
+      payload,
+      schoolName: localConfig.schoolName,
+    });
+
+    if (!studentRecord.firstName || !studentRecord.lastName || !studentRecord.level || !studentRecord.guardians.length) {
+      return {
+        ok: false,
+        message: "Complete the required student and guardian details.",
+      };
+    }
+
+    const savedStudent = upsertLocalWorkspaceStudent(normalizedWorkspaceId, studentRecord);
+    const guardianUsers = [];
+    const studentUser = savedStudent.studentEmail
+      ? await upsertSelfRegistrationLocalUser({
+          email: savedStudent.studentEmail,
+          displayName: savedStudent.fullName || savedStudent.studentEmail,
+          role: "Student",
+          password: DEFAULT_STUDENT_PASSWORD,
+          workspaceId: normalizedWorkspaceId,
+          extra: {
+            admissionNo: savedStudent.admissionNo,
+            studentRecordId: savedStudent.id,
+            studentProfileManaged: true,
+          },
+        })
+      : { user: null };
+
+    for (const guardian of savedStudent.guardians) {
+      if (!guardian.email || !EMAIL_REGEX.test(String(guardian.email).trim())) {
+        continue;
+      }
+      const guardianResult = await upsertSelfRegistrationLocalUser({
+        email: guardian.email,
+        displayName: guardian.name || buildDisplayName(guardian.email),
+        role: "Parent",
+        password: DEFAULT_PARENT_PASSWORD,
+        workspaceId: normalizedWorkspaceId,
+        extra: {
+          phone: guardian.phone || "",
+          parentProfileManaged: true,
+        },
+      });
+      if (guardianResult.user) {
+        guardianUsers.push(guardianResult.user);
+      }
+    }
+
+    recordAuditEvent({
+      action: "created",
+      entityType: "student",
+      entityId: savedStudent.admissionNo,
+      summary: `Self-registered student ${savedStudent.fullName || savedStudent.admissionNo}`,
+      details: `${savedStudent.level} • ${savedStudent.guardians.length} guardian contact(s)`,
+    });
+
+    return {
+      ok: true,
+      status: "created",
+      record: savedStudent,
+      user: studentUser.user || null,
+      guardianUsers,
+    };
+  }
+
+  function mirrorSelfRegistrationSubmissionLocally({ workspaceId, registrationType, record, user }) {
+    const normalizedType = String(registrationType || "").trim().toLowerCase();
+    const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId || "public");
+
+    if (normalizedType === "staff") {
+      const staffUser = user || record?.user || null;
+      if (!staffUser?.email) {
+        return;
+      }
+      const localUser = upsertProvisionedSupabaseUserLocal({
+        id: staffUser.id || null,
+        email: staffUser.email,
+        displayName: staffUser.displayName || staffUser.display_name || record?.displayName || staffUser.email,
+        role: "Teacher",
+        provider: staffUser.provider || "password",
+        workspaceId: staffUser.workspaceId || normalizedWorkspaceId,
+        mustChangePassword: staffUser.mustChangePassword !== false,
+        status: "active",
+      });
+      if (localUser) {
+        updateUser(localUser.id, (currentUser) => ({
+          ...currentUser,
+          phone: String(record?.phone || staffUser.phone || currentUser.phone || "").trim(),
+          department: String(record?.department || staffUser.department || currentUser.department || "").trim(),
+          title: String(record?.title || staffUser.title || currentUser.title || "").trim(),
+          staffProfileManaged: true,
+          updatedAt: nowIso(),
+        }));
+      }
+      return;
+    }
+
+    if (record?.id || record?.admissionNo) {
+      upsertLocalWorkspaceStudent(normalizedWorkspaceId, record);
+    }
+  }
+
   function escapeHtml(value) {
     return value
       .replaceAll("&", "&amp;")
@@ -6155,6 +6704,27 @@
       lastLoginAt: nowIso(),
       status: existingIndex >= 0 ? normalizeUserStatus(users[existingIndex].status) : "active",
       mustChangePassword: existingIndex >= 0 ? Boolean(users[existingIndex].mustChangePassword) : false,
+      phone:
+        String(authUser.user_metadata?.phone || "").trim() ||
+        (existingIndex >= 0 ? users[existingIndex].phone || "" : ""),
+      department:
+        String(authUser.user_metadata?.department || "").trim() ||
+        (existingIndex >= 0 ? users[existingIndex].department || "" : ""),
+      title:
+        String(authUser.user_metadata?.title || "").trim() ||
+        (existingIndex >= 0 ? users[existingIndex].title || "" : ""),
+      admissionNo:
+        String(authUser.user_metadata?.admission_no || authUser.user_metadata?.admissionNo || "").trim() ||
+        (existingIndex >= 0 ? users[existingIndex].admissionNo || "" : ""),
+      studentRecordId:
+        String(authUser.user_metadata?.student_record_id || authUser.user_metadata?.studentRecordId || "").trim() ||
+        (existingIndex >= 0 ? users[existingIndex].studentRecordId || "" : ""),
+      staffProfileManaged:
+        Boolean(authUser.user_metadata?.staff_profile_managed) ||
+        (existingIndex >= 0 ? Boolean(users[existingIndex].staffProfileManaged) : false),
+      studentProfileManaged:
+        Boolean(authUser.user_metadata?.student_profile_managed) ||
+        (existingIndex >= 0 ? Boolean(users[existingIndex].studentProfileManaged) : false),
       notificationPreferences:
         authUser.user_metadata?.notification_preferences &&
         typeof authUser.user_metadata.notification_preferences === "object"
@@ -39432,6 +40002,311 @@
     });
   }
 
+  function buildSelfRegistrationUrl(type) {
+    const registrationType = String(type || "").trim().toLowerCase() === "staff" ? "staff" : "student";
+    const url = new URL("./self-register.html", window.location.href);
+    url.searchParams.set("type", registrationType);
+    url.searchParams.set("workspace", getCurrentWorkspaceId());
+    return url.toString();
+  }
+
+  function initSelfRegistrationLinkControls({ type, canManage, input, copyButton, openButton, status }) {
+    if (!(input instanceof HTMLInputElement)) {
+      return;
+    }
+
+    const refresh = () => {
+      input.value = buildSelfRegistrationUrl(type);
+      input.disabled = !canManage;
+      if (copyButton) {
+        copyButton.disabled = !canManage;
+      }
+      if (openButton) {
+        openButton.disabled = !canManage;
+      }
+    };
+
+    refresh();
+    window.addEventListener(AUTH_EVENT_NAME, refresh);
+    window.addEventListener("storage", refresh);
+
+    copyButton?.addEventListener("click", async () => {
+      if (!canManage) {
+        setStatus(status, "info", "Only administrators can share registration links.");
+        return;
+      }
+
+      const value = input.value;
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(value);
+        } else {
+          input.focus();
+          input.select();
+          document.execCommand("copy");
+        }
+        setStatus(status, "success", "Registration link copied.");
+      } catch {
+        input.focus();
+        input.select();
+        setStatus(status, "info", "Select and copy the link manually.");
+      }
+    });
+
+    openButton?.addEventListener("click", () => {
+      if (!canManage) {
+        setStatus(status, "info", "Only administrators can open registration links.");
+        return;
+      }
+      window.open(input.value, "_blank", "noopener");
+    });
+  }
+
+  function normalizeSelfRegistrationType(value = "") {
+    return String(value || "").trim().toLowerCase() === "staff" ? "staff" : "student";
+  }
+
+  function renderSelfRegistrationLevelOptions(select, levels = []) {
+    if (!(select instanceof HTMLSelectElement)) {
+      return;
+    }
+
+    const uniqueLevels = [];
+    const seen = new Set();
+    levels.forEach((level) => {
+      const label = String(level || "").trim();
+      const token = normalizeLevelToken(label);
+      if (!label || seen.has(token)) {
+        return;
+      }
+      seen.add(token);
+      uniqueLevels.push(label);
+    });
+
+    select.innerHTML = `
+      <option value="">${uniqueLevels.length ? "Select level/class" : "No classes available"}</option>
+      ${uniqueLevels.map((level) => `<option value="${escapeHtml(level)}">${escapeHtml(level)}</option>`).join("")}
+    `;
+    select.disabled = !uniqueLevels.length;
+  }
+
+  function setSelfRegistrationPageCopy({ type, schoolName }) {
+    const registrationType = normalizeSelfRegistrationType(type);
+    const schoolLabel = String(schoolName || "School").trim() || "School";
+    const title = document.getElementById("self-register-title");
+    const copy = document.getElementById("self-register-copy");
+    const schoolNameTarget = document.getElementById("self-register-school-name");
+    const brandMark = document.getElementById("self-register-brand-mark");
+    const sideKicker = document.getElementById("self-register-side-kicker");
+    const sideTitle = document.getElementById("self-register-side-title");
+    const sideCopy = document.getElementById("self-register-side-copy");
+
+    if (schoolNameTarget) {
+      schoolNameTarget.textContent = schoolLabel;
+    }
+    if (brandMark) {
+      brandMark.textContent = getInitials(schoolLabel).slice(0, 2) || "S";
+    }
+    if (title) {
+      title.textContent = registrationType === "staff" ? "Staff Registration" : "Student Registration";
+    }
+    if (copy) {
+      copy.textContent =
+        registrationType === "staff"
+          ? "Submit your staff details to the school."
+          : "Submit student and guardian details to the school.";
+    }
+    if (sideKicker) {
+      sideKicker.textContent = registrationType === "staff" ? "Staff registration" : "Student registration";
+    }
+    if (sideTitle) {
+      sideTitle.textContent =
+        registrationType === "staff"
+          ? "Your staff account will be prepared by the school."
+          : "Your student record will be added to the school.";
+    }
+    if (sideCopy) {
+      sideCopy.textContent =
+        registrationType === "staff"
+          ? "After submission, the school can assign classes, subjects, and portal access."
+          : "After submission, the school can place the student in an arm and manage guardian access.";
+    }
+  }
+
+  function getSelfRegistrationFormPayload(form, type) {
+    const registrationType = normalizeSelfRegistrationType(type);
+
+    if (registrationType === "staff") {
+      return {
+        displayName: String(form.elements.displayName?.value || "").trim(),
+        email: String(form.elements.email?.value || "").trim(),
+        phone: String(form.elements.phone?.value || "").trim(),
+        title: String(form.elements.title?.value || "").trim(),
+        department: String(form.elements.department?.value || "").trim(),
+      };
+    }
+
+    return {
+      firstName: String(form.elements.firstName?.value || "").trim(),
+      lastName: String(form.elements.lastName?.value || "").trim(),
+      studentEmail: String(form.elements.studentEmail?.value || "").trim(),
+      gender: String(form.elements.gender?.value || "").trim(),
+      dateOfBirth: String(form.elements.dateOfBirth?.value || "").trim(),
+      level: String(form.elements.level?.value || "").trim(),
+      guardianName: String(form.elements.guardianName?.value || "").trim(),
+      guardianRelationship: String(form.elements.guardianRelationship?.value || "").trim(),
+      guardianPhone: String(form.elements.guardianPhone?.value || "").trim(),
+      guardianEmail: String(form.elements.guardianEmail?.value || "").trim(),
+      guardianAddress: String(form.elements.guardianAddress?.value || "").trim(),
+    };
+  }
+
+  function validateSelfRegistrationPayload(payload, type) {
+    const registrationType = normalizeSelfRegistrationType(type);
+
+    if (registrationType === "staff") {
+      if (!payload.displayName) {
+        return "Enter the staff name.";
+      }
+      if (!payload.email || !EMAIL_REGEX.test(payload.email)) {
+        return "Enter a valid staff email.";
+      }
+      if (payload.phone && !isValidPhoneNumber(payload.phone)) {
+        return "Wrong phone number format.";
+      }
+      return "";
+    }
+
+    if (!payload.firstName || !payload.lastName) {
+      return "Enter the student's first and last name.";
+    }
+    if (payload.studentEmail && !EMAIL_REGEX.test(payload.studentEmail)) {
+      return "Enter a valid student email.";
+    }
+    if (!payload.level) {
+      return "Select the level or class.";
+    }
+    if (!payload.guardianName || !payload.guardianRelationship || !payload.guardianPhone) {
+      return "Enter the parent/guardian name, relationship, and phone number.";
+    }
+    if (payload.guardianPhone && !isValidPhoneNumber(payload.guardianPhone)) {
+      return "Wrong guardian phone number format.";
+    }
+    if (payload.guardianEmail && !EMAIL_REGEX.test(payload.guardianEmail)) {
+      return "Enter a valid guardian email.";
+    }
+    return "";
+  }
+
+  async function initSelfRegisterPage() {
+    if (getPage() !== "self-register") {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const registrationType = normalizeSelfRegistrationType(params.get("type"));
+    const workspaceId = normalizeWorkspaceId(params.get("workspace") || "public");
+    const form = document.getElementById("self-register-form");
+    const status = document.getElementById("self-register-status");
+    const studentSection = document.querySelector("[data-self-register-student]");
+    const staffSection = document.querySelector("[data-self-register-staff]");
+    const levelSelect = document.getElementById("self-student-level");
+    const submitButton = document.getElementById("self-register-submit");
+
+    if (!(form instanceof HTMLFormElement)) {
+      return;
+    }
+
+    form.elements.workspaceId.value = workspaceId;
+    form.elements.registrationType.value = registrationType;
+    if (studentSection) {
+      studentSection.hidden = registrationType !== "student";
+    }
+    if (staffSection) {
+      staffSection.hidden = registrationType !== "staff";
+    }
+    setSelfRegistrationPageCopy({ type: registrationType, schoolName: "School Registration" });
+    setStatus(status, "info", "Loading school registration details...");
+
+    const config = await loadPublicSelfRegistrationConfig({
+      workspaceId,
+      registrationType,
+    });
+    const classes = Array.isArray(config.classes) ? config.classes : [];
+    const levels = Array.isArray(config.levels) && config.levels.length
+      ? config.levels
+      : getSelfRegistrationLevelsFromClasses(classes);
+
+    setSelfRegistrationPageCopy({
+      type: registrationType,
+      schoolName: config.schoolName || "School Registration",
+    });
+    renderSelfRegistrationLevelOptions(levelSelect, levels);
+
+    if (config.warning) {
+      setStatus(status, "info", config.warning);
+    } else {
+      setStatus(status, "", "");
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const payload = getSelfRegistrationFormPayload(form, registrationType);
+      const errorMessage = validateSelfRegistrationPayload(payload, registrationType);
+
+      if (errorMessage) {
+        setStatus(status, "error", errorMessage);
+        return;
+      }
+
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = "Submitting...";
+      }
+      setStatus(status, "info", "Submitting registration...");
+
+      const result = await submitPublicSelfRegistration({
+        workspaceId,
+        registrationType,
+        payload: {
+          ...payload,
+          source: "self-registration",
+        },
+      });
+
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.textContent = "Submit registration";
+      }
+
+      if (!result.ok) {
+        setStatus(status, "error", result.message || "Could not submit this registration.");
+        return;
+      }
+
+      form.reset();
+      renderSelfRegistrationLevelOptions(levelSelect, levels);
+      const admissionCopy = result.record?.admissionNo
+        ? ` Admission number: <strong>${escapeHtml(result.record.admissionNo)}</strong>.`
+        : "";
+      const passwordCopy =
+        registrationType === "staff"
+          ? ` Default password: <strong>${escapeHtml(DEFAULT_STAFF_PASSWORD)}</strong>.`
+          : result.user?.email
+            ? ` Student login default password: <strong>${escapeHtml(DEFAULT_STUDENT_PASSWORD)}</strong>.`
+            : "";
+      const offlineCopy = result.offline
+        ? " Saved locally on this device because the online function is not reachable yet."
+        : "";
+      setStatus(
+        status,
+        "success",
+        `Registration submitted successfully.${admissionCopy}${passwordCopy}${offlineCopy}`,
+      );
+    });
+  }
+
   function initAdminStudentsPage() {
     if (getPage() !== "admin-students") {
       return;
@@ -39457,6 +40332,15 @@
       guardianList,
       formToggleButton: studentFormToggle,
     });
+
+    initSelfRegistrationLinkControls({
+      type: "student",
+      canManage: canManageStudents,
+      input: document.getElementById("student-self-registration-link"),
+      copyButton: document.querySelector("[data-student-self-registration-copy]"),
+      openButton: document.querySelector("[data-student-self-registration-open]"),
+      status: document.getElementById("student-self-registration-status"),
+    });
   }
 
   function initAdminTeachersPage() {
@@ -39481,6 +40365,15 @@
       form: staffForm,
       status: staffStatus,
       listTarget: staffList,
+    });
+
+    initSelfRegistrationLinkControls({
+      type: "staff",
+      canManage: canManageTeachers,
+      input: document.getElementById("staff-self-registration-link"),
+      copyButton: document.querySelector("[data-staff-self-registration-copy]"),
+      openButton: document.querySelector("[data-staff-self-registration-open]"),
+      status: document.getElementById("staff-self-registration-status"),
     });
 
     initAdminStaffLeaveReviewControls({

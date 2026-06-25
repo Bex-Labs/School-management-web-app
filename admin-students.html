@@ -150,6 +150,19 @@
               </button>
             </div>
 
+            <section class="portal-registration-link-card" aria-labelledby="student-self-registration-title">
+              <div class="portal-registration-link-copy">
+                <strong id="student-self-registration-title">Student self-registration link</strong>
+                <span>Send this link to new students or guardians. Submitted records are added to this school.</span>
+              </div>
+              <div class="portal-registration-link-row">
+                <input id="student-self-registration-link" type="text" readonly aria-label="Student self-registration link" />
+                <button class="button button-outline" type="button" data-student-self-registration-copy>Copy</button>
+                <button class="button button-primary" type="button" data-student-self-registration-open>Open</button>
+              </div>
+              <div id="student-self-registration-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+            </section>
+
             <div class="portal-student-browser">
               <label class="portal-student-search">
                 <span class="portal-student-search-icon" aria-hidden="true">
