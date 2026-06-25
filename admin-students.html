@@ -158,7 +158,7 @@
               <div class="portal-registration-link-row">
                 <input id="student-self-registration-link" type="text" readonly aria-label="Student self-registration link" />
                 <button class="button button-outline" type="button" data-student-self-registration-copy>Copy</button>
-                <button class="button button-primary" type="button" data-student-self-registration-open>Open</button>
+                <a class="button button-primary" href="./self-register.html?type=student" target="_blank" rel="noopener noreferrer" data-student-self-registration-open>Open</a>
               </div>
               <div id="student-self-registration-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
             </section>
@@ -374,6 +374,7 @@
 
     <script src="./app.js"></script>
     <script src="./supabase-config.js"></script>
-    <script src="./auth.js"></script>
+    <script src="./auth.js?v=self-registration-links"></script>
+    <script src="./self-registration-links.js?v=copy-open-fix"></script>
   </body>
 </html>

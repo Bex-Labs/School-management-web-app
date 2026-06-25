@@ -5947,6 +5947,12 @@
         password: DEFAULT_STAFF_PASSWORD,
         workspaceId: normalizedWorkspaceId,
         extra: {
+          prefix: String(payload.prefix || "").trim(),
+          firstName: String(payload.firstName || "").trim(),
+          lastName: String(payload.lastName || "").trim(),
+          staffPrefix: String(payload.prefix || "").trim(),
+          staffFirstName: String(payload.firstName || "").trim(),
+          staffLastName: String(payload.lastName || "").trim(),
           phone: String(payload.phone || "").trim(),
           department: String(payload.department || "").trim(),
           title: String(payload.title || "").trim(),
@@ -6067,6 +6073,12 @@
       if (localUser) {
         updateUser(localUser.id, (currentUser) => ({
           ...currentUser,
+          prefix: String(record?.prefix || staffUser.prefix || currentUser.prefix || "").trim(),
+          firstName: String(record?.firstName || staffUser.firstName || currentUser.firstName || "").trim(),
+          lastName: String(record?.lastName || staffUser.lastName || currentUser.lastName || "").trim(),
+          staffPrefix: String(record?.prefix || staffUser.staffPrefix || currentUser.staffPrefix || "").trim(),
+          staffFirstName: String(record?.firstName || staffUser.staffFirstName || currentUser.staffFirstName || "").trim(),
+          staffLastName: String(record?.lastName || staffUser.staffLastName || currentUser.staffLastName || "").trim(),
           phone: String(record?.phone || staffUser.phone || currentUser.phone || "").trim(),
           department: String(record?.department || staffUser.department || currentUser.department || "").trim(),
           title: String(record?.title || staffUser.title || currentUser.title || "").trim(),
@@ -6713,6 +6725,24 @@
       title:
         String(authUser.user_metadata?.title || "").trim() ||
         (existingIndex >= 0 ? users[existingIndex].title || "" : ""),
+      prefix:
+        String(authUser.user_metadata?.prefix || authUser.user_metadata?.staff_prefix || "").trim() ||
+        (existingIndex >= 0 ? users[existingIndex].prefix || "" : ""),
+      firstName:
+        String(authUser.user_metadata?.firstName || authUser.user_metadata?.first_name || "").trim() ||
+        (existingIndex >= 0 ? users[existingIndex].firstName || "" : ""),
+      lastName:
+        String(authUser.user_metadata?.lastName || authUser.user_metadata?.last_name || "").trim() ||
+        (existingIndex >= 0 ? users[existingIndex].lastName || "" : ""),
+      staffPrefix:
+        String(authUser.user_metadata?.staffPrefix || authUser.user_metadata?.staff_prefix || "").trim() ||
+        (existingIndex >= 0 ? users[existingIndex].staffPrefix || "" : ""),
+      staffFirstName:
+        String(authUser.user_metadata?.staffFirstName || authUser.user_metadata?.staff_first_name || "").trim() ||
+        (existingIndex >= 0 ? users[existingIndex].staffFirstName || "" : ""),
+      staffLastName:
+        String(authUser.user_metadata?.staffLastName || authUser.user_metadata?.staff_last_name || "").trim() ||
+        (existingIndex >= 0 ? users[existingIndex].staffLastName || "" : ""),
       admissionNo:
         String(authUser.user_metadata?.admission_no || authUser.user_metadata?.admissionNo || "").trim() ||
         (existingIndex >= 0 ? users[existingIndex].admissionNo || "" : ""),
@@ -18702,6 +18732,43 @@
     }
   }
 
+  function splitStaffDisplayName(displayName = "") {
+    const parts = String(displayName || "").trim().split(/\s+/).filter(Boolean);
+    const knownPrefixes = new Set([
+      "mr.",
+      "mrs.",
+      "ms.",
+      "miss",
+      "dr.",
+      "prof.",
+      "engr.",
+      "rev.",
+      "pastor",
+      "alhaji",
+      "hajiya",
+      "chief",
+    ]);
+    let prefix = "";
+
+    if (parts.length && knownPrefixes.has(parts[0].toLowerCase())) {
+      prefix = parts.shift();
+    }
+
+    return {
+      prefix,
+      firstName: parts.shift() || "",
+      lastName: parts.join(" "),
+    };
+  }
+
+  function composeStaffDisplayName({ prefix = "", firstName = "", lastName = "", fallback = "" } = {}) {
+    return [prefix, firstName, lastName]
+      .map((part) => String(part || "").trim())
+      .filter(Boolean)
+      .join(" ")
+      .trim() || String(fallback || "").trim();
+  }
+
   function resetPortalStaffForm(form, isAdmin) {
     if (!form) {
       return;
@@ -18714,6 +18781,18 @@
     }
     if (form.elements.role) {
       form.elements.role.value = "Teacher";
+    }
+    if (form.elements.prefix) {
+      form.elements.prefix.value = "";
+    }
+    if (form.elements.firstName) {
+      form.elements.firstName.value = "";
+    }
+    if (form.elements.lastName) {
+      form.elements.lastName.value = "";
+    }
+    if (form.elements.displayName) {
+      form.elements.displayName.value = "";
     }
 
     const submitButton = form.querySelector("[data-staff-submit]");
@@ -18740,7 +18819,27 @@
     }
 
     form.elements.staffId.value = user.id;
-    form.elements.displayName.value = user.displayName || "";
+    const nameParts = splitStaffDisplayName(user.displayName || "");
+    const prefix = user.staffPrefix || user.prefix || nameParts.prefix || "";
+    const firstName = user.staffFirstName || user.firstName || nameParts.firstName || "";
+    const lastName = user.staffLastName || user.lastName || nameParts.lastName || "";
+    if (form.elements.prefix) {
+      form.elements.prefix.value = prefix;
+    }
+    if (form.elements.firstName) {
+      form.elements.firstName.value = firstName;
+    }
+    if (form.elements.lastName) {
+      form.elements.lastName.value = lastName;
+    }
+    if (form.elements.displayName) {
+      form.elements.displayName.value = composeStaffDisplayName({
+        prefix,
+        firstName,
+        lastName,
+        fallback: user.displayName || "",
+      });
+    }
     form.elements.email.value = user.email || "";
     if (form.elements.role) {
       form.elements.role.value = normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE);
@@ -19344,7 +19443,13 @@
       setStatus(status, "", "");
 
       const staffId = String(form.elements.staffId?.value || "").trim();
-      const displayName = form.elements.displayName.value.trim();
+      const prefix = String(form.elements.prefix?.value || "").trim();
+      const firstName = String(form.elements.firstName?.value || "").trim();
+      const lastName = String(form.elements.lastName?.value || "").trim();
+      const displayName = composeStaffDisplayName({ prefix, firstName, lastName });
+      if (form.elements.displayName) {
+        form.elements.displayName.value = displayName;
+      }
       const email = form.elements.email.value.trim();
       const role = "Teacher";
       const phone = String(form.elements.phone?.value || "").trim();
@@ -19354,8 +19459,13 @@
 
       let hasError = false;
 
-      if (!displayName) {
-        setPortalStaffError(form, "displayName", "Enter the staff name.");
+      if (!firstName) {
+        setPortalStaffError(form, "firstName", "Enter the first name.");
+        hasError = true;
+      }
+
+      if (!lastName) {
+        setPortalStaffError(form, "lastName", "Enter the last name.");
         hasError = true;
       }
 
@@ -19403,6 +19513,12 @@
             normalizedEmail: normalizeEmail(email),
             displayName,
             role,
+            prefix,
+            firstName,
+            lastName,
+            staffPrefix: prefix,
+            staffFirstName: firstName,
+            staffLastName: lastName,
             phone,
             department,
             title,
@@ -19469,6 +19585,12 @@
       const updatedProfile = updateUser(result.user.id, (currentUser) => ({
         ...currentUser,
         role,
+        prefix,
+        firstName,
+        lastName,
+        staffPrefix: prefix,
+        staffFirstName: firstName,
+        staffLastName: lastName,
         phone,
         department,
         title,
@@ -40017,26 +40139,27 @@
 
     const refresh = () => {
       input.value = buildSelfRegistrationUrl(type);
-      input.disabled = !canManage;
+      input.disabled = false;
       if (copyButton) {
-        copyButton.disabled = !canManage;
+        copyButton.disabled = false;
       }
       if (openButton) {
-        openButton.disabled = !canManage;
+        openButton.disabled = false;
       }
     };
 
-    refresh();
-    window.addEventListener(AUTH_EVENT_NAME, refresh);
-    window.addEventListener("storage", refresh);
+    const copyRegistrationLink = async (event) => {
+      event?.preventDefault?.();
+      event?.stopImmediatePropagation?.();
+      refresh();
+      const value = input.value;
+      const originalCopyLabel = copyButton?.textContent || "Copy";
 
-    copyButton?.addEventListener("click", async () => {
-      if (!canManage) {
-        setStatus(status, "info", "Only administrators can share registration links.");
+      if (!value) {
+        setStatus(status, "error", "Registration link is not ready yet.");
         return;
       }
 
-      const value = input.value;
       try {
         if (navigator.clipboard?.writeText) {
           await navigator.clipboard.writeText(value);
@@ -40045,21 +40168,72 @@
           input.select();
           document.execCommand("copy");
         }
+        if (copyButton) {
+          copyButton.textContent = "Copied";
+          window.setTimeout(() => {
+            copyButton.textContent = originalCopyLabel;
+          }, 1800);
+        }
         setStatus(status, "success", "Registration link copied.");
       } catch {
-        input.focus();
-        input.select();
-        setStatus(status, "info", "Select and copy the link manually.");
+        try {
+          input.focus();
+          input.select();
+          const copied = document.execCommand("copy");
+          if (copied && copyButton) {
+            copyButton.textContent = "Copied";
+            window.setTimeout(() => {
+              copyButton.textContent = originalCopyLabel;
+            }, 1800);
+          }
+          setStatus(status, copied ? "success" : "info", copied ? "Registration link copied." : "Select and copy the link manually.");
+        } catch {
+          input.focus();
+          input.select();
+          setStatus(status, "info", "Select and copy the link manually.");
+        }
       }
-    });
+    };
 
-    openButton?.addEventListener("click", () => {
-      if (!canManage) {
-        setStatus(status, "info", "Only administrators can open registration links.");
+    const openRegistrationLink = (event) => {
+      event?.preventDefault?.();
+      event?.stopImmediatePropagation?.();
+      refresh();
+      const value = input.value;
+
+      if (!value) {
+        setStatus(status, "error", "Registration link is not ready yet.");
         return;
       }
-      window.open(input.value, "_blank", "noopener");
+
+      const openedWindow = window.open(value, "_blank", "noopener,noreferrer");
+      if (openedWindow) {
+        setStatus(status, "success", "Registration form opened in a new tab.");
+      } else {
+        setStatus(status, "error", "Your browser blocked the new tab. Allow pop-ups for this site and try again.");
+      }
+    };
+
+    refresh();
+    window.addEventListener(AUTH_EVENT_NAME, refresh);
+    window.addEventListener("storage", refresh);
+    window.setTimeout(refresh, 250);
+    window.setTimeout(refresh, 1000);
+
+    input.addEventListener("click", () => {
+      copyRegistrationLink();
     });
+
+    input.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") {
+        return;
+      }
+      event.preventDefault();
+      openRegistrationLink(event);
+    });
+
+    copyButton?.addEventListener("click", copyRegistrationLink);
+    openButton?.addEventListener("click", openRegistrationLink);
   }
 
   function normalizeSelfRegistrationType(value = "") {
@@ -40137,8 +40311,18 @@
     const registrationType = normalizeSelfRegistrationType(type);
 
     if (registrationType === "staff") {
+      const prefix = String(form.elements.staffPrefix?.value || form.elements.prefix?.value || "").trim();
+      const firstName = String(form.elements.staffFirstName?.value || form.elements.firstName?.value || "").trim();
+      const lastName = String(form.elements.staffLastName?.value || form.elements.lastName?.value || "").trim();
+      const displayName = composeStaffDisplayName({ prefix, firstName, lastName });
+      if (form.elements.displayName) {
+        form.elements.displayName.value = displayName;
+      }
       return {
-        displayName: String(form.elements.displayName?.value || "").trim(),
+        prefix,
+        firstName,
+        lastName,
+        displayName,
         email: String(form.elements.email?.value || "").trim(),
         phone: String(form.elements.phone?.value || "").trim(),
         title: String(form.elements.title?.value || "").trim(),
@@ -40165,8 +40349,8 @@
     const registrationType = normalizeSelfRegistrationType(type);
 
     if (registrationType === "staff") {
-      if (!payload.displayName) {
-        return "Enter the staff name.";
+      if (!payload.firstName || !payload.lastName) {
+        return "Enter the staff first and last name.";
       }
       if (!payload.email || !EMAIL_REGEX.test(payload.email)) {
         return "Enter a valid staff email.";

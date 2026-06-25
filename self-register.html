@@ -9,8 +9,8 @@
   </head>
   <body data-page="self-register" class="auth-page">
     <main class="auth-screen">
-      <section class="auth-shell">
-        <article class="auth-pane auth-pane-left">
+      <section class="auth-shell self-register-shell">
+        <article class="auth-pane auth-pane-left self-register-pane">
           <div class="auth-left-inner">
             <a class="auth-brand auth-brand-school" href="./index.html" aria-label="SchoolSphere home">
               <span id="self-register-brand-mark" class="auth-brand-mark">S</span>
@@ -86,7 +86,19 @@
                 <div class="auth-field-block">
                   <label class="auth-field-label" for="self-guardian-relationship">Relationship <span class="form-required">*</span></label>
                   <label class="auth-line-field" for="self-guardian-relationship">
-                    <input id="self-guardian-relationship" name="guardianRelationship" type="text" placeholder="Relationship" />
+                    <select id="self-guardian-relationship" name="guardianRelationship">
+                      <option value="">Select relationship</option>
+                      <option value="Father">Father</option>
+                      <option value="Mother">Mother</option>
+                      <option value="Guardian">Guardian</option>
+                      <option value="Uncle">Uncle</option>
+                      <option value="Aunt">Aunt</option>
+                      <option value="Brother">Brother</option>
+                      <option value="Sister">Sister</option>
+                      <option value="Grandparent">Grandparent</option>
+                      <option value="Sponsor">Sponsor</option>
+                      <option value="Other">Other</option>
+                    </select>
                   </label>
                 </div>
                 <div class="auth-field-block">
@@ -111,10 +123,37 @@
 
               <section class="self-register-panel" data-self-register-staff hidden>
                 <h3>Staff details</h3>
+                <input id="self-staff-name" name="displayName" type="hidden" />
                 <div class="auth-field-block">
-                  <label class="auth-field-label" for="self-staff-name">Staff Name <span class="form-required">*</span></label>
-                  <label class="auth-line-field" for="self-staff-name">
-                    <input id="self-staff-name" name="displayName" type="text" placeholder="Staff Full Name" autocomplete="name" />
+                  <label class="auth-field-label" for="self-staff-prefix">Prefix</label>
+                  <label class="auth-line-field" for="self-staff-prefix">
+                    <select id="self-staff-prefix" name="staffPrefix" autocomplete="honorific-prefix">
+                      <option value="">Select prefix</option>
+                      <option value="Mr.">Mr.</option>
+                      <option value="Mrs.">Mrs.</option>
+                      <option value="Ms.">Ms.</option>
+                      <option value="Miss">Miss</option>
+                      <option value="Dr.">Dr.</option>
+                      <option value="Prof.">Prof.</option>
+                      <option value="Engr.">Engr.</option>
+                      <option value="Rev.">Rev.</option>
+                      <option value="Pastor">Pastor</option>
+                      <option value="Alhaji">Alhaji</option>
+                      <option value="Hajiya">Hajiya</option>
+                      <option value="Chief">Chief</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="self-staff-first-name">First Name <span class="form-required">*</span></label>
+                  <label class="auth-line-field" for="self-staff-first-name">
+                    <input id="self-staff-first-name" name="staffFirstName" type="text" placeholder="First Name" autocomplete="given-name" />
+                  </label>
+                </div>
+                <div class="auth-field-block">
+                  <label class="auth-field-label" for="self-staff-last-name">Last Name <span class="form-required">*</span></label>
+                  <label class="auth-line-field" for="self-staff-last-name">
+                    <input id="self-staff-last-name" name="staffLastName" type="text" placeholder="Last Name" autocomplete="family-name" />
                   </label>
                 </div>
                 <div class="auth-field-block">
@@ -132,13 +171,43 @@
                 <div class="auth-field-block">
                   <label class="auth-field-label" for="self-staff-title">Role/Position</label>
                   <label class="auth-line-field" for="self-staff-title">
-                    <input id="self-staff-title" name="title" type="text" placeholder="Teacher, Nurse, Accountant..." />
+                    <select id="self-staff-title" name="title">
+                      <option value="">Select role/position</option>
+                      <option value="Teacher">Teacher</option>
+                      <option value="Class Teacher">Class Teacher</option>
+                      <option value="Subject Teacher">Subject Teacher</option>
+                      <option value="Lecturer">Lecturer</option>
+                      <option value="Accountant">Accountant</option>
+                      <option value="Admin Officer">Admin Officer</option>
+                      <option value="Nurse">Nurse</option>
+                      <option value="Librarian">Librarian</option>
+                      <option value="Counselor">Counselor</option>
+                      <option value="ICT Officer">ICT Officer</option>
+                      <option value="Security">Security</option>
+                      <option value="Transport Officer">Transport Officer</option>
+                      <option value="Maintenance Staff">Maintenance Staff</option>
+                      <option value="Other">Other</option>
+                    </select>
                   </label>
                 </div>
                 <div class="auth-field-block">
                   <label class="auth-field-label" for="self-staff-department">Department</label>
                   <label class="auth-line-field" for="self-staff-department">
-                    <input id="self-staff-department" name="department" type="text" placeholder="Department" />
+                    <select id="self-staff-department" name="department">
+                      <option value="">Select department</option>
+                      <option value="Academic">Academic</option>
+                      <option value="Administration">Administration</option>
+                      <option value="Accounts / Finance">Accounts / Finance</option>
+                      <option value="Admissions">Admissions</option>
+                      <option value="Student Affairs">Student Affairs</option>
+                      <option value="Health / Clinic">Health / Clinic</option>
+                      <option value="Library">Library</option>
+                      <option value="ICT">ICT</option>
+                      <option value="Security">Security</option>
+                      <option value="Transport">Transport</option>
+                      <option value="Maintenance">Maintenance</option>
+                      <option value="Other">Other</option>
+                    </select>
                   </label>
                 </div>
               </section>
@@ -147,21 +216,11 @@
             </form>
           </div>
         </article>
-
-        <aside class="auth-pane auth-pane-right" aria-label="Registration confirmation">
-          <div class="auth-stage-card">
-            <div class="auth-stage-copy">
-              <span id="self-register-side-kicker">School registration</span>
-              <h2 id="self-register-side-title">Your details go directly to the school.</h2>
-              <p id="self-register-side-copy">Use the official link shared by the school admin. The school will manage your access after submission.</p>
-            </div>
-          </div>
-        </aside>
       </section>
     </main>
 
     <script src="./app.js"></script>
     <script src="./supabase-config.js"></script>
-    <script src="./auth.js"></script>
+    <script src="./auth.js?v=self-registration-links"></script>
   </body>
 </html>

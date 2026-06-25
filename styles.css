@@ -44,12 +44,16 @@ body {
   left: 50%;
   bottom: 14px;
   transform: translateX(-50%);
-  width: min(760px, calc(100% - 24px));
+  width: max-content;
+  max-width: calc(100% - 24px);
   padding: 11px 14px;
   border: 1px solid rgba(16, 132, 255, 0.22);
   border-radius: 12px;
   background: rgba(9, 35, 61, 0.92);
   color: #f0f8ff;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   font-size: 0.92rem;
   line-height: 1.45;
   text-align: center;
@@ -4211,6 +4215,37 @@ body.auth-page[data-page="self-register"] .auth-page-title {
   line-height: 1.08;
 }
 
+body.auth-page[data-page="self-register"] .auth-screen {
+  min-height: 100vh;
+  padding: 28px;
+  align-items: flex-start;
+  overflow-y: auto;
+}
+
+body.auth-page[data-page="self-register"] .self-register-shell {
+  width: min(1040px, 100%);
+  min-height: auto;
+  display: block;
+  margin: 0 auto;
+  border-radius: 24px;
+  overflow: visible;
+  background: #ffffff;
+  box-shadow: 0 24px 70px rgba(15, 43, 74, 0.12);
+}
+
+body.auth-page[data-page="self-register"] .self-register-pane {
+  width: 100%;
+  min-height: auto;
+  display: block;
+}
+
+body.auth-page[data-page="self-register"] .auth-left-inner {
+  width: 100%;
+  min-height: auto;
+  justify-content: flex-start;
+  padding: 30px;
+}
+
 body.auth-page .auth-flow-note {
   margin: 0;
   max-width: 33rem;
@@ -4319,14 +4354,9 @@ body.auth-page[data-page="self-register"] .auth-line-field input::placeholder {
   opacity: 1;
 }
 
-body.auth-page[data-page="self-register"] .auth-left-inner {
-  justify-content: flex-start;
-  padding-top: 32px;
-  padding-bottom: 32px;
-}
-
 body.auth-page[data-page="self-register"] .self-register-panel {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -4335,7 +4365,8 @@ body.auth-page[data-page="self-register"] .self-register-panel[hidden] {
 }
 
 body.auth-page[data-page="self-register"] .self-register-panel h3 {
-  margin: 8px 0 0;
+  grid-column: 1 / -1;
+  margin: 12px 0 0;
   color: #10284d;
   font-size: 0.92rem;
   font-weight: 800;
@@ -4346,6 +4377,29 @@ body.auth-page[data-page="self-register"] .button-full {
   width: 100%;
   min-height: 50px;
   margin-top: 4px;
+}
+
+body.auth-page[data-page="self-register"] .auth-status,
+body.auth-page[data-page="self-register"] .button-full {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 760px) {
+  body.auth-page[data-page="self-register"] .auth-screen {
+    padding: 14px;
+  }
+
+  body.auth-page[data-page="self-register"] .self-register-shell {
+    border-radius: 18px;
+  }
+
+  body.auth-page[data-page="self-register"] .auth-left-inner {
+    padding: 20px;
+  }
+
+  body.auth-page[data-page="self-register"] .self-register-panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 body.auth-page[data-page="admissions-apply"] .auth-line-field input[type="file"] {

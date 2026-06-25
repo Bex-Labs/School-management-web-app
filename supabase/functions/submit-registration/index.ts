@@ -549,14 +549,21 @@ Deno.serve(async (request) => {
   const now = new Date().toISOString();
 
   if (registrationType === "staff") {
-    const displayName = String(rawPayload.displayName || rawPayload.fullName || "").trim();
+    const prefix = String(rawPayload.prefix || "").trim();
+    const firstName = String(rawPayload.firstName || "").trim();
+    const lastName = String(rawPayload.lastName || "").trim();
+    const displayName = String(
+      rawPayload.displayName ||
+        rawPayload.fullName ||
+        [prefix, firstName, lastName].filter(Boolean).join(" "),
+    ).trim();
     const email = String(rawPayload.email || "").trim();
     const phone = String(rawPayload.phone || "").trim();
     const department = String(rawPayload.department || "").trim();
     const title = String(rawPayload.title || "").trim();
 
-    if (!displayName) {
-      return jsonResponse(400, { ok: false, message: "Staff name is required." });
+    if (!firstName || !lastName) {
+      return jsonResponse(400, { ok: false, message: "Staff first and last name are required." });
     }
     if (!email || !EMAIL_REGEX.test(email)) {
       return jsonResponse(400, { ok: false, message: "A valid staff email is required." });
@@ -572,6 +579,12 @@ Deno.serve(async (request) => {
         role: "Teacher",
         password: DEFAULT_STAFF_PASSWORD,
         metadata: {
+          prefix,
+          firstName,
+          lastName,
+          staff_prefix: prefix,
+          staff_first_name: firstName,
+          staff_last_name: lastName,
           phone,
           department,
           title,
@@ -587,6 +600,9 @@ Deno.serve(async (request) => {
         workspaceId,
         user,
         record: {
+          prefix,
+          firstName,
+          lastName,
           displayName,
           email,
           phone,

@@ -145,7 +145,7 @@
               <div class="portal-registration-link-row">
                 <input id="staff-self-registration-link" type="text" readonly aria-label="Staff self-registration link" />
                 <button class="button button-outline" type="button" data-staff-self-registration-copy>Copy</button>
-                <button class="button button-primary" type="button" data-staff-self-registration-open>Open</button>
+                <a class="button button-primary" href="./self-register.html?type=staff" target="_blank" rel="noopener noreferrer" data-staff-self-registration-open>Open</a>
               </div>
               <div id="staff-self-registration-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
             </section>
@@ -157,10 +157,35 @@
                   <strong>Staff profile</strong>
                   <span>Create teacher access and staff details from one place.</span>
                 </div>
-                <label class="portal-field" for="staff-name">
-                  <span>Staff name <span class="form-required">*</span></span>
-                  <input id="staff-name" name="displayName" type="text" placeholder="Staff Full Name" autocomplete="name" />
-                  <p class="portal-field-error" data-staff-error-for="displayName"></p>
+                <input id="staff-name" name="displayName" type="hidden" />
+                <label class="portal-field" for="staff-prefix">
+                  <span>Prefix</span>
+                  <select id="staff-prefix" name="prefix" autocomplete="honorific-prefix">
+                    <option value="">Select prefix</option>
+                    <option value="Mr.">Mr.</option>
+                    <option value="Mrs.">Mrs.</option>
+                    <option value="Ms.">Ms.</option>
+                    <option value="Miss">Miss</option>
+                    <option value="Dr.">Dr.</option>
+                    <option value="Prof.">Prof.</option>
+                    <option value="Engr.">Engr.</option>
+                    <option value="Rev.">Rev.</option>
+                    <option value="Pastor">Pastor</option>
+                    <option value="Alhaji">Alhaji</option>
+                    <option value="Hajiya">Hajiya</option>
+                    <option value="Chief">Chief</option>
+                  </select>
+                  <p class="portal-field-error" data-staff-error-for="prefix"></p>
+                </label>
+                <label class="portal-field" for="staff-first-name">
+                  <span>First name <span class="form-required">*</span></span>
+                  <input id="staff-first-name" name="firstName" type="text" placeholder="First Name" autocomplete="given-name" />
+                  <p class="portal-field-error" data-staff-error-for="firstName"></p>
+                </label>
+                <label class="portal-field" for="staff-last-name">
+                  <span>Last name <span class="form-required">*</span></span>
+                  <input id="staff-last-name" name="lastName" type="text" placeholder="Last Name" autocomplete="family-name" />
+                  <p class="portal-field-error" data-staff-error-for="lastName"></p>
                 </label>
                 <label class="portal-field" for="staff-email">
                   <span>Staff email <span class="form-required">*</span></span>
@@ -233,6 +258,7 @@
 
     <script src="./app.js"></script>
     <script src="./supabase-config.js"></script>
-    <script src="./auth.js"></script>
+    <script src="./auth.js?v=self-registration-links"></script>
+    <script src="./self-registration-links.js?v=copy-open-fix"></script>
   </body>
 </html>
