@@ -566,6 +566,7 @@
   const SUPABASE_STATE_KEY_NOTIFICATIONS = "schoolsphere.notifications.v1";
   const SUPABASE_STATE_KEY_PARENT_FEES = "schoolsphere.parentFees.v1";
   const SUPABASE_STATE_KEY_ACCESS_GRANTS = "schoolsphere.accessGrants.v1";
+  const PORTAL_ONBOARDING_STORAGE_KEY = "schoolsphere.portalOnboarding.v1";
   const SUPABASE_WORKSPACE_HYDRATE_KEYS = Object.freeze([
     SUPABASE_STATE_KEY_SCHOOL_SETTINGS,
     SUPABASE_STATE_KEY_CLASSES,
@@ -14431,7 +14432,7 @@
                     )}" ${canGenerateClass ? "" : "disabled"}>Generate for class</button>
                     <button class="button button-primary" type="button" data-fee-invoice-generate-class-whatsapp="${escapeHtml(
                       classLevel,
-                    )}" ${canGenerateClass ? "" : "disabled"}>Generate + WhatsApp</button>
+                    )}" ${canGenerateClass ? "" : "disabled"}>Generate and send alert</button>
                   </div>
                   <div class="portal-fee-invoice-table">
                     ${
@@ -29554,6 +29555,545 @@
     return `${ANNOUNCEMENT_TOAST_SESSION_PREFIX}:${workspaceId}:${identity}`;
   }
 
+  function getPortalOnboardingRoleKey(roleLabel) {
+    const role = normalizeRoleLabel(roleLabel || DEFAULT_AUTH_ROLE);
+
+    if (/admin/i.test(role)) {
+      return "admin";
+    }
+    if (role === "Teacher") {
+      return "staff";
+    }
+    if (role === "Parent") {
+      return "parent";
+    }
+    if (role === "Student") {
+      return "student";
+    }
+    return "user";
+  }
+
+  function getPortalOnboardingStorageKey(session = {}, user = {}, roleLabel = DEFAULT_AUTH_ROLE) {
+    const workspaceId = normalizeWorkspaceId(user.workspaceId || session.workspaceId || getCurrentWorkspaceId());
+    const identity = normalizeWorkspaceId(
+      user.id || user.email || session.userId || session.email || "guest",
+    );
+    return `${PORTAL_ONBOARDING_STORAGE_KEY}::${workspaceId}::${identity}::${getPortalOnboardingRoleKey(roleLabel)}`;
+  }
+
+  function getPortalOnboardingState(storageKey) {
+    try {
+      return parseJSON(localStorage.getItem(storageKey), {}) || {};
+    } catch {
+      return {};
+    }
+  }
+
+  function savePortalOnboardingState(storageKey, patch = {}) {
+    const next = {
+      ...getPortalOnboardingState(storageKey),
+      ...patch,
+      updatedAt: nowIso(),
+    };
+
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(next));
+    } catch {
+      // Onboarding remains usable even when local storage is unavailable.
+    }
+
+    return next;
+  }
+
+  function getPortalOnboardingConfig(roleLabel, schoolName = "SchoolSphere") {
+    const roleKey = getPortalOnboardingRoleKey(roleLabel);
+    const configs = {
+      admin: {
+        eyebrow: "Admin setup",
+        title: `Set up ${schoolName}`,
+        copy: "Follow the core steps that make the school workspace ready for daily use.",
+        finishLabel: "Finish setup",
+        steps: [
+          {
+            title: "Confirm school profile",
+            copy: "Add the school name, logo, contact details, campus details, and school structure.",
+            href: "./admin-settings-school.html",
+            action: "Open school settings",
+          },
+          {
+            title: "Create sessions and terms",
+            copy: "Set the current academic session and the active term or semester.",
+            href: "./admin-settings-academic.html",
+            action: "Open sessions",
+          },
+          {
+            title: "Build classes and arms",
+            copy: "Generate the class structure, adjust arms, and assign class teachers.",
+            href: "./admin-classes.html",
+            action: "Open classes",
+          },
+          {
+            title: "Add staff and learners",
+            copy: "Create staff accounts, enroll students, and connect guardians where needed.",
+            href: "./admin-teachers.html",
+            action: "Open teachers",
+          },
+          {
+            title: "Set subjects, fees, and timetable",
+            copy: "Register subjects or courses, set class fees, and save class timetables.",
+            href: "./admin-courses.html",
+            action: "Open subjects",
+          },
+          {
+            title: "Review portal access",
+            copy: "Choose what teachers, parents, and students can see in their portals.",
+            href: "./admin-settings-roles.html",
+            action: "Open role permissions",
+          },
+        ],
+      },
+      staff: {
+        eyebrow: "Staff guide",
+        title: "Get your staff portal ready",
+        copy: "Start with your schedule, assigned classes, attendance, scores, and messages.",
+        finishLabel: "Finish guide",
+        steps: [
+          {
+            title: "Check your dashboard",
+            copy: "Use the dashboard for today's schedule, pending tasks, and school updates.",
+            href: "./staff-dashboard.html",
+            action: "Open dashboard",
+          },
+          {
+            title: "View your timetable",
+            copy: "Review the lessons assigned to you for the active term or semester.",
+            href: "./staff-timetable.html",
+            action: "Open timetable",
+          },
+          {
+            title: "Open assigned classes",
+            copy: "See the classes and arms connected to your subjects or class-teacher role.",
+            href: "./staff-classes.html",
+            action: "Open classes",
+          },
+          {
+            title: "Mark attendance",
+            copy: "Take attendance for the specific lesson or class you are handling.",
+            href: "./staff-attendance.html",
+            action: "Open attendance",
+          },
+          {
+            title: "Record scores and plans",
+            copy: "Use gradebook, results, and lesson plans for the classes you manage.",
+            href: "./staff-gradebook.html",
+            action: "Open gradebook",
+          },
+          {
+            title: "Message the school community",
+            copy: "Send and reply to messages from admin, linked parents, and students.",
+            href: "./staff-messages.html",
+            action: "Open messages",
+          },
+        ],
+      },
+      parent: {
+        eyebrow: "Parent guide",
+        title: "Follow your child's school activity",
+        copy: "Use your portal to keep track of fees, attendance, announcements, reports, and messages.",
+        finishLabel: "Finish guide",
+        steps: [
+          {
+            title: "Select your child",
+            copy: "Use the child selector when more than one student is connected to your account.",
+            href: "./parent-portal.html",
+            action: "Open dashboard",
+          },
+          {
+            title: "Review fees and invoices",
+            copy: "View balances, payment history, invoices, and available payment actions.",
+            href: "./parent-fees.html",
+            action: "Open fees",
+          },
+          {
+            title: "Check attendance",
+            copy: "Track attendance by term or semester and review absence alerts.",
+            href: "./parent-attendance.html",
+            action: "Open attendance",
+          },
+          {
+            title: "View reports",
+            copy: "Open released results and download report cards when available.",
+            href: "./parent-reports.html",
+            action: "Open reports",
+          },
+          {
+            title: "Message the school",
+            copy: "Start conversations with admin or teachers linked to your child.",
+            href: "./parent-messages.html",
+            action: "Open messages",
+          },
+        ],
+      },
+      student: {
+        eyebrow: "Student guide",
+        title: "Start using your student portal",
+        copy: "Your portal keeps your classes, timetable, attendance, fees, messages, and reports in one place.",
+        finishLabel: "Finish guide",
+        steps: [
+          {
+            title: "Read dashboard updates",
+            copy: "Start from the dashboard for school updates and important announcements.",
+            href: "./portal.html#dashboard",
+            action: "Open dashboard",
+          },
+          {
+            title: "Check your timetable",
+            copy: "View your weekly class schedule for the active term or semester.",
+            href: "./portal.html#timetable",
+            action: "Open timetable",
+          },
+          {
+            title: "Open your class workspace",
+            copy: "See your class and other arms available for class rosters.",
+            href: "./portal.html#classes",
+            action: "Open classes",
+          },
+          {
+            title: "Review subjects or courses",
+            copy: "See the subjects or courses assigned for the current term or semester.",
+            href: "./portal.html#courses",
+            action: "Open subjects",
+          },
+          {
+            title: "Track attendance and reports",
+            copy: "Check attendance history, released results, and downloadable report cards.",
+            href: "./portal.html#attendance",
+            action: "Open attendance",
+          },
+          {
+            title: "Use messages and profile",
+            copy: "Message connected staff and keep your account details current.",
+            href: "./portal.html#messages",
+            action: "Open messages",
+          },
+        ],
+      },
+    };
+
+    return configs[roleKey] || configs.student;
+  }
+
+  function getAdminOnboardingChecklistItems() {
+    const settings = getConfiguredSchoolSettings();
+    const academicSummary = getAcademicCycleManager()?.summarize?.() || {};
+    const classRecords = getClassManager()?.getClasses?.() || [];
+    const studentRecords = getStudentManager()?.getStudents?.() || [];
+    const feeItems = getFeeItemManager()?.getItems?.() || [];
+    const timetableEntries = getTimetableManager()?.getEntries?.() || [];
+    const teacherCount = getUsers().filter((entry) => normalizeRoleLabel(entry.role) === "Teacher").length;
+    const activeStudentCount = studentRecords.filter((entry) => String(entry.status || "active") === "active").length;
+    const hasSchoolProfile =
+      Boolean(String(settings.schoolName || "").trim()) &&
+      (String(settings.schoolName || "").trim().toLowerCase() !== "schoolsphere" ||
+        Boolean(settings.logoUrl || settings.phone || settings.address || settings.schoolProfile));
+    const activeClassCount = classRecords.filter((entry) => String(entry.status || "active") !== "archived").length;
+    const activeFeeCount = feeItems.filter((entry) => String(entry.status || "active") !== "archived").length;
+    const activeTimetableCount = timetableEntries.filter((entry) => String(entry.status || "draft") !== "archived").length;
+
+    return [
+      {
+        title: "School profile",
+        copy: hasSchoolProfile ? "Profile details are in place." : "Add school identity and structure.",
+        done: hasSchoolProfile,
+        href: "./admin-settings-school.html",
+      },
+      {
+        title: "Sessions and terms",
+        copy:
+          academicSummary.openSession && academicSummary.openTerm
+            ? "An active academic cycle is open."
+            : "Create an active session and term or semester.",
+        done: Boolean(academicSummary.openSession && academicSummary.openTerm),
+        href: "./admin-settings-academic.html",
+      },
+      {
+        title: "Classes and arms",
+        copy: activeClassCount ? `${activeClassCount} class records available.` : "Generate or add classes.",
+        done: activeClassCount > 0,
+        href: "./admin-classes.html",
+      },
+      {
+        title: "Staff and students",
+        copy:
+          teacherCount && activeStudentCount
+            ? `${teacherCount} staff and ${activeStudentCount} students found.`
+            : "Add staff accounts and enroll students.",
+        done: teacherCount > 0 && activeStudentCount > 0,
+        href: "./admin-teachers.html",
+      },
+      {
+        title: "Fees",
+        copy: activeFeeCount ? `${activeFeeCount} fee items configured.` : "Create class-based fee items.",
+        done: activeFeeCount > 0,
+        href: "./admin-fees.html",
+      },
+      {
+        title: "Timetable",
+        copy: activeTimetableCount ? `${activeTimetableCount} timetable entries saved.` : "Create class timetables.",
+        done: activeTimetableCount > 0,
+        href: "./admin-schedule.html",
+      },
+    ];
+  }
+
+  function showPortalOnboardingModal({ session, user, roleLabel, force = false } = {}) {
+    if (!session || !user) {
+      return;
+    }
+
+    const storageKey = getPortalOnboardingStorageKey(session, user, roleLabel);
+    const savedState = getPortalOnboardingState(storageKey);
+    if (!force && savedState.seenAt) {
+      return;
+    }
+
+    const settings = getConfiguredSchoolSettings();
+    const schoolName = settings.schoolName || "SchoolSphere";
+    const config = getPortalOnboardingConfig(roleLabel, schoolName);
+    const steps = Array.isArray(config.steps) && config.steps.length ? config.steps : [];
+    if (!steps.length) {
+      return;
+    }
+
+    const existing = document.getElementById("portal-onboarding-modal");
+    if (existing) {
+      existing.remove();
+    }
+
+    let activeIndex = 0;
+    const modal = document.createElement("section");
+    modal.id = "portal-onboarding-modal";
+    modal.className = "portal-onboarding";
+    modal.setAttribute("role", "dialog");
+    modal.setAttribute("aria-modal", "true");
+    modal.setAttribute("aria-labelledby", "portal-onboarding-title");
+
+    const closeModal = (reason = "dismissed") => {
+      const timestamp = nowIso();
+      const patch =
+        reason === "completed"
+          ? { seenAt: savedState.seenAt || timestamp, completedAt: timestamp }
+          : { seenAt: savedState.seenAt || timestamp, skippedAt: timestamp };
+      savePortalOnboardingState(storageKey, patch);
+      document.body.classList.remove("portal-onboarding-open");
+      modal.remove();
+      renderAdminPortalSetupChecklist(session, user, roleLabel);
+    };
+
+    const render = () => {
+      const activeStep = steps[activeIndex];
+      const progress = Math.round(((activeIndex + 1) / steps.length) * 100);
+
+      modal.innerHTML = `
+        <button class="portal-onboarding-backdrop" type="button" data-onboarding-close aria-label="Close onboarding"></button>
+        <article class="portal-onboarding-panel">
+          <header class="portal-onboarding-hero">
+            <div>
+              <span>${escapeHtml(config.eyebrow || "First-time guide")}</span>
+              <h2 id="portal-onboarding-title">${escapeHtml(config.title)}</h2>
+              <p>${escapeHtml(config.copy)}</p>
+            </div>
+            <button class="portal-onboarding-close" type="button" data-onboarding-close aria-label="Close onboarding">&times;</button>
+          </header>
+
+          <div class="portal-onboarding-progress" aria-label="Setup progress">
+            <span style="width: ${progress}%"></span>
+          </div>
+
+          <div class="portal-onboarding-body">
+            <nav class="portal-onboarding-steps" aria-label="Onboarding steps">
+              ${steps
+                .map(
+                  (step, index) => `
+                    <button class="${index === activeIndex ? "is-active" : ""}" type="button" data-onboarding-step="${index}">
+                      <strong>${index + 1}</strong>
+                      <span>${escapeHtml(step.title)}</span>
+                    </button>
+                  `,
+                )
+                .join("")}
+            </nav>
+
+            <section class="portal-onboarding-detail">
+              <span>Step ${activeIndex + 1} of ${steps.length}</span>
+              <h3>${escapeHtml(activeStep.title)}</h3>
+              <p>${escapeHtml(activeStep.copy)}</p>
+              <a class="portal-onboarding-action" href="${escapeHtml(activeStep.href)}" data-onboarding-open-section>
+                ${escapeHtml(activeStep.action || "Open section")}
+              </a>
+            </section>
+          </div>
+
+          <footer class="portal-onboarding-actions">
+            <button class="button button-outline" type="button" data-onboarding-skip>Skip for now</button>
+            <div>
+              <button class="button button-outline" type="button" data-onboarding-prev ${activeIndex === 0 ? "disabled" : ""}>Back</button>
+              <button class="button button-primary" type="button" data-onboarding-next>
+                ${activeIndex === steps.length - 1 ? escapeHtml(config.finishLabel || "Finish") : "Continue"}
+              </button>
+            </div>
+          </footer>
+        </article>
+      `;
+    };
+
+    render();
+    document.body.appendChild(modal);
+    document.body.classList.add("portal-onboarding-open");
+
+    modal.addEventListener("click", (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target) {
+        return;
+      }
+
+      const closeButton = target.closest("[data-onboarding-close]");
+      const skipButton = target.closest("[data-onboarding-skip]");
+      const prevButton = target.closest("[data-onboarding-prev]");
+      const nextButton = target.closest("[data-onboarding-next]");
+      const stepButton = target.closest("[data-onboarding-step]");
+      const openSectionLink = target.closest("[data-onboarding-open-section]");
+
+      if (closeButton || skipButton) {
+        closeModal("skipped");
+        return;
+      }
+
+      if (prevButton && activeIndex > 0) {
+        activeIndex -= 1;
+        render();
+        return;
+      }
+
+      if (nextButton) {
+        if (activeIndex < steps.length - 1) {
+          activeIndex += 1;
+          render();
+        } else {
+          closeModal("completed");
+        }
+        return;
+      }
+
+      if (stepButton) {
+        const nextIndex = Number(stepButton.dataset.onboardingStep);
+        if (Number.isInteger(nextIndex) && nextIndex >= 0 && nextIndex < steps.length) {
+          activeIndex = nextIndex;
+          render();
+        }
+        return;
+      }
+
+      if (openSectionLink) {
+        savePortalOnboardingState(storageKey, {
+          seenAt: savedState.seenAt || nowIso(),
+          startedAt: nowIso(),
+        });
+      }
+    });
+  }
+
+  function renderAdminPortalSetupChecklist(session = null, user = null, roleLabel = DEFAULT_AUTH_ROLE) {
+    if (!session || !user || getPortalOnboardingRoleKey(roleLabel) !== "admin" || getPage() !== "portal") {
+      return;
+    }
+
+    const metrics = document.getElementById("portal-metrics");
+    if (!metrics) {
+      return;
+    }
+
+    const storageKey = getPortalOnboardingStorageKey(session, user, roleLabel);
+    const state = getPortalOnboardingState(storageKey);
+    const existing = document.getElementById("portal-onboarding-checklist");
+
+    if (state.checklistDismissedAt) {
+      existing?.remove();
+      return;
+    }
+
+    const items = getAdminOnboardingChecklistItems();
+    const completed = items.filter((item) => item.done).length;
+
+    if (completed === items.length) {
+      existing?.remove();
+      return;
+    }
+
+    const card = existing || document.createElement("article");
+    card.id = "portal-onboarding-checklist";
+    card.className = "admin-surface-card portal-onboarding-checklist";
+    card.innerHTML = `
+      <div class="admin-surface-head">
+        <div>
+          <h2>Setup checklist</h2>
+          <span>${completed} of ${items.length} ready</span>
+        </div>
+        <div class="portal-onboarding-checklist-actions">
+          <button class="button button-primary" type="button" data-open-onboarding-guide>Open guide</button>
+          <button class="button button-outline" type="button" data-dismiss-onboarding-checklist>Hide</button>
+        </div>
+      </div>
+      <div class="portal-onboarding-checklist-grid">
+        ${items
+          .map(
+            (item) => `
+              <a class="portal-onboarding-check-item ${item.done ? "is-done" : ""}" href="${escapeHtml(item.href)}">
+                <strong>${item.done ? "✓" : ""}</strong>
+                <span>
+                  <b>${escapeHtml(item.title)}</b>
+                  <small>${escapeHtml(item.copy)}</small>
+                </span>
+              </a>
+            `,
+          )
+          .join("")}
+      </div>
+    `;
+
+    if (!existing) {
+      metrics.insertAdjacentElement("afterend", card);
+    }
+
+    card.querySelector("[data-open-onboarding-guide]")?.addEventListener("click", () => {
+      showPortalOnboardingModal({ session, user, roleLabel, force: true });
+    });
+    card.querySelector("[data-dismiss-onboarding-checklist]")?.addEventListener("click", () => {
+      savePortalOnboardingState(storageKey, { checklistDismissedAt: nowIso() });
+      card.remove();
+    });
+  }
+
+  function initPortalOnboarding({ session = null, user = null, roleLabel = DEFAULT_AUTH_ROLE, includeAdminChecklist = false } = {}) {
+    if (!session || !user || !document.body.classList.contains("admin-dashboard-page")) {
+      return;
+    }
+
+    if (includeAdminChecklist) {
+      renderAdminPortalSetupChecklist(session, user, roleLabel);
+    }
+
+    const storageKey = getPortalOnboardingStorageKey(session, user, roleLabel);
+    const state = getPortalOnboardingState(storageKey);
+    if (state.seenAt || document.getElementById("portal-onboarding-modal")) {
+      return;
+    }
+
+    window.setTimeout(() => {
+      showPortalOnboardingModal({ session, user, roleLabel });
+    }, 420);
+  }
+
   function initPortalAnnouncementToasts(session = null, user = null) {
     const role = normalizeRoleLabel(session?.role || user?.role || DEFAULT_AUTH_ROLE);
     if (!session || !user || !["Teacher", "Parent", "Student"].includes(role)) {
@@ -37467,6 +38007,7 @@
       user,
     );
     initParentFloatingChatbot(selectedChild, children, user);
+    initPortalOnboarding({ session, user, roleLabel: "Parent" });
 
     const contentHost = document.getElementById("parent-page-content");
     if (!contentHost) {
@@ -37578,6 +38119,7 @@
       <button class="admin-signout-button" type="button" data-signout>Log out</button>
     `;
     wireSignOutButton(gate);
+    initPortalOnboarding({ session, user, roleLabel });
   }
 
   function statusLabelForAdmission(value) {
@@ -41526,6 +42068,7 @@
     initDashboardGlobalSearch(dashboardSearchInput, session, normalizedRole);
     initPortalNotifications(notificationButton, session);
     initPortalAnnouncementToasts(session, user);
+    initPortalOnboarding({ session, user, roleLabel: normalizedRole });
   }
 
   function initPortalPage() {
@@ -41983,5 +42526,11 @@
     if (isStaffPortal || isStudentPortal) {
       initPortalAnnouncementToasts(session, user);
     }
+    initPortalOnboarding({
+      session,
+      user,
+      roleLabel,
+      includeAdminChecklist: getPortalOnboardingRoleKey(roleLabel) === "admin",
+    });
   }
 })();
