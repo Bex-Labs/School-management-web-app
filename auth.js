@@ -677,16 +677,12 @@
 
     const isDark = theme === "dark";
     const label = button.querySelector("[data-theme-toggle-label]");
-    const state = button.querySelector("[data-theme-toggle-state]");
     button.classList.toggle("is-dark", isDark);
     button.setAttribute("aria-pressed", String(isDark));
     button.setAttribute("aria-label", isDark ? "Switch to light mode" : "Switch to dark mode");
     button.setAttribute("title", isDark ? "Switch to light mode" : "Switch to dark mode");
     if (label) {
       label.textContent = isDark ? "Light mode" : "Dark mode";
-    }
-    if (state) {
-      state.textContent = isDark ? "Dark" : "Light";
     }
   }
 
@@ -709,13 +705,16 @@
     button.className = `theme-toggle theme-toggle-${variant}`;
     button.setAttribute("data-theme-toggle", "");
     button.innerHTML = `
-      <span class="theme-toggle-track" aria-hidden="true">
-        <span class="theme-toggle-thumb"></span>
+      <span class="theme-toggle-icon" aria-hidden="true">
+        <svg class="theme-toggle-sun" viewBox="0 0 24 24" focusable="false">
+          <path d="M12 4.5V2.5M12 21.5V19.5M4.5 12H2.5M21.5 12H19.5M6.7 6.7L5.3 5.3M18.7 18.7L17.3 17.3M17.3 6.7L18.7 5.3M5.3 18.7L6.7 17.3"></path>
+          <circle cx="12" cy="12" r="4"></circle>
+        </svg>
+        <svg class="theme-toggle-moon" viewBox="0 0 24 24" focusable="false">
+          <path d="M20 14.6A7.5 7.5 0 0 1 9.4 4 8.5 8.5 0 1 0 20 14.6Z"></path>
+        </svg>
       </span>
-      <span class="theme-toggle-copy">
-        <strong data-theme-toggle-label>Dark mode</strong>
-        <small data-theme-toggle-state>Light</small>
-      </span>
+      <span class="theme-toggle-text" data-theme-toggle-label>Dark mode</span>
     `;
     button.addEventListener("click", () => {
       saveThemePreference(getThemePreference() === "dark" ? "light" : "dark");
@@ -725,18 +724,16 @@
   }
 
   function initThemeControls() {
-    const authBrand = document.querySelector(".auth-left-inner .auth-brand");
-    if (authBrand && !document.querySelector(".theme-toggle-auth")) {
-      authBrand.insertAdjacentElement("afterend", createThemeToggleButton("auth"));
-    }
-
     const sidebar = document.querySelector(".admin-sidebar");
     if (sidebar && !sidebar.querySelector(".theme-toggle-sidebar")) {
       const nav = sidebar.querySelector(".admin-sidebar-nav");
       const profile = sidebar.querySelector(".admin-sidebar-profile");
+      const profileActions = profile?.querySelector(".admin-profile-actions");
       const toggle = createThemeToggleButton("sidebar");
-      if (profile) {
-        sidebar.insertBefore(toggle, profile);
+      if (profileActions) {
+        profile.insertBefore(toggle, profileActions);
+      } else if (profile) {
+        profile.append(toggle);
       } else if (nav) {
         nav.insertAdjacentElement("afterend", toggle);
       } else {
@@ -36529,7 +36526,13 @@
       return;
     }
 
-    const pagedQuickNavPages = new Set(["admin-schedule", "admin-admissions", "admin-teachers", "admin-reports"]);
+    const pagedQuickNavPages = new Set([
+      "admin-schedule",
+      "admin-admissions",
+      "admin-teachers",
+      "admin-reports",
+      "admin-messages",
+    ]);
     const currentPage = getPage();
 
     if (

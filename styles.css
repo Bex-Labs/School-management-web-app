@@ -5212,6 +5212,8 @@ body.admin-dashboard-page .admin-notification-button svg {
 body.admin-dashboard-page .admin-sidebar-profile {
   margin-top: 0;
   display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
   gap: 6px;
   padding: 9px;
   border-radius: 12px;
@@ -5263,6 +5265,7 @@ body.admin-dashboard-page .admin-profile-copy span {
 body.admin-dashboard-page .admin-profile-actions {
   display: flex;
   flex-wrap: wrap;
+  grid-column: 1 / -1;
 }
 
 body.admin-dashboard-page .admin-signout-button {
@@ -17270,16 +17273,17 @@ body.admin-dashboard-page .portal-class-button:hover:not(:disabled) {
 .theme-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  width: 100%;
-  min-height: 42px;
-  padding: 7px 9px;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  min-height: 38px;
+  padding: 0;
   border: 1px solid #d6e1ef;
-  border-radius: 12px;
+  border-radius: 13px;
   background: rgba(255, 255, 255, 0.72);
   color: #263954;
   cursor: pointer;
-  text-align: left;
   transition: background 180ms ease, border-color 180ms ease, color 180ms ease, transform 180ms ease;
 }
 
@@ -17289,66 +17293,56 @@ body.admin-dashboard-page .portal-class-button:hover:not(:disabled) {
   background: #ffffff;
 }
 
-.theme-toggle-auth {
-  width: max-content;
-  max-width: 100%;
-  margin-top: 14px;
-}
-
 .theme-toggle-sidebar {
   flex: 0 0 auto;
-  margin-top: 2px;
+  align-self: center;
+  justify-self: end;
+  margin: 0;
 }
 
-.theme-toggle-track {
+.theme-toggle-icon {
   position: relative;
-  width: 38px;
-  height: 22px;
-  border-radius: 999px;
-  background: #dce8f6;
-  box-shadow: inset 0 0 0 1px rgba(15, 43, 74, 0.08);
-  flex: 0 0 auto;
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
 }
 
-.theme-toggle-thumb {
+.theme-toggle-icon svg {
   position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 16px;
-  height: 16px;
-  border-radius: 999px;
-  background: #ffffff;
-  box-shadow: 0 4px 10px rgba(15, 43, 74, 0.18);
-  transition: transform 180ms ease, background 180ms ease;
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+  transition: opacity 180ms ease, transform 180ms ease;
 }
 
-.theme-toggle-copy {
-  display: grid;
-  gap: 1px;
-  min-width: 0;
+.theme-toggle-moon {
+  opacity: 0;
+  transform: rotate(-18deg) scale(0.7);
 }
 
-.theme-toggle-copy strong {
-  color: inherit;
-  font-size: 0.78rem;
-  font-weight: 800;
-  line-height: 1.1;
+.theme-toggle.is-dark .theme-toggle-sun {
+  opacity: 0;
+  transform: rotate(18deg) scale(0.7);
 }
 
-.theme-toggle-copy small {
-  color: #6f7d93;
-  font-size: 0.68rem;
-  font-weight: 800;
-  text-transform: uppercase;
+.theme-toggle.is-dark .theme-toggle-moon {
+  opacity: 1;
+  transform: rotate(0deg) scale(1);
 }
 
-.theme-toggle.is-dark .theme-toggle-track {
-  background: linear-gradient(135deg, #2f6fed, #6fb4ff);
-}
-
-.theme-toggle.is-dark .theme-toggle-thumb {
-  transform: translateX(16px);
-  background: #06111f;
+.theme-toggle-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
 }
 
 :root[data-theme="dark"] {
@@ -17432,11 +17426,28 @@ body.admin-dashboard-page .portal-class-button:hover:not(:disabled) {
 :root[data-theme="dark"] .admin-activity-row,
 :root[data-theme="dark"] .admin-section-quick-nav,
 :root[data-theme="dark"] .portal-class-card,
+:root[data-theme="dark"] .portal-class-group,
+:root[data-theme="dark"] .portal-class-level-group,
+:root[data-theme="dark"] .portal-class-arm-card,
+:root[data-theme="dark"] .portal-class-list-item,
+:root[data-theme="dark"] .portal-class-list-body,
+:root[data-theme="dark"] .portal-class-subject-overview,
+:root[data-theme="dark"] .portal-class-subject-item,
+:root[data-theme="dark"] .portal-class-detail-hero,
+:root[data-theme="dark"] .portal-class-detail-stat,
+:root[data-theme="dark"] .portal-class-detail-table-wrap,
+:root[data-theme="dark"] .portal-class-extended-item,
 :root[data-theme="dark"] .portal-class-stat,
 :root[data-theme="dark"] .portal-class-form,
 :root[data-theme="dark"] .portal-settings-form,
 :root[data-theme="dark"] .portal-settings-form-wide,
 :root[data-theme="dark"] .portal-toggle-card,
+:root[data-theme="dark"] .portal-access-role-group,
+:root[data-theme="dark"] .portal-staff-leave-summary article,
+:root[data-theme="dark"] .staff-leave-admin-title > div,
+:root[data-theme="dark"] .staff-leave-admin-row,
+:root[data-theme="dark"] .portal-staff-leave-modal-panel,
+:root[data-theme="dark"] .staff-leave-modal-hero,
 :root[data-theme="dark"] .portal-registration-link-card,
 :root[data-theme="dark"] .portal-overlay-panel,
 :root[data-theme="dark"] .portal-conversation-inbox,
@@ -17493,7 +17504,25 @@ body.admin-dashboard-page .portal-class-button:hover:not(:disabled) {
 :root[data-theme="dark"] .admin-surface-head h2,
 :root[data-theme="dark"] .portal-class-title strong,
 :root[data-theme="dark"] .portal-class-card strong,
+:root[data-theme="dark"] .portal-class-group-head strong,
+:root[data-theme="dark"] .portal-class-level-group > summary strong,
+:root[data-theme="dark"] .portal-class-arm-card-head strong,
+:root[data-theme="dark"] .portal-class-list-main strong,
+:root[data-theme="dark"] .portal-class-meta-item strong,
+:root[data-theme="dark"] .portal-class-extended-item > strong,
+:root[data-theme="dark"] .portal-class-subject-overview strong,
+:root[data-theme="dark"] .portal-class-subject-item strong,
+:root[data-theme="dark"] .portal-class-subject-empty strong,
+:root[data-theme="dark"] .portal-class-detail-hero strong,
+:root[data-theme="dark"] .portal-class-detail-stat strong,
+:root[data-theme="dark"] .portal-class-detail-table td strong,
+:root[data-theme="dark"] .portal-class-detail-empty strong,
 :root[data-theme="dark"] .portal-class-stat strong,
+:root[data-theme="dark"] .portal-access-role-summary strong,
+:root[data-theme="dark"] .portal-staff-leave-summary strong,
+:root[data-theme="dark"] .staff-leave-admin-title strong,
+:root[data-theme="dark"] .staff-leave-admin-row strong,
+:root[data-theme="dark"] .staff-leave-modal-hero h4,
 :root[data-theme="dark"] .staff-portal-row strong,
 :root[data-theme="dark"] .staff-portal-tile strong,
 :root[data-theme="dark"] .admin-report-heading h2,
@@ -17510,7 +17539,34 @@ body.admin-dashboard-page .portal-class-button:hover:not(:disabled) {
 :root[data-theme="dark"] .auth-bottom-link,
 :root[data-theme="dark"] .admin-surface-head span,
 :root[data-theme="dark"] .portal-class-card span,
+:root[data-theme="dark"] .portal-class-group-head span,
+:root[data-theme="dark"] .portal-class-group-head small,
+:root[data-theme="dark"] .portal-class-level-group > summary span,
+:root[data-theme="dark"] .portal-class-arm-card-head span,
+:root[data-theme="dark"] .portal-class-arm-meta,
+:root[data-theme="dark"] .portal-class-list-main span,
+:root[data-theme="dark"] .portal-class-meta-item span,
+:root[data-theme="dark"] .portal-class-extended-item > span,
+:root[data-theme="dark"] .portal-class-extended-item ul,
+:root[data-theme="dark"] .portal-class-subject-overview span,
+:root[data-theme="dark"] .portal-class-subject-overview p,
+:root[data-theme="dark"] .portal-class-subject-item span,
+:root[data-theme="dark"] .portal-class-subject-empty p,
+:root[data-theme="dark"] .portal-class-subject-item em,
+:root[data-theme="dark"] .portal-class-detail-hero span,
+:root[data-theme="dark"] .portal-class-detail-hero p,
+:root[data-theme="dark"] .portal-class-detail-stat span,
+:root[data-theme="dark"] .portal-class-detail-stat p,
+:root[data-theme="dark"] .portal-class-detail-table td span,
+:root[data-theme="dark"] .portal-class-detail-empty p,
+:root[data-theme="dark"] .portal-access-role-summary span,
 :root[data-theme="dark"] .portal-class-stat p,
+:root[data-theme="dark"] .portal-staff-leave-summary span,
+:root[data-theme="dark"] .staff-leave-admin-title span,
+:root[data-theme="dark"] .staff-leave-admin-row small,
+:root[data-theme="dark"] .staff-leave-modal-hero span,
+:root[data-theme="dark"] .staff-leave-modal-hero p,
+:root[data-theme="dark"] .staff-leave-modal-footer,
 :root[data-theme="dark"] .staff-portal-row span,
 :root[data-theme="dark"] .staff-portal-row small,
 :root[data-theme="dark"] .staff-portal-tile span,
@@ -17559,12 +17615,351 @@ body.admin-dashboard-page .portal-class-button:hover:not(:disabled) {
   color: #f2f7ff;
 }
 
-:root[data-theme="dark"] .theme-toggle-copy small {
-  color: #92a8c2;
+:root[data-theme="dark"] .theme-toggle.is-dark {
+  border-color: rgba(101, 164, 243, 0.58);
+  background: rgba(47, 111, 237, 0.18);
+  color: #dcecff;
 }
 
-:root[data-theme="dark"] .theme-toggle-track {
-  background: #26384f;
+:root[data-theme="dark"] .admin-topline-chip,
+:root[data-theme="dark"] .portal-role-permission-summary,
+:root[data-theme="dark"] .portal-student-browser,
+:root[data-theme="dark"] .portal-class-template-panel,
+:root[data-theme="dark"] .portal-course-library,
+:root[data-theme="dark"] .portal-fee-command-panel,
+:root[data-theme="dark"] .portal-fee-invoice-panel,
+:root[data-theme="dark"] .portal-fee-invoice-form-body,
+:root[data-theme="dark"] .portal-fee-invoice-modal-body,
+:root[data-theme="dark"] .portal-fee-line-item-card,
+:root[data-theme="dark"] .student-fee-line-item-card,
+:root[data-theme="dark"] .portal-admission-config-panel,
+:root[data-theme="dark"] .portal-admission-setup-form,
+:root[data-theme="dark"] .portal-admission-share,
+:root[data-theme="dark"] .portal-staff-password-note,
+:root[data-theme="dark"] .portal-timetable-grid-actions {
+  border-color: #26384f !important;
+  background: #111c2b !important;
+  color: #d8e7f6 !important;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.2) !important;
+}
+
+:root[data-theme="dark"] .portal-student-class-filter,
+:root[data-theme="dark"] .portal-student-group,
+:root[data-theme="dark"] .portal-student-group-head,
+:root[data-theme="dark"] .portal-student-group-toggle,
+:root[data-theme="dark"] .portal-course-library-chip,
+:root[data-theme="dark"] .portal-course-library-chip.is-summary,
+:root[data-theme="dark"] .portal-fee-category-option,
+:root[data-theme="dark"] .portal-fee-class-category-group,
+:root[data-theme="dark"] .portal-fee-class-group,
+:root[data-theme="dark"] .portal-fee-invoice-class-group,
+:root[data-theme="dark"] .portal-fee-invoice-class-group > summary,
+:root[data-theme="dark"] .portal-fee-invoice-class-toolbar,
+:root[data-theme="dark"] .portal-fee-invoice-row,
+:root[data-theme="dark"] .portal-admission-open-classes-shell summary,
+:root[data-theme="dark"] .portal-admission-choice,
+:root[data-theme="dark"] .portal-admission-setup-card,
+:root[data-theme="dark"] .portal-admission-doc-upload,
+:root[data-theme="dark"] .portal-admission-qr img,
+:root[data-theme="dark"] .portal-admission-name-item,
+:root[data-theme="dark"] .portal-admission-history-item,
+:root[data-theme="dark"] .portal-admission-applications-shell summary,
+:root[data-theme="dark"] .portal-admission-history-shell summary {
+  border-color: #26384f !important;
+  background: #0d1726 !important;
+  color: #d8e7f6 !important;
+  box-shadow: none !important;
+}
+
+:root[data-theme="dark"] .admin-topline-chip,
+:root[data-theme="dark"] .portal-role-permission-summary strong,
+:root[data-theme="dark"] .portal-class-template-panel h3,
+:root[data-theme="dark"] .portal-course-library h3,
+:root[data-theme="dark"] .portal-course-library-chip strong,
+:root[data-theme="dark"] .portal-student-group-title h3,
+:root[data-theme="dark"] .portal-fee-category-option strong,
+:root[data-theme="dark"] .portal-fee-class-category-head strong,
+:root[data-theme="dark"] .portal-fee-class-head strong,
+:root[data-theme="dark"] .portal-fee-invoice-class-title > strong,
+:root[data-theme="dark"] .portal-fee-invoice-class-totals strong,
+:root[data-theme="dark"] .portal-fee-invoice-class-toolbar strong,
+:root[data-theme="dark"] .portal-fee-invoice-row strong,
+:root[data-theme="dark"] .portal-list-subheading,
+:root[data-theme="dark"] .portal-admission-setup-card strong,
+:root[data-theme="dark"] .portal-admission-name-copy strong,
+:root[data-theme="dark"] .portal-staff-password-note strong,
+:root[data-theme="dark"] .portal-staff-filters strong {
+  color: #f2f7ff !important;
+}
+
+:root[data-theme="dark"] .portal-role-permission-summary span,
+:root[data-theme="dark"] .portal-class-template-panel p,
+:root[data-theme="dark"] .portal-course-library p,
+:root[data-theme="dark"] .portal-course-library-chip span,
+:root[data-theme="dark"] .portal-course-library-empty,
+:root[data-theme="dark"] .portal-student-search-icon,
+:root[data-theme="dark"] .portal-student-group-title span,
+:root[data-theme="dark"] .portal-fee-category-option span,
+:root[data-theme="dark"] .portal-fee-category-option small,
+:root[data-theme="dark"] .portal-fee-category-option em,
+:root[data-theme="dark"] .portal-fee-class-category-head span,
+:root[data-theme="dark"] .portal-fee-class-category-head small,
+:root[data-theme="dark"] .portal-fee-class-head span,
+:root[data-theme="dark"] .portal-fee-class-head small,
+:root[data-theme="dark"] .portal-fee-class-details > summary small,
+:root[data-theme="dark"] .portal-fee-card-foot span,
+:root[data-theme="dark"] .portal-fee-invoice-class-title > span,
+:root[data-theme="dark"] .portal-fee-invoice-class-title > small,
+:root[data-theme="dark"] .portal-fee-invoice-class-totals small,
+:root[data-theme="dark"] .portal-fee-invoice-class-toolbar span,
+:root[data-theme="dark"] .portal-fee-invoice-row span,
+:root[data-theme="dark"] .portal-fee-invoice-row small,
+:root[data-theme="dark"] .portal-admission-choice-group > span,
+:root[data-theme="dark"] .portal-admission-setup-card span,
+:root[data-theme="dark"] .portal-admission-setup-card p,
+:root[data-theme="dark"] .portal-admission-doc-upload span,
+:root[data-theme="dark"] .portal-admission-qr,
+:root[data-theme="dark"] .portal-admission-name-copy small,
+:root[data-theme="dark"] .portal-admission-name-meta small,
+:root[data-theme="dark"] .portal-admission-list-toolbar > span,
+:root[data-theme="dark"] .portal-staff-password-note span {
+  color: #9fb1c7 !important;
+}
+
+:root[data-theme="dark"] .portal-student-class-filter.is-active {
+  border-color: #65a4f3 !important;
+  background: linear-gradient(135deg, #2f6fed, #65a4f3) !important;
+  color: #ffffff !important;
+}
+
+:root[data-theme="dark"] .portal-student-group-delete,
+:root[data-theme="dark"] .portal-admission-delete-button {
+  border-color: rgba(255, 119, 119, 0.38) !important;
+  background: rgba(116, 34, 44, 0.24) !important;
+  color: #ffdce2 !important;
+}
+
+:root[data-theme="dark"] .portal-admission-source-pill {
+  border-color: rgba(101, 164, 243, 0.36) !important;
+  background: rgba(47, 111, 237, 0.16) !important;
+  color: #dcecff !important;
+}
+
+:root[data-theme="dark"] .attendance-toolbar,
+:root[data-theme="dark"] .attendance-review-group,
+:root[data-theme="dark"] .attendance-review-group-head,
+:root[data-theme="dark"] .portal-attendance-history-card,
+:root[data-theme="dark"] .student-attendance-period-card,
+:root[data-theme="dark"] .admin-report-analysis-card,
+:root[data-theme="dark"] .admin-report-insight,
+:root[data-theme="dark"] .admin-report-health-score,
+:root[data-theme="dark"] .admin-report-parent-message {
+  border-color: #26384f !important;
+  background: #111c2b !important;
+  color: #d8e7f6 !important;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.2) !important;
+}
+
+:root[data-theme="dark"] .attendance-student-row,
+:root[data-theme="dark"] .attendance-review-row,
+:root[data-theme="dark"] .attendance-submission-row,
+:root[data-theme="dark"] .attendance-status-option,
+:root[data-theme="dark"] .portal-attendance-history-row,
+:root[data-theme="dark"] .portal-attendance-history-count,
+:root[data-theme="dark"] .student-attendance-period-card summary,
+:root[data-theme="dark"] .student-attendance-period-score,
+:root[data-theme="dark"] .student-attendance-subject-row,
+:root[data-theme="dark"] .student-attendance-count,
+:root[data-theme="dark"] .admin-report-admission-bars div,
+:root[data-theme="dark"] .admin-report-parent-reply-form {
+  border-color: #26384f !important;
+  background: #0d1726 !important;
+  color: #d8e7f6 !important;
+  box-shadow: none !important;
+}
+
+:root[data-theme="dark"] .attendance-student-main strong,
+:root[data-theme="dark"] .attendance-review-student strong,
+:root[data-theme="dark"] .attendance-review-meta strong,
+:root[data-theme="dark"] .attendance-submission-row strong,
+:root[data-theme="dark"] .attendance-review-group-head strong,
+:root[data-theme="dark"] .portal-attendance-history-row strong,
+:root[data-theme="dark"] .portal-attendance-history-count strong,
+:root[data-theme="dark"] .student-attendance-period-card summary strong,
+:root[data-theme="dark"] .student-attendance-subject-main strong,
+:root[data-theme="dark"] .student-attendance-count strong,
+:root[data-theme="dark"] .student-attendance-period-score strong,
+:root[data-theme="dark"] .admin-report-analysis-card header strong,
+:root[data-theme="dark"] .admin-report-horizontal-bars strong,
+:root[data-theme="dark"] .admin-report-chart-card header strong,
+:root[data-theme="dark"] .admin-report-donut span,
+:root[data-theme="dark"] .admin-report-split-metric strong,
+:root[data-theme="dark"] .admin-report-mini-bars b,
+:root[data-theme="dark"] .admin-report-admission-bars strong,
+:root[data-theme="dark"] .admin-report-insight strong,
+:root[data-theme="dark"] .admin-report-area strong,
+:root[data-theme="dark"] .admin-report-health-row strong,
+:root[data-theme="dark"] .admin-report-check strong,
+:root[data-theme="dark"] .admin-report-health-score strong,
+:root[data-theme="dark"] .admin-report-parent-message header strong {
+  color: #f2f7ff !important;
+}
+
+:root[data-theme="dark"] .attendance-student-main span,
+:root[data-theme="dark"] .attendance-review-student span,
+:root[data-theme="dark"] .attendance-review-meta span,
+:root[data-theme="dark"] .attendance-submission-row span,
+:root[data-theme="dark"] .attendance-submission-row small,
+:root[data-theme="dark"] .attendance-review-group-head span,
+:root[data-theme="dark"] .attendance-review-note,
+:root[data-theme="dark"] .portal-attendance-history-row span,
+:root[data-theme="dark"] .student-attendance-period-card summary span,
+:root[data-theme="dark"] .student-attendance-subject-main span,
+:root[data-theme="dark"] .student-attendance-subject-main small,
+:root[data-theme="dark"] .student-attendance-count span,
+:root[data-theme="dark"] .admin-report-heading span,
+:root[data-theme="dark"] .admin-report-kpi span,
+:root[data-theme="dark"] .admin-report-area span,
+:root[data-theme="dark"] .admin-report-health-score span,
+:root[data-theme="dark"] .admin-report-check > span,
+:root[data-theme="dark"] .admin-report-analysis-card header span,
+:root[data-theme="dark"] .admin-report-horizontal-bars span,
+:root[data-theme="dark"] .admin-report-empty-copy,
+:root[data-theme="dark"] .admin-report-chart-card header span,
+:root[data-theme="dark"] .admin-report-area footer small,
+:root[data-theme="dark"] .admin-report-mini-legend span,
+:root[data-theme="dark"] .admin-report-split-metric span,
+:root[data-theme="dark"] .admin-report-mini-bars span,
+:root[data-theme="dark"] .admin-report-admission-bars span,
+:root[data-theme="dark"] .admin-report-insight p,
+:root[data-theme="dark"] .admin-report-area p,
+:root[data-theme="dark"] .admin-report-check p,
+:root[data-theme="dark"] .admin-report-health-row span,
+:root[data-theme="dark"] .admin-report-parent-message header span,
+:root[data-theme="dark"] .admin-report-parent-message footer span,
+:root[data-theme="dark"] .admin-report-parent-message header small,
+:root[data-theme="dark"] .admin-report-parent-message p {
+  color: #9fb1c7 !important;
+}
+
+:root[data-theme="dark"] .admin-report-donut {
+  background:
+    radial-gradient(circle at center, #111c2b 0 57%, transparent 58%),
+    conic-gradient(#65a4f3 calc(var(--score) * 1%), #24364d 0) !important;
+}
+
+:root[data-theme="dark"] .admin-report-health-score {
+  background:
+    radial-gradient(circle at center, #111c2b 0 57%, transparent 58%),
+    conic-gradient(#65a4f3 calc(var(--score) * 1%), #24364d 0) !important;
+}
+
+:root[data-theme="dark"] .admin-report-horizontal-bars i,
+:root[data-theme="dark"] .admin-report-stacked-bar,
+:root[data-theme="dark"] .admin-report-area-chart,
+:root[data-theme="dark"] .admin-report-mini-bars i,
+:root[data-theme="dark"] .admin-report-admission-bars i,
+:root[data-theme="dark"] .admin-report-progress {
+  background: #24364d !important;
+}
+
+:root[data-theme="dark"] .attendance-status-option.is-selected.is-present,
+:root[data-theme="dark"] .attendance-chip.is-present,
+:root[data-theme="dark"] .portal-attendance-history-count.is-present,
+:root[data-theme="dark"] .student-attendance-count.is-present {
+  border-color: rgba(78, 214, 137, 0.34) !important;
+  background: rgba(29, 107, 67, 0.22) !important;
+  color: #d9ffe9 !important;
+}
+
+:root[data-theme="dark"] .attendance-status-option.is-selected.is-absent,
+:root[data-theme="dark"] .attendance-chip.is-absent,
+:root[data-theme="dark"] .portal-attendance-history-count.is-absent,
+:root[data-theme="dark"] .student-attendance-count.is-absent {
+  border-color: rgba(255, 119, 119, 0.38) !important;
+  background: rgba(116, 34, 44, 0.24) !important;
+  color: #ffdce2 !important;
+}
+
+:root[data-theme="dark"] .attendance-status-option.is-selected.is-late,
+:root[data-theme="dark"] .attendance-chip.is-late,
+:root[data-theme="dark"] .admin-report-check > span.is-pending {
+  border-color: rgba(206, 145, 54, 0.34) !important;
+  background: rgba(206, 145, 54, 0.18) !important;
+  color: #ffd995 !important;
+}
+
+:root[data-theme="dark"] .attendance-status-option.is-selected.is-excused,
+:root[data-theme="dark"] .attendance-chip.is-excused,
+:root[data-theme="dark"] .student-attendance-count.is-average {
+  border-color: rgba(101, 164, 243, 0.42) !important;
+  background: rgba(47, 111, 237, 0.16) !important;
+  color: #dcecff !important;
+}
+
+:root[data-theme="dark"] .attendance-chip.is-unmarked {
+  border-color: rgba(148, 163, 184, 0.26) !important;
+  background: rgba(148, 163, 184, 0.14) !important;
+  color: #c8d5e6 !important;
+}
+
+:root[data-theme="dark"] .admin-report-check > span.is-ready {
+  border-color: rgba(78, 214, 137, 0.34) !important;
+  background: rgba(29, 107, 67, 0.22) !important;
+  color: #d9ffe9 !important;
+}
+
+:root[data-theme="dark"] .portal-class-level-group > summary,
+:root[data-theme="dark"] .portal-class-list-summary,
+:root[data-theme="dark"] .portal-class-meta-item,
+:root[data-theme="dark"] .portal-access-role-summary,
+:root[data-theme="dark"] .portal-access-role-list {
+  border-color: #26384f !important;
+  background: #0d1726 !important;
+  color: #d8e7f6 !important;
+}
+
+:root[data-theme="dark"] .portal-class-card.is-archived,
+:root[data-theme="dark"] .portal-class-arm-card.is-archived {
+  border-color: #36506f !important;
+  background: #0d1726 !important;
+}
+
+:root[data-theme="dark"] .portal-class-status.is-archived {
+  background: rgba(148, 163, 184, 0.16) !important;
+  color: #c8d5e6 !important;
+}
+
+:root[data-theme="dark"] .portal-class-status.is-pending,
+:root[data-theme="dark"] .staff-leave-admin-status,
+:root[data-theme="dark"] .staff-leave-modal-hero small {
+  background: rgba(206, 145, 54, 0.18) !important;
+  color: #ffd995 !important;
+}
+
+:root[data-theme="dark"] .portal-class-button.is-danger,
+:root[data-theme="dark"] .staff-leave-admin-status.is-rejected,
+:root[data-theme="dark"] .staff-leave-admin-status.is-cancelled,
+:root[data-theme="dark"] .staff-leave-modal-hero small.is-rejected,
+:root[data-theme="dark"] .staff-leave-modal-hero small.is-cancelled {
+  border-color: rgba(255, 119, 119, 0.38) !important;
+  background: rgba(116, 34, 44, 0.24) !important;
+  color: #ffdce2 !important;
+}
+
+:root[data-theme="dark"] .portal-class-button.is-archive {
+  border-color: rgba(255, 159, 122, 0.38) !important;
+  background: rgba(142, 63, 36, 0.2) !important;
+  color: #ffd2bf !important;
+}
+
+:root[data-theme="dark"] .portal-class-button.is-restore,
+:root[data-theme="dark"] .portal-access-role-count,
+:root[data-theme="dark"] .staff-leave-admin-status.is-approved,
+:root[data-theme="dark"] .staff-leave-modal-hero small.is-approved {
+  border-color: rgba(101, 164, 243, 0.42) !important;
+  background: rgba(47, 111, 237, 0.16) !important;
+  color: #dcecff !important;
 }
 
 :root[data-theme="dark"] .auth-submit,
@@ -17588,6 +17983,12 @@ body.admin-dashboard-page .portal-class-button:hover:not(:disabled) {
 :root[data-theme="dark"] .portal-divider,
 :root[data-theme="dark"] .portal-class-meta,
 :root[data-theme="dark"] .portal-class-card-head,
+:root[data-theme="dark"] .portal-class-list-body,
+:root[data-theme="dark"] .portal-class-subject-item header,
+:root[data-theme="dark"] .portal-class-subject-item footer,
+:root[data-theme="dark"] .portal-class-detail-table th,
+:root[data-theme="dark"] .portal-class-detail-table td,
+:root[data-theme="dark"] .portal-access-role-list,
 :root[data-theme="dark"] .portal-overlay-head {
   border-color: #26384f !important;
 }
@@ -17652,7 +18053,6 @@ body.admin-dashboard-page .portal-class-button:hover:not(:disabled) {
   background: #0d1726 !important;
 }
 
-:root[data-theme="dark"] .admin-report-donut,
 :root[data-theme="dark"] .admin-report-stacked-bar,
 :root[data-theme="dark"] .admin-report-progress,
 :root[data-theme="dark"] .admin-report-area-chart,
@@ -17691,4 +18091,588 @@ body.admin-dashboard-page .portal-class-button:hover:not(:disabled) {
 :root[data-theme="dark"] .portal-class-stat-rose,
 :root[data-theme="dark"] .admin-metric-card-rose {
   background: rgba(214, 78, 92, 0.17) !important;
+}
+
+/* Dark mode hard stop: prevent old light surfaces from leaking through new pages. */
+:root[data-theme="dark"] body.admin-dashboard-page :where(
+  .admin-dashboard-main,
+  .admin-dashboard-topbar,
+  .admin-surface-card,
+  .admin-session-card,
+  .admin-link-card,
+  .admin-event-row,
+  .admin-activity-row,
+  [class*="workspace"],
+  [class*="section"],
+  [class*="surface"],
+  [class*="card"],
+  [class*="panel"],
+  [class*="shell"],
+  [class*="wrap"],
+  [class*="head"],
+  [class*="body"],
+  [class*="content"],
+  [class*="detail"],
+  [class*="box"],
+  [class*="tile"],
+  [class*="row"],
+  [class*="item"],
+  [class*="group"],
+  [class*="summary"],
+  [class*="toolbar"],
+  [class*="filter"],
+  [class*="search"],
+  [class*="table"],
+  [class*="form"],
+  [class*="modal"],
+  [class*="drawer"],
+  [class*="dropdown"],
+  [class*="history"],
+  [class*="preview"],
+  [class*="upload"],
+  [class*="document"],
+  [class*="doc"],
+  [class*="invoice"],
+  [class*="print"],
+  [class*="sheet"],
+  [class*="receipt"],
+  [class*="calendar"],
+  [class*="message"],
+  [class*="conversation"],
+  [class*="chat"],
+  [class*="resource"],
+  [class*="lesson"],
+  [class*="editor"],
+  [class*="empty"],
+  details,
+  summary,
+  form,
+  fieldset,
+  table,
+  thead,
+  tbody,
+  tr,
+  th,
+  td
+):not(.admin-sidebar):not(.admin-sidebar-link):not(.admin-sidebar-profile):not(.admin-profile-avatar):not(.portal-student-profile-avatar):not(.portal-staff-profile-avatar):not(.button-primary):not(.auth-submit):not(.portal-toast):not(.portal-message-bubble):not(.portal-chat-bubble):not(.attendance-chip):not(.portal-class-status):not(.lesson-plan-status):not(.admin-report-check > span) {
+  border-color: #26384f !important;
+  background: #111c2b !important;
+  color: #d8e7f6 !important;
+  box-shadow: none !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(
+  [class*="row"],
+  [class*="item"],
+  [class*="chip"],
+  [class*="pill"],
+  [class*="count"],
+  [class*="meta"],
+  [class*="line"],
+  [class*="cell"],
+  [class*="slot"],
+  [class*="field"],
+  [class*="option"],
+  [class*="button"]:not(.button-primary),
+  input,
+  select,
+  textarea,
+  button:not(.button-primary):not(.auth-submit)
+):not(.admin-sidebar-link):not(.admin-profile-avatar):not(.button-primary):not(.auth-submit):not(.portal-toast):not(.attendance-chip):not(.portal-class-status):not(.lesson-plan-status):not(.admin-report-check > span) {
+  border-color: #2b405b !important;
+  background: #0d1726 !important;
+  color: #e8f2ff !important;
+}
+
+:root[data-theme="dark"] body.auth-page :where(
+  .auth-pane-left,
+  .auth-line-field,
+  .auth-role,
+  .auth-google-button,
+  .auth-preview-browser,
+  .auth-preview-tile,
+  .auth-preview-panel,
+  .auth-preview-float,
+  .auth-preview-mobile,
+  [class*="card"],
+  [class*="panel"],
+  [class*="field"],
+  [class*="modal"],
+  input,
+  select,
+  textarea,
+  button:not(.auth-submit)
+) {
+  border-color: #26384f !important;
+  background: #111c2b !important;
+  color: #d8e7f6 !important;
+  box-shadow: none !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(
+  [class*="workspace"],
+  [class*="section"],
+  [class*="surface"],
+  [class*="card"],
+  [class*="panel"],
+  [class*="shell"],
+  [class*="wrap"],
+  [class*="head"],
+  [class*="body"],
+  [class*="content"],
+  [class*="detail"],
+  [class*="box"],
+  [class*="tile"],
+  [class*="row"],
+  [class*="item"],
+  [class*="group"],
+  [class*="summary"],
+  [class*="toolbar"],
+  [class*="filter"],
+  [class*="search"],
+  [class*="table"],
+  [class*="form"],
+  [class*="modal"],
+  [class*="drawer"],
+  [class*="dropdown"],
+  [class*="history"],
+  [class*="preview"],
+  [class*="upload"],
+  [class*="document"],
+  [class*="doc"],
+  [class*="invoice"],
+  [class*="print"],
+  [class*="sheet"],
+  [class*="receipt"],
+  [class*="calendar"],
+  [class*="message"],
+  [class*="conversation"],
+  [class*="chat"],
+  [class*="resource"],
+  [class*="lesson"],
+  [class*="editor"],
+  [class*="empty"],
+  details,
+  summary,
+  form,
+  fieldset,
+  table,
+  th,
+  td
+) :where(h1, h2, h3, h4, h5, h6, strong, b, label, legend) {
+  color: #f2f7ff !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(
+  [class*="workspace"],
+  [class*="section"],
+  [class*="surface"],
+  [class*="card"],
+  [class*="panel"],
+  [class*="shell"],
+  [class*="wrap"],
+  [class*="head"],
+  [class*="body"],
+  [class*="content"],
+  [class*="detail"],
+  [class*="box"],
+  [class*="tile"],
+  [class*="row"],
+  [class*="item"],
+  [class*="group"],
+  [class*="summary"],
+  [class*="toolbar"],
+  [class*="filter"],
+  [class*="search"],
+  [class*="table"],
+  [class*="form"],
+  [class*="modal"],
+  [class*="drawer"],
+  [class*="dropdown"],
+  [class*="history"],
+  [class*="preview"],
+  [class*="upload"],
+  [class*="document"],
+  [class*="doc"],
+  [class*="invoice"],
+  [class*="print"],
+  [class*="sheet"],
+  [class*="receipt"],
+  [class*="calendar"],
+  [class*="message"],
+  [class*="conversation"],
+  [class*="chat"],
+  [class*="resource"],
+  [class*="lesson"],
+  [class*="editor"],
+  [class*="empty"],
+  details,
+  summary,
+  form,
+  fieldset,
+  table,
+  th,
+  td
+) :where(p, span, small, em, li, dd, dt) {
+  color: #a8bad2 !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(.button-primary, .auth-submit, .admin-sidebar-link.is-active),
+:root[data-theme="dark"] body.auth-page :where(.auth-submit) {
+  color: #ffffff !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(.admin-profile-avatar.is-image, .portal-student-profile-avatar, .portal-staff-profile-avatar) {
+  background: #0d1726 !important;
+}
+
+:root[data-theme="dark"] :where(body.admin-dashboard-page, body.auth-page) :where(
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  strong,
+  b,
+  label,
+  legend,
+  summary,
+  th,
+  dt
+) {
+  color: #f2f7ff !important;
+}
+
+:root[data-theme="dark"] :where(body.admin-dashboard-page, body.auth-page) :where(
+  p,
+  span,
+  small,
+  em,
+  i,
+  li,
+  dd,
+  td,
+  a,
+  button,
+  input,
+  textarea,
+  select,
+  option,
+  output,
+  time,
+  code
+) {
+  color: #d8e7f6 !important;
+}
+
+:root[data-theme="dark"] :where(body.admin-dashboard-page, body.auth-page) :where(
+  .portal-field-hint,
+  .auth-helper-text,
+  .auth-flow-note,
+  .admin-dashboard-greeting p,
+  .admin-surface-head span,
+  .admin-profile-copy span,
+  .portal-card-kicker,
+  .portal-muted,
+  [class*="hint"],
+  [class*="meta"],
+  [class*="copy"],
+  [class*="note"]
+) {
+  color: #a8bad2 !important;
+}
+
+:root[data-theme="dark"] :where(body.admin-dashboard-page, body.auth-page) :where(
+  .button-primary,
+  .auth-submit,
+  .admin-sidebar-link.is-active,
+  .admin-event-button-blue
+) {
+  color: #ffffff !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(.attendance-chip.is-present, .attendance-status-option.is-selected.is-present, .portal-attendance-history-count.is-present, .student-attendance-count.is-present) {
+  color: #d9ffe9 !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(.attendance-chip.is-absent, .attendance-status-option.is-selected.is-absent, .portal-attendance-history-count.is-absent, .student-attendance-count.is-absent, .portal-class-button.is-danger) {
+  color: #ffdce2 !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(.attendance-chip.is-late, .attendance-status-option.is-selected.is-late, .admin-report-check > span.is-pending, .portal-class-status.is-pending, .staff-leave-admin-status, .staff-leave-modal-hero small) {
+  color: #ffd995 !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(.attendance-chip.is-excused, .attendance-status-option.is-selected.is-excused, .student-attendance-count.is-average, .admin-report-check > span.is-ready, .portal-class-status.is-active, .portal-class-button.is-restore, .portal-access-role-count) {
+  color: #dcecff !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(.attendance-chip.is-unmarked, .portal-class-status.is-archived, .lesson-plan-status, .portal-source-pill, .portal-admission-source-pill) {
+  color: #c8d5e6 !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(
+  .admin-messages-announcement-section,
+  .admin-report-announcement-layout,
+  .admin-report-announcement-feed,
+  .admin-announcement-config,
+  .admin-announcement-class-option,
+  .admin-announcement-item,
+  .portal-score-structure-presets,
+  .portal-score-input,
+  .portal-score-structure-total:last-child,
+  .portal-grading-scale-list,
+  .portal-grading-scale-row,
+  .portal-settings-toggle,
+  .staff-result-score-policy,
+  .staff-result-table-wrap,
+  .portal-report-card-table-wrap,
+  .staff-result-score-table,
+  .portal-report-card-table,
+  .staff-result-live-summary article,
+  .portal-report-card-summary article,
+  .portal-report-card-list-row,
+  .portal-report-card-list-score,
+  .portal-report-card-modal-panel,
+  .portal-report-card-modal-body,
+  .portal-report-card-modal-actions,
+  .portal-report-card-document,
+  .portal-report-card-meta article,
+  .portal-report-card-comments article
+) {
+  border-color: #26384f !important;
+  background: #111c2b !important;
+  color: #d8e7f6 !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(
+  .admin-report-announcement-feed,
+  .admin-announcement-config,
+  .portal-score-input,
+  .portal-grading-scale-row,
+  .portal-settings-toggle,
+  .staff-result-table-wrap,
+  .portal-report-card-table-wrap,
+  .portal-report-card-modal-panel
+) {
+  box-shadow: none !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(
+  .admin-announcement-class-option,
+  .admin-announcement-item,
+  .portal-score-structure-total:last-child,
+  .portal-report-card-list-score,
+  .staff-result-live-summary article,
+  .portal-report-card-summary article,
+  .portal-report-card-meta article,
+  .portal-report-card-comments article
+) {
+  background: #0d1726 !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(
+  .admin-announcement-item-head strong,
+  .admin-report-announcement-feed h3,
+  .admin-announcement-config strong,
+  .portal-score-structure-total strong,
+  .portal-report-card-list-row strong,
+  .portal-report-card-summary strong,
+  .staff-result-live-summary strong,
+  .portal-report-card-head h4,
+  .portal-report-card-meta strong,
+  .portal-report-card-footer strong,
+  .staff-result-score-policy strong
+) {
+  color: #f2f7ff !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(
+  .admin-announcement-item-head p,
+  .admin-announcement-item-head small,
+  .admin-announcement-item-meta span,
+  .admin-report-announcement-feed span,
+  .admin-announcement-config span,
+  .portal-score-input strong,
+  .portal-score-structure-total,
+  .portal-score-structure-total span,
+  .portal-settings-note,
+  .portal-report-card-list-row span,
+  .portal-report-card-list-row small,
+  .portal-report-card-summary span,
+  .staff-result-live-summary span,
+  .portal-report-card-head span,
+  .portal-report-card-head p,
+  .portal-report-card-head small,
+  .portal-report-card-meta span,
+  .portal-report-card-comments span,
+  .portal-report-card-comments p,
+  .portal-report-card-footer,
+  .staff-result-score-policy span
+) {
+  color: #a8bad2 !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(.portal-score-preset) {
+  border-color: #2b405a !important;
+  background: #0d1726 !important;
+  color: #d8e7f6 !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(.portal-score-preset.is-active) {
+  border-color: #60a5fa !important;
+  background: #102b4f !important;
+  color: #dcecff !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(
+  .staff-result-score-table th,
+  .portal-report-card-table th
+) {
+  border-color: #2b405a !important;
+  background: #0d1726 !important;
+  color: #a8bad2 !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(
+  .staff-result-score-table td,
+  .portal-report-card-table td
+) {
+  border-color: #25364b !important;
+  background: #111c2b !important;
+  color: #d8e7f6 !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(
+  .staff-result-score-table input,
+  .portal-score-input input
+) {
+  border-color: #2b405a !important;
+  background: #0d1726 !important;
+  color: #f2f7ff !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(.staff-result-score-table input:disabled) {
+  background: transparent !important;
+  color: #c8d5e6 !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(.portal-report-card-status.is-draft) {
+  background: #1e293b !important;
+  color: #d8e7f6 !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(.portal-report-card-status.is-released) {
+  background: #103923 !important;
+  color: #d9ffe9 !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(.portal-report-subject-remove, .portal-grading-scale-remove) {
+  border-color: #6f2a36 !important;
+  background: #351722 !important;
+  color: #ffdce2 !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(.portal-report-card-head) {
+  border-color: #3b82f6 !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(.portal-report-card-modal-actions, .portal-report-card-footer) {
+  border-color: #26384f !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(.portal-report-card-mark) {
+  background: #2563eb !important;
+  color: #ffffff !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(
+  .admin-announcement-item-meta span,
+  .portal-report-card-table td span,
+  .parent-report-card-main span
+) {
+  color: #cfe2ff !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(
+  .ss-inbox,
+  .ss-inbox-sidebar,
+  .ss-inbox-sidebar-head,
+  .ss-chat-pane,
+  .ss-chat-header,
+  .ss-chat-messages,
+  .ss-recipient-modal,
+  .ss-recipient-modal-header,
+  .ss-recipient-modal-search,
+  .ss-recipient-card,
+  .ss-compose-bar
+) {
+  border-color: #26384f !important;
+  background: #111c2b !important;
+  color: #d8e7f6 !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(
+  .ss-inbox-sidebar,
+  .ss-chat-header,
+  .ss-recipient-modal-header,
+  .ss-compose-bar
+) {
+  background: #0d1726 !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(
+  .ss-inbox-thread-item,
+  .ss-recipient-card
+) {
+  border-color: transparent !important;
+  background: transparent !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(
+  .ss-inbox-thread-item:hover,
+  .ss-inbox-thread-item.is-active,
+  .ss-recipient-card:hover
+) {
+  border-color: #3b82f6 !important;
+  background: #13243a !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(
+  .ss-inbox-thread-name strong,
+  .ss-chat-header-info strong,
+  .ss-chat-placeholder strong,
+  .ss-recipient-card strong
+) {
+  color: #f2f7ff !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(
+  .ss-inbox-thread-name time,
+  .ss-inbox-thread-preview,
+  .ss-inbox-empty,
+  .ss-inbox-empty strong,
+  .ss-chat-header-info span,
+  .ss-chat-placeholder,
+  .ss-chat-placeholder p,
+  .ss-recipient-card span
+) {
+  color: #a8bad2 !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(
+  .ss-inbox-search input,
+  .ss-recipient-modal-search input,
+  .ss-compose-input,
+  .ss-compose-bar textarea
+) {
+  border-color: #2b405a !important;
+  background: #0d1726 !important;
+  color: #f2f7ff !important;
+}
+
+:root[data-theme="dark"] body.admin-dashboard-page :where(.ss-chat-header-badge) {
+  background: #102b4f !important;
+  color: #dcecff !important;
 }

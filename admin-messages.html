@@ -486,16 +486,13 @@
         </header>
 
         <section class="admin-report-workspace" aria-labelledby="admin-report-title">
-          <div class="admin-report-heading">
-            <div>
-              <span>Messages</span>
-              <h2 id="admin-report-title">School Message Inbox</h2>
-              <p>Search for a parent, teacher, or student to start a conversation.</p>
+          <article class="admin-surface-card admin-report-section admin-messages-inbox-section">
+            <div class="admin-surface-head">
+              <div>
+                <h2 id="admin-report-title">School Message Inbox</h2>
+                <span>Search for a parent, teacher, or student to start a conversation.</span>
+              </div>
             </div>
-          </div>
-
-          <!-- auth.js renders into this div; our script then replaces its content -->
-          <article class="admin-surface-card admin-report-section" style="padding: 0; overflow: hidden; border-radius: 34px;">
             <div id="admin-report-parent-messages" class="admin-report-parent-messages"></div>
           </article>
 
