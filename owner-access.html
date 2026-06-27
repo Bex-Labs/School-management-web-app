@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Owner Access | SchoolSphere</title>
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="description" content="Private owner access for SchoolSphere." />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body class="auth-page" data-page="owner-access">
+    <main class="auth-screen">
+      <section class="auth-shell">
+        <article class="auth-pane auth-pane-left">
+          <div class="auth-left-inner">
+            <a class="auth-brand" href="./index.html" aria-label="SchoolSphere home">
+              <span class="auth-brand-mark">S</span>
+              <span class="auth-brand-text">SchoolSphere</span>
+            </a>
+
+            <div class="auth-copy-block">
+              <h1 class="auth-page-title">Owner access.</h1>
+              <p class="auth-flow-note" id="owner-login-copy">
+                Enter your private owner username and password.
+              </p>
+            </div>
+
+            <form id="owner-login-form" class="auth-form-clean" novalidate>
+              <div id="owner-login-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+
+              <div class="auth-field-block">
+                <label class="auth-field-label" for="owner-username">Username</label>
+                <label class="auth-line-field" for="owner-username">
+                  <span class="auth-line-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M20 21a8 8 0 0 0-16 0"></path>
+                      <circle cx="12" cy="7" r="4"></circle>
+                    </svg>
+                  </span>
+                  <input id="owner-username" name="username" type="text" placeholder="Owner username" autocomplete="username" />
+                </label>
+                <p class="auth-field-error" data-error-for="username"></p>
+              </div>
+
+              <div class="auth-field-block">
+                <label class="auth-field-label" for="owner-password">Password</label>
+                <label class="auth-line-field" for="owner-password">
+                  <span class="auth-line-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="4" y="11" width="16" height="10" rx="2"></rect>
+                      <path d="M8 11V8a4 4 0 1 1 8 0v3"></path>
+                    </svg>
+                  </span>
+                  <input id="owner-password" name="password" type="password" placeholder="Owner password" autocomplete="current-password" />
+                  <button class="auth-line-trail auth-password-toggle" type="button" data-password-toggle="owner-password" aria-label="Show password">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"></path>
+                      <circle cx="12" cy="12" r="2.5"></circle>
+                    </svg>
+                  </button>
+                </label>
+                <p class="auth-field-error" data-error-for="password"></p>
+              </div>
+
+              <div class="auth-field-block" id="owner-confirm-block" hidden>
+                <label class="auth-field-label" for="owner-confirm-password">Confirm password</label>
+                <label class="auth-line-field" for="owner-confirm-password">
+                  <span class="auth-line-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M20 6 9 17l-5-5"></path>
+                    </svg>
+                  </span>
+                  <input id="owner-confirm-password" name="confirmPassword" type="password" placeholder="Confirm owner password" autocomplete="new-password" />
+                </label>
+                <p class="auth-field-error" data-error-for="confirmPassword"></p>
+              </div>
+
+              <div class="auth-inline-row">
+                <label class="auth-check">
+                  <input id="owner-remember" name="remember" type="checkbox" checked />
+                  <span>Stay logged in</span>
+                </label>
+              </div>
+
+              <button id="owner-login-submit" class="auth-submit" type="submit">Continue</button>
+            </form>
+          </div>
+        </article>
+
+        <article class="auth-pane auth-pane-right">
+          <div class="auth-stage">
+            <div class="auth-stage-copy">
+              <h2>Private control room.</h2>
+              <p>
+                Owner access is separated from normal school, staff, student, and parent login.
+              </p>
+            </div>
+
+            <div class="auth-preview-scene" aria-hidden="true">
+              <div class="auth-preview-orb auth-preview-orb-a"></div>
+              <div class="auth-preview-orb auth-preview-orb-b"></div>
+              <div class="auth-preview-card auth-preview-card-main">
+                <span>Owner Console</span>
+                <strong>All accounts</strong>
+                <p>Activity, users, schools, and access controls.</p>
+              </div>
+              <div class="auth-preview-card auth-preview-card-small auth-preview-card-top">
+                <span>Access</span>
+                <strong>Private</strong>
+              </div>
+              <div class="auth-preview-card auth-preview-card-small auth-preview-card-bottom">
+                <span>Status</span>
+                <strong>Protected</strong>
+              </div>
+            </div>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <script src="./app.js?v=20260611-student-messages"></script>
+    <script src="./supabase-config.js"></script>
+    <script src="./auth.js?v=20260611-student-messages"></script>
+  </body>
+</html>

@@ -617,6 +617,7 @@
     initRoleButtons();
     initSignupFlow();
     initLoginFlow();
+    initOwnerAccessFlow();
     initForgotPasswordFlow();
     initResetPasswordFlow();
     initGoogleButtons();
@@ -951,8 +952,7 @@
 
     if (!matched) {
       const defaultButton =
-        document.querySelector('.auth-role[data-auth-role="admin"]') ||
-        document.querySelector('.auth-role[data-auth-role="super-admin"]');
+        document.querySelector('.auth-role[data-auth-role="admin"]');
       if (defaultButton) {
         defaultButton.classList.add("is-active");
       }
@@ -26693,43 +26693,97 @@
     });
   }
 
-  async function handleSuperAdminLocalLogin({ email, password, remember, form, status }) {
-    const normalizedEmail = normalizeEmail(email || "");
-    const users = getUsers();
-    const existingUser = users.find((user) => user.normalizedEmail === normalizedEmail) || null;
-    const superAdmins = users.filter((user) => isSuperAdminUser(user));
+  function normalizeOwnerUsername(value) {
+    return String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "");
+  }
 
-    if (!superAdmins.length) {
-      if (existingUser && !isSuperAdminUser(existingUser)) {
-        setFieldError(form, "email", "This email is already used by another role.");
-        setStatus(
-          status,
-          "error",
-          "Use a fresh owner email for the first Super Admin account.",
-        );
+  function getSuperAdminUsers() {
+    return getUsers().filter((user) => isSuperAdminUser(user));
+  }
+
+  function findOwnerAccessUser(username) {
+    const normalizedUsername = normalizeOwnerUsername(username);
+    if (!normalizedUsername) {
+      return null;
+    }
+
+    return getSuperAdminUsers().find((user) => {
+      const ownerUsername = normalizeOwnerUsername(user.normalizedOwnerUsername || user.ownerUsername || user.username || "");
+      if (ownerUsername && ownerUsername === normalizedUsername) {
+        return true;
+      }
+
+      const displayUsername = normalizeOwnerUsername(user.displayName || "");
+      if (displayUsername && displayUsername === normalizedUsername) {
+        return true;
+      }
+
+      const email = normalizeEmail(String(user.email || ""));
+      return email && email === normalizeEmail(username);
+    }) || null;
+  }
+
+  function buildOwnerEmail(username) {
+    const normalizedUsername = normalizeOwnerUsername(username).replace(/[^a-z0-9._-]+/g, "") || "owner";
+    return `${normalizedUsername}@owner.local`;
+  }
+
+  async function handleOwnerAccessLogin({ username, password, confirmPassword = "", remember, form, status }) {
+    const normalizedUsername = normalizeOwnerUsername(username);
+    const users = getUsers();
+    const superAdmins = getSuperAdminUsers();
+    const ownerAccounts = superAdmins.filter(
+      (user) => normalizeOwnerUsername(user.normalizedOwnerUsername || user.ownerUsername || user.username || ""),
+    );
+    const existingOwner = findOwnerAccessUser(username);
+    const shouldSetupOwner = !ownerAccounts.length;
+
+    if (shouldSetupOwner) {
+      if (password !== confirmPassword) {
+        setFieldError(form, "confirmPassword", "Passwords do not match.");
+        setStatus(status, "error", "Confirm your owner password to finish setup.");
         return true;
       }
 
       const timestamp = nowIso();
+      const passwordHash = await hashSecret(password);
+      const matchingLegacyOwner = superAdmins.find((user) => user.passwordHash && user.passwordHash === passwordHash) || null;
+
+      if (superAdmins.length && !matchingLegacyOwner) {
+        setStatus(
+          status,
+          "error",
+          "Owner access already exists. Use the password for the existing owner account to set your private username.",
+        );
+        return true;
+      }
+
       const superAdmin = normalizeUserRecord({
-        id: existingUser?.id || createId(),
-        email,
-        normalizedEmail,
+        ...(matchingLegacyOwner || {}),
+        id: matchingLegacyOwner?.id || createId(),
+        email: matchingLegacyOwner?.email || buildOwnerEmail(username),
+        normalizedEmail: normalizeEmail(matchingLegacyOwner?.email || buildOwnerEmail(username)),
         workspaceId: SUPER_ADMIN_WORKSPACE_ID,
-        displayName: existingUser?.displayName || buildDisplayName(email) || "Super Admin",
-        passwordHash: await hashSecret(password),
+        displayName: String(username || "").trim() || "Owner",
+        ownerUsername: String(username || "").trim(),
+        normalizedOwnerUsername: normalizedUsername,
+        username: String(username || "").trim(),
+        passwordHash,
         provider: "password",
         role: SUPER_ADMIN_ROLE,
         isConfirmed: true,
         confirmationToken: "",
         confirmationSentAt: "",
         confirmedAt: timestamp,
-        createdAt: existingUser?.createdAt || timestamp,
+        createdAt: matchingLegacyOwner?.createdAt || timestamp,
         lastLoginAt: timestamp,
         status: "active",
       });
-      const nextUsers = existingUser
-        ? users.map((user) => (user.id === existingUser.id ? superAdmin : user))
+      const nextUsers = matchingLegacyOwner
+        ? users.map((user) => (user.id === matchingLegacyOwner.id ? superAdmin : user))
         : [...users, superAdmin];
 
       saveUsers(nextUsers);
@@ -26751,59 +26805,51 @@
         action: "created",
         entityType: "super-admin",
         entityId: superAdmin.id,
-        summary: `Created first Super Admin account for ${superAdmin.email}`,
-        details: "Owner console bootstrap account created from the login screen.",
-        actorName: superAdmin.displayName || superAdmin.email,
+        summary: `Configured owner access for ${superAdmin.displayName}`,
+        details: "Private owner username/password access configured.",
+        actorName: superAdmin.displayName || "Owner",
         workspaceId: SUPER_ADMIN_WORKSPACE_ID,
         metadata: {
-          email: superAdmin.email,
+          username: superAdmin.ownerUsername,
           role: SUPER_ADMIN_ROLE,
         },
       });
-      recordLoginAudit(superAdmin, SUPER_ADMIN_ROLE, "super-admin-bootstrap");
+      recordLoginAudit(superAdmin, SUPER_ADMIN_ROLE, "owner-setup");
       clearFormDraftFor(form);
       window.location.assign(getRoleHomeRoute(SUPER_ADMIN_ROLE));
       return true;
     }
 
-    if (!existingUser) {
-      setFieldError(form, "email", "No Super Admin account was found with that email.");
-      setStatus(status, "error", "We could not find a Super Admin account with those credentials.");
+    if (!existingOwner) {
+      setFieldError(form, "username", "No owner account was found with that username.");
+      setStatus(status, "error", "We could not find an owner account with those credentials.");
       return true;
     }
 
-    if (!isSuperAdminUser(existingUser)) {
-      setStatus(
-        status,
-        "error",
-        `This account is registered as <strong>${escapeHtml(
-          normalizeRoleLabel(existingUser.role || DEFAULT_AUTH_ROLE),
-        )}</strong>. Switch role to continue.`,
-      );
+    if (isUserDeactivated(existingOwner)) {
+      setStatus(status, "error", "This owner account is not active.");
       return true;
     }
 
-    if (isUserDeactivated(existingUser)) {
-      setStatus(status, "error", "This Super Admin account is not active.");
-      return true;
-    }
-
-    if (existingUser.provider === "google" && !existingUser.passwordHash) {
-      setStatus(status, "info", "This Super Admin account uses Google sign-in.");
+    if (existingOwner.provider === "google" && !existingOwner.passwordHash) {
+      setStatus(status, "info", "This owner account needs an app password before username/password sign-in can work.");
       return true;
     }
 
     const passwordHash = await hashSecret(password);
-    if (passwordHash !== existingUser.passwordHash) {
+    if (passwordHash !== existingOwner.passwordHash) {
       setFieldError(form, "password", "Incorrect password.");
-      setStatus(status, "error", "Your email or password is incorrect.");
+      setStatus(status, "error", "Your username or password is incorrect.");
       return true;
     }
 
-    const updatedUser = updateUser(existingUser.id, (currentUser) => ({
+    const updatedUser = updateUser(existingOwner.id, (currentUser) => ({
       ...currentUser,
       workspaceId: SUPER_ADMIN_WORKSPACE_ID,
       role: SUPER_ADMIN_ROLE,
+      ownerUsername: currentUser.ownerUsername || String(username || "").trim(),
+      normalizedOwnerUsername: currentUser.normalizedOwnerUsername || normalizedUsername,
+      username: currentUser.username || String(username || "").trim(),
       lastLoginAt: nowIso(),
     }));
 
@@ -26817,11 +26863,11 @@
         workspaceId: SUPER_ADMIN_WORKSPACE_ID,
         persistence: remember ? "persistent" : "session",
         signedInAt: nowIso(),
-        source: "super-admin-local",
+        source: "owner-access",
       },
       remember,
     );
-    recordLoginAudit(updatedUser, SUPER_ADMIN_ROLE, "password");
+    recordLoginAudit(updatedUser, SUPER_ADMIN_ROLE, "owner-access");
     clearFormDraftFor(form);
     window.location.assign(getRoleHomeRoute(SUPER_ADMIN_ROLE));
     return true;
@@ -26894,17 +26940,8 @@
       }
 
       if (selectedRole === SUPER_ADMIN_ROLE) {
-        const handled = await handleSuperAdminLocalLogin({
-          email,
-          password,
-          remember,
-          form,
-          status,
-        });
-
-        if (handled) {
-          return;
-        }
+        setStatus(status, "error", "This access is not available from the normal login page.");
+        return;
       }
 
       if (isSupabaseConfigured()) {
@@ -27131,6 +27168,107 @@
       clearFormDraftFor(form);
       recordLoginAudit(updatedUser, userRole, "password");
       window.location.assign(getPostLoginRoute(userRole, updatedUser));
+    });
+  }
+
+  function initOwnerAccessFlow() {
+    if (getPage() !== "owner-access") {
+      return;
+    }
+
+    const form = document.getElementById("owner-login-form");
+    const status = document.getElementById("owner-login-status");
+    const confirmBlock = document.getElementById("owner-confirm-block");
+    const copy = document.getElementById("owner-login-copy");
+    const submitButton = document.getElementById("owner-login-submit");
+
+    if (!(form instanceof HTMLFormElement) || !status) {
+      return;
+    }
+
+    const ownerAccounts = getSuperAdminUsers().filter(
+      (user) => normalizeOwnerUsername(user.normalizedOwnerUsername || user.ownerUsername || user.username || ""),
+    );
+    const isSetup = !ownerAccounts.length;
+    const isLegacyOwnerMigration = isSetup && getSuperAdminUsers().length > 0;
+
+    if (confirmBlock) {
+      confirmBlock.hidden = !isSetup;
+    }
+    if (copy) {
+      copy.textContent = isSetup
+        ? isLegacyOwnerMigration
+          ? "Set your private owner username using the password from your existing owner account."
+          : "Create the private owner username and password. This will not appear on the normal login page."
+        : "Enter your private owner username and password.";
+    }
+    if (submitButton) {
+      submitButton.textContent = isSetup ? "Create owner access" : "Open owner console";
+    }
+
+    form.addEventListener("input", () => {
+      clearFieldErrors(form);
+      setStatus(status, "", "");
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      clearFieldErrors(form);
+      setStatus(status, "", "");
+
+      const username = String(form.elements.username?.value || "").trim();
+      const password = String(form.elements.password?.value || "");
+      const confirmPassword = String(form.elements.confirmPassword?.value || "");
+      const remember = Boolean(form.elements.remember?.checked);
+      let hasError = false;
+
+      if (!username) {
+        setFieldError(form, "username", "Enter your owner username.");
+        hasError = true;
+      } else if (normalizeOwnerUsername(username).length < 3) {
+        setFieldError(form, "username", "Use at least 3 characters.");
+        hasError = true;
+      }
+
+      if (!password) {
+        setFieldError(form, "password", "Enter your owner password.");
+        hasError = true;
+      } else if (isSetup && !isLegacyOwnerMigration && !isStrongPassword(password)) {
+        setFieldError(form, "password", "Use at least 8 characters with letters and numbers.");
+        hasError = true;
+      }
+
+      if (isSetup && !confirmPassword) {
+        setFieldError(form, "confirmPassword", "Confirm your owner password.");
+        hasError = true;
+      }
+
+      if (hasError) {
+        setStatus(status, "error", "Enter your owner access details to continue.");
+        return;
+      }
+
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = isSetup ? "Creating..." : "Opening...";
+      }
+
+      try {
+        await handleOwnerAccessLogin({
+          username,
+          password,
+          confirmPassword,
+          remember,
+          form,
+          status,
+        });
+      } finally {
+        if (submitButton && getPage() === "owner-access") {
+          submitButton.disabled = false;
+          submitButton.textContent = isSetup ? "Create owner access" : "Open owner console";
+        }
+      }
     });
   }
 
@@ -40171,15 +40309,15 @@
     const role = normalizeRoleLabel(session?.role || user?.role || DEFAULT_AUTH_ROLE);
 
     if (!session || !user || role !== SUPER_ADMIN_ROLE || !isSuperAdminUser(user)) {
-      sessionStorage.setItem(ACCESS_GUARD_NOTICE_KEY, "Sign in as Super Admin to open the owner console.");
-      window.location.assign("./login.html");
+      sessionStorage.setItem(ACCESS_GUARD_NOTICE_KEY, "Sign in with owner access to open the console.");
+      window.location.assign("./owner-access.html");
       return;
     }
 
     if (isUserDeactivated(user)) {
       clearSession();
-      sessionStorage.setItem(ACCESS_GUARD_NOTICE_KEY, "This Super Admin account is not active.");
-      window.location.assign("./login.html");
+      sessionStorage.setItem(ACCESS_GUARD_NOTICE_KEY, "This owner account is not active.");
+      window.location.assign("./owner-access.html");
       return;
     }
 
