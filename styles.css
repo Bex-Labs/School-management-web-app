@@ -18676,3 +18676,584 @@ body.admin-dashboard-page .portal-class-button:hover:not(:disabled) {
   background: #102b4f !important;
   color: #dcecff !important;
 }
+
+/* Mobile and tablet portal polish */
+body.admin-dashboard-page {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body.admin-dashboard-page :where(
+  .portal-timetable-list,
+  .portal-timetable-print-wrap,
+  .student-timetable-grid-view,
+  .staff-timetable-grid-wrap,
+  .staff-gradebook-table-wrap,
+  .staff-result-table-wrap,
+  .portal-report-card-table-wrap,
+  .portal-fee-line-item-table-wrap,
+  .portal-fee-invoice-lines-wrap,
+  .portal-fee-transaction-history,
+  .portal-class-detail-table-wrap
+) {
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  body.admin-dashboard-page :where(
+    .admin-sidebar-link:hover,
+    .admin-link-card:hover,
+    .portal-class-button:hover,
+    .portal-class-workspace-actions button:hover,
+    .portal-fee-category-option:hover,
+    .admin-event-button:hover,
+    .button:hover
+  ) {
+    transform: none;
+    box-shadow: none;
+  }
+}
+
+@media (max-width: 1180px) and (min-width: 1025px) {
+  body.admin-dashboard-page .admin-dashboard-shell {
+    grid-template-columns: 236px minmax(0, 1fr);
+  }
+
+  body.admin-dashboard-page .admin-sidebar {
+    padding: 20px 10px 10px;
+  }
+
+  body.admin-dashboard-page .admin-sidebar-toggle {
+    left: 202px;
+  }
+
+  body.admin-dashboard-page .admin-sidebar-nav {
+    grid-auto-rows: 34px;
+  }
+
+  body.admin-dashboard-page .admin-sidebar-link {
+    min-height: 34px;
+    padding: 0 9px;
+    font-size: 0.73rem;
+  }
+
+  body.admin-dashboard-page .admin-brand-mark {
+    width: 38px;
+    height: 38px;
+  }
+
+  body.admin-dashboard-page .admin-sidebar-brand-copy strong {
+    max-width: 152px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body.admin-dashboard-page .admin-dashboard-main {
+    padding: 18px 18px 30px;
+  }
+}
+
+@media (max-width: 1024px) {
+  body.admin-dashboard-page {
+    min-height: 100dvh;
+    overflow-x: hidden;
+  }
+
+  body.admin-dashboard-page .admin-dashboard-shell {
+    display: block;
+    min-height: 100dvh;
+  }
+
+  body.admin-dashboard-page .admin-sidebar {
+    position: sticky;
+    top: 0;
+    z-index: 80;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px max(10px, env(safe-area-inset-left)) 8px max(10px, env(safe-area-inset-right));
+    border-right: 0;
+    border-bottom: 1px solid rgba(213, 224, 238, 0.88);
+    background: rgba(244, 248, 255, 0.94);
+    box-shadow: 0 10px 28px rgba(15, 35, 64, 0.1);
+    backdrop-filter: blur(16px);
+    overflow: hidden;
+  }
+
+  body.admin-dashboard-page .admin-sidebar-brand {
+    min-width: 0;
+    padding: 0 4px;
+  }
+
+  body.admin-dashboard-page .admin-brand-mark {
+    width: 34px;
+    height: 34px;
+    font-size: 0.82rem;
+  }
+
+  body.admin-dashboard-page .admin-sidebar-brand-copy {
+    min-width: 0;
+  }
+
+  body.admin-dashboard-page .admin-sidebar-brand-copy strong {
+    max-width: min(56vw, 360px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.92rem;
+    letter-spacing: 0;
+  }
+
+  body.admin-dashboard-page .admin-sidebar-brand-copy span {
+    font-size: 0.66rem;
+  }
+
+  body.admin-dashboard-page .admin-sidebar-profile {
+    order: 2;
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    gap: 7px;
+    width: 100%;
+    padding: 7px 8px;
+    border-radius: 13px;
+  }
+
+  body.admin-dashboard-page .admin-profile-avatar {
+    width: 34px;
+    height: 34px;
+    font-size: 0.74rem;
+  }
+
+  body.admin-dashboard-page .admin-profile-copy {
+    min-width: 0;
+  }
+
+  body.admin-dashboard-page .admin-profile-copy strong,
+  body.admin-dashboard-page .admin-profile-copy span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body.admin-dashboard-page .theme-toggle {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    min-height: 34px;
+    border-radius: 11px;
+  }
+
+  body.admin-dashboard-page .admin-profile-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+
+  body.admin-dashboard-page .admin-signout-button {
+    min-height: 34px;
+    padding: 0 11px;
+  }
+
+  body.admin-dashboard-page .admin-sidebar-nav {
+    order: 3;
+    display: flex;
+    grid-auto-rows: auto;
+    grid-template-columns: none;
+    align-content: initial;
+    gap: 8px;
+    width: 100%;
+    min-height: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 2px 1px 6px;
+    scroll-padding-left: 2px;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body.admin-dashboard-page .admin-sidebar-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  body.admin-dashboard-page .admin-sidebar-link {
+    flex: 0 0 auto;
+    min-height: 42px;
+    padding: 0 12px;
+    border: 1px solid rgba(212, 223, 237, 0.92);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.72);
+    font-size: 0.78rem;
+    white-space: nowrap;
+    scroll-snap-align: start;
+  }
+
+  body.admin-dashboard-page .admin-sidebar-link.is-active {
+    border-color: rgba(79, 95, 255, 0.2);
+    background: #eef3ff;
+  }
+
+  body.admin-dashboard-page .admin-sidebar-icon {
+    width: 17px;
+    height: 17px;
+  }
+
+  body.admin-dashboard-page .admin-dashboard-main {
+    min-height: calc(100dvh - 148px);
+    padding: 16px clamp(12px, 3vw, 20px) 30px;
+  }
+
+  body.admin-dashboard-page .admin-dashboard-topbar {
+    gap: 14px;
+    padding: 4px 2px 16px;
+  }
+
+  body.admin-dashboard-page #portal-heading {
+    font-size: clamp(1.45rem, 4.5vw, 2rem);
+    line-height: 1.08;
+    letter-spacing: -0.03em;
+  }
+
+  body.admin-dashboard-page #portal-copy {
+    max-width: 100%;
+    font-size: 0.9rem;
+    line-height: 1.55;
+  }
+
+  body.admin-dashboard-page .admin-topline-chip {
+    width: fit-content;
+    max-width: 100%;
+  }
+
+  body.admin-dashboard-page .admin-dashboard-tools {
+    gap: 10px;
+  }
+
+  body.admin-dashboard-page .admin-searchbar {
+    min-height: 44px;
+  }
+
+  body.admin-dashboard-page .admin-section-quick-nav {
+    position: relative;
+    top: auto;
+    margin: 0 0 14px;
+    padding: 9px 10px;
+    border-radius: 14px;
+  }
+
+  body.admin-dashboard-page .admin-section-quick-links {
+    gap: 7px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body.admin-dashboard-page .admin-section-quick-links::-webkit-scrollbar {
+    display: none;
+  }
+
+  body.admin-dashboard-page .admin-section-quick-link {
+    min-height: 36px;
+    padding: 0 12px;
+  }
+
+  :root[data-theme="dark"] body.admin-dashboard-page .admin-sidebar {
+    border-bottom-color: #26384f;
+    background: rgba(13, 23, 38, 0.94);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+  }
+
+  :root[data-theme="dark"] body.admin-dashboard-page .admin-sidebar-link {
+    border-color: #26384f;
+    background: rgba(17, 28, 43, 0.82);
+  }
+
+  :root[data-theme="dark"] body.admin-dashboard-page .admin-sidebar-link.is-active {
+    border-color: rgba(96, 165, 250, 0.45);
+    background: #102b4f;
+  }
+}
+
+@media (max-width: 760px) {
+  body.admin-dashboard-page .admin-dashboard-main {
+    padding: 14px 10px 28px;
+  }
+
+  body.admin-dashboard-page .admin-surface-card,
+  body.admin-dashboard-page .admin-metric-card,
+  body.admin-dashboard-page .portal-class-card,
+  body.admin-dashboard-page .portal-class-group,
+  body.admin-dashboard-page .portal-class-arm-card,
+  body.admin-dashboard-page .portal-class-form,
+  body.admin-dashboard-page .portal-settings-form,
+  body.admin-dashboard-page .portal-fee-command-panel,
+  body.admin-dashboard-page .portal-registration-link-card {
+    border-radius: 16px;
+    padding: 16px;
+  }
+
+  body.admin-dashboard-page .admin-surface-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  body.admin-dashboard-page .admin-class-grid,
+  body.admin-dashboard-page .portal-class-layout,
+  body.admin-dashboard-page .portal-timetable-workbench,
+  body.admin-dashboard-page .admin-report-workspace {
+    gap: 14px;
+    margin-top: 14px;
+  }
+
+  body.admin-dashboard-page :where(
+    input:not([type="checkbox"]):not([type="radio"]),
+    select,
+    textarea
+  ) {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  body.admin-dashboard-page :where(
+    .button,
+    .portal-class-button,
+    .admin-event-button,
+    .admin-notification-button,
+    .portal-student-group-toggle,
+    .portal-student-group-delete,
+    .portal-timetable-period-edit
+  ) {
+    min-height: 40px;
+  }
+
+  body.admin-dashboard-page .utility-actions,
+  body.admin-dashboard-page .portal-class-actions,
+  body.admin-dashboard-page .portal-student-actions,
+  body.admin-dashboard-page .portal-timetable-actions,
+  body.admin-dashboard-page .portal-timetable-actions-inline,
+  body.admin-dashboard-page .portal-fee-toolbar,
+  body.admin-dashboard-page .portal-fee-invoice-row-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  body.admin-dashboard-page .utility-actions .button,
+  body.admin-dashboard-page .portal-class-actions .button,
+  body.admin-dashboard-page .portal-class-actions .portal-class-button,
+  body.admin-dashboard-page .portal-student-actions .button,
+  body.admin-dashboard-page .portal-timetable-actions .button,
+  body.admin-dashboard-page .portal-fee-toolbar .button,
+  body.admin-dashboard-page .portal-fee-invoice-row-actions .portal-class-button {
+    width: 100%;
+  }
+
+  body.admin-dashboard-page .portal-class-summary,
+  body.admin-dashboard-page .portal-fee-category-options,
+  body.admin-dashboard-page .portal-fee-item-grid,
+  body.admin-dashboard-page .portal-fee-invoice-doc-meta,
+  body.admin-dashboard-page .portal-report-card-meta,
+  body.admin-dashboard-page .portal-report-card-comments,
+  body.admin-dashboard-page .staff-result-live-summary,
+  body.admin-dashboard-page .portal-report-card-summary {
+    grid-template-columns: 1fr;
+  }
+
+  body.admin-dashboard-page .portal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  body.admin-dashboard-page .portal-overlay-panel,
+  body.admin-dashboard-page .portal-overlay-panel-sm,
+  body.admin-dashboard-page .portal-fee-form-modal,
+  body.admin-dashboard-page .portal-fee-invoice-modal,
+  body.admin-dashboard-page .portal-timetable-class-modal-panel,
+  body.admin-dashboard-page .portal-report-card-modal-panel {
+    width: 100%;
+    max-width: none;
+    max-height: 92dvh;
+    border-radius: 18px 18px 0 0;
+  }
+
+  body.admin-dashboard-page .portal-overlay-head {
+    padding: 15px 16px;
+  }
+
+  body.admin-dashboard-page .portal-overlay-panel :where(
+    .portal-class-form,
+    .portal-student-view-content,
+    .portal-student-docs-content,
+    .portal-staff-view-content,
+    .portal-timetable-class-modal-body,
+    .portal-report-card-modal-body,
+    .portal-fee-invoice-modal-body,
+    .portal-fee-invoice-form-body
+  ) {
+    padding: 15px;
+  }
+
+  body.admin-dashboard-page .portal-timetable-list,
+  body.admin-dashboard-page .student-timetable-grid-view,
+  body.admin-dashboard-page .staff-timetable-grid-wrap {
+    margin-inline: -10px;
+    padding-inline: 10px;
+  }
+
+  body.admin-dashboard-page .portal-timetable-grid,
+  body.admin-dashboard-page .portal-timetable-grid-actions,
+  body.admin-dashboard-page .portal-timetable-print-sheet,
+  body.admin-dashboard-page .portal-timetable-print-grid,
+  body.admin-dashboard-page .staff-timetable-grid,
+  body.admin-dashboard-page .student-timetable-grid-view .portal-timetable-print-sheet {
+    min-width: 820px;
+  }
+
+  body.admin-dashboard-page .portal-timetable-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  body.admin-dashboard-page .portal-timetable-context,
+  body.admin-dashboard-page .portal-timetable-entry-row,
+  body.admin-dashboard-page .portal-timetable-class-row,
+  body.admin-dashboard-page .portal-fee-invoice-class-toolbar,
+  body.admin-dashboard-page .portal-fee-invoice-row,
+  body.admin-dashboard-page .portal-fee-payment-history-row {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  body.admin-dashboard-page .portal-timetable-row-actions,
+  body.admin-dashboard-page .portal-fee-invoice-class-toolbar,
+  body.admin-dashboard-page .portal-fee-invoice-row-actions {
+    justify-content: stretch;
+  }
+
+  body.admin-dashboard-page .portal-conversation-inbox,
+  body.admin-dashboard-page .ss-inbox {
+    grid-template-columns: 1fr;
+    height: min(720px, calc(100dvh - 220px));
+    min-height: 560px;
+    border-radius: 16px;
+  }
+
+  body.admin-dashboard-page .portal-inbox-sidebar,
+  body.admin-dashboard-page .ss-inbox-sidebar {
+    max-height: 220px;
+    border-right: 0;
+    border-bottom: 1px solid #dfe7f2;
+  }
+
+  body.admin-dashboard-page .portal-chat-panel,
+  body.admin-dashboard-page .ss-chat-pane {
+    min-height: 390px;
+  }
+
+  body.admin-dashboard-page .portal-chat-bubble,
+  body.admin-dashboard-page .ss-bubble {
+    max-width: 90%;
+  }
+
+  body.admin-dashboard-page .parent-floating-chatbot {
+    right: 10px;
+    bottom: 10px;
+    left: 10px;
+    width: auto;
+    max-width: none;
+  }
+}
+
+@media (max-width: 520px) {
+  body.admin-dashboard-page .admin-sidebar {
+    padding-top: 8px;
+  }
+
+  body.admin-dashboard-page .admin-sidebar-brand-copy span,
+  body.admin-dashboard-page .admin-profile-copy span {
+    display: none;
+  }
+
+  body.admin-dashboard-page .admin-sidebar-link {
+    min-height: 40px;
+    padding: 0 11px;
+    font-size: 0.75rem;
+  }
+
+  body.admin-dashboard-page .admin-dashboard-main {
+    padding-inline: 8px;
+  }
+
+  body.admin-dashboard-page .admin-dashboard-topbar {
+    padding-bottom: 12px;
+  }
+
+  body.admin-dashboard-page .admin-topline-chip {
+    font-size: 0.68rem;
+  }
+
+  body.admin-dashboard-page #portal-heading {
+    font-size: 1.36rem;
+  }
+
+  body.admin-dashboard-page .admin-surface-card,
+  body.admin-dashboard-page .admin-metric-card,
+  body.admin-dashboard-page .portal-class-card,
+  body.admin-dashboard-page .portal-class-group,
+  body.admin-dashboard-page .portal-class-arm-card,
+  body.admin-dashboard-page .portal-class-form,
+  body.admin-dashboard-page .portal-settings-form,
+  body.admin-dashboard-page .portal-fee-command-panel,
+  body.admin-dashboard-page .portal-registration-link-card {
+    padding: 14px;
+    border-radius: 14px;
+  }
+
+  body.admin-dashboard-page .admin-metric-card strong,
+  body.admin-dashboard-page .portal-class-stat strong {
+    font-size: 1.55rem;
+  }
+
+  body.admin-dashboard-page .portal-student-profile-hero,
+  body.admin-dashboard-page .portal-staff-profile-hero,
+  body.admin-dashboard-page .portal-student-doc-item {
+    grid-template-columns: 1fr;
+  }
+
+  body.admin-dashboard-page .portal-student-profile-avatar,
+  body.admin-dashboard-page .portal-staff-profile-avatar {
+    width: 58px;
+    height: 58px;
+  }
+
+  body.admin-dashboard-page .portal-timetable-grid,
+  body.admin-dashboard-page .portal-timetable-grid-actions,
+  body.admin-dashboard-page .portal-timetable-print-sheet,
+  body.admin-dashboard-page .portal-timetable-print-grid,
+  body.admin-dashboard-page .staff-timetable-grid,
+  body.admin-dashboard-page .student-timetable-grid-view .portal-timetable-print-sheet {
+    min-width: 760px;
+  }
+
+  body.admin-dashboard-page .portal-report-card-list-row,
+  body.admin-dashboard-page .parent-report-card-row {
+    grid-template-columns: 1fr;
+  }
+
+  body.admin-dashboard-page .portal-report-card-list-actions {
+    justify-content: stretch;
+  }
+
+  body.admin-dashboard-page .portal-report-card-list-actions .portal-class-button {
+    width: 100%;
+  }
+
+  body.admin-dashboard-page .portal-conversation-inbox,
+  body.admin-dashboard-page .ss-inbox {
+    min-height: 520px;
+    height: min(680px, calc(100dvh - 198px));
+  }
+
+  body.admin-dashboard-page .portal-chat-panel,
+  body.admin-dashboard-page .ss-chat-pane {
+    min-height: 350px;
+  }
+}

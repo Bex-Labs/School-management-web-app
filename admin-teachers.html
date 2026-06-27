@@ -169,7 +169,6 @@
                     <option value="Dr.">Dr.</option>
                     <option value="Prof.">Prof.</option>
                     <option value="Engr.">Engr.</option>
-                    <option value="Chief">Chief</option>
                   </select>
                   <p class="portal-field-error" data-staff-error-for="prefix"></p>
                 </label>
@@ -193,10 +192,30 @@
                   <input id="staff-phone" name="phone" type="text" placeholder="+234 800 000 0000" autocomplete="tel" />
                   <p class="portal-field-error" data-staff-error-for="phone"></p>
                 </label>
+                <label class="portal-field" for="staff-school-type" data-staff-school-type-field hidden>
+                  <span>School section</span>
+                  <select id="staff-school-type" name="schoolType"></select>
+                  <p class="portal-field-error" data-staff-error-for="schoolType"></p>
+                </label>
+                <label class="portal-field" for="staff-faculty" data-staff-faculty-field hidden>
+                  <span>Faculty</span>
+                  <select id="staff-faculty" name="faculty"></select>
+                  <p class="portal-field-error" data-staff-error-for="faculty"></p>
+                </label>
+                <label class="portal-field" for="staff-custom-faculty" data-staff-custom-faculty-field hidden>
+                  <span>Custom faculty</span>
+                  <input id="staff-custom-faculty" name="customFaculty" type="text" placeholder="Enter faculty or school" />
+                  <p class="portal-field-error" data-staff-error-for="customFaculty"></p>
+                </label>
                 <label class="portal-field" for="staff-department">
                   <span>Department</span>
-                  <input id="staff-department" name="department" type="text" placeholder="Sciences" />
+                  <select id="staff-department" name="department"></select>
                   <p class="portal-field-error" data-staff-error-for="department"></p>
+                </label>
+                <label class="portal-field" for="staff-custom-department" data-staff-custom-department-field hidden>
+                  <span>Custom department</span>
+                  <input id="staff-custom-department" name="customDepartment" type="text" placeholder="Enter department" />
+                  <p class="portal-field-error" data-staff-error-for="customDepartment"></p>
                 </label>
                 <label class="portal-field" for="staff-title">
                   <span>Title</span>

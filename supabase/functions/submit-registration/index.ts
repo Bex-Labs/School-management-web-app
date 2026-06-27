@@ -174,7 +174,7 @@ async function getInstitutionContext(
   if (institutionId) {
     const { data, error } = await serviceClient
       .from("institutions")
-      .select("id, name")
+      .select("id, name, has_nursery, has_higher_institution")
       .eq("id", institutionId)
       .maybeSingle();
     if (error) throw error;
@@ -182,6 +182,7 @@ async function getInstitutionContext(
     return {
       institutionId: String(data.id),
       schoolName: String(data.name || "School").trim() || "School",
+      schoolTypes: getSchoolTypesFromInstitution(data),
     };
   }
 
@@ -190,7 +191,7 @@ async function getInstitutionContext(
 
   const { data, error } = await serviceClient
     .from("institutions")
-    .select("id, name")
+    .select("id, name, has_nursery, has_higher_institution")
     .eq("id", institutionId)
     .maybeSingle();
   if (error) throw error;
@@ -199,7 +200,17 @@ async function getInstitutionContext(
   return {
     institutionId: String(data.id),
     schoolName: String(data.name || "School").trim() || "School",
+    schoolTypes: getSchoolTypesFromInstitution(data),
   };
+}
+
+function getSchoolTypesFromInstitution(institution: Record<string, unknown>) {
+  return [
+    institution.has_nursery ? "nursery" : null,
+    "primary",
+    "secondary",
+    institution.has_higher_institution ? "higher" : null,
+  ].filter(Boolean);
 }
 
 async function getActiveClasses(serviceClient: ReturnType<typeof createClient>, institutionId: string) {
@@ -509,7 +520,7 @@ Deno.serve(async (request) => {
     });
   }
 
-  const { institutionId, schoolName } = institutionContext;
+  const { institutionId, schoolName, schoolTypes } = institutionContext;
 
   if (action === "config") {
     try {
@@ -519,6 +530,7 @@ Deno.serve(async (request) => {
         institutionId,
         workspaceId,
         schoolName,
+        schoolTypes,
         type: registrationType,
         classes,
         levels: getLevelsFromClasses(classes),
@@ -559,6 +571,8 @@ Deno.serve(async (request) => {
     ).trim();
     const email = String(rawPayload.email || "").trim();
     const phone = String(rawPayload.phone || "").trim();
+    const schoolType = String(rawPayload.schoolType || "").trim();
+    const faculty = String(rawPayload.faculty || "").trim();
     const department = String(rawPayload.department || "").trim();
     const title = String(rawPayload.title || "").trim();
 
@@ -586,6 +600,8 @@ Deno.serve(async (request) => {
           staff_first_name: firstName,
           staff_last_name: lastName,
           phone,
+          school_type: schoolType,
+          faculty,
           department,
           title,
           staff_profile_managed: true,
@@ -606,6 +622,8 @@ Deno.serve(async (request) => {
           displayName,
           email,
           phone,
+          schoolType,
+          faculty,
           department,
           title,
           source: "self-registration",

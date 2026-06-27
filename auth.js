@@ -5751,6 +5751,10 @@
       schoolName: String(onlineResult.schoolName || localConfig.schoolName || "School").trim(),
       classes: Array.isArray(onlineResult.classes) ? onlineResult.classes : localConfig.classes,
       levels: Array.isArray(onlineResult.levels) ? onlineResult.levels : localConfig.levels,
+      schoolTypes: Array.isArray(onlineResult.schoolTypes) && onlineResult.schoolTypes.length
+        ? normalizeExplicitSchoolTypeList(onlineResult.schoolTypes)
+        : localConfig.schoolTypes,
+      higherInstitutionType: onlineResult.higherInstitutionType || localConfig.higherInstitutionType,
       institutionId: String(onlineResult.institutionId || "").trim(),
       warning: "",
     };
@@ -5771,7 +5775,10 @@
       mirrorSelfRegistrationSubmissionLocally({
         workspaceId: normalizedWorkspaceId,
         registrationType,
-        record: onlineResult.record || payload,
+        record: {
+          ...payload,
+          ...(onlineResult.record || {}),
+        },
         user: onlineResult.user || null,
       });
       return onlineResult;
@@ -5831,6 +5838,8 @@
       schoolName,
       classes,
       levels: levels.length ? levels : fallbackLevels,
+      schoolTypes: normalizeConfiguredSchoolTypes(settings),
+      higherInstitutionType: getConfiguredHigherInstitutionType(settings),
       institutionId: "",
       warning: "",
     };
@@ -6077,6 +6086,10 @@
           staffFirstName: String(payload.firstName || "").trim(),
           staffLastName: String(payload.lastName || "").trim(),
           phone: String(payload.phone || "").trim(),
+          schoolType: String(payload.schoolType || "").trim(),
+          staffSchoolType: String(payload.schoolType || "").trim(),
+          faculty: String(payload.faculty || "").trim(),
+          staffFaculty: String(payload.faculty || "").trim(),
           department: String(payload.department || "").trim(),
           title: String(payload.title || "").trim(),
           staffProfileManaged: true,
@@ -6203,6 +6216,10 @@
           staffFirstName: String(record?.firstName || staffUser.staffFirstName || currentUser.staffFirstName || "").trim(),
           staffLastName: String(record?.lastName || staffUser.staffLastName || currentUser.staffLastName || "").trim(),
           phone: String(record?.phone || staffUser.phone || currentUser.phone || "").trim(),
+          schoolType: String(record?.schoolType || staffUser.schoolType || currentUser.schoolType || "").trim(),
+          staffSchoolType: String(record?.schoolType || staffUser.staffSchoolType || currentUser.staffSchoolType || "").trim(),
+          faculty: String(record?.faculty || staffUser.faculty || currentUser.faculty || "").trim(),
+          staffFaculty: String(record?.faculty || staffUser.staffFaculty || currentUser.staffFaculty || "").trim(),
           department: String(record?.department || staffUser.department || currentUser.department || "").trim(),
           title: String(record?.title || staffUser.title || currentUser.title || "").trim(),
           staffProfileManaged: true,
@@ -8196,6 +8213,287 @@
   function getConfiguredHigherInstitutionDepartmentMap(settings = getConfiguredSchoolSettings()) {
     const higherType = getConfiguredHigherInstitutionType(settings);
     return HIGHER_INSTITUTION_DEPARTMENT_TEMPLATES[higherType] || HIGHER_INSTITUTION_DEPARTMENT_TEMPLATES.university;
+  }
+
+  const STAFF_DEPARTMENT_OTHER_VALUE = "Other";
+  const STAFF_GENERAL_DEPARTMENTS = [
+    "Academic",
+    "Administration",
+    "Accounts / Finance",
+    "Admissions",
+    "Student Affairs",
+    "Health / Clinic",
+    "Library",
+    "ICT",
+    "Security",
+    "Transport",
+    "Maintenance",
+  ];
+  const STAFF_SCHOOL_TYPE_DEPARTMENTS = {
+    nursery: ["Early Years", "Nursery", ...STAFF_GENERAL_DEPARTMENTS],
+    primary: ["Primary", "Academic", ...STAFF_GENERAL_DEPARTMENTS.filter((item) => item !== "Academic")],
+    secondary: ["Science", "Art", "Commercial", ...STAFF_GENERAL_DEPARTMENTS],
+  };
+
+  function getUniqueStaffOptions(options = []) {
+    const seen = new Set();
+    const values = [];
+    options.forEach((option) => {
+      const value = String(option || "").trim();
+      const token = value.toLowerCase();
+      if (!value || seen.has(token)) {
+        return;
+      }
+      seen.add(token);
+      values.push(value);
+    });
+    return values;
+  }
+
+  function setStaffSelectOptions(select, options = [], placeholder = "Select option", selectedValue = "") {
+    if (!(select instanceof HTMLSelectElement)) {
+      return "";
+    }
+
+    const selected = String(selectedValue || "").trim();
+    const uniqueOptions = getUniqueStaffOptions(options);
+    select.innerHTML = `
+      <option value="">${escapeHtml(placeholder)}</option>
+      ${uniqueOptions.map((option) => `<option value="${escapeHtml(option)}">${escapeHtml(option)}</option>`).join("")}
+    `;
+    if (selected && uniqueOptions.some((option) => option === selected)) {
+      select.value = selected;
+      return selected;
+    }
+    select.value = "";
+    return "";
+  }
+
+  function getStaffSchoolTypeOptions(settings = getConfiguredSchoolSettings()) {
+    const configuredTypes = normalizeConfiguredSchoolTypes({
+      ...settings,
+      schoolTypes: Array.isArray(settings.schoolTypes) ? settings.schoolTypes : getConfiguredSchoolTypes(),
+    });
+    const normalizedTypes = configuredTypes.length ? configuredTypes : getDefaultAdminSchoolSettings().schoolTypes;
+    return SCHOOL_TYPE_ORDER
+      .filter((type) => normalizedTypes.includes(type))
+      .map((type) => ({
+        value: type,
+        label: SCHOOL_TYPE_LABELS[type] || type,
+      }));
+  }
+
+  function getStaffDepartmentOptionsForSchoolType(schoolType, settings = getConfiguredSchoolSettings()) {
+    const type = String(schoolType || "").trim();
+    if (type === "higher") {
+      return [];
+    }
+    return getUniqueStaffOptions(STAFF_SCHOOL_TYPE_DEPARTMENTS[type] || STAFF_GENERAL_DEPARTMENTS);
+  }
+
+  function inferStaffSchoolTypeFromProfile(profile = {}, settings = getConfiguredSchoolSettings()) {
+    const configured = getStaffSchoolTypeOptions(settings).map((item) => item.value);
+    const explicitType = String(profile.schoolType || profile.staffSchoolType || "").trim();
+    if (explicitType && configured.includes(explicitType)) {
+      return explicitType;
+    }
+    if (String(profile.faculty || profile.staffFaculty || "").trim() && configured.includes("higher")) {
+      return "higher";
+    }
+    const departmentToken = String(profile.department || "").trim().toLowerCase();
+    if (["science", "art", "commerce", "commercial"].includes(departmentToken) && configured.includes("secondary")) {
+      return "secondary";
+    }
+    return configured[0] || "primary";
+  }
+
+  function getStaffFormElements(form) {
+    if (!(form instanceof HTMLFormElement)) {
+      return {};
+    }
+    return {
+      schoolTypeSelect: form.elements.schoolType || form.elements.staffSchoolType || null,
+      facultySelect: form.elements.faculty || form.elements.staffFaculty || null,
+      customFacultyInput: form.elements.customFaculty || form.elements.staffCustomFaculty || null,
+      departmentSelect: form.elements.department || form.elements.staffDepartment || null,
+      customDepartmentInput: form.elements.customDepartment || form.elements.staffCustomDepartment || null,
+    };
+  }
+
+  function getStaffFieldWrapper(field, dataSelector = "") {
+    if (dataSelector) {
+      const form = field?.form || document;
+      const wrapper = form.querySelector(dataSelector);
+      if (wrapper) {
+        return wrapper;
+      }
+    }
+    return field?.closest?.(".portal-field, .auth-field-block") || null;
+  }
+
+  function setStaffFieldLabel(wrapper, text) {
+    const label = wrapper?.querySelector?.(".portal-field > span, .auth-field-label");
+    if (label) {
+      label.textContent = text;
+    }
+  }
+
+  function resolveStaffCustomSelection(select, customInput) {
+    const selected = String(select?.value || "").trim();
+    if (selected === STAFF_DEPARTMENT_OTHER_VALUE) {
+      return String(customInput?.value || "").trim();
+    }
+    return selected;
+  }
+
+  function getStaffDepartmentFormValue(form) {
+    const {
+      schoolTypeSelect,
+      facultySelect,
+      customFacultyInput,
+      departmentSelect,
+      customDepartmentInput,
+    } = getStaffFormElements(form);
+    const schoolType = String(schoolTypeSelect?.value || "").trim();
+    const faculty = schoolType === "higher" ? resolveStaffCustomSelection(facultySelect, customFacultyInput) : "";
+    const department = resolveStaffCustomSelection(departmentSelect, customDepartmentInput);
+    return {
+      schoolType,
+      faculty,
+      department,
+    };
+  }
+
+  function syncStaffDepartmentPicker(
+    form,
+    {
+      selectedSchoolType = "",
+      selectedFaculty = "",
+      selectedDepartment = "",
+      settings = getConfiguredSchoolSettings(),
+    } = {},
+  ) {
+    const {
+      schoolTypeSelect,
+      facultySelect,
+      customFacultyInput,
+      departmentSelect,
+      customDepartmentInput,
+    } = getStaffFormElements(form);
+    if (!(departmentSelect instanceof HTMLSelectElement)) {
+      return getStaffDepartmentFormValue(form);
+    }
+
+    const schoolTypeOptions = getStaffSchoolTypeOptions(settings);
+    const schoolTypeValues = schoolTypeOptions.map((item) => item.value);
+    const currentSchoolType = String(selectedSchoolType || schoolTypeSelect?.value || "").trim();
+    const schoolType = schoolTypeValues.includes(currentSchoolType)
+      ? currentSchoolType
+      : schoolTypeValues[0] || "primary";
+    const schoolTypeWrapper = getStaffFieldWrapper(schoolTypeSelect, "[data-staff-school-type-field]");
+    const facultyWrapper = getStaffFieldWrapper(facultySelect, "[data-staff-faculty-field]");
+    const customFacultyWrapper = getStaffFieldWrapper(customFacultyInput, "[data-staff-custom-faculty-field]");
+    const departmentWrapper = getStaffFieldWrapper(departmentSelect);
+    const customDepartmentWrapper = getStaffFieldWrapper(customDepartmentInput, "[data-staff-custom-department-field]");
+    const isHigher = schoolType === "higher";
+    const higherUnitLabel = getHigherInstitutionUnitLabel(getConfiguredHigherInstitutionType(settings));
+    const incomingFaculty = String(selectedFaculty || facultySelect?.value || "").trim();
+    const incomingDepartment = String(selectedDepartment || departmentSelect?.value || "").trim();
+
+    if (schoolTypeSelect instanceof HTMLSelectElement) {
+      schoolTypeSelect.innerHTML = `
+        <option value="">Select school section</option>
+        ${schoolTypeOptions
+          .map(
+            (option) => `
+              <option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>
+            `,
+          )
+          .join("")}
+      `;
+      schoolTypeSelect.value = schoolType;
+      schoolTypeSelect.disabled = schoolTypeOptions.length <= 1;
+    }
+    if (schoolTypeWrapper) {
+      schoolTypeWrapper.hidden = schoolTypeOptions.length <= 1;
+    }
+
+    if (facultyWrapper) {
+      facultyWrapper.hidden = !isHigher;
+      setStaffFieldLabel(facultyWrapper, higherUnitLabel);
+    }
+
+    let resolvedFaculty = "";
+    if (facultySelect instanceof HTMLSelectElement) {
+      const facultyOptions = Object.keys(getConfiguredHigherInstitutionDepartmentMap(settings));
+      const matchedFaculty = setStaffSelectOptions(
+        facultySelect,
+        [...facultyOptions, STAFF_DEPARTMENT_OTHER_VALUE],
+        `Select ${higherUnitLabel.toLowerCase()}`,
+        incomingFaculty,
+      );
+      if (isHigher && incomingFaculty && !matchedFaculty) {
+        facultySelect.value = STAFF_DEPARTMENT_OTHER_VALUE;
+        if (customFacultyInput instanceof HTMLInputElement) {
+          customFacultyInput.value = incomingFaculty;
+        }
+        resolvedFaculty = incomingFaculty;
+      } else {
+        resolvedFaculty = matchedFaculty;
+      }
+      facultySelect.disabled = !isHigher;
+    }
+
+    const isCustomFaculty = isHigher && String(facultySelect?.value || "") === STAFF_DEPARTMENT_OTHER_VALUE;
+    if (customFacultyWrapper) {
+      customFacultyWrapper.hidden = !isCustomFaculty;
+      setStaffFieldLabel(customFacultyWrapper, `Custom ${higherUnitLabel.toLowerCase()}`);
+    }
+
+    if (customFacultyInput instanceof HTMLInputElement) {
+      customFacultyInput.disabled = !isCustomFaculty;
+      customFacultyInput.placeholder = `Enter ${higherUnitLabel.toLowerCase()} or school`;
+    }
+
+    if (departmentWrapper) {
+      setStaffFieldLabel(departmentWrapper, isHigher ? "Department / program" : "Department");
+    }
+
+    const activeFaculty = resolveStaffCustomSelection(facultySelect, customFacultyInput) || resolvedFaculty;
+    const higherDepartmentOptions =
+      isHigher && activeFaculty && String(facultySelect?.value || "") !== STAFF_DEPARTMENT_OTHER_VALUE
+        ? getConfiguredHigherInstitutionDepartmentMap(settings)[activeFaculty] || []
+        : [];
+    const departmentOptions = isHigher
+      ? higherDepartmentOptions
+      : getStaffDepartmentOptionsForSchoolType(schoolType, settings);
+    const canSelectDepartment = !isHigher || Boolean(activeFaculty);
+    const departmentPlaceholder = isHigher && !activeFaculty ? `Select ${higherUnitLabel.toLowerCase()} first` : "Select department";
+    const matchedDepartment = setStaffSelectOptions(
+      departmentSelect,
+      [...departmentOptions, STAFF_DEPARTMENT_OTHER_VALUE],
+      departmentPlaceholder,
+      incomingDepartment,
+    );
+
+    if (incomingDepartment && !matchedDepartment) {
+      departmentSelect.value = STAFF_DEPARTMENT_OTHER_VALUE;
+      if (customDepartmentInput instanceof HTMLInputElement) {
+        customDepartmentInput.value = incomingDepartment;
+      }
+    }
+    departmentSelect.disabled = !canSelectDepartment;
+
+    const isCustomDepartment =
+      canSelectDepartment && String(departmentSelect.value || "") === STAFF_DEPARTMENT_OTHER_VALUE;
+    if (customDepartmentWrapper) {
+      customDepartmentWrapper.hidden = !isCustomDepartment;
+    }
+    if (customDepartmentInput instanceof HTMLInputElement) {
+      customDepartmentInput.disabled = !isCustomDepartment;
+    }
+
+    return getStaffDepartmentFormValue(form);
   }
 
   function inferSchoolTypeFromLevel(levelValue) {
@@ -18877,7 +19175,6 @@
       "dr.",
       "prof.",
       "engr.",
-      "chief",
     ]);
     let prefix = "";
 
@@ -18925,6 +19222,8 @@
     if (form.elements.displayName) {
       form.elements.displayName.value = "";
     }
+
+    syncStaffDepartmentPicker(form);
 
     const submitButton = form.querySelector("[data-staff-submit]");
     const cancelButton = form.querySelector("[data-staff-cancel]");
@@ -18978,9 +19277,11 @@
     if (form.elements.phone) {
       form.elements.phone.value = user.phone || "";
     }
-    if (form.elements.department) {
-      form.elements.department.value = user.department || "";
-    }
+    syncStaffDepartmentPicker(form, {
+      selectedSchoolType: inferStaffSchoolTypeFromProfile(user),
+      selectedFaculty: user.staffFaculty || user.faculty || "",
+      selectedDepartment: user.department || "",
+    });
     if (form.elements.title) {
       form.elements.title.value = user.title || "";
     }
@@ -19171,6 +19472,10 @@
         const isActive = normalizeUserStatus(user.status) === "active";
         const teachingAssignments = getStaffTeachingAssignments(user);
         const subjectCount = teachingAssignments.filter((entry) => entry.subject !== "Class register").length;
+        const departmentLabel = [user.staffFaculty || user.faculty || "", user.department || ""]
+          .map((value) => String(value || "").trim())
+          .filter(Boolean)
+          .join(" / ") || "No department";
         return `
           <button class="portal-staff-row" type="button" data-staff-open="${escapeHtml(user.id)}">
             <span class="portal-staff-avatar">${escapeHtml(getInitials(user.displayName || user.email || "T").slice(0, 2))}</span>
@@ -19180,7 +19485,7 @@
             </span>
             <span class="portal-staff-detail">
               <strong>${escapeHtml(user.title || "Staff")}</strong>
-              <small>${escapeHtml(user.department || "No department")}</small>
+              <small>${escapeHtml(departmentLabel)}</small>
             </span>
             <span class="portal-staff-detail">
               <strong>${escapeHtml(String(subjectCount))}</strong>
@@ -19209,6 +19514,7 @@
     let selectedStaffId = "";
     let staffViewOverlay = null;
     let staffViewGrid = null;
+    const staffDepartmentElements = getStaffFormElements(form);
 
     const ensureStaffViewOverlay = () => {
       if (staffViewOverlay) {
@@ -19285,7 +19591,11 @@
       const initials = getInitials(profileName).slice(0, 2) || "T";
       const roleLabel = normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE) || "Teacher";
       const titleLabel = user.title || "Staff";
-      const departmentLabel = user.department || "Not assigned";
+      const facultyLabel = user.staffFaculty || user.faculty || "";
+      const departmentLabel = [facultyLabel, user.department || ""]
+        .map((value) => String(value || "").trim())
+        .filter(Boolean)
+        .join(" / ") || "Not assigned";
       const phoneLabel = user.phone || "Not provided";
       const createdLabel = user.createdAt ? formatTimestamp(user.createdAt) : "Not recorded";
       const updatedLabel = user.updatedAt ? formatTimestamp(user.updatedAt) : "Not recorded";
@@ -19562,6 +19872,50 @@
       });
     }
 
+    if (staffDepartmentElements.schoolTypeSelect) {
+      staffDepartmentElements.schoolTypeSelect.addEventListener("change", () => {
+        if (staffDepartmentElements.facultySelect) {
+          staffDepartmentElements.facultySelect.value = "";
+        }
+        if (staffDepartmentElements.customFacultyInput) {
+          staffDepartmentElements.customFacultyInput.value = "";
+        }
+        if (staffDepartmentElements.departmentSelect) {
+          staffDepartmentElements.departmentSelect.value = "";
+        }
+        if (staffDepartmentElements.customDepartmentInput) {
+          staffDepartmentElements.customDepartmentInput.value = "";
+        }
+        syncStaffDepartmentPicker(form, {
+          selectedSchoolType: String(staffDepartmentElements.schoolTypeSelect.value || "").trim(),
+        });
+      });
+    }
+
+    if (staffDepartmentElements.facultySelect) {
+      staffDepartmentElements.facultySelect.addEventListener("change", () => {
+        if (staffDepartmentElements.departmentSelect) {
+          staffDepartmentElements.departmentSelect.value = "";
+        }
+        if (staffDepartmentElements.customDepartmentInput) {
+          staffDepartmentElements.customDepartmentInput.value = "";
+        }
+        syncStaffDepartmentPicker(form);
+      });
+    }
+
+    if (staffDepartmentElements.customFacultyInput) {
+      staffDepartmentElements.customFacultyInput.addEventListener("input", () => {
+        syncStaffDepartmentPicker(form);
+      });
+    }
+
+    if (staffDepartmentElements.departmentSelect) {
+      staffDepartmentElements.departmentSelect.addEventListener("change", () => {
+        syncStaffDepartmentPicker(form);
+      });
+    }
+
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
 
@@ -19584,7 +19938,10 @@
       const email = form.elements.email.value.trim();
       const role = "Teacher";
       const phone = String(form.elements.phone?.value || "").trim();
-      const department = String(form.elements.department?.value || "").trim();
+      const staffDepartmentSelection = getStaffDepartmentFormValue(form);
+      const schoolType = staffDepartmentSelection.schoolType;
+      const faculty = staffDepartmentSelection.faculty;
+      const department = staffDepartmentSelection.department;
       const title = String(form.elements.title?.value || "").trim();
       const existingUserForEmail = findUserByEmail(email);
 
@@ -19651,6 +20008,10 @@
             staffFirstName: firstName,
             staffLastName: lastName,
             phone,
+            schoolType,
+            staffSchoolType: schoolType,
+            faculty,
+            staffFaculty: faculty,
             department,
             title,
             staffProfileManaged: true,
@@ -19723,6 +20084,10 @@
         staffFirstName: firstName,
         staffLastName: lastName,
         phone,
+        schoolType,
+        staffSchoolType: schoolType,
+        faculty,
+        staffFaculty: faculty,
         department,
         title,
         staffProfileManaged: true,
@@ -40529,6 +40894,7 @@
       if (form.elements.displayName) {
         form.elements.displayName.value = displayName;
       }
+      const staffDepartmentSelection = getStaffDepartmentFormValue(form);
       return {
         prefix,
         firstName,
@@ -40537,7 +40903,9 @@
         email: String(form.elements.email?.value || "").trim(),
         phone: String(form.elements.phone?.value || "").trim(),
         title: String(form.elements.title?.value || "").trim(),
-        department: String(form.elements.department?.value || "").trim(),
+        schoolType: staffDepartmentSelection.schoolType,
+        faculty: staffDepartmentSelection.faculty,
+        department: staffDepartmentSelection.department,
       };
     }
 
@@ -40607,6 +40975,7 @@
     const staffSection = document.querySelector("[data-self-register-staff]");
     const levelSelect = document.getElementById("self-student-level");
     const submitButton = document.getElementById("self-register-submit");
+    const staffDepartmentElements = getStaffFormElements(form);
 
     if (!(form instanceof HTMLFormElement)) {
       return;
@@ -40637,6 +41006,59 @@
       schoolName: config.schoolName || "School Registration",
     });
     renderSelfRegistrationLevelOptions(levelSelect, levels);
+    const staffPickerSettings = {
+      ...getDefaultAdminSchoolSettings(),
+      schoolTypes: Array.isArray(config.schoolTypes) && config.schoolTypes.length
+        ? config.schoolTypes
+        : getDefaultAdminSchoolSettings().schoolTypes,
+      higherInstitutionType: config.higherInstitutionType || getDefaultAdminSchoolSettings().higherInstitutionType,
+    };
+    syncStaffDepartmentPicker(form, { settings: staffPickerSettings });
+
+    if (staffDepartmentElements.schoolTypeSelect) {
+      staffDepartmentElements.schoolTypeSelect.addEventListener("change", () => {
+        if (staffDepartmentElements.facultySelect) {
+          staffDepartmentElements.facultySelect.value = "";
+        }
+        if (staffDepartmentElements.customFacultyInput) {
+          staffDepartmentElements.customFacultyInput.value = "";
+        }
+        if (staffDepartmentElements.departmentSelect) {
+          staffDepartmentElements.departmentSelect.value = "";
+        }
+        if (staffDepartmentElements.customDepartmentInput) {
+          staffDepartmentElements.customDepartmentInput.value = "";
+        }
+        syncStaffDepartmentPicker(form, {
+          selectedSchoolType: String(staffDepartmentElements.schoolTypeSelect.value || "").trim(),
+          settings: staffPickerSettings,
+        });
+      });
+    }
+
+    if (staffDepartmentElements.facultySelect) {
+      staffDepartmentElements.facultySelect.addEventListener("change", () => {
+        if (staffDepartmentElements.departmentSelect) {
+          staffDepartmentElements.departmentSelect.value = "";
+        }
+        if (staffDepartmentElements.customDepartmentInput) {
+          staffDepartmentElements.customDepartmentInput.value = "";
+        }
+        syncStaffDepartmentPicker(form, { settings: staffPickerSettings });
+      });
+    }
+
+    if (staffDepartmentElements.customFacultyInput) {
+      staffDepartmentElements.customFacultyInput.addEventListener("input", () => {
+        syncStaffDepartmentPicker(form, { settings: staffPickerSettings });
+      });
+    }
+
+    if (staffDepartmentElements.departmentSelect) {
+      staffDepartmentElements.departmentSelect.addEventListener("change", () => {
+        syncStaffDepartmentPicker(form, { settings: staffPickerSettings });
+      });
+    }
 
     if (config.warning) {
       setStatus(status, "info", config.warning);
@@ -40682,6 +41104,7 @@
 
       form.reset();
       renderSelfRegistrationLevelOptions(levelSelect, levels);
+      syncStaffDepartmentPicker(form, { settings: staffPickerSettings });
       const admissionCopy = result.record?.admissionNo
         ? ` Admission number: <strong>${escapeHtml(result.record.admissionNo)}</strong>.`
         : "";

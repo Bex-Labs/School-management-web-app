@@ -136,7 +136,6 @@
                       <option value="Dr.">Dr.</option>
                       <option value="Prof.">Prof.</option>
                       <option value="Engr.">Engr.</option>
-                      <option value="Chief">Chief</option>
                     </select>
                   </label>
                 </div>
@@ -187,23 +186,33 @@
                   </label>
                 </div>
                 <div class="auth-field-block">
+                  <label class="auth-field-label" for="self-staff-school-type">School Section</label>
+                  <label class="auth-line-field" for="self-staff-school-type">
+                    <select id="self-staff-school-type" name="schoolType"></select>
+                  </label>
+                </div>
+                <div class="auth-field-block" data-staff-faculty-field hidden>
+                  <label class="auth-field-label" for="self-staff-faculty">Faculty</label>
+                  <label class="auth-line-field" for="self-staff-faculty">
+                    <select id="self-staff-faculty" name="faculty"></select>
+                  </label>
+                </div>
+                <div class="auth-field-block" data-staff-custom-faculty-field hidden>
+                  <label class="auth-field-label" for="self-staff-custom-faculty">Custom Faculty</label>
+                  <label class="auth-line-field" for="self-staff-custom-faculty">
+                    <input id="self-staff-custom-faculty" name="customFaculty" type="text" placeholder="Enter faculty or school" />
+                  </label>
+                </div>
+                <div class="auth-field-block">
                   <label class="auth-field-label" for="self-staff-department">Department</label>
                   <label class="auth-line-field" for="self-staff-department">
-                    <select id="self-staff-department" name="department">
-                      <option value="">Select department</option>
-                      <option value="Academic">Academic</option>
-                      <option value="Administration">Administration</option>
-                      <option value="Accounts / Finance">Accounts / Finance</option>
-                      <option value="Admissions">Admissions</option>
-                      <option value="Student Affairs">Student Affairs</option>
-                      <option value="Health / Clinic">Health / Clinic</option>
-                      <option value="Library">Library</option>
-                      <option value="ICT">ICT</option>
-                      <option value="Security">Security</option>
-                      <option value="Transport">Transport</option>
-                      <option value="Maintenance">Maintenance</option>
-                      <option value="Other">Other</option>
-                    </select>
+                    <select id="self-staff-department" name="department"></select>
+                  </label>
+                </div>
+                <div class="auth-field-block" data-staff-custom-department-field hidden>
+                  <label class="auth-field-label" for="self-staff-custom-department">Custom Department</label>
+                  <label class="auth-line-field" for="self-staff-custom-department">
+                    <input id="self-staff-custom-department" name="customDepartment" type="text" placeholder="Enter department" />
                   </label>
                 </div>
               </section>
