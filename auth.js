@@ -7283,6 +7283,65 @@
     return "Good evening";
   }
 
+  function renderSuperAdminSidebar(nav, activePage = getPage()) {
+    if (!nav) {
+      return;
+    }
+
+    const icons = {
+      overview: `
+        <rect x="3" y="3" width="7" height="7" rx="1.5"></rect>
+        <rect x="14" y="3" width="7" height="7" rx="1.5"></rect>
+        <rect x="3" y="14" width="7" height="7" rx="1.5"></rect>
+        <rect x="14" y="14" width="7" height="7" rx="1.5"></rect>
+      `,
+      accounts: `
+        <path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"></path>
+        <circle cx="9.5" cy="7" r="4"></circle>
+        <path d="M17 11h4"></path>
+        <path d="M19 9v4"></path>
+      `,
+      schools: `
+        <path d="M3 21h18"></path>
+        <path d="M5 21V7l7-4 7 4v14"></path>
+        <path d="M9 21v-7h6v7"></path>
+      `,
+      activity: `
+        <path d="M4 19V5"></path>
+        <path d="M9 19v-8"></path>
+        <path d="M14 19v-4"></path>
+        <path d="M19 19V8"></path>
+      `,
+      settings: `
+        <circle cx="12" cy="8" r="4"></circle>
+        <path d="M4 20c1.5-4 4.2-6 8-6s6.5 2 8 6"></path>
+      `,
+    };
+    const links = [
+      { page: "super-admin", href: "./super-admin.html", label: "Overview", icon: icons.overview },
+      { page: "super-admin-accounts", href: "./super-admin-accounts.html", label: "Accounts", icon: icons.accounts },
+      { page: "super-admin-schools", href: "./super-admin-schools.html", label: "Schools", icon: icons.schools },
+      { page: "super-admin-activity", href: "./super-admin-activity.html", label: "Activity", icon: icons.activity },
+      { page: "user-settings", href: "./user-settings.html", label: "My Settings", icon: icons.settings },
+    ];
+
+    nav.setAttribute("aria-label", "Super admin sections");
+    nav.innerHTML = links
+      .map(
+        (link) => `
+          <a class="admin-sidebar-link${activePage === link.page ? " is-active" : ""}" href="${link.href}">
+            <span class="admin-sidebar-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                ${link.icon}
+              </svg>
+            </span>
+            <span>${escapeHtml(link.label)}</span>
+          </a>
+        `,
+      )
+      .join("");
+  }
+
   function initAdminSidebarUi() {
     if (!document.body.classList.contains("admin-dashboard-page")) {
       return;
@@ -7296,11 +7355,16 @@
     }
 
     const nav = sidebar.querySelector(".admin-sidebar-nav");
-    const isSuperAdminShell = isSuperAdminPage();
     const accessContext = getAdminAccessContext();
     const normalizedSidebarRole = accessContext.session
       ? normalizeRoleLabel(accessContext.roleLabel || DEFAULT_AUTH_ROLE)
       : "Guest access";
+    const isSuperAdminSettingsShell =
+      normalizedSidebarRole === SUPER_ADMIN_ROLE &&
+      accessContext.user &&
+      isSuperAdminUser(accessContext.user) &&
+      getPage() === "user-settings";
+    const isSuperAdminShell = isSuperAdminPage() || isSuperAdminSettingsShell;
     const isStaffPortalShell =
       document.body.classList.contains("staff-portal-page") ||
       Boolean(STAFF_PORTAL_PAGE_CONFIG[getPage()]) ||
@@ -7310,7 +7374,9 @@
       normalizedSidebarRole === "Student" &&
       (getPage() === "portal" || getPage() === "user-settings");
 
-    if (nav && isStaffSidebar) {
+    if (nav && isSuperAdminSettingsShell) {
+      renderSuperAdminSidebar(nav, getPage());
+    } else if (nav && isStaffSidebar) {
       renderStaffPortalSidebar(nav);
     } else if (nav && isStudentSidebar) {
       renderStudentPortalSidebar(nav);
@@ -8272,22 +8338,47 @@
 
   const STAFF_DEPARTMENT_OTHER_VALUE = "Others";
   const STAFF_GENERAL_DEPARTMENTS = [
-    "Academic",
-    "Administration",
-    "Accounts / Finance",
-    "Admissions",
-    "Student Affairs",
-    "Health / Clinic",
-    "Library",
-    "ICT",
-    "Security",
-    "Transport",
-    "Maintenance",
+    "Languages",
+    "Mathematics",
+    "Science",
+    "Social Studies",
+    "Creative Arts",
+    "Religious and Moral Education",
+    "Physical and Health Education",
+    "ICT / Computer Studies",
+    "Vocational Studies",
   ];
   const STAFF_SCHOOL_TYPE_DEPARTMENTS = {
-    nursery: ["Early Years", "Nursery", ...STAFF_GENERAL_DEPARTMENTS],
-    primary: ["Primary", "Academic", ...STAFF_GENERAL_DEPARTMENTS.filter((item) => item !== "Academic")],
-    secondary: ["Science", "Art", "Commercial", ...STAFF_GENERAL_DEPARTMENTS],
+    nursery: [
+      "Early Years",
+      "Literacy",
+      "Numeracy",
+      "Creative Arts",
+      "Social Habits",
+      "Physical Development",
+    ],
+    primary: [
+      "Languages",
+      "Mathematics",
+      "Basic Science",
+      "Social Studies",
+      "Civic Education",
+      "Religious and Moral Education",
+      "Computer Studies",
+      "Creative Arts",
+      "Physical and Health Education",
+      "Vocational Studies",
+    ],
+    secondary: [
+      "Science",
+      "Art",
+      "Commercial",
+      "Languages",
+      "Humanities",
+      "Mathematics",
+      "Technical / Vocational",
+      "ICT / Computer Studies",
+    ],
   };
 
   function getUniqueStaffOptions(options = []) {
@@ -8381,6 +8472,7 @@
       customFacultyInput: form.elements.customFaculty || form.elements.staffCustomFaculty || null,
       departmentSelect: form.elements.department || form.elements.staffDepartment || null,
       customDepartmentInput: form.elements.customDepartment || form.elements.staffCustomDepartment || null,
+      subjectCourseInput: form.elements.subjectCourse || form.elements.staffSubjectCourse || null,
     };
   }
 
@@ -8408,6 +8500,38 @@
       return String(customInput?.value || "").trim();
     }
     return selected;
+  }
+
+  function getStaffAcademicFocus(user = {}) {
+    const schoolType = inferStaffSchoolTypeFromProfile(user);
+    const value =
+      String(
+        user.staffSubjectCourse ||
+          user.subjectCourse ||
+          user.staffCourse ||
+          user.course ||
+          user.staffSubject ||
+          user.subject ||
+          "",
+      ).trim();
+    return {
+      label: schoolType === "higher" ? "Course" : "Subject",
+      value,
+    };
+  }
+
+  function syncStaffSubjectCourseField(form, schoolType = "") {
+    const { subjectCourseInput } = getStaffFormElements(form);
+    if (!(subjectCourseInput instanceof HTMLElement)) {
+      return;
+    }
+
+    const isHigher = String(schoolType || "").trim() === "higher";
+    const wrapper = getStaffFieldWrapper(subjectCourseInput, "[data-staff-subject-course-field]");
+    setStaffFieldLabel(wrapper, isHigher ? "Course" : "Subject");
+    if (subjectCourseInput instanceof HTMLInputElement) {
+      subjectCourseInput.placeholder = isHigher ? "e.g. CSC101 or Database Systems" : "e.g. Mathematics";
+    }
   }
 
   function getStaffDepartmentFormValue(form) {
@@ -8463,6 +8587,7 @@
     const higherUnitLabel = getHigherInstitutionUnitLabel(getConfiguredHigherInstitutionType(settings));
     const incomingFaculty = String(selectedFaculty || facultySelect?.value || "").trim();
     const incomingDepartment = String(selectedDepartment || departmentSelect?.value || "").trim();
+    syncStaffSubjectCourseField(form, schoolType);
 
     if (schoolTypeSelect instanceof HTMLSelectElement) {
       schoolTypeSelect.innerHTML = `
@@ -19300,6 +19425,9 @@
     if (form.elements.displayName) {
       form.elements.displayName.value = "";
     }
+    if (form.elements.subjectCourse) {
+      form.elements.subjectCourse.value = "";
+    }
 
     syncStaffDepartmentPicker(form);
 
@@ -19360,6 +19488,9 @@
       selectedFaculty: user.staffFaculty || user.faculty || "",
       selectedDepartment: user.department || "",
     });
+    if (form.elements.subjectCourse) {
+      form.elements.subjectCourse.value = getStaffAcademicFocus(user).value || "";
+    }
     if (form.elements.title) {
       form.elements.title.value = user.title || "";
     }
@@ -19554,6 +19685,7 @@
           .map((value) => String(value || "").trim())
           .filter(Boolean)
           .join(" / ") || "No department";
+        const academicFocus = getStaffAcademicFocus(user);
         return `
           <button class="portal-staff-row" type="button" data-staff-open="${escapeHtml(user.id)}">
             <span class="portal-staff-avatar">${escapeHtml(getInitials(user.displayName || user.email || "T").slice(0, 2))}</span>
@@ -19562,8 +19694,8 @@
               <small>${escapeHtml(user.email || "No email")}</small>
             </span>
             <span class="portal-staff-detail">
-              <strong>${escapeHtml(user.title || "Staff")}</strong>
-              <small>${escapeHtml(departmentLabel)}</small>
+              <strong>${escapeHtml(academicFocus.value || user.title || "Staff")}</strong>
+              <small>${escapeHtml(academicFocus.value ? academicFocus.label : departmentLabel)}</small>
             </span>
             <span class="portal-staff-detail">
               <strong>${escapeHtml(String(subjectCount))}</strong>
@@ -19674,6 +19806,7 @@
         .map((value) => String(value || "").trim())
         .filter(Boolean)
         .join(" / ") || "Not assigned";
+      const academicFocus = getStaffAcademicFocus(user);
       const phoneLabel = user.phone || "Not provided";
       const createdLabel = user.createdAt ? formatTimestamp(user.createdAt) : "Not recorded";
       const updatedLabel = user.updatedAt ? formatTimestamp(user.updatedAt) : "Not recorded";
@@ -19736,6 +19869,10 @@
               <article>
                 <span>Department</span>
                 <strong>${escapeHtml(departmentLabel)}</strong>
+              </article>
+              <article>
+                <span>${escapeHtml(academicFocus.label)}</span>
+                <strong>${escapeHtml(academicFocus.value || "Not assigned")}</strong>
               </article>
               <article>
                 <span>Title</span>
@@ -20020,6 +20157,7 @@
       const schoolType = staffDepartmentSelection.schoolType;
       const faculty = staffDepartmentSelection.faculty;
       const department = staffDepartmentSelection.department;
+      const subjectCourse = String(form.elements.subjectCourse?.value || "").trim();
       const title = String(form.elements.title?.value || "").trim();
       const existingUserForEmail = findUserByEmail(email);
 
@@ -20091,6 +20229,10 @@
             faculty,
             staffFaculty: faculty,
             department,
+            subjectCourse,
+            staffSubjectCourse: subjectCourse,
+            staffSubject: schoolType === "higher" ? "" : subjectCourse,
+            staffCourse: schoolType === "higher" ? subjectCourse : "",
             title,
             staffProfileManaged: true,
             updatedAt: nowIso(),
@@ -20167,6 +20309,10 @@
         faculty,
         staffFaculty: faculty,
         department,
+        subjectCourse,
+        staffSubjectCourse: subjectCourse,
+        staffSubject: schoolType === "higher" ? "" : subjectCourse,
+        staffCourse: schoolType === "higher" ? subjectCourse : "",
         title,
         staffProfileManaged: true,
       }));
@@ -40609,6 +40755,24 @@
       profileRole.textContent = "Guest access";
       gate.innerHTML = `<a class="admin-signout-button" href="./login.html">Go to Login</a>`;
       return;
+    }
+
+    if (normalizedRole === SUPER_ADMIN_ROLE && isSuperAdminUser(user)) {
+      const brandLink = brandName?.closest?.(".admin-sidebar-brand") || brandMark?.closest?.(".admin-sidebar-brand");
+      if (brandMark) {
+        brandMark.textContent = "S";
+        brandMark.classList.remove("is-image");
+      }
+      if (brandName) {
+        brandName.textContent = "SchoolSphere";
+      }
+      if (brandSubtitle) {
+        brandSubtitle.textContent = "Super Admin";
+      }
+      if (brandLink) {
+        brandLink.setAttribute("href", "./super-admin.html");
+        brandLink.setAttribute("aria-label", "Super admin home");
+      }
     }
 
     renderUserAvatar(profileAvatar, user, roleLabel);
