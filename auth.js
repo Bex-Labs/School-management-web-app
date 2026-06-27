@@ -157,6 +157,8 @@
   };
   let supabaseClientPromise = null;
   let isSignOutInProgress = false;
+  let lastActionFeedbackContext = null;
+  let actionFeedbackTargetCounter = 0;
 
   const DASHBOARD_SECTION_LINKS = [
     {
@@ -613,6 +615,7 @@
 
     initConnectionResilienceBanner();
     initAdminSidebarUi();
+    initActionFeedbackTracking();
     initPasswordToggles();
     initRoleButtons();
     initSignupFlow();
@@ -751,6 +754,11 @@
 
   function isParentPage(page = getPage()) {
     return String(page || "").startsWith("parent-");
+  }
+
+  function isSuperAdminPage(page = getPage()) {
+    const pageId = String(page || "");
+    return pageId === "super-admin" || pageId.startsWith("super-admin-");
   }
 
   function getRoleHomeRoute(roleLabel) {
@@ -7288,6 +7296,7 @@
     }
 
     const nav = sidebar.querySelector(".admin-sidebar-nav");
+    const isSuperAdminShell = isSuperAdminPage();
     const accessContext = getAdminAccessContext();
     const normalizedSidebarRole = accessContext.session
       ? normalizeRoleLabel(accessContext.roleLabel || DEFAULT_AUTH_ROLE)
@@ -7308,7 +7317,8 @@
     }
 
     const isAccountSettingsPage = getPage() === "user-settings" || getPage() === "staff-settings";
-    const shouldInjectCourseLink = !isStaffSidebar && !isStudentSidebar && !isAccountSettingsPage && !isParentPage();
+    const shouldInjectCourseLink =
+      !isSuperAdminShell && !isStaffSidebar && !isStudentSidebar && !isAccountSettingsPage && !isParentPage();
 
     if (nav && shouldInjectCourseLink && !nav.querySelector('a[href="./admin-courses.html"]')) {
       const referenceLink = nav.querySelector('a[href="./admin-classes.html"]');
@@ -7356,6 +7366,7 @@
     }
 
     const shouldInjectAdmissionsLink =
+      !isSuperAdminShell &&
       !isStaffSidebar &&
       !isStudentSidebar &&
       !isAccountSettingsPage &&
@@ -7383,6 +7394,7 @@
     }
 
     const shouldInjectFeesLink =
+      !isSuperAdminShell &&
       !isStaffSidebar &&
       !isStudentSidebar &&
       !isAccountSettingsPage &&
@@ -7419,6 +7431,7 @@
     }
 
     const shouldInjectMessagesLink =
+      !isSuperAdminShell &&
       !isStaffSidebar &&
       !isStudentSidebar &&
       !isAccountSettingsPage &&
@@ -26294,6 +26307,178 @@
     });
   }
 
+  function getActionFeedbackTrigger(target) {
+    const trigger = target?.closest?.(
+      [
+        "button",
+        'input[type="button"]',
+        'input[type="submit"]',
+        '[role="button"]',
+        ".button",
+        ".portal-class-button",
+        ".auth-submit",
+      ].join(","),
+    );
+
+    if (!(trigger instanceof HTMLElement)) {
+      return null;
+    }
+
+    if (
+      trigger.matches(
+        [
+          "[data-no-inline-feedback]",
+          "[data-password-toggle]",
+          "[data-theme-toggle]",
+          "[data-sidebar-toggle]",
+          "[data-auth-modal-close]",
+          "[data-auth-role]",
+        ].join(","),
+      )
+    ) {
+      return null;
+    }
+
+    if (trigger instanceof HTMLAnchorElement && trigger.getAttribute("href")) {
+      return null;
+    }
+
+    return trigger;
+  }
+
+  function getActionFeedbackScope(element) {
+    return (
+      element?.closest?.(
+        [
+          "form",
+          ".portal-overlay-panel",
+          ".auth-modal-card",
+          ".admin-surface-card",
+          ".portal-class-card",
+          ".portal-class-group",
+          ".portal-fee-command-panel",
+          ".admin-dashboard-main",
+          ".auth-pane-left",
+        ].join(","),
+      ) || document.body
+    );
+  }
+
+  function actionFeedbackScopesMatch(button, statusTarget) {
+    if (!button || !statusTarget) {
+      return false;
+    }
+
+    const buttonScope = getActionFeedbackScope(button);
+    const statusScope = getActionFeedbackScope(statusTarget);
+    return buttonScope === statusScope || buttonScope.contains(statusTarget) || statusScope.contains(button);
+  }
+
+  function getInlineActionFeedbackHost(button) {
+    if (!(button instanceof HTMLElement)) {
+      return null;
+    }
+
+    const existingId = button.dataset.inlineFeedbackId || "";
+    if (existingId) {
+      const existing = document.getElementById(existingId);
+      if (existing) {
+        return existing;
+      }
+    }
+
+    const host = document.createElement("span");
+    actionFeedbackTargetCounter += 1;
+    host.id = `inline-action-feedback-${actionFeedbackTargetCounter}`;
+    host.className = "inline-action-feedback";
+    host.setAttribute("role", "status");
+    host.setAttribute("aria-live", "polite");
+    button.dataset.inlineFeedbackId = host.id;
+
+    const wrapper = button.closest(".inline-action-feedback-wrap");
+    if (wrapper) {
+      wrapper.appendChild(host);
+      return host;
+    }
+
+    button.insertAdjacentElement("afterend", host);
+    return host;
+  }
+
+  function stripStatusMessage(message) {
+    const template = document.createElement("template");
+    template.innerHTML = String(message || "");
+    return (template.content.textContent || "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function clearInlineActionFeedback(button) {
+    const hostId = button?.dataset?.inlineFeedbackId || "";
+    const host = hostId ? document.getElementById(hostId) : null;
+    if (host) {
+      host.hidden = true;
+      host.textContent = "";
+      host.className = "inline-action-feedback";
+    }
+  }
+
+  function showInlineActionFeedback(statusTarget, type, message) {
+    const context = lastActionFeedbackContext;
+    if (!context?.button || !document.contains(context.button)) {
+      return;
+    }
+
+    if (context.page !== getPage() || Date.now() - context.clickedAt > 9000) {
+      clearInlineActionFeedback(context.button);
+      return;
+    }
+
+    if (!actionFeedbackScopesMatch(context.button, statusTarget)) {
+      return;
+    }
+
+    const plainMessage = stripStatusMessage(message);
+    if (!plainMessage) {
+      clearInlineActionFeedback(context.button);
+      return;
+    }
+
+    const host = getInlineActionFeedbackHost(context.button);
+    if (!host) {
+      return;
+    }
+
+    host.hidden = false;
+    host.className = `inline-action-feedback inline-action-feedback--${type || "info"}`;
+    host.textContent = plainMessage.length > 120 ? `${plainMessage.slice(0, 117).trim()}...` : plainMessage;
+
+    window.clearTimeout(context.clearTimer);
+    context.clearTimer = window.setTimeout(() => {
+      clearInlineActionFeedback(context.button);
+    }, type === "error" ? 9000 : 6000);
+  }
+
+  function initActionFeedbackTracking() {
+    document.addEventListener(
+      "click",
+      (event) => {
+        const button = getActionFeedbackTrigger(event.target);
+        if (!button || button.hasAttribute("disabled") || button.getAttribute("aria-disabled") === "true") {
+          return;
+        }
+
+        lastActionFeedbackContext = {
+          button,
+          clickedAt: Date.now(),
+          page: getPage(),
+          clearTimer: null,
+        };
+      },
+      true,
+    );
+  }
+
   function setStatus(target, type, message) {
     if (!target) {
       return;
@@ -26303,12 +26488,16 @@
       target.hidden = true;
       target.className = "auth-status";
       target.innerHTML = "";
+      if (lastActionFeedbackContext?.button && actionFeedbackScopesMatch(lastActionFeedbackContext.button, target)) {
+        clearInlineActionFeedback(lastActionFeedbackContext.button);
+      }
       return;
     }
 
     target.hidden = false;
     target.className = `auth-status auth-status--${type}`;
     target.innerHTML = message;
+    showInlineActionFeedback(target, type, message);
   }
 
   function clearFieldErrors(form) {
@@ -40300,7 +40489,7 @@
   }
 
   function initSuperAdminPage() {
-    if (getPage() !== "super-admin") {
+    if (!isSuperAdminPage()) {
       return;
     }
 
@@ -40374,7 +40563,7 @@
   function initAdminShellPages() {
     if (
       !document.body.classList.contains("admin-dashboard-page") ||
-      getPage() === "super-admin" ||
+      isSuperAdminPage() ||
       getPage() === "portal" ||
       STAFF_PORTAL_PAGE_CONFIG[getPage()] ||
       isParentPage()

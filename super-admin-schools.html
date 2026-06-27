@@ -3,11 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Super Admin | SchoolSphere</title>
-    <meta name="description" content="Owner-level activity, account, and workspace console for SchoolSphere." />
+    <title>Schools | SchoolSphere Super Admin</title>
+    <meta name="description" content="Owner school workspace overview for SchoolSphere." />
     <link rel="stylesheet" href="./styles.css" />
   </head>
-  <body data-page="super-admin" class="admin-dashboard-page super-admin-page">
+  <body data-page="super-admin-schools" class="admin-dashboard-page super-admin-page">
     <main class="admin-dashboard-shell">
       <aside class="admin-sidebar">
         <a class="admin-sidebar-brand" href="./super-admin.html" aria-label="Super admin home">
@@ -19,7 +19,7 @@
         </a>
 
         <nav class="admin-sidebar-nav" aria-label="Super admin sections">
-          <a class="admin-sidebar-link is-active" href="./super-admin.html">
+          <a class="admin-sidebar-link" href="./super-admin.html">
             <span class="admin-sidebar-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="3" y="3" width="7" height="7" rx="1.5"></rect>
@@ -41,7 +41,7 @@
             </span>
             <span>Accounts</span>
           </a>
-          <a class="admin-sidebar-link" href="./super-admin-schools.html">
+          <a class="admin-sidebar-link is-active" href="./super-admin-schools.html">
             <span class="admin-sidebar-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M3 21h18"></path>
@@ -80,25 +80,22 @@
         <header class="admin-dashboard-topbar">
           <div class="admin-dashboard-greeting">
             <span class="admin-topline-chip" id="portal-last-updated">Last updated --</span>
-            <h1 id="portal-heading">Super Admin Overview</h1>
-            <p id="portal-copy">Monitor the whole app at a glance from the private owner console.</p>
+            <h1 id="portal-heading">Schools</h1>
+            <p id="portal-copy">View school workspaces currently known by this app instance.</p>
           </div>
         </header>
 
-        <section id="super-overview" class="super-admin-hero">
-          <div>
-            <span class="super-admin-kicker">Owner access</span>
-            <h2>Global app control center</h2>
-            <p>See who is using the app, track activity, suspend accounts, and remove accounts from one protected console.</p>
-          </div>
-          <button class="portal-class-button portal-class-button-primary" type="button" data-super-refresh>
-            Refresh console
-          </button>
-        </section>
-
         <section id="super-admin-status" class="auth-status" role="alert" aria-live="polite" hidden></section>
 
-        <section id="super-admin-metrics" class="admin-metrics-grid"></section>
+        <section id="super-workspaces" class="admin-surface-card super-admin-section">
+          <div class="admin-surface-head">
+            <div>
+              <h2>Schools & Workspaces</h2>
+              <span>Workspace overview without school-admin operational navigation.</span>
+            </div>
+          </div>
+          <div id="super-admin-workspaces" class="super-admin-workspace-grid"></div>
+        </section>
       </section>
     </main>
 

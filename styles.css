@@ -2878,6 +2878,45 @@ body[data-page="home"] .product-hero::after {
   color: var(--navy-900);
 }
 
+.inline-action-feedback {
+  display: inline-flex;
+  align-items: center;
+  max-width: min(320px, 100%);
+  min-height: 28px;
+  margin: 6px 0 6px 8px;
+  padding: 5px 9px;
+  border: 1px solid rgba(16, 132, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(16, 132, 255, 0.08);
+  color: #24415f;
+  font-size: 0.74rem;
+  font-weight: 850;
+  line-height: 1.35;
+  vertical-align: middle;
+}
+
+.inline-action-feedback[hidden] {
+  display: none;
+}
+
+.inline-action-feedback--success {
+  border-color: rgba(7, 148, 85, 0.2);
+  background: rgba(20, 184, 109, 0.12);
+  color: #0f6b46;
+}
+
+.inline-action-feedback--error {
+  border-color: rgba(217, 45, 32, 0.2);
+  background: rgba(217, 45, 32, 0.1);
+  color: #aa2d20;
+}
+
+.inline-action-feedback--info {
+  border-color: rgba(16, 132, 255, 0.2);
+  background: rgba(16, 132, 255, 0.1);
+  color: #224d80;
+}
+
 input[type="file"] {
   color: #53647f;
   font-size: 0.84rem;
@@ -18020,6 +18059,24 @@ body.admin-dashboard-page .portal-class-button:hover:not(:disabled) {
 :root[data-theme="dark"] .auth-status--error {
   border-color: rgba(255, 119, 119, 0.38);
   background: rgba(116, 34, 44, 0.24);
+  color: #ffdce2;
+}
+
+:root[data-theme="dark"] .inline-action-feedback {
+  border-color: rgba(101, 164, 243, 0.42);
+  background: rgba(47, 111, 237, 0.18);
+  color: #d8e7f6;
+}
+
+:root[data-theme="dark"] .inline-action-feedback--success {
+  border-color: rgba(78, 214, 137, 0.34);
+  background: rgba(29, 107, 67, 0.24);
+  color: #d9ffe9;
+}
+
+:root[data-theme="dark"] .inline-action-feedback--error {
+  border-color: rgba(255, 119, 119, 0.38);
+  background: rgba(116, 34, 44, 0.26);
   color: #ffdce2;
 }
 
