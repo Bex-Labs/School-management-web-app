@@ -8257,7 +8257,7 @@
     return HIGHER_INSTITUTION_DEPARTMENT_TEMPLATES[higherType] || HIGHER_INSTITUTION_DEPARTMENT_TEMPLATES.university;
   }
 
-  const STAFF_DEPARTMENT_OTHER_VALUE = "Other";
+  const STAFF_DEPARTMENT_OTHER_VALUE = "Others";
   const STAFF_GENERAL_DEPARTMENTS = [
     "Academic",
     "Administration",
@@ -8292,12 +8292,21 @@
     return values;
   }
 
+  function isStaffOtherSelection(value) {
+    const normalized = String(value || "")
+      .trim()
+      .toLowerCase();
+    return normalized === "other" || normalized === "others";
+  }
+
   function setStaffSelectOptions(select, options = [], placeholder = "Select option", selectedValue = "") {
     if (!(select instanceof HTMLSelectElement)) {
       return "";
     }
 
-    const selected = String(selectedValue || "").trim();
+    const selected = isStaffOtherSelection(selectedValue)
+      ? STAFF_DEPARTMENT_OTHER_VALUE
+      : String(selectedValue || "").trim();
     const uniqueOptions = getUniqueStaffOptions(options);
     select.innerHTML = `
       <option value="">${escapeHtml(placeholder)}</option>
@@ -8382,7 +8391,7 @@
 
   function resolveStaffCustomSelection(select, customInput) {
     const selected = String(select?.value || "").trim();
-    if (selected === STAFF_DEPARTMENT_OTHER_VALUE) {
+    if (isStaffOtherSelection(selected)) {
       return String(customInput?.value || "").trim();
     }
     return selected;
@@ -8468,42 +8477,51 @@
     let resolvedFaculty = "";
     if (facultySelect instanceof HTMLSelectElement) {
       const facultyOptions = Object.keys(getConfiguredHigherInstitutionDepartmentMap(settings));
-      const matchedFaculty = setStaffSelectOptions(
-        facultySelect,
-        [...facultyOptions, STAFF_DEPARTMENT_OTHER_VALUE],
-        `Select ${higherUnitLabel.toLowerCase()}`,
-        incomingFaculty,
-      );
-      if (isHigher && incomingFaculty && !matchedFaculty) {
-        facultySelect.value = STAFF_DEPARTMENT_OTHER_VALUE;
-        if (customFacultyInput instanceof HTMLInputElement) {
-          customFacultyInput.value = incomingFaculty;
+      if (isHigher) {
+        const matchedFaculty = setStaffSelectOptions(
+          facultySelect,
+          [...facultyOptions, STAFF_DEPARTMENT_OTHER_VALUE],
+          `Select ${higherUnitLabel.toLowerCase()}`,
+          incomingFaculty,
+        );
+        if (incomingFaculty && !matchedFaculty) {
+          facultySelect.value = STAFF_DEPARTMENT_OTHER_VALUE;
+          if (customFacultyInput instanceof HTMLInputElement) {
+            customFacultyInput.value = incomingFaculty;
+          }
+          resolvedFaculty = incomingFaculty;
+        } else {
+          resolvedFaculty = matchedFaculty;
         }
-        resolvedFaculty = incomingFaculty;
       } else {
-        resolvedFaculty = matchedFaculty;
+        setStaffSelectOptions(facultySelect, [], `No ${higherUnitLabel.toLowerCase()} needed`, "");
+        facultySelect.value = "";
+        resolvedFaculty = "";
       }
       facultySelect.disabled = !isHigher;
     }
 
-    const isCustomFaculty = isHigher && String(facultySelect?.value || "") === STAFF_DEPARTMENT_OTHER_VALUE;
+    const isCustomFaculty = isHigher && isStaffOtherSelection(facultySelect?.value || "");
     if (customFacultyWrapper) {
       customFacultyWrapper.hidden = !isCustomFaculty;
-      setStaffFieldLabel(customFacultyWrapper, `Custom ${higherUnitLabel.toLowerCase()}`);
+      setStaffFieldLabel(customFacultyWrapper, "Others");
     }
 
     if (customFacultyInput instanceof HTMLInputElement) {
       customFacultyInput.disabled = !isCustomFaculty;
-      customFacultyInput.placeholder = `Enter ${higherUnitLabel.toLowerCase()} or school`;
+      customFacultyInput.placeholder = `Enter ${higherUnitLabel.toLowerCase()}`;
+      if (!isCustomFaculty) {
+        customFacultyInput.value = "";
+      }
     }
 
     if (departmentWrapper) {
-      setStaffFieldLabel(departmentWrapper, isHigher ? "Department / program" : "Department");
+      setStaffFieldLabel(departmentWrapper, "Department");
     }
 
     const activeFaculty = resolveStaffCustomSelection(facultySelect, customFacultyInput) || resolvedFaculty;
     const higherDepartmentOptions =
-      isHigher && activeFaculty && String(facultySelect?.value || "") !== STAFF_DEPARTMENT_OTHER_VALUE
+      isHigher && activeFaculty && !isStaffOtherSelection(facultySelect?.value || "")
         ? getConfiguredHigherInstitutionDepartmentMap(settings)[activeFaculty] || []
         : [];
     const departmentOptions = isHigher
@@ -8527,12 +8545,17 @@
     departmentSelect.disabled = !canSelectDepartment;
 
     const isCustomDepartment =
-      canSelectDepartment && String(departmentSelect.value || "") === STAFF_DEPARTMENT_OTHER_VALUE;
+      canSelectDepartment && isStaffOtherSelection(departmentSelect.value || "");
     if (customDepartmentWrapper) {
       customDepartmentWrapper.hidden = !isCustomDepartment;
+      setStaffFieldLabel(customDepartmentWrapper, "Others");
     }
     if (customDepartmentInput instanceof HTMLInputElement) {
       customDepartmentInput.disabled = !isCustomDepartment;
+      customDepartmentInput.placeholder = isHigher ? "Enter department or program" : "Enter department";
+      if (!isCustomDepartment) {
+        customDepartmentInput.value = "";
+      }
     }
 
     return getStaffDepartmentFormValue(form);
