@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Super Admin | SchoolSphere</title>
+    <meta name="description" content="Owner-level activity, account, and workspace console for SchoolSphere." />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body data-page="super-admin" class="admin-dashboard-page super-admin-page">
+    <main class="admin-dashboard-shell">
+      <aside class="admin-sidebar">
+        <a class="admin-sidebar-brand" href="./super-admin.html" aria-label="Super admin home">
+          <span id="admin-brand-mark" class="admin-brand-mark">S</span>
+          <div class="admin-sidebar-brand-copy">
+            <strong id="admin-brand-name">SchoolSphere</strong>
+            <span id="admin-brand-subtitle">Super Admin</span>
+          </div>
+        </a>
+
+        <nav class="admin-sidebar-nav" aria-label="Super admin sections">
+          <a class="admin-sidebar-link is-active" href="#super-overview">
+            <span class="admin-sidebar-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="7" height="7" rx="1.5"></rect>
+                <rect x="14" y="3" width="7" height="7" rx="1.5"></rect>
+                <rect x="3" y="14" width="7" height="7" rx="1.5"></rect>
+                <rect x="14" y="14" width="7" height="7" rx="1.5"></rect>
+              </svg>
+            </span>
+            <span>Overview</span>
+          </a>
+          <a class="admin-sidebar-link" href="#super-users">
+            <span class="admin-sidebar-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9.5" cy="7" r="4"></circle>
+                <path d="M17 11h4"></path>
+                <path d="M19 9v4"></path>
+              </svg>
+            </span>
+            <span>Accounts</span>
+          </a>
+          <a class="admin-sidebar-link" href="#super-workspaces">
+            <span class="admin-sidebar-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 21h18"></path>
+                <path d="M5 21V7l7-4 7 4v14"></path>
+                <path d="M9 21v-7h6v7"></path>
+              </svg>
+            </span>
+            <span>Schools</span>
+          </a>
+          <a class="admin-sidebar-link" href="#super-activity">
+            <span class="admin-sidebar-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 19V5"></path>
+                <path d="M9 19v-8"></path>
+                <path d="M14 19v-4"></path>
+                <path d="M19 19V8"></path>
+              </svg>
+            </span>
+            <span>Activity</span>
+          </a>
+        </nav>
+
+        <section class="admin-sidebar-profile">
+          <div class="admin-profile-avatar" id="admin-profile-avatar">S</div>
+          <div class="admin-profile-copy">
+            <strong id="admin-profile-name">Owner</strong>
+            <span id="admin-profile-role">Super Admin</span>
+          </div>
+          <div id="portal-gate" class="admin-profile-actions">
+            <button class="admin-signout-button" type="button" data-signout>Log out</button>
+          </div>
+        </section>
+      </aside>
+
+      <section class="admin-dashboard-main">
+        <header class="admin-dashboard-topbar">
+          <div class="admin-dashboard-greeting">
+            <span class="admin-topline-chip" id="portal-last-updated">Last updated --</span>
+            <h1 id="portal-heading">Super Admin Console</h1>
+            <p id="portal-copy">Monitor the whole app, review accounts, and control access across school workspaces.</p>
+          </div>
+        </header>
+
+        <section id="super-overview" class="super-admin-hero">
+          <div>
+            <span class="super-admin-kicker">Owner access</span>
+            <h2>Global app control center</h2>
+            <p>See who is using the app, track activity, suspend accounts, and remove accounts from one protected console.</p>
+          </div>
+          <button class="portal-class-button portal-class-button-primary" type="button" data-super-refresh>
+            Refresh console
+          </button>
+        </section>
+
+        <section id="super-admin-status" class="auth-status" role="alert" aria-live="polite" hidden></section>
+
+        <section id="super-admin-metrics" class="admin-metrics-grid"></section>
+
+        <section id="super-users" class="admin-surface-card super-admin-section">
+          <div class="admin-surface-head">
+            <div>
+              <h2>Accounts</h2>
+              <span>Search, suspend, restore, or delete users across every workspace.</span>
+            </div>
+          </div>
+          <div class="super-admin-toolbar">
+            <label class="portal-field" for="super-admin-search">
+              <span>Search accounts</span>
+              <input id="super-admin-search" type="search" placeholder="Search name, email, role, or workspace" />
+            </label>
+            <label class="portal-field" for="super-admin-role-filter">
+              <span>Role</span>
+              <select id="super-admin-role-filter">
+                <option value="">All roles</option>
+                <option value="Super Admin">Super Admin</option>
+                <option value="Admin">Admin</option>
+                <option value="Teacher">Teacher</option>
+                <option value="Student">Student</option>
+                <option value="Parent">Parent</option>
+              </select>
+            </label>
+            <label class="portal-field" for="super-admin-status-filter">
+              <span>Status</span>
+              <select id="super-admin-status-filter">
+                <option value="">All statuses</option>
+                <option value="active">Active</option>
+                <option value="suspended">Suspended</option>
+                <option value="deactivated">Deactivated</option>
+              </select>
+            </label>
+          </div>
+          <div id="super-admin-users" class="super-admin-list"></div>
+        </section>
+
+        <section id="super-workspaces" class="admin-surface-card super-admin-section">
+          <div class="admin-surface-head">
+            <div>
+              <h2>Schools & Workspaces</h2>
+              <span>Overview of school accounts currently known by this app instance.</span>
+            </div>
+          </div>
+          <div id="super-admin-workspaces" class="super-admin-workspace-grid"></div>
+        </section>
+
+        <section id="super-activity" class="admin-surface-card super-admin-section">
+          <div class="admin-surface-head">
+            <div>
+              <h2>Global Activity</h2>
+              <span>Recent login, account, and school activity from all workspaces.</span>
+            </div>
+          </div>
+          <div id="super-admin-activity" class="super-admin-activity-list"></div>
+        </section>
+      </section>
+    </main>
+
+    <script src="./app.js?v=20260611-student-messages"></script>
+    <script src="./supabase-config.js"></script>
+    <script src="./auth.js?v=20260611-student-messages"></script>
+  </body>
+</html>

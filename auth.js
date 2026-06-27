@@ -24,7 +24,9 @@
   const FORM_DRAFT_STORAGE_PREFIX = "schoolsphere.form-draft.v1";
   const NETWORK_RESILIENCE_BANNER_ID = "network-resilience-banner";
   const STUDENT_STORAGE_KEY_BASE = "schoolsphere.students.v1";
-  const AUTH_ROLES = ["Admin", "Teacher", "Student", "Parent"];
+  const SUPER_ADMIN_ROLE = "Super Admin";
+  const SUPER_ADMIN_WORKSPACE_ID = "super-admin";
+  const AUTH_ROLES = [SUPER_ADMIN_ROLE, "Admin", "Teacher", "Student", "Parent"];
   const SCHOOL_ACCOUNT_DELETE_CONFIRMATION = "DELETE ACCOUNT";
   const PARENT_SELECTION_STORAGE_PREFIX = "schoolsphere.parent.selected-child.v1";
   const PARENT_FEES_STORAGE_PREFIX = "schoolsphere.parent.fees.v1";
@@ -119,6 +121,7 @@
   ]);
   const ATTENDANCE_STATUSES = ["present", "absent", "late", "excused"];
   const ROLE_HOME_ROUTES = {
+    [SUPER_ADMIN_ROLE]: "./super-admin.html",
     Admin: "./portal.html",
     Teacher: "./staff-dashboard.html",
     Student: "./portal.html",
@@ -621,6 +624,7 @@
     initPortalPage();
     initParentPages();
     initAdminShellPages();
+    initSuperAdminPage();
     initStaffPortalPages();
     initAdminStudentsPage();
     initAdminAdmissionsPage();
@@ -1338,6 +1342,10 @@
     const role = normalizeRoleLabel(record.role || DEFAULT_AUTH_ROLE);
     const normalizedEmail = String(record.normalizedEmail || "").trim();
 
+    if (role === SUPER_ADMIN_ROLE) {
+      return SUPER_ADMIN_WORKSPACE_ID;
+    }
+
     if (role === "Admin") {
       return normalizeWorkspaceId(
         normalizedEmail || (record.email ? normalizeEmail(record.email) : "") || record.id || "admin",
@@ -1354,6 +1362,16 @@
 
     if (normalized === "system" || normalized === "guest") {
       return "System";
+    }
+
+    if (
+      normalized === "super-admin" ||
+      normalized === "super admin" ||
+      normalized === "superadmin" ||
+      normalized === "owner" ||
+      normalized === "god"
+    ) {
+      return SUPER_ADMIN_ROLE;
     }
 
     if (normalized === "administrator" || normalized === "admin") {
@@ -1379,9 +1397,18 @@
     const normalized = String(value || "")
       .trim()
       .toLowerCase();
-    return normalized === "deactivated" || normalized === "inactive" || normalized === "disabled"
-      ? "deactivated"
-      : "active";
+    if (normalized === "suspended" || normalized === "blocked") {
+      return "suspended";
+    }
+    if (
+      normalized === "deactivated" ||
+      normalized === "inactive" ||
+      normalized === "disabled" ||
+      normalized === "revoked"
+    ) {
+      return "deactivated";
+    }
+    return "active";
   }
 
   function normalizeUserRecord(record = {}) {
@@ -1475,7 +1502,22 @@
   }
 
   function isUserDeactivated(user) {
-    return normalizeUserStatus(user?.status) === "deactivated";
+    return ["deactivated", "suspended"].includes(normalizeUserStatus(user?.status));
+  }
+
+  function isSuperAdminUser(user = {}) {
+    return normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE) === SUPER_ADMIN_ROLE;
+  }
+
+  function isLastActiveSuperAdmin(user = {}) {
+    if (!isSuperAdminUser(user) || normalizeUserStatus(user.status) !== "active") {
+      return false;
+    }
+
+    const activeSuperAdmins = getUsers().filter(
+      (entry) => isSuperAdminUser(entry) && normalizeUserStatus(entry.status) === "active",
+    );
+    return activeSuperAdmins.length <= 1;
   }
 
   function getCurrentWorkspaceId() {
@@ -1910,7 +1952,7 @@
       return [];
     }
 
-    if (role === "Admin") {
+    if (role === "Admin" || role === SUPER_ADMIN_ROLE) {
       return notifications;
     }
 
@@ -1988,7 +2030,7 @@
   function notificationMatchesUserScope(entry = {}, scope = {}) {
     const role = normalizeRoleLabel(scope.role || DEFAULT_AUTH_ROLE);
 
-    if (role === "Admin") {
+    if (role === "Admin" || role === SUPER_ADMIN_ROLE) {
       return true;
     }
 
@@ -2022,7 +2064,7 @@
     const scope = getNotificationScopeForSession(session);
     const roleFiltered = filterNotificationsByRole(notifications, scope.role);
 
-    if (scope.role === "Admin") {
+    if (scope.role === "Admin" || scope.role === SUPER_ADMIN_ROLE) {
       return roleFiltered.filter((entry) => !isNotificationHiddenForViewer(entry, scope.user || session, scope.role));
     }
 
@@ -7040,7 +7082,7 @@
     if (existingLocalUser && isUserDeactivated(existingLocalUser)) {
       await client.auth.signOut();
       clearSession();
-      setAccessGuardNotice("This account is deactivated. Contact an administrator for reactivation.");
+      setAccessGuardNotice("This account is not active. Contact an administrator for reactivation.");
 
       if (getPage() !== "login") {
         window.location.assign("./login.html");
@@ -26607,6 +26649,161 @@
     });
   }
 
+  function recordLoginAudit(user = {}, roleLabel = DEFAULT_AUTH_ROLE, source = "password") {
+    const role = normalizeRoleLabel(roleLabel || user.role || DEFAULT_AUTH_ROLE);
+    const actorName = String(user.displayName || user.email || "User").trim();
+    const targetWorkspaceId = normalizeWorkspaceId(user.workspaceId || getCurrentWorkspaceId());
+    recordAuditEvent({
+      action: "signed-in",
+      entityType: "login",
+      entityId: user.id || user.email || actorName,
+      summary: `${actorName} signed in`,
+      details: `Role: ${role} • Source: ${source} • Workspace: ${targetWorkspaceId}`,
+      actorName,
+      workspaceId: SUPER_ADMIN_WORKSPACE_ID,
+      metadata: {
+        email: user.email || "",
+        role,
+        source,
+        targetWorkspaceId,
+      },
+    });
+  }
+
+  async function handleSuperAdminLocalLogin({ email, password, remember, form, status }) {
+    const normalizedEmail = normalizeEmail(email || "");
+    const users = getUsers();
+    const existingUser = users.find((user) => user.normalizedEmail === normalizedEmail) || null;
+    const superAdmins = users.filter((user) => isSuperAdminUser(user));
+
+    if (!superAdmins.length) {
+      if (existingUser && !isSuperAdminUser(existingUser)) {
+        setFieldError(form, "email", "This email is already used by another role.");
+        setStatus(
+          status,
+          "error",
+          "Use a fresh owner email for the first Super Admin account.",
+        );
+        return true;
+      }
+
+      const timestamp = nowIso();
+      const superAdmin = normalizeUserRecord({
+        id: existingUser?.id || createId(),
+        email,
+        normalizedEmail,
+        workspaceId: SUPER_ADMIN_WORKSPACE_ID,
+        displayName: existingUser?.displayName || buildDisplayName(email) || "Super Admin",
+        passwordHash: await hashSecret(password),
+        provider: "password",
+        role: SUPER_ADMIN_ROLE,
+        isConfirmed: true,
+        confirmationToken: "",
+        confirmationSentAt: "",
+        confirmedAt: timestamp,
+        createdAt: existingUser?.createdAt || timestamp,
+        lastLoginAt: timestamp,
+        status: "active",
+      });
+      const nextUsers = existingUser
+        ? users.map((user) => (user.id === existingUser.id ? superAdmin : user))
+        : [...users, superAdmin];
+
+      saveUsers(nextUsers);
+      setSession(
+        {
+          userId: superAdmin.id,
+          email: superAdmin.email,
+          displayName: superAdmin.displayName,
+          role: SUPER_ADMIN_ROLE,
+          provider: superAdmin.provider,
+          workspaceId: SUPER_ADMIN_WORKSPACE_ID,
+          persistence: remember ? "persistent" : "session",
+          signedInAt: timestamp,
+          source: "super-admin-bootstrap",
+        },
+        remember,
+      );
+      recordAuditEvent({
+        action: "created",
+        entityType: "super-admin",
+        entityId: superAdmin.id,
+        summary: `Created first Super Admin account for ${superAdmin.email}`,
+        details: "Owner console bootstrap account created from the login screen.",
+        actorName: superAdmin.displayName || superAdmin.email,
+        workspaceId: SUPER_ADMIN_WORKSPACE_ID,
+        metadata: {
+          email: superAdmin.email,
+          role: SUPER_ADMIN_ROLE,
+        },
+      });
+      recordLoginAudit(superAdmin, SUPER_ADMIN_ROLE, "super-admin-bootstrap");
+      clearFormDraftFor(form);
+      window.location.assign(getRoleHomeRoute(SUPER_ADMIN_ROLE));
+      return true;
+    }
+
+    if (!existingUser) {
+      setFieldError(form, "email", "No Super Admin account was found with that email.");
+      setStatus(status, "error", "We could not find a Super Admin account with those credentials.");
+      return true;
+    }
+
+    if (!isSuperAdminUser(existingUser)) {
+      setStatus(
+        status,
+        "error",
+        `This account is registered as <strong>${escapeHtml(
+          normalizeRoleLabel(existingUser.role || DEFAULT_AUTH_ROLE),
+        )}</strong>. Switch role to continue.`,
+      );
+      return true;
+    }
+
+    if (isUserDeactivated(existingUser)) {
+      setStatus(status, "error", "This Super Admin account is not active.");
+      return true;
+    }
+
+    if (existingUser.provider === "google" && !existingUser.passwordHash) {
+      setStatus(status, "info", "This Super Admin account uses Google sign-in.");
+      return true;
+    }
+
+    const passwordHash = await hashSecret(password);
+    if (passwordHash !== existingUser.passwordHash) {
+      setFieldError(form, "password", "Incorrect password.");
+      setStatus(status, "error", "Your email or password is incorrect.");
+      return true;
+    }
+
+    const updatedUser = updateUser(existingUser.id, (currentUser) => ({
+      ...currentUser,
+      workspaceId: SUPER_ADMIN_WORKSPACE_ID,
+      role: SUPER_ADMIN_ROLE,
+      lastLoginAt: nowIso(),
+    }));
+
+    setSession(
+      {
+        userId: updatedUser.id,
+        email: updatedUser.email,
+        displayName: updatedUser.displayName,
+        role: SUPER_ADMIN_ROLE,
+        provider: updatedUser.provider,
+        workspaceId: SUPER_ADMIN_WORKSPACE_ID,
+        persistence: remember ? "persistent" : "session",
+        signedInAt: nowIso(),
+        source: "super-admin-local",
+      },
+      remember,
+    );
+    recordLoginAudit(updatedUser, SUPER_ADMIN_ROLE, "password");
+    clearFormDraftFor(form);
+    window.location.assign(getRoleHomeRoute(SUPER_ADMIN_ROLE));
+    return true;
+  }
+
   function initLoginFlow() {
     if (getPage() !== "login") {
       return;
@@ -26671,6 +26868,20 @@
       if (hasError) {
         setStatus(status, "error", "Enter your login details to continue.");
         return;
+      }
+
+      if (selectedRole === SUPER_ADMIN_ROLE) {
+        const handled = await handleSuperAdminLocalLogin({
+          email,
+          password,
+          remember,
+          form,
+          status,
+        });
+
+        if (handled) {
+          return;
+        }
       }
 
       if (isSupabaseConfigured()) {
@@ -26748,6 +26959,7 @@
                   remember,
                 );
 
+                recordLoginAudit(updatedFallbackUser, fallbackRole, "local-fallback");
                 clearFormDraftFor(form);
                 window.location.assign(getPostLoginRoute(fallbackRole, updatedFallbackUser));
                 return;
@@ -26815,6 +27027,7 @@
         }
 
         clearFormDraftFor(form);
+        recordLoginAudit(authResult.user, signedInRole, "password");
         window.location.assign(getPostLoginRoute(signedInRole, authResult.user));
         return;
       }
@@ -26828,7 +27041,7 @@
       }
 
       if (isUserDeactivated(user)) {
-        setStatus(status, "error", "This account is deactivated. Contact an administrator for reactivation.");
+        setStatus(status, "error", "This account is not active. Contact an administrator for reactivation.");
         return;
       }
 
@@ -26893,6 +27106,7 @@
       );
 
       clearFormDraftFor(form);
+      recordLoginAudit(updatedUser, userRole, "password");
       window.location.assign(getPostLoginRoute(userRole, updatedUser));
     });
   }
@@ -27356,6 +27570,7 @@
         true,
       );
 
+      recordLoginAudit(user, user.role, "google");
       closeGoogleModal();
       if (getPage() === "signup") {
         clearFormDraft("signup-form");
@@ -27375,7 +27590,7 @@
     }
 
     if (isUserDeactivated(existingUser)) {
-      error.textContent = "This account is deactivated. Contact an administrator for reactivation.";
+      error.textContent = "This account is not active. Contact an administrator for reactivation.";
       return;
     }
 
@@ -27402,6 +27617,7 @@
       true,
     );
 
+    recordLoginAudit(existingUser, existingRole, "google");
     closeGoogleModal();
     if (getPage() === "login") {
       clearFormDraft("login-form");
@@ -39467,9 +39683,537 @@
     }
   }
 
+  function getSuperAdminKnownWorkspaceIds() {
+    const workspaceIds = new Set();
+    const addWorkspaceId = (value) => {
+      const normalized = normalizeWorkspaceId(value || "");
+      if (normalized) {
+        workspaceIds.add(normalized);
+      }
+    };
+
+    getUsers().forEach((user) => addWorkspaceId(user.workspaceId || user.id || user.email));
+
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index) || "";
+      if (key.startsWith(`${NOTIFICATION_STORAGE_PREFIX}:`)) {
+        addWorkspaceId(key.slice(`${NOTIFICATION_STORAGE_PREFIX}:`.length));
+      }
+      if (key.startsWith(`${ADMISSIONS_STORAGE_KEY_BASE}:`)) {
+        addWorkspaceId(key.slice(`${ADMISSIONS_STORAGE_KEY_BASE}:`.length));
+      }
+      WORKSPACE_SCOPED_STATE_KEYS.forEach((baseKey) => {
+        const prefix = `${baseKey}::`;
+        if (key.startsWith(prefix)) {
+          addWorkspaceId(key.slice(prefix.length));
+        }
+      });
+    }
+
+    return Array.from(workspaceIds).sort((left, right) => left.localeCompare(right));
+  }
+
+  function normalizeSuperAdminSearchText(value) {
+    return String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+  }
+
+  function getSuperAdminWorkspaceSettings(workspaceId) {
+    const parsed = parseWorkspaceScopedState(SUPABASE_STATE_KEY_SCHOOL_SETTINGS, workspaceId, null);
+    return parsed?.data && typeof parsed.data === "object" && !Array.isArray(parsed.data)
+      ? parsed.data
+      : {};
+  }
+
+  function getSuperAdminWorkspaceName(workspaceId, users = getUsers()) {
+    const settings = getSuperAdminWorkspaceSettings(workspaceId);
+    const adminUser = users.find(
+      (user) =>
+        normalizeWorkspaceId(user.workspaceId || "public") === normalizeWorkspaceId(workspaceId) &&
+        normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE) === "Admin",
+    );
+    return (
+      String(settings.schoolName || "").trim() ||
+      String(adminUser?.schoolName || adminUser?.institutionName || adminUser?.displayName || "").trim() ||
+      normalizeWorkspaceId(workspaceId)
+    );
+  }
+
+  function getSuperAdminWorkspaceSummaries() {
+    const users = getUsers();
+    const workspaceIds = getSuperAdminKnownWorkspaceIds().filter((workspaceId) => workspaceId !== SUPER_ADMIN_WORKSPACE_ID);
+
+    return workspaceIds.map((workspaceId) => {
+      const workspaceUsers = users.filter(
+        (user) => normalizeWorkspaceId(user.workspaceId || "public") === workspaceId,
+      );
+      const settings = getSuperAdminWorkspaceSettings(workspaceId);
+      const students = parseWorkspaceScopedState(SUPABASE_STATE_KEY_STUDENTS, workspaceId, [])?.data || [];
+      const notifications = getNotifications(workspaceId);
+      return {
+        id: workspaceId,
+        name: getSuperAdminWorkspaceName(workspaceId, users),
+        schoolTypes: Array.isArray(settings.schoolTypes) ? settings.schoolTypes : [],
+        userCount: workspaceUsers.length,
+        adminCount: workspaceUsers.filter((user) => normalizeRoleLabel(user.role) === "Admin").length,
+        studentCount: Array.isArray(students) ? students.length : 0,
+        activityCount: notifications.length,
+        lastActivityAt: notifications[0]?.createdAt || "",
+      };
+    });
+  }
+
+  function getSuperAdminAllActivity() {
+    const users = getUsers();
+    return getSuperAdminKnownWorkspaceIds()
+      .flatMap((workspaceId) =>
+        getNotifications(workspaceId).map((entry) => {
+          const activityWorkspaceId = normalizeWorkspaceId(entry.metadata?.targetWorkspaceId || workspaceId);
+          return {
+            ...entry,
+            sourceWorkspaceId: workspaceId,
+            workspaceId: activityWorkspaceId,
+            workspaceName:
+              activityWorkspaceId === SUPER_ADMIN_WORKSPACE_ID
+                ? "Super Admin"
+                : getSuperAdminWorkspaceName(activityWorkspaceId, users),
+          };
+        }),
+      )
+      .sort((left, right) => String(right.createdAt || "").localeCompare(String(left.createdAt || "")));
+  }
+
+  function renderSuperAdminMetricCard({ tone = "blue", value = "0", label = "", copy = "" } = {}) {
+    return `
+      <article class="admin-metric-card admin-metric-card-${tone}">
+        <span class="admin-metric-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19V5"></path>
+            <path d="M9 19v-8"></path>
+            <path d="M14 19v-4"></path>
+            <path d="M19 19V8"></path>
+          </svg>
+        </span>
+        <strong>${escapeHtml(value)}</strong>
+        <h3>${escapeHtml(label)}</h3>
+        <p>${escapeHtml(copy)}</p>
+      </article>
+    `;
+  }
+
+  function renderSuperAdminMetrics(target) {
+    if (!target) {
+      return;
+    }
+
+    const users = getUsers();
+    const workspaces = getSuperAdminWorkspaceSummaries();
+    const activity = getSuperAdminAllActivity();
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const loginEvents = activity.filter((entry) => String(entry.entityType || "").toLowerCase() === "login");
+    const todayLogins = loginEvents.filter((entry) => String(entry.createdAt || "").startsWith(todayKey));
+    const suspendedCount = users.filter((user) => normalizeUserStatus(user.status) === "suspended").length;
+
+    target.innerHTML = [
+      renderSuperAdminMetricCard({
+        tone: "blue",
+        value: users.length.toLocaleString(),
+        label: "Total users",
+        copy: "All app accounts",
+      }),
+      renderSuperAdminMetricCard({
+        tone: "green",
+        value: workspaces.length.toLocaleString(),
+        label: "School workspaces",
+        copy: "Known schools",
+      }),
+      renderSuperAdminMetricCard({
+        tone: "violet",
+        value: todayLogins.length.toLocaleString(),
+        label: "Logins today",
+        copy: `${loginEvents.length.toLocaleString()} tracked logins`,
+      }),
+      renderSuperAdminMetricCard({
+        tone: "rose",
+        value: suspendedCount.toLocaleString(),
+        label: "Suspended users",
+        copy: "Blocked from login",
+      }),
+    ].join("");
+  }
+
+  function renderSuperAdminUsers(target) {
+    if (!target) {
+      return;
+    }
+
+    const query = normalizeSuperAdminSearchText(document.getElementById("super-admin-search")?.value || "");
+    const rawRoleFilter = String(document.getElementById("super-admin-role-filter")?.value || "").trim();
+    const rawStatusFilter = String(document.getElementById("super-admin-status-filter")?.value || "").trim();
+    const roleFilter = rawRoleFilter ? normalizeRoleLabel(rawRoleFilter) : "";
+    const statusFilter = rawStatusFilter ? normalizeUserStatus(rawStatusFilter) : "";
+    const hasStatusFilter = Boolean(rawStatusFilter);
+    const users = getUsers();
+    const rows = users
+      .filter((user) => {
+        const role = normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE);
+        const status = normalizeUserStatus(user.status);
+        const workspaceName = getSuperAdminWorkspaceName(user.workspaceId || "public", users);
+        const haystack = normalizeSuperAdminSearchText([
+          user.displayName,
+          user.email,
+          role,
+          status,
+          user.workspaceId,
+          workspaceName,
+        ].join(" "));
+        return (
+          (!query || haystack.includes(query)) &&
+          (!roleFilter || role === roleFilter) &&
+          (!hasStatusFilter || status === statusFilter)
+        );
+      })
+      .sort((left, right) => {
+        const leftStatus = normalizeUserStatus(left.status) === "active" ? 0 : 1;
+        const rightStatus = normalizeUserStatus(right.status) === "active" ? 0 : 1;
+        if (leftStatus !== rightStatus) {
+          return leftStatus - rightStatus;
+        }
+        return String(left.displayName || left.email).localeCompare(String(right.displayName || right.email));
+      });
+
+    if (!rows.length) {
+      target.innerHTML = `
+        <div class="super-admin-empty">
+          <strong>No accounts found</strong>
+          <span>Adjust the search or filters to see more users.</span>
+        </div>
+      `;
+      return;
+    }
+
+    target.innerHTML = rows
+      .map((user) => {
+        const role = normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE);
+        const status = normalizeUserStatus(user.status);
+        const workspaceId = normalizeWorkspaceId(user.workspaceId || "public");
+        const workspaceName = workspaceId === SUPER_ADMIN_WORKSPACE_ID
+          ? "Super Admin"
+          : getSuperAdminWorkspaceName(workspaceId, users);
+        const statusClass = status === "active" ? "is-active" : status === "suspended" ? "is-suspended" : "is-muted";
+        const isProtected = isLastActiveSuperAdmin(user);
+        return `
+          <article class="super-admin-row" data-super-user-row="${escapeHtml(user.id)}">
+            <div class="super-admin-row-main">
+              <span class="super-admin-avatar">${escapeHtml(getInitials(user.displayName || user.email || role))}</span>
+              <div>
+                <strong>${escapeHtml(user.displayName || user.email || "Unnamed user")}</strong>
+                <span>${escapeHtml(user.email || "No email")} • ${escapeHtml(workspaceName)}</span>
+              </div>
+            </div>
+            <div class="super-admin-row-meta">
+              <span class="super-admin-pill">${escapeHtml(role)}</span>
+              <span class="super-admin-pill ${statusClass}">${escapeHtml(status)}</span>
+              <span>${escapeHtml(user.lastLoginAt ? formatTimestamp(user.lastLoginAt) : "No login yet")}</span>
+            </div>
+            <div class="super-admin-row-actions">
+              ${
+                status === "active"
+                  ? `<button class="portal-class-button" type="button" data-super-user-action="suspend" data-user-id="${escapeHtml(user.id)}" data-workspace-id="${escapeHtml(workspaceId)}" ${isProtected ? "disabled" : ""}>Suspend</button>`
+                  : `<button class="portal-class-button" type="button" data-super-user-action="restore" data-user-id="${escapeHtml(user.id)}" data-workspace-id="${escapeHtml(workspaceId)}">Restore</button>`
+              }
+              <button class="portal-class-button portal-class-button-danger" type="button" data-super-user-action="delete" data-user-id="${escapeHtml(user.id)}" data-workspace-id="${escapeHtml(workspaceId)}" ${isProtected ? "disabled" : ""}>Delete</button>
+            </div>
+          </article>
+        `;
+      })
+      .join("");
+  }
+
+  function renderSuperAdminWorkspaces(target) {
+    if (!target) {
+      return;
+    }
+
+    const workspaces = getSuperAdminWorkspaceSummaries();
+    if (!workspaces.length) {
+      target.innerHTML = `
+        <div class="super-admin-empty">
+          <strong>No school workspaces yet</strong>
+          <span>School accounts will appear here after admins create or use them.</span>
+        </div>
+      `;
+      return;
+    }
+
+    target.innerHTML = workspaces
+      .map((workspace) => `
+        <article class="super-admin-workspace-card">
+          <div class="super-admin-workspace-head">
+            <span class="super-admin-avatar">${escapeHtml(getInitials(workspace.name))}</span>
+            <div>
+              <strong>${escapeHtml(workspace.name)}</strong>
+              <span>${escapeHtml(workspace.id)}</span>
+            </div>
+          </div>
+          <dl class="super-admin-workspace-stats">
+            <div><dt>Users</dt><dd>${workspace.userCount.toLocaleString()}</dd></div>
+            <div><dt>Admins</dt><dd>${workspace.adminCount.toLocaleString()}</dd></div>
+            <div><dt>Students</dt><dd>${workspace.studentCount.toLocaleString()}</dd></div>
+            <div><dt>Activity</dt><dd>${workspace.activityCount.toLocaleString()}</dd></div>
+          </dl>
+          <p>${escapeHtml(workspace.schoolTypes.length ? workspace.schoolTypes.join(", ") : "School type not set")}</p>
+          <span>Last activity: ${escapeHtml(workspace.lastActivityAt ? formatTimestamp(workspace.lastActivityAt) : "No activity yet")}</span>
+        </article>
+      `)
+      .join("");
+  }
+
+  function renderSuperAdminActivity(target) {
+    if (!target) {
+      return;
+    }
+
+    const entries = getSuperAdminAllActivity().slice(0, 80);
+    if (!entries.length) {
+      target.innerHTML = `
+        <div class="super-admin-empty">
+          <strong>No activity yet</strong>
+          <span>Logins and admin actions will appear here as the app is used.</span>
+        </div>
+      `;
+      return;
+    }
+
+    target.innerHTML = entries
+      .map((entry) => `
+        <article class="super-admin-activity-item">
+          <span class="super-admin-activity-dot" aria-hidden="true"></span>
+          <div>
+            <strong>${escapeHtml(entry.summary || entry.title || "System activity")}</strong>
+            <span>${escapeHtml(entry.details || entry.message || entry.action || "")}</span>
+          </div>
+          <div class="super-admin-activity-meta">
+            <span>${escapeHtml(entry.workspaceName || entry.workspaceId || "Workspace")}</span>
+            <time datetime="${escapeHtml(entry.createdAt || "")}">${escapeHtml(
+              entry.createdAt ? formatTimestamp(entry.createdAt) : "Unknown time",
+            )}</time>
+          </div>
+        </article>
+      `)
+      .join("");
+  }
+
+  function refreshSuperAdminConsole() {
+    renderSuperAdminMetrics(document.getElementById("super-admin-metrics"));
+    renderSuperAdminUsers(document.getElementById("super-admin-users"));
+    renderSuperAdminWorkspaces(document.getElementById("super-admin-workspaces"));
+    renderSuperAdminActivity(document.getElementById("super-admin-activity"));
+
+    const lastUpdated = document.getElementById("portal-last-updated");
+    if (lastUpdated) {
+      lastUpdated.textContent = `Updated ${formatTimestamp(nowIso())}`;
+    }
+  }
+
+  async function handleSuperAdminUserAction(event, statusTarget) {
+    const button = event.target.closest("[data-super-user-action]");
+    if (!button) {
+      return;
+    }
+
+    event.preventDefault();
+    const action = String(button.dataset.superUserAction || "").trim();
+    const userId = String(button.dataset.userId || "").trim();
+    const workspaceId = normalizeWorkspaceId(button.dataset.workspaceId || "public");
+    const targetUser = getUsers().find(
+      (user) => user.id === userId && normalizeWorkspaceId(user.workspaceId || "public") === workspaceId,
+    );
+    const session = getSession();
+
+    if (!targetUser) {
+      setStatus(statusTarget, "error", "This user account could not be found.");
+      return;
+    }
+
+    if (session?.userId === targetUser.id && (action === "suspend" || action === "delete")) {
+      setStatus(statusTarget, "error", "You cannot suspend or delete the account you are currently using.");
+      return;
+    }
+
+    if ((action === "suspend" || action === "delete") && isLastActiveSuperAdmin(targetUser)) {
+      setStatus(statusTarget, "error", "Keep at least one active Super Admin account.");
+      return;
+    }
+
+    if (action === "suspend" || action === "restore") {
+      const nextStatus = action === "suspend" ? "suspended" : "active";
+      const confirmed = action === "suspend"
+        ? await showAppConfirm({
+            title: "Suspend account?",
+            message: `Suspend ${targetUser.displayName || targetUser.email}?`,
+            details: "This user will not be able to sign in until the account is restored.",
+            confirmLabel: "Suspend account",
+            variant: "danger",
+          })
+        : true;
+
+      if (!confirmed) {
+        return;
+      }
+
+      const updatedUser = updateUser(targetUser.id, (currentUser) => ({
+        ...currentUser,
+        status: nextStatus,
+        updatedAt: nowIso(),
+        suspendedAt: nextStatus === "suspended" ? nowIso() : "",
+      }));
+
+      recordAuditEvent({
+        action: nextStatus === "active" ? "restored" : "suspended",
+        entityType: "user-account",
+        entityId: updatedUser?.email || targetUser.email,
+        summary: `${nextStatus === "active" ? "Restored" : "Suspended"} account ${targetUser.email}`,
+        details: `Role: ${normalizeRoleLabel(targetUser.role)} • Workspace: ${workspaceId}`,
+        workspaceId: SUPER_ADMIN_WORKSPACE_ID,
+        metadata: {
+          targetUserId: targetUser.id,
+          targetEmail: targetUser.email,
+          targetWorkspaceId: workspaceId,
+        },
+      });
+      setStatus(statusTarget, "success", `Account <strong>${escapeHtml(targetUser.email)}</strong> is now ${escapeHtml(nextStatus)}.`);
+      refreshSuperAdminConsole();
+      return;
+    }
+
+    if (action === "delete") {
+      const confirmed = await showAppConfirm({
+        title: "Delete account permanently?",
+        message: `Delete ${targetUser.displayName || targetUser.email}?`,
+        details: "This removes the login account. Existing school records may remain in the affected workspace history.",
+        confirmLabel: "Delete account",
+        variant: "danger",
+      });
+
+      if (!confirmed) {
+        return;
+      }
+
+      button.disabled = true;
+      button.textContent = "Deleting...";
+      const onlineResult = await deleteSupabaseManagedUser(targetUser.email);
+      if (onlineResult.status === "error") {
+        button.disabled = false;
+        button.textContent = "Delete";
+        setStatus(statusTarget, "error", escapeHtml(onlineResult.message || "Could not delete this account online."));
+        return;
+      }
+
+      const removed = removeUser(targetUser.id, workspaceId);
+      if (!removed) {
+        button.disabled = false;
+        button.textContent = "Delete";
+        setStatus(statusTarget, "error", "Could not remove this account.");
+        return;
+      }
+
+      recordAuditEvent({
+        action: "deleted",
+        entityType: "user-account",
+        entityId: targetUser.email,
+        summary: `Deleted account ${targetUser.email}`,
+        details: `Role: ${normalizeRoleLabel(targetUser.role)} • Workspace: ${workspaceId}`,
+        workspaceId: SUPER_ADMIN_WORKSPACE_ID,
+        metadata: {
+          targetUserId: targetUser.id,
+          targetEmail: targetUser.email,
+          targetWorkspaceId: workspaceId,
+        },
+      });
+      setStatus(statusTarget, "success", `Account <strong>${escapeHtml(targetUser.email)}</strong> was deleted.`);
+      refreshSuperAdminConsole();
+    }
+  }
+
+  function initSuperAdminPage() {
+    if (getPage() !== "super-admin") {
+      return;
+    }
+
+    const session = getSession();
+    const user = session?.userId ? getUsers().find((entry) => entry.id === session.userId) || null : null;
+    const role = normalizeRoleLabel(session?.role || user?.role || DEFAULT_AUTH_ROLE);
+
+    if (!session || !user || role !== SUPER_ADMIN_ROLE || !isSuperAdminUser(user)) {
+      sessionStorage.setItem(ACCESS_GUARD_NOTICE_KEY, "Sign in as Super Admin to open the owner console.");
+      window.location.assign("./login.html");
+      return;
+    }
+
+    if (isUserDeactivated(user)) {
+      clearSession();
+      sessionStorage.setItem(ACCESS_GUARD_NOTICE_KEY, "This Super Admin account is not active.");
+      window.location.assign("./login.html");
+      return;
+    }
+
+    const brandMark = document.getElementById("admin-brand-mark");
+    const brandName = document.getElementById("admin-brand-name");
+    const brandSubtitle = document.getElementById("admin-brand-subtitle");
+    const profileAvatar = document.getElementById("admin-profile-avatar");
+    const profileName = document.getElementById("admin-profile-name");
+    const profileRole = document.getElementById("admin-profile-role");
+    const gate = document.getElementById("portal-gate");
+    const statusTarget = document.getElementById("super-admin-status");
+    const usersTarget = document.getElementById("super-admin-users");
+
+    if (brandMark) {
+      brandMark.textContent = "S";
+      brandMark.classList.remove("is-image");
+    }
+    if (brandName) {
+      brandName.textContent = "SchoolSphere";
+    }
+    if (brandSubtitle) {
+      brandSubtitle.textContent = "Super Admin";
+    }
+    renderUserAvatar(profileAvatar, user, SUPER_ADMIN_ROLE);
+    if (profileName) {
+      profileName.textContent = user.displayName || user.email;
+    }
+    if (profileRole) {
+      profileRole.textContent = SUPER_ADMIN_ROLE;
+    }
+    if (gate) {
+      gate.innerHTML = `
+        <a class="admin-signout-button" href="./user-settings.html">My settings</a>
+        <button class="admin-signout-button" type="button" data-signout>Log out</button>
+      `;
+      wireSignOutButton(gate);
+    }
+
+    document.querySelectorAll("[data-super-refresh]").forEach((button) => {
+      button.addEventListener("click", () => {
+        setStatus(statusTarget, "success", "Console refreshed.");
+        refreshSuperAdminConsole();
+      });
+    });
+    ["super-admin-search", "super-admin-role-filter", "super-admin-status-filter"].forEach((id) => {
+      document.getElementById(id)?.addEventListener("input", () => renderSuperAdminUsers(usersTarget));
+      document.getElementById(id)?.addEventListener("change", () => renderSuperAdminUsers(usersTarget));
+    });
+    usersTarget?.addEventListener("click", (event) => handleSuperAdminUserAction(event, statusTarget));
+    window.addEventListener(NOTIFICATION_EVENT_NAME, refreshSuperAdminConsole);
+    refreshSuperAdminConsole();
+  }
+
   function initAdminShellPages() {
     if (
       !document.body.classList.contains("admin-dashboard-page") ||
+      getPage() === "super-admin" ||
       getPage() === "portal" ||
       STAFF_PORTAL_PAGE_CONFIG[getPage()] ||
       isParentPage()
