@@ -15891,9 +15891,6 @@
                               <button class="portal-class-button" type="button" data-fee-invoice-action="view" data-invoice-student-id="${escapeHtml(
                                 invoice.studentId || "",
                               )}">View</button>
-                              <button class="portal-class-button" type="button" data-fee-invoice-action="history" data-invoice-student-id="${escapeHtml(
-                                invoice.studentId || "",
-                              )}">Transactions</button>
                               <button class="portal-class-button" type="button" data-fee-invoice-action="print" data-invoice-student-id="${escapeHtml(
                                 invoice.studentId || "",
                               )}">Print</button>
