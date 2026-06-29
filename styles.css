@@ -6241,7 +6241,7 @@ body.admin-dashboard-page .admin-report-heading p {
 
 body.admin-dashboard-page .admin-report-kpis {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 12px;
 }
 
@@ -6254,12 +6254,18 @@ body.admin-dashboard-page .admin-report-kpi {
   border-radius: 18px;
   background: #ffffff;
   box-shadow: 0 14px 28px rgba(63, 78, 103, 0.05);
+  min-width: 0;
 }
 
 body.admin-dashboard-page .admin-report-kpi strong {
+  display: block;
+  max-width: 100%;
+  min-width: 0;
   color: #17233a;
-  font-size: clamp(1.25rem, 1.7vw, 1.65rem);
+  font-size: clamp(1.08rem, 1.35vw, 1.45rem);
   line-height: 1.1;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 body.admin-dashboard-page .admin-report-kpi p {
@@ -6939,6 +6945,9 @@ body.admin-dashboard-page .admin-report-split-metric {
 
 body.admin-dashboard-page .admin-report-split-metric strong {
   color: #17233a;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 body.admin-dashboard-page .admin-report-mini-bars {
