@@ -26559,6 +26559,79 @@
       .trim();
   }
 
+  function getCompactStatusLabel(type, message) {
+    const normalizedType = String(type || "info").trim().toLowerCase();
+    const plainMessage = stripStatusMessage(message);
+    const normalizedMessage = plainMessage.toLowerCase();
+    const matchLabel = (items = []) => {
+      const match = items.find((item) => item.pattern.test(normalizedMessage));
+      return match ? match.label : "";
+    };
+
+    if (normalizedType === "success") {
+      return (
+        matchLabel([
+          { pattern: /\bcop(y|ied)\b/, label: "Copied" },
+          { pattern: /\bsav(e|ed|ing)\b/, label: "Saved" },
+          { pattern: /\bupdat(e|ed|ing)\b/, label: "Updated" },
+          { pattern: /\bcreat(e|ed|ing)\b/, label: "Created" },
+          { pattern: /\badd(ed|s|ing)?\b/, label: "Added" },
+          { pattern: /\bdelete(d|s|ing)?\b|\bremoved?\b/, label: "Deleted" },
+          { pattern: /\barchive(d|s|ing)?\b/, label: "Archived" },
+          { pattern: /\bactivate(d|s|ing)?\b/, label: "Activated" },
+          { pattern: /\bapprove(d|s|ing)?\b|\baccepted?\b/, label: "Approved" },
+          { pattern: /\bdecline(d|s|ing)?\b|\breject(ed|s|ing)?\b/, label: "Declined" },
+          { pattern: /\bsend|sent\b/, label: "Sent" },
+          { pattern: /\bsubmit(ted|s|ting)?\b/, label: "Submitted" },
+          { pattern: /\bupload(ed|s|ing)?\b/, label: "Uploaded" },
+          { pattern: /\bdownload(ed|s|ing)?\b/, label: "Downloaded" },
+          { pattern: /\bgenerate(d|s|ing)?\b/, label: "Generated" },
+          { pattern: /\bprint(ed|s|ing)?\b/, label: "Printed" },
+        ]) || "Done"
+      );
+    }
+
+    if (normalizedType === "error") {
+      return (
+        matchLabel([
+          { pattern: /\bnetwork\b|\boffline\b|\bconnection\b|\binternet\b/, label: "No network" },
+          { pattern: /\bpermission\b|\baccess\b|\bunauthorized\b|\bforbidden\b/, label: "No access" },
+          { pattern: /\brequired\b|\bmissing\b|\bhighlighted\b|\binvalid\b|\bwrong\b|\bvalid\b/, label: "Check fields" },
+          { pattern: /\balready\b|\bduplicate\b|\bexists\b/, label: "Already exists" },
+          { pattern: /\bexpired\b/, label: "Expired" },
+        ]) || "Failed"
+      );
+    }
+
+    if (normalizedType === "info") {
+      return (
+        matchLabel([
+          { pattern: /\bedit(ing)?\b/, label: "Editing" },
+          { pattern: /\bload(ing)?\b|\bprocess(ing)?\b|\bwait\b/, label: "Working" },
+          { pattern: /\brequired\b|\bneed\b/, label: "Required" },
+          { pattern: /\bempty\b|\bnone\b|\bno\b/, label: "No data" },
+        ]) || "Info"
+      );
+    }
+
+    return normalizedType ? normalizedType.charAt(0).toUpperCase() + normalizedType.slice(1) : "Info";
+  }
+
+  function getInlineStatusDisplay(type, message) {
+    const plainMessage = stripStatusMessage(message);
+    const compactLabel = getCompactStatusLabel(type, plainMessage);
+    const genericLabels = new Set(["Done", "Failed", "Info"]);
+    const shouldUseSentence = genericLabels.has(compactLabel) && plainMessage.length > 80;
+    return {
+      text: shouldUseSentence
+        ? plainMessage.length > 180
+          ? `${plainMessage.slice(0, 177).trim()}...`
+          : plainMessage
+        : compactLabel,
+      isSentence: shouldUseSentence,
+    };
+  }
+
   function clearInlineActionFeedback(button) {
     const hostId = button?.dataset?.inlineFeedbackId || "";
     const host = hostId ? document.getElementById(hostId) : null;
@@ -26572,37 +26645,41 @@
   function showInlineActionFeedback(statusTarget, type, message) {
     const context = lastActionFeedbackContext;
     if (!context?.button || !document.contains(context.button)) {
-      return;
+      return false;
     }
 
     if (context.page !== getPage() || Date.now() - context.clickedAt > 9000) {
       clearInlineActionFeedback(context.button);
-      return;
-    }
-
-    if (!actionFeedbackScopesMatch(context.button, statusTarget)) {
-      return;
+      return false;
     }
 
     const plainMessage = stripStatusMessage(message);
     if (!plainMessage) {
       clearInlineActionFeedback(context.button);
-      return;
+      return false;
     }
 
     const host = getInlineActionFeedbackHost(context.button);
     if (!host) {
-      return;
+      return false;
     }
 
+    const display = getInlineStatusDisplay(type, plainMessage);
     host.hidden = false;
-    host.className = `inline-action-feedback inline-action-feedback--${type || "info"}`;
-    host.textContent = plainMessage.length > 120 ? `${plainMessage.slice(0, 117).trim()}...` : plainMessage;
+    host.className = [
+      "inline-action-feedback",
+      `inline-action-feedback--${type || "info"}`,
+      display.isSentence ? "inline-action-feedback--sentence" : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+    host.textContent = display.text;
 
     window.clearTimeout(context.clearTimer);
     context.clearTimer = window.setTimeout(() => {
       clearInlineActionFeedback(context.button);
     }, type === "error" ? 9000 : 6000);
+    return true;
   }
 
   function initActionFeedbackTracking() {
@@ -26640,10 +26717,18 @@
       return;
     }
 
+    const shownInline = showInlineActionFeedback(target, type, message);
+    if (shownInline) {
+      target.hidden = true;
+      target.className = "auth-status";
+      target.innerHTML = "";
+      return;
+    }
+
+    const display = getInlineStatusDisplay(type, message);
     target.hidden = false;
     target.className = `auth-status auth-status--${type}`;
-    target.innerHTML = message;
-    showInlineActionFeedback(target, type, message);
+    target.textContent = display.text;
   }
 
   function clearFieldErrors(form) {

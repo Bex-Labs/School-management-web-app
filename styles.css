@@ -2917,6 +2917,20 @@ body[data-page="home"] .product-hero::after {
   color: #224d80;
 }
 
+.inline-action-feedback--sentence {
+  display: flex;
+  flex-basis: 100%;
+  width: fit-content;
+  max-width: min(460px, 100%);
+  min-height: 0;
+  margin: 4px 0 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  font-weight: 750;
+  white-space: normal;
+}
+
 input[type="file"] {
   color: #53647f;
   font-size: 0.84rem;
@@ -19675,4 +19689,81 @@ body.super-admin-page .super-admin-empty strong {
   body.super-admin-page .super-admin-workspace-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+:where(
+  input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="file"]):not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select
+):disabled,
+:where(
+  input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="file"]):not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select
+)[readonly],
+:where(
+  input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="file"]):not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select
+)[aria-disabled="true"] {
+  border-color: #d5deea !important;
+  background: #eef2f7 !important;
+  color: #7b8797 !important;
+  -webkit-text-fill-color: #7b8797;
+  cursor: not-allowed !important;
+  opacity: 1 !important;
+  box-shadow: none !important;
+}
+
+:where(
+  input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="file"]):not([type="checkbox"]):not([type="radio"]),
+  textarea
+):disabled::placeholder,
+:where(
+  input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="file"]):not([type="checkbox"]):not([type="radio"]),
+  textarea
+)[readonly]::placeholder,
+:where(
+  input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="file"]):not([type="checkbox"]):not([type="radio"]),
+  textarea
+)[aria-disabled="true"]::placeholder {
+  color: #98a6b8 !important;
+  -webkit-text-fill-color: #98a6b8;
+}
+
+:root[data-theme="dark"] :where(
+  input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="file"]):not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select
+):disabled,
+:root[data-theme="dark"] :where(
+  input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="file"]):not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select
+)[readonly],
+:root[data-theme="dark"] :where(
+  input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="file"]):not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select
+)[aria-disabled="true"] {
+  border-color: #2a3d56 !important;
+  background: #172235 !important;
+  color: #8fa1b8 !important;
+  -webkit-text-fill-color: #8fa1b8;
+}
+
+:root[data-theme="dark"] :where(
+  input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="file"]):not([type="checkbox"]):not([type="radio"]),
+  textarea
+):disabled::placeholder,
+:root[data-theme="dark"] :where(
+  input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="file"]):not([type="checkbox"]):not([type="radio"]),
+  textarea
+)[readonly]::placeholder,
+:root[data-theme="dark"] :where(
+  input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="file"]):not([type="checkbox"]):not([type="radio"]),
+  textarea
+)[aria-disabled="true"]::placeholder {
+  color: #6f8198 !important;
+  -webkit-text-fill-color: #6f8198;
 }
