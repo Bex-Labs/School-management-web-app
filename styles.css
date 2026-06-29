@@ -5265,11 +5265,13 @@ body.admin-dashboard-page .admin-notification-button svg {
 body.admin-dashboard-page .admin-sidebar-profile {
   margin-top: 0;
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) auto;
+  grid-template-columns: 42px minmax(0, 1fr) 30px;
   align-items: center;
-  gap: 6px;
-  padding: 9px;
-  border-radius: 12px;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px;
+  border-radius: 14px;
   background: #f1f2f7;
   flex: 0 0 auto;
 }
@@ -5303,22 +5305,36 @@ body.admin-dashboard-page .admin-profile-avatar img {
 body.admin-dashboard-page .admin-profile-copy {
   display: grid;
   gap: 4px;
+  min-width: 0;
 }
 
 body.admin-dashboard-page .admin-profile-copy strong {
   color: #17233a;
   font-size: 0.88rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 body.admin-dashboard-page .admin-profile-copy span {
   color: #80879a;
   font-size: 0.76rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 body.admin-dashboard-page .admin-profile-actions {
   display: flex;
   flex-wrap: wrap;
+  gap: 8px;
   grid-column: 1 / -1;
+  padding-top: 2px;
+}
+
+body.admin-dashboard-page .admin-profile-actions .admin-signout-button {
+  flex: 1 1 calc(50% - 4px);
+  min-width: 96px;
 }
 
 body.admin-dashboard-page .admin-signout-button {
@@ -17368,7 +17384,23 @@ body.admin-dashboard-page .portal-class-button:hover:not(:disabled) {
   flex: 0 0 auto;
   align-self: center;
   justify-self: end;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
   margin: 0;
+  border-color: rgba(104, 119, 145, 0.2);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.38);
+  color: #7a8799;
+  opacity: 0.78;
+}
+
+.theme-toggle-sidebar:hover {
+  opacity: 1;
+  border-color: rgba(104, 119, 145, 0.34);
+  background: rgba(255, 255, 255, 0.72);
+  color: #263954;
 }
 
 .theme-toggle-icon {
@@ -17382,8 +17414,8 @@ body.admin-dashboard-page .portal-class-button:hover:not(:disabled) {
 
 .theme-toggle-icon svg {
   position: absolute;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   stroke: currentColor;
   stroke-width: 1.8;
   stroke-linecap: round;
@@ -17690,6 +17722,20 @@ body.admin-dashboard-page .portal-class-button:hover:not(:disabled) {
   border-color: rgba(101, 164, 243, 0.58);
   background: rgba(47, 111, 237, 0.18);
   color: #dcecff;
+}
+
+:root[data-theme="dark"] .theme-toggle-sidebar,
+:root[data-theme="dark"] .theme-toggle-sidebar.is-dark {
+  border-color: rgba(159, 177, 199, 0.18);
+  background: rgba(255, 255, 255, 0.05);
+  color: #9fb1c7;
+}
+
+:root[data-theme="dark"] .theme-toggle-sidebar:hover,
+:root[data-theme="dark"] .theme-toggle-sidebar.is-dark:hover {
+  border-color: rgba(159, 177, 199, 0.34);
+  background: rgba(255, 255, 255, 0.1);
+  color: #e6f0fb;
 }
 
 :root[data-theme="dark"] .admin-topline-chip,
@@ -18901,10 +18947,10 @@ body.admin-dashboard-page :where(
 
   body.admin-dashboard-page .admin-sidebar-profile {
     order: 2;
-    grid-template-columns: 34px minmax(0, 1fr) auto;
+    grid-template-columns: 34px minmax(0, 1fr) 28px;
     gap: 7px;
     width: 100%;
-    padding: 7px 8px;
+    padding: 10px;
     border-radius: 13px;
   }
 
@@ -18925,17 +18971,17 @@ body.admin-dashboard-page :where(
     white-space: nowrap;
   }
 
-  body.admin-dashboard-page .theme-toggle {
-    width: 34px;
-    height: 34px;
-    min-width: 34px;
-    min-height: 34px;
+  body.admin-dashboard-page .theme-toggle-sidebar {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    min-height: 28px;
     border-radius: 11px;
   }
 
   body.admin-dashboard-page .admin-profile-actions {
     grid-column: 1 / -1;
-    justify-content: flex-end;
+    justify-content: space-between;
   }
 
   body.admin-dashboard-page .admin-signout-button {
