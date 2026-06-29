@@ -20134,6 +20134,7 @@
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
 
+      try {
       if (!isAdmin) {
         setStatus(status, "info", "Only administrators can add staff accounts.");
         return;
@@ -20290,7 +20291,11 @@
       }
 
       if (!result.user) {
-        setStatus(status, "error", "Could not save this staff account.");
+        setStatus(
+          status,
+          "error",
+          escapeHtml(result.message || "Could not save this staff account."),
+        );
         return;
       }
 
@@ -20355,6 +20360,15 @@
               DEFAULT_STAFF_PASSWORD,
             )}</strong> • The staff member must change it from their portal.`,
       );
+      } catch (error) {
+        setStatus(
+          status,
+          "error",
+          escapeHtml(
+            sanitizeUserFacingServiceMessage(error?.message, "Could not save this staff account."),
+          ),
+        );
+      }
     });
 
     listTarget.addEventListener("click", (event) => {
@@ -26585,6 +26599,7 @@
           { pattern: /\bsubmit(ted|s|ting)?\b/, label: "Submitted" },
           { pattern: /\bupload(ed|s|ing)?\b/, label: "Uploaded" },
           { pattern: /\bdownload(ed|s|ing)?\b/, label: "Downloaded" },
+          { pattern: /\bopen(ed|s|ing)?\b/, label: "Opened" },
           { pattern: /\bgenerate(d|s|ing)?\b/, label: "Generated" },
           { pattern: /\bprint(ed|s|ing)?\b/, label: "Printed" },
         ]) || "Done"
@@ -26608,6 +26623,7 @@
         matchLabel([
           { pattern: /\bedit(ing)?\b/, label: "Editing" },
           { pattern: /\bload(ing)?\b|\bprocess(ing)?\b|\bwait\b/, label: "Working" },
+          { pattern: /\bpop-?up\b|\bblocked\b/, label: "Blocked" },
           { pattern: /\brequired\b|\bneed\b/, label: "Required" },
           { pattern: /\bempty\b|\bnone\b|\bno\b/, label: "No data" },
         ]) || "Info"
@@ -26621,7 +26637,10 @@
     const plainMessage = stripStatusMessage(message);
     const compactLabel = getCompactStatusLabel(type, plainMessage);
     const genericLabels = new Set(["Done", "Failed", "Info"]);
-    const shouldUseSentence = genericLabels.has(compactLabel) && plainMessage.length > 80;
+    const isGenericError = String(type || "").trim().toLowerCase() === "error" && compactLabel === "Failed";
+    const shouldUseSentence =
+      genericLabels.has(compactLabel) &&
+      plainMessage.length > (isGenericError ? 18 : 80);
     return {
       text: shouldUseSentence
         ? plainMessage.length > 180
@@ -41485,6 +41504,7 @@
     if (applyLinkTarget) {
       const linkValueInput = document.getElementById("portal-admission-link-value");
       const copyLinkButton = document.getElementById("portal-admission-copy-link");
+      const openLinkButton = document.getElementById("portal-admission-open-link");
       const qrImage = document.getElementById("portal-admission-qr-image");
       let currentApplyLink = "";
 
@@ -41497,6 +41517,8 @@
 
         currentApplyLink = linkUrl.toString();
         applyLinkTarget.href = currentApplyLink;
+        applyLinkTarget.target = "_blank";
+        applyLinkTarget.rel = "noopener";
         applyLinkTarget.textContent = "Open/Share Application Form";
 
         if (linkValueInput) {
@@ -41530,6 +41552,18 @@
           } catch {
             setStatus(status, "info", "Copy failed on this browser. You can copy the link from the input.");
           }
+        });
+      }
+
+      if (openLinkButton) {
+        openLinkButton.addEventListener("click", () => {
+          if (!currentApplyLink) {
+            setStatus(status, "error", "Application link is not ready.");
+            return;
+          }
+
+          window.open(currentApplyLink, "_blank", "noopener,noreferrer");
+          setStatus(status, "success", "Application page opened.");
         });
       }
     }

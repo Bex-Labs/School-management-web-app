@@ -13054,9 +13054,18 @@ body.admin-dashboard-page .portal-admission-share {
 
 body.admin-dashboard-page .portal-admission-share-copy {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) max-content max-content;
   gap: 12px;
   align-items: end;
+}
+
+body.admin-dashboard-page .portal-admission-share-copy .button {
+  min-height: 38px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 0.84rem;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 body.admin-dashboard-page .portal-admission-doc-upload-grid {
