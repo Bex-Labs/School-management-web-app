@@ -14166,6 +14166,36 @@
       );
     };
 
+    const getTeacherPersistenceValue = (teacher = {}) =>
+      String(teacher.email || teacher.name || teacher.id || "").trim();
+
+    const getClassTeacherForTimetable = (classRecord = getSelectedClass()) =>
+      classRecord ? resolveTeacherDirectoryValue(classRecord.classTeacher || "") : null;
+
+    const assignClassTeacherFromTimetable = (classRecord = null, teacherId = "", options = {}) => {
+      if (!classRecord || !classManager || typeof classManager.upsertClass !== "function") {
+        return false;
+      }
+      if (String(classRecord.classTeacher || "").trim()) {
+        return false;
+      }
+      if (options.skipSubjectTeacher) {
+        return false;
+      }
+
+      const teacher = getTeacherDirectory().find((entry) => entry.id === String(teacherId || "").trim()) || null;
+      const teacherValue = getTeacherPersistenceValue(teacher);
+      if (!teacherValue) {
+        return false;
+      }
+
+      classManager.upsertClass({
+        ...classRecord,
+        classTeacher: teacherValue,
+      });
+      return true;
+    };
+
     const getAutoAssignedTeacherForSubject = () => {
       const subjectSelect = form.elements.subjectId;
       const selectedSubjectId = String(subjectSelect?.value || "").trim();
@@ -14194,11 +14224,26 @@
       const autoTeacher = getAutoAssignedTeacherForSubject();
       if (autoTeacher) {
         teacherSelect.value = autoTeacher.id;
+        teacherSelect.dataset.autoAssignedTeacher = autoTeacher.id;
         teacherSelect.disabled = true;
         if (teacherField) {
           teacherField.hidden = true;
         }
         return;
+      }
+      const previousAutoTeacher = String(teacherSelect.dataset.autoAssignedTeacher || "").trim();
+      if (previousAutoTeacher && teacherSelect.value === previousAutoTeacher) {
+        teacherSelect.value = "";
+      }
+      delete teacherSelect.dataset.autoAssignedTeacher;
+      if (teacherSelect.value && !getTeacherDirectory().some((teacher) => teacher.id === teacherSelect.value)) {
+        teacherSelect.value = "";
+      }
+      if (!teacherSelect.value) {
+        const classTeacher = getClassTeacherForTimetable();
+        if (classTeacher) {
+          teacherSelect.value = classTeacher.id;
+        }
       }
       if (teacherField) {
         teacherField.hidden = false;
@@ -14458,6 +14503,8 @@
 
       const entryId = String(form.elements.timetableEntryId?.value || "").trim();
       const existing = manager.getEntries().find((row) => row.id === entryId) || null;
+      const selectedClassForTeacherSync = getSelectedClass();
+      const autoTeacherForSubject = getAutoAssignedTeacherForSubject();
       const payload = buildEntryPayloadFromForm();
       payload.status = existing ? existing.status : "draft";
 
@@ -14500,12 +14547,16 @@
       }
 
       manager.upsertEntry(payload);
+      const classTeacherUpdated = assignClassTeacherFromTimetable(selectedClassForTeacherSync, payload.teacherId, {
+        skipSubjectTeacher: Boolean(autoTeacherForSubject),
+      });
       const teacher = getTeacherDirectory().find((entry) => entry.id === payload.teacherId);
       const load = manager.getTeacherLoad(payload);
       const workloadCopy =
         teacher && load.count > teacher.maxPeriodsPerWeek
           ? ` Workload warning: ${teacher.name} now has ${load.count}/${teacher.maxPeriodsPerWeek} periods.`
           : "";
+      const classTeacherCopy = classTeacherUpdated ? " Class teacher updated." : "";
       recordAuditEvent({
         action: existing ? "updated" : "created",
         entityType: "timetable",
@@ -14513,7 +14564,10 @@
         summary: `${existing ? "Updated" : "Created"} timetable lesson for ${payload.classLevel}`,
         details: `${payload.periodId} • ${payload.subject}`,
       });
-      setTimetableStatus("success", `Lesson for <strong>${escapeHtml(payload.classLevel)}</strong> saved.${escapeHtml(workloadCopy)}`);
+      setTimetableStatus(
+        "success",
+        `Lesson for <strong>${escapeHtml(payload.classLevel)}</strong> saved.${classTeacherCopy}${escapeHtml(workloadCopy)}`,
+      );
       clearFormDraftFor(form);
       resetPortalTimetableForm(form, isAdmin);
       state.selectedPeriodId = "";
