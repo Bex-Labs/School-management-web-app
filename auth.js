@@ -23161,6 +23161,16 @@
     return `${year}-${month}-${day}`;
   }
 
+  function isDateValueAfterToday(value = "") {
+    const dateValue = String(value || "").trim();
+    return /^\d{4}-\d{2}-\d{2}$/.test(dateValue) && dateValue > getTodayDateValue();
+  }
+
+  function clampDateValueToToday(value = "") {
+    const dateValue = String(value || "").trim();
+    return dateValue && !isDateValueAfterToday(dateValue) ? dateValue : getTodayDateValue();
+  }
+
   function normalizeAttendanceStatus(value) {
     const normalized = String(value || "present").trim().toLowerCase();
     return ATTENDANCE_STATUSES.includes(normalized) ? normalized : "present";
@@ -23380,8 +23390,6 @@
   function getTeacherAssignedClasses(user = {}) {
     const classManager = getClassManager();
     const courseManager = getCourseManager();
-    const teacherEmail = normalizeEmail(user.email || "");
-    const teacherName = String(user.displayName || user.email || "").trim().toLowerCase();
     const classes =
       classManager && typeof classManager.getClasses === "function"
         ? classManager.getClasses().filter((record) => record.status !== "archived")
@@ -23394,42 +23402,48 @@
             .filter((record) => courseMatchesAcademicPeriod(record))
         : [];
     const teacherCourses = courses.filter((course) =>
-      (course.teacherAssignments || []).some((teacher) => {
-        const value = String(teacher || "").trim();
-        return normalizeEmail(value) === teacherEmail || value.toLowerCase() === teacherName;
-      }),
+      (course.teacherAssignments || []).some((teacher) => staffValueMatchesUser(teacher, user)),
     );
-    const courseClassIds = new Set(
-      teacherCourses
-        .map((course) => String(course.classId || course.classRecordId || "").trim())
-        .filter(Boolean),
-    );
-    const courseLevelTokens = new Set(
-      teacherCourses
-        .filter((course) => !String(course.classId || course.classRecordId || "").trim())
-        .map((course) =>
-          String(course.classScope || "").trim().toLowerCase() === "all-arms"
-            ? normalizeLevelToken(course.level)
-            : normalizeLevelToken(course.classLabel || course.level),
-        )
-        .filter(Boolean),
-    );
-    const assigned = classes.filter((classRecord) => {
-      const classTeacher = String(classRecord.classTeacher || "").trim();
-      const isClassTeacher =
-        normalizeEmail(classTeacher) === teacherEmail || classTeacher.toLowerCase() === teacherName;
-      const hasSubjectAssignment = (classRecord.teacherAssignments || []).some((assignment) => {
-        const assignmentTeacher = String(assignment?.teacher || "").trim();
-        return normalizeEmail(assignmentTeacher) === teacherEmail || assignmentTeacher.toLowerCase() === teacherName;
-      });
-      const exactClassTokens = [
-        normalizeLevelToken(classRecord.level),
+    const courseTargetsStaffClass = (course = {}, classRecord = {}) => {
+      const courseClassId = String(course.classId || course.classRecordId || "").trim();
+      const classId = String(classRecord.id || "").trim();
+      if (courseClassId) {
+        return Boolean(classId && courseClassId === classId);
+      }
+
+      const courseScope = String(course.classScope || "").trim().toLowerCase();
+      if (courseScope === "all-arms") {
+        return normalizeLevelToken(course.level) === normalizeLevelToken(classRecord.level);
+      }
+
+      const hasDistinctArm =
+        classRecord.name &&
+        classRecord.level &&
+        normalizeLevelToken(classRecord.name) !== normalizeLevelToken(classRecord.level);
+      const classTokens = [
         normalizeLevelToken(getClassDisplayName(classRecord)),
         normalizeLevelToken(`${classRecord.level || ""} ${classRecord.name || ""}`),
+        normalizeLevelToken(classRecord.name),
       ].filter(Boolean);
-      const hasCourseAssignment =
-        courseClassIds.has(String(classRecord.id || "").trim()) ||
-        exactClassTokens.some((token) => courseLevelTokens.has(token));
+      const courseClassLabelToken = normalizeLevelToken(
+        course.classLabel || (course.classArm ? `${course.level || ""} ${course.classArm}` : ""),
+      );
+      if (courseClassLabelToken) {
+        return (
+          classTokens.includes(courseClassLabelToken) ||
+          (!hasDistinctArm && courseClassLabelToken === normalizeLevelToken(classRecord.level))
+        );
+      }
+
+      const courseLevelToken = normalizeLevelToken(course.level);
+      return Boolean(!hasDistinctArm && courseLevelToken && courseLevelToken === normalizeLevelToken(classRecord.level));
+    };
+    const assigned = classes.filter((classRecord) => {
+      const isClassTeacher = staffValueMatchesUser(classRecord.classTeacher, user);
+      const hasSubjectAssignment = (classRecord.teacherAssignments || []).some((assignment) => {
+        return staffValueMatchesUser(assignment?.teacher, user);
+      });
+      const hasCourseAssignment = teacherCourses.some((course) => courseTargetsStaffClass(course, classRecord));
 
       return isClassTeacher || hasSubjectAssignment || hasCourseAssignment;
     });
@@ -29110,9 +29124,13 @@
 
     const manager = getAttendanceManager();
     const assignedClasses = getTeacherAssignedClasses(user);
-    const selectedDate = target.dataset.attendanceDate || getTodayDateValue();
+    const todayDate = getTodayDateValue();
+    const requestedDate = target.dataset.attendanceDate || todayDate;
+    const selectedDate = clampDateValueToToday(requestedDate);
     const flashMessage = target.dataset.attendanceFlash || "";
+    const flashType = target.dataset.attendanceFlashType || "success";
     delete target.dataset.attendanceFlash;
+    delete target.dataset.attendanceFlashType;
     const lessonOptions = getTeacherAttendanceLessonOptions(user, selectedDate, assignedClasses);
     const selectedLessonId = lessonOptions.some((lesson) => lesson.id === target.dataset.attendanceLessonId)
       ? target.dataset.attendanceLessonId
@@ -29196,7 +29214,7 @@
         <div class="attendance-toolbar">
           <label class="portal-field" for="teacher-attendance-date">
             <span>Date</span>
-            <input id="teacher-attendance-date" type="date" value="${escapeHtml(selectedDate)}" data-teacher-attendance-date />
+            <input id="teacher-attendance-date" type="date" value="${escapeHtml(selectedDate)}" max="${escapeHtml(todayDate)}" data-teacher-attendance-date />
           </label>
           <label class="portal-field" for="teacher-attendance-lesson">
             <span>Lesson / subject</span>
@@ -29284,12 +29302,18 @@
     const statusTarget = target.querySelector("#teacher-attendance-status");
 
     if (flashMessage && statusTarget) {
-      setStatus(statusTarget, "success", flashMessage);
+      setStatus(statusTarget, flashType, flashMessage);
     }
 
     if (dateInput instanceof HTMLInputElement) {
+      dateInput.max = todayDate;
       dateInput.addEventListener("change", () => {
-        target.dataset.attendanceDate = dateInput.value || getTodayDateValue();
+        const nextDate = clampDateValueToToday(dateInput.value || todayDate);
+        if (nextDate !== dateInput.value) {
+          target.dataset.attendanceFlashType = "info";
+          target.dataset.attendanceFlash = "Future dates are not allowed.";
+        }
+        target.dataset.attendanceDate = nextDate;
         renderTeacherAttendanceWorkspace(target, user);
       });
     }
@@ -29358,6 +29382,18 @@
       form.addEventListener("change", persistAttendanceDraft);
       form.addEventListener("submit", (event) => {
         event.preventDefault();
+        const submissionDateValue = String(
+          dateInput instanceof HTMLInputElement ? dateInput.value || todayDate : selectedDate,
+        ).trim();
+        if (isDateValueAfterToday(submissionDateValue)) {
+          setStatus(statusTarget, "error", "Future dates are not allowed.");
+          if (dateInput instanceof HTMLInputElement) {
+            dateInput.value = todayDate;
+          }
+          target.dataset.attendanceDate = todayDate;
+          return;
+        }
+        const submissionDate = clampDateValueToToday(submissionDateValue);
 
         const studentLookup = new Map(roster.map((student) => [student.id, student]));
         const entries = Array.from(form.querySelectorAll("[data-attendance-student-row]"))
@@ -29391,16 +29427,16 @@
           cycleManager && typeof cycleManager.getState === "function"
             ? cycleManager.getState()
             : { sessions: [], terms: [] };
-        const academicTerm = getAttendanceAcademicTermForDate(cycleState, selectedDate);
+        const academicTerm = getAttendanceAcademicTermForDate(cycleState, submissionDate);
         const savedRecords = manager.upsertRecord({
           id: existingRecord?.id,
-          date: selectedDate,
+          date: submissionDate,
           classId: selectedClass.id,
           lessonId: selectedLessonRecordId,
           timetableEntryId: selectedLesson?.timetableEntryId || "",
           subject: selectedLesson?.subject || "",
           periodId: selectedLesson?.periodId || "",
-          day: selectedLesson?.day || getDayNameFromDateValue(selectedDate),
+          day: selectedLesson?.day || getDayNameFromDateValue(submissionDate),
           startTime: selectedLesson?.startTime || "",
           endTime: selectedLesson?.endTime || "",
           weekType: selectedLesson?.weekType || "",
@@ -29417,7 +29453,7 @@
           savedRecords.find(
             (record) =>
               record.classId === selectedClass.id &&
-              record.date === selectedDate &&
+              record.date === submissionDate &&
               String(record.lessonId || "") === selectedLessonRecordId,
           ) || null;
 
