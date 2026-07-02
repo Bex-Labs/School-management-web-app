@@ -14172,6 +14172,25 @@
     const getClassTeacherForTimetable = (classRecord = getSelectedClass()) =>
       classRecord ? resolveTeacherDirectoryValue(classRecord.classTeacher || "") : null;
 
+    const syncSelectedClassTeacherControls = (options = {}) => {
+      const classTeacher = getClassTeacherForTimetable();
+      const teacherSelect = form.elements.teacherId;
+      const shouldForce = Boolean(options.force);
+      if (teacherSelect instanceof HTMLSelectElement) {
+        if (classTeacher) {
+          teacherSelect.value = classTeacher.id;
+          teacherSelect.dataset.classTeacherAuto = "true";
+        } else if (shouldForce || teacherSelect.dataset.classTeacherAuto === "true") {
+          teacherSelect.value = "";
+          delete teacherSelect.dataset.classTeacherAuto;
+        }
+      }
+      if (teacherViewSelect instanceof HTMLSelectElement && options.syncTeacherView) {
+        teacherViewSelect.value = classTeacher ? classTeacher.id : "";
+      }
+      return classTeacher;
+    };
+
     const assignClassTeacherFromTimetable = (classRecord = null, teacherId = "", options = {}) => {
       if (!classRecord || !classManager || typeof classManager.upsertClass !== "function") {
         return false;
@@ -14221,6 +14240,18 @@
         return;
       }
       const teacherField = teacherSelect.closest(".portal-field");
+      const classTeacher = getClassTeacherForTimetable();
+      if (classTeacher) {
+        teacherSelect.value = classTeacher.id;
+        teacherSelect.dataset.classTeacherAuto = "true";
+        delete teacherSelect.dataset.autoAssignedTeacher;
+        teacherSelect.disabled = true;
+        if (teacherField) {
+          teacherField.hidden = false;
+        }
+        return;
+      }
+      delete teacherSelect.dataset.classTeacherAuto;
       const autoTeacher = getAutoAssignedTeacherForSubject();
       if (autoTeacher) {
         teacherSelect.value = autoTeacher.id;
@@ -14240,10 +14271,7 @@
         teacherSelect.value = "";
       }
       if (!teacherSelect.value) {
-        const classTeacher = getClassTeacherForTimetable();
-        if (classTeacher) {
-          teacherSelect.value = classTeacher.id;
-        }
+        syncSelectedClassTeacherControls();
       }
       if (teacherField) {
         teacherField.hidden = false;
@@ -14382,6 +14410,7 @@
       const selectedSubjectId = String(form.elements.subjectId?.value || "").trim();
       const selectedSubject = subjectOptions.find((subject) => subject.id === selectedSubjectId) || null;
       const selectedTeacher =
+        getClassTeacherForTimetable(selectedClass) ||
         getAutoAssignedTeacherForSubject() ||
         getTeacherDirectory().find((teacher) => teacher.id === String(form.elements.teacherId?.value || "").trim()) ||
         null;
@@ -14487,6 +14516,9 @@
           state.selectedPeriodId = "";
         }
         applySessionTermClassOptions();
+        if (control === classSelect) {
+          syncSelectedClassTeacherControls({ force: true, syncTeacherView: true });
+        }
         refresh();
       });
     });
@@ -22321,17 +22353,6 @@
           <span>${viewMode === "teacher" && selectedTeacher ? "teacher workload" : "lessons in this class grid"}</span>
         </div>
       </section>
-      <section class="portal-class-card portal-timetable-panel portal-timetable-saved-panel">
-        <div class="portal-class-card-head">
-          <div class="portal-class-title">
-            <strong>Class timetables</strong>
-            <span>${classTimetableGroups.length} saved timetable${classTimetableGroups.length === 1 ? "" : "s"} available for view, print, or edit</span>
-          </div>
-        </div>
-        <div class="portal-timetable-entry-list">
-          ${classTimetableListHtml}
-        </div>
-      </section>
       <div class="portal-timetable-grid" style="--timetable-day-count:${days.length}">
         <div class="portal-timetable-grid-corner">Period</div>
         ${days.map((day) => `<div class="portal-timetable-day-head">${escapeHtml(day.slice(0, 3))}</div>`).join("")}
@@ -22381,6 +22402,17 @@
         </div>
       </section>
       ${archivedCount ? `<p class="auth-helper-text">${archivedCount} archived timetable lesson${archivedCount === 1 ? "" : "s"} retained for audit history.</p>` : ""}
+      <section class="portal-class-card portal-timetable-panel portal-timetable-saved-panel">
+        <div class="portal-class-card-head">
+          <div class="portal-class-title">
+            <strong>Class timetables</strong>
+            <span>${classTimetableGroups.length} saved timetable${classTimetableGroups.length === 1 ? "" : "s"} available for view, print, or edit</span>
+          </div>
+        </div>
+        <div class="portal-timetable-entry-list">
+          ${classTimetableListHtml}
+        </div>
+      </section>
     `;
   }
 
@@ -30151,8 +30183,8 @@
     const classById = new Map(classes.map((classRecord) => [String(classRecord.id || "").trim(), classRecord]));
     const findClassForEntry = (entry = {}) => {
       const entryClassId = String(entry.classId || "").trim();
-      if (entryClassId && classById.has(entryClassId)) {
-        return classById.get(entryClassId);
+      if (entryClassId) {
+        return classById.get(entryClassId) || null;
       }
 
       const entryClassToken = normalizeLevelToken(entry.classLevel);
@@ -30161,7 +30193,6 @@
           [
             normalizeLevelToken(getClassDisplayName(classRecord)),
             normalizeLevelToken(`${classRecord.level || ""} ${classRecord.name || ""}`),
-            normalizeLevelToken(classRecord.level),
           ]
             .filter(Boolean)
             .includes(entryClassToken),
@@ -31372,11 +31403,19 @@
       return [];
     }
 
-    return classManager
+    const activeClasses = classManager
       .getClasses()
-      .filter((record) => record.status !== "archived")
+      .filter((record) => record.status !== "archived");
+
+    if (studentClassId) {
+      const exactClass = activeClasses.find((record) => String(record.id || "").trim() === studentClassId);
+      if (exactClass) {
+        return [exactClass];
+      }
+    }
+
+    return activeClasses
       .filter((record) =>
-        (studentClassId && String(record.id || "").trim() === studentClassId) ||
         [
           record.id,
           record.level,
@@ -31691,10 +31730,13 @@
     const activeTermOnly = options.activeTermOnly !== false;
     const classRecords = getStudentPortalClassRecords(student);
     const classIds = new Set(classRecords.map((record) => String(record.id || "").trim()).filter(Boolean));
-    const classTokens = new Set(
+    const exactClassTokens = new Set(
       [
-        student.level,
-        ...classRecords.flatMap((record) => [record.level, record.name, getClassDisplayName(record)]),
+        ...(classIds.size ? [] : [student.level]),
+        ...classRecords.flatMap((record) => [
+          getClassDisplayName(record),
+          `${record.level || ""} ${record.name || ""}`,
+        ]),
       ]
         .map((value) => normalizeLevelToken(value))
         .filter(Boolean),
@@ -31713,9 +31755,12 @@
         if (activeTermOnly && openTerm?.id && entry.termId && entry.termId !== openTerm.id) {
           return false;
         }
+        const entryClassId = String(entry.classId || "").trim();
+        if (entryClassId) {
+          return classIds.has(entryClassId);
+        }
         return (
-          (entry.classId && classIds.has(String(entry.classId || "").trim())) ||
-          classTokens.has(normalizeLevelToken(entry.classLevel))
+          exactClassTokens.has(normalizeLevelToken(entry.classLevel))
         );
       })
       .sort((left, right) => {
@@ -39895,21 +39940,20 @@
         : [];
     const classRecord = findClassRecordForStudent(student || {});
     const classId = String(student?.classId || student?.classRecordId || classRecord?.id || "").trim();
-    const tokens = [
-      normalizeLevelToken(student?.level),
-      normalizeLevelToken(student?.classLevel || student?.baseLevel),
-      normalizeLevelToken(getStudentBaseClassLevel(student || {})),
+    const exactTokens = [
+      ...(classId ? [] : [normalizeLevelToken(student?.level)]),
       normalizeLevelToken(classRecord ? getClassDisplayName(classRecord) : ""),
+      normalizeLevelToken(classRecord ? `${classRecord.level || ""} ${classRecord.name || ""}` : ""),
     ].filter(Boolean);
 
     return entries
       .filter((entry) => entry.status !== "archived")
       .filter((entry) => {
         const entryClassId = String(entry.classId || "").trim();
-        if (classId && entryClassId && entryClassId === classId) {
-          return true;
+        if (entryClassId) {
+          return Boolean(classId && entryClassId === classId);
         }
-        return tokens.includes(normalizeLevelToken(entry.classLevel));
+        return exactTokens.includes(normalizeLevelToken(entry.classLevel));
       })
       .sort((left, right) => {
         const dayComparison = String(left.day || "").localeCompare(String(right.day || ""));
