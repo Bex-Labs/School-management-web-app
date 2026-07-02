@@ -7403,6 +7403,18 @@ body.admin-dashboard-page .portal-staff-avatar {
   color: #3462ff;
   font-size: 0.82rem;
   font-weight: 800;
+  overflow: hidden;
+}
+
+body.admin-dashboard-page .portal-staff-avatar.is-image {
+  background: #ffffff;
+  color: transparent;
+}
+
+body.admin-dashboard-page .portal-staff-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 body.admin-dashboard-page .portal-staff-main,
@@ -8636,6 +8648,61 @@ body.admin-dashboard-page .portal-fee-invoice-table {
   padding: 0 14px 14px;
 }
 
+body.admin-dashboard-page .portal-fee-invoice-arm-group {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #e4ebf5;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+
+body.admin-dashboard-page .portal-fee-invoice-arm-group > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+body.admin-dashboard-page .portal-fee-invoice-arm-group > summary::-webkit-details-marker {
+  display: none;
+}
+
+body.admin-dashboard-page .portal-fee-invoice-arm-group > summary::before {
+  content: "›";
+  color: #63708a;
+  font-size: 1rem;
+  line-height: 1;
+  transition: transform 160ms ease;
+}
+
+body.admin-dashboard-page .portal-fee-invoice-arm-group[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+body.admin-dashboard-page .portal-fee-invoice-arm-group > summary strong {
+  color: #17233a;
+  font-size: 0.86rem;
+}
+
+body.admin-dashboard-page .portal-fee-invoice-arm-group > summary span,
+body.admin-dashboard-page .portal-fee-invoice-arm-group > summary small {
+  color: #667188;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+body.admin-dashboard-page .portal-fee-invoice-arm-group > summary small {
+  margin-left: auto;
+}
+
+body.admin-dashboard-page .portal-fee-invoice-arm-list {
+  display: grid;
+  gap: 10px;
+  padding: 0 10px 10px;
+}
+
 body.admin-dashboard-page .portal-fee-invoice-row {
   display: grid;
   grid-template-columns: minmax(190px, 1.2fr) minmax(140px, 0.8fr) minmax(140px, 0.75fr) minmax(120px, 0.7fr) auto;
@@ -9796,6 +9863,43 @@ body.admin-dashboard-page .portal-chat-bubble-copy {
   white-space: pre-wrap;
 }
 
+body.admin-dashboard-page .portal-message-attachment-list {
+  display: grid;
+  gap: 6px;
+}
+
+body.admin-dashboard-page .portal-message-attachment {
+  display: grid;
+  gap: 2px;
+  padding: 9px 11px;
+  border: 1px solid #d7e4f3;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #17233a;
+  text-decoration: none;
+}
+
+body.admin-dashboard-page .portal-chat-bubble.is-outgoing .portal-message-attachment {
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+}
+
+body.admin-dashboard-page .portal-message-attachment strong {
+  overflow-wrap: anywhere;
+  font-size: 0.78rem;
+}
+
+body.admin-dashboard-page .portal-message-attachment span {
+  color: #667188;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+body.admin-dashboard-page .portal-chat-bubble.is-outgoing .portal-message-attachment span {
+  color: rgba(255, 255, 255, 0.8);
+}
+
 body.admin-dashboard-page .portal-chat-bubble.is-outgoing .portal-chat-bubble-copy {
   border-color: #2f6fed;
   background: #2f6fed;
@@ -9873,6 +9977,70 @@ body.admin-dashboard-page .portal-whatsapp-toggle {
 body.admin-dashboard-page .portal-whatsapp-toggle input {
   width: 16px;
   height: 16px;
+}
+
+body.admin-dashboard-page .portal-message-attach {
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+  gap: 8px;
+  color: #2f5f95;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+body.admin-dashboard-page .portal-message-attach input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  cursor: pointer;
+  opacity: 0;
+}
+
+body.admin-dashboard-page .portal-message-attach span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid #c9ddf7;
+  border-radius: 999px;
+  background: #f6faff;
+  color: #2f6fed;
+}
+
+body.admin-dashboard-page .portal-message-attach:focus-within span {
+  border-color: #2f6fed;
+  box-shadow: 0 0 0 3px rgba(47, 111, 237, 0.14);
+}
+
+body.admin-dashboard-page .portal-message-attachment-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+body.admin-dashboard-page .portal-message-attachment-preview span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  padding: 6px 9px;
+  border: 1px solid #d7e4f3;
+  border-radius: 999px;
+  background: #f7fbff;
+  color: #26364d;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+body.admin-dashboard-page .portal-message-attachment-preview small {
+  color: #667188;
+  font-size: 0.68rem;
 }
 
 body.admin-dashboard-page .portal-chat-compose-row {
@@ -10114,6 +10282,16 @@ body.admin-dashboard-page .parent-fee-invoice-lines {
 
   body.admin-dashboard-page .portal-fee-invoice-class-toolbar .button {
     width: 100%;
+  }
+
+  body.admin-dashboard-page .portal-fee-invoice-arm-group > summary {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  body.admin-dashboard-page .portal-fee-invoice-arm-group > summary small {
+    width: 100%;
+    margin-left: 24px;
   }
 
   body.admin-dashboard-page .portal-fee-invoice-row-actions {
@@ -12161,6 +12339,18 @@ body.admin-dashboard-page .portal-staff-profile-avatar {
   font-weight: 900;
   letter-spacing: 0.04em;
   box-shadow: inset 0 0 0 1px #d7e7fb;
+  overflow: hidden;
+}
+
+body.admin-dashboard-page .portal-staff-profile-avatar.is-image {
+  background: #ffffff;
+  color: transparent;
+}
+
+body.admin-dashboard-page .portal-staff-profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 body.admin-dashboard-page .portal-staff-profile-copy {
@@ -17772,6 +17962,8 @@ body.admin-dashboard-page .portal-class-button:hover:not(:disabled) {
 :root[data-theme="dark"] .portal-fee-invoice-class-group,
 :root[data-theme="dark"] .portal-fee-invoice-class-group > summary,
 :root[data-theme="dark"] .portal-fee-invoice-class-toolbar,
+:root[data-theme="dark"] .portal-fee-invoice-arm-group,
+:root[data-theme="dark"] .portal-fee-invoice-arm-group > summary,
 :root[data-theme="dark"] .portal-fee-invoice-row,
 :root[data-theme="dark"] .portal-admission-open-classes-shell summary,
 :root[data-theme="dark"] .portal-admission-choice,
@@ -17800,6 +17992,7 @@ body.admin-dashboard-page .portal-class-button:hover:not(:disabled) {
 :root[data-theme="dark"] .portal-fee-invoice-class-title > strong,
 :root[data-theme="dark"] .portal-fee-invoice-class-totals strong,
 :root[data-theme="dark"] .portal-fee-invoice-class-toolbar strong,
+:root[data-theme="dark"] .portal-fee-invoice-arm-group > summary strong,
 :root[data-theme="dark"] .portal-fee-invoice-row strong,
 :root[data-theme="dark"] .portal-list-subheading,
 :root[data-theme="dark"] .portal-admission-setup-card strong,
@@ -17829,6 +18022,8 @@ body.admin-dashboard-page .portal-class-button:hover:not(:disabled) {
 :root[data-theme="dark"] .portal-fee-invoice-class-title > small,
 :root[data-theme="dark"] .portal-fee-invoice-class-totals small,
 :root[data-theme="dark"] .portal-fee-invoice-class-toolbar span,
+:root[data-theme="dark"] .portal-fee-invoice-arm-group > summary span,
+:root[data-theme="dark"] .portal-fee-invoice-arm-group > summary small,
 :root[data-theme="dark"] .portal-fee-invoice-row span,
 :root[data-theme="dark"] .portal-fee-invoice-row small,
 :root[data-theme="dark"] .portal-admission-choice-group > span,
@@ -18186,6 +18381,25 @@ body.admin-dashboard-page .portal-class-button:hover:not(:disabled) {
 :root[data-theme="dark"] .portal-conversation-empty {
   border-color: #26384f !important;
   background: #0d1726 !important;
+}
+
+:root[data-theme="dark"] .portal-message-attachment,
+:root[data-theme="dark"] .portal-message-attachment-preview span {
+  border-color: #26384f !important;
+  background: #0d1726 !important;
+  color: #f2f7ff !important;
+}
+
+:root[data-theme="dark"] .portal-message-attachment span,
+:root[data-theme="dark"] .portal-message-attachment-preview small,
+:root[data-theme="dark"] .portal-message-attach {
+  color: #9fb1c7 !important;
+}
+
+:root[data-theme="dark"] .portal-message-attach span {
+  border-color: rgba(130, 167, 226, 0.32) !important;
+  background: rgba(47, 111, 237, 0.12) !important;
+  color: #dce8ff !important;
 }
 
 :root[data-theme="dark"] .admin-report-stacked-bar,

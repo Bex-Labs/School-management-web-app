@@ -2299,23 +2299,25 @@
     recipient = {},
     message = "",
     subject = "",
+    attachments = [],
     workspaceId = null,
     metadata = {},
   } = {}) {
     const body = String(message || "").trim();
+    const safeAttachments = normalizeMessageAttachments(attachments);
     const recipientEmail = normalizeEmail(recipient.email || "");
     const recipientRole = normalizeRoleLabel(recipient.role || DEFAULT_AUTH_ROLE);
     const senderRole = normalizeRoleLabel(sender.role || DEFAULT_AUTH_ROLE);
     const senderEmail = normalizeEmail(sender.email || "");
 
-    if (!body || !recipientEmail || !["Admin", "Parent", "Teacher", "Student"].includes(recipientRole)) {
+    if ((!body && !safeAttachments.length) || !recipientEmail || !["Admin", "Parent", "Teacher", "Student"].includes(recipientRole)) {
       return null;
     }
 
     return pushNotification(
       {
         title: String(subject || `Message from ${sender.displayName || sender.email || senderRole}`).trim(),
-        message: body,
+        message: body || `${safeAttachments.length} attachment${safeAttachments.length === 1 ? "" : "s"}`,
         entityType: "school-message",
         entityId: recipientEmail,
         action: "sent",
@@ -2334,6 +2336,7 @@
           recipientEmail,
           recipientName: recipient.displayName || recipient.name || recipient.email || recipientRole,
           recipientRole,
+          attachments: safeAttachments,
         },
       },
       workspaceId || sender.workspaceId || recipient.workspaceId || getCurrentWorkspaceId(),
@@ -2656,13 +2659,14 @@
   }
 
   function buildFeePaymentWhatsAppMessage(invoice = {}) {
+    const summary = getFeeInvoicePaymentSummary(invoice);
     const lines = [
       `Fee payment notice for ${invoice.studentName || "your child"}.`,
       invoice.invoiceNo ? `Invoice: ${invoice.invoiceNo}` : "",
       invoice.classLevel ? `Class: ${invoice.classLevel}` : "",
       [invoice.sessionName, invoice.termName].filter(Boolean).join(" - "),
-      `Amount due: ${formatCurrencyAmount(invoice.totalDue || 0)}`,
-      `Balance: ${formatCurrencyAmount(invoice.balance || invoice.totalDue || 0)}`,
+      `Amount due: ${formatCurrencyAmount(summary.totalDue)}`,
+      `Balance: ${formatCurrencyAmount(summary.balance)}`,
       invoice.dueDate && invoice.dueDate !== "Not set" ? `Due date: ${invoice.dueDate}` : "",
       "Please log in to the school portal to view or download the invoice.",
     ];
@@ -6533,6 +6537,70 @@
     });
   }
 
+  const MESSAGE_ATTACHMENT_MAX_SIZE = 2 * 1024 * 1024;
+  const MESSAGE_ATTACHMENT_MAX_COUNT = 5;
+
+  async function readMessageAttachmentFiles(fileList = []) {
+    const files = Array.from(fileList || []).filter(Boolean).slice(0, MESSAGE_ATTACHMENT_MAX_COUNT);
+    const attachments = [];
+
+    for (const file of files) {
+      if (file.size > MESSAGE_ATTACHMENT_MAX_SIZE) {
+        throw new Error(`"${file.name}" is larger than 2MB.`);
+      }
+
+      attachments.push({
+        id: createId(),
+        name: String(file.name || "attachment").trim() || "attachment",
+        type: String(file.type || "File").trim() || "File",
+        size: Number(file.size) || 0,
+        dataUrl: await readFileAsDataUrl(file),
+        uploadedAt: nowIso(),
+      });
+    }
+
+    return attachments;
+  }
+
+  function normalizeMessageAttachments(attachments = []) {
+    return (Array.isArray(attachments) ? attachments : [])
+      .filter((attachment) => attachment && (attachment.name || attachment.dataUrl))
+      .slice(0, MESSAGE_ATTACHMENT_MAX_COUNT)
+      .map((attachment) => ({
+        id: String(attachment.id || createId()).trim(),
+        name: String(attachment.name || "attachment").trim() || "attachment",
+        type: String(attachment.type || "File").trim() || "File",
+        size: Number(attachment.size || attachment.sizeBytes || 0) || 0,
+        dataUrl: String(attachment.dataUrl || "").trim(),
+        uploadedAt: String(attachment.uploadedAt || nowIso()).trim(),
+      }));
+  }
+
+  function renderMessageAttachments(attachments = []) {
+    const files = normalizeMessageAttachments(attachments);
+    if (!files.length) {
+      return "";
+    }
+
+    return `
+      <div class="portal-message-attachment-list">
+        ${files
+          .map((file) => {
+            const meta = [file.type || "File", file.size ? formatFileSize(file.size) : ""].filter(Boolean).join(" • ");
+            return `
+              <a class="portal-message-attachment" href="${escapeHtml(file.dataUrl || "#")}" download="${escapeHtml(
+                file.name || "attachment",
+              )}" ${file.dataUrl ? "" : 'aria-disabled="true"'} rel="noopener">
+                <strong>${escapeHtml(file.name || "Attachment")}</strong>
+                <span>${escapeHtml(meta || "File")}</span>
+              </a>
+            `;
+          })
+          .join("")}
+      </div>
+    `;
+  }
+
   function buildDisplayName(email) {
     const localPart = normalizeEmail(email).split("@")[0];
     return localPart
@@ -6540,6 +6608,14 @@
       .filter(Boolean)
       .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
       .join(" ");
+  }
+
+  function getActiveStaffUsers(workspaceId = getCurrentWorkspaceId()) {
+    const resolvedWorkspaceId = normalizeWorkspaceId(workspaceId || getCurrentWorkspaceId());
+    return getUsers()
+      .filter((user) => normalizeWorkspaceId(user.workspaceId || "public") === resolvedWorkspaceId)
+      .filter((user) => normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE) === "Teacher")
+      .filter((user) => !isUserDeactivated(user));
   }
 
   async function upsertManagedPasswordUser({
@@ -7983,6 +8059,56 @@
     return Array.from(known.values());
   }
 
+  function getFeeInvoiceLineTotal(invoice = {}) {
+    const items = Array.isArray(invoice.invoiceItems) ? invoice.invoiceItems : [];
+    const lineTotal = items.reduce((sum, item) => sum + Number(item?.amount || 0), 0);
+    const storedTotal = Number(invoice.totalDue || 0);
+    return Math.max(0, items.length ? lineTotal : storedTotal);
+  }
+
+  function getFeeInvoicePaymentSummary(invoice = {}) {
+    const payments = (Array.isArray(invoice.payments) ? invoice.payments : [])
+      .filter((payment) => payment && Number(payment.amount || 0) > 0)
+      .sort((left, right) =>
+        String(right.paidAt || right.createdAt || "").localeCompare(
+          String(left.paidAt || left.createdAt || ""),
+        ),
+      );
+    const totalDue = getFeeInvoiceLineTotal(invoice);
+    const paymentTotal = payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+    const storedTotal = Number(invoice.totalDue || 0);
+    const rawBalance = Number(invoice.balance);
+    const hasStoredBalance =
+      invoice.balance !== undefined &&
+      invoice.balance !== null &&
+      String(invoice.balance).trim() !== "" &&
+      Number.isFinite(rawBalance);
+    const fallbackPaid = hasStoredBalance
+      ? Math.max(0, (Number.isFinite(storedTotal) && storedTotal > 0 ? storedTotal : totalDue) - Math.max(0, rawBalance))
+      : 0;
+    const totalPaid = Math.max(0, payments.length ? paymentTotal : fallbackPaid);
+    const balance = Math.max(0, totalDue - totalPaid);
+    const latestPayment =
+      payments[0] ||
+      (totalPaid > 0
+        ? {
+            amount: totalPaid,
+            paidAt: invoice.lastPaymentAt || invoice.updatedAt || invoice.invoiceGeneratedAt || "",
+            method: invoice.lastPaymentReference ? "recorded payment" : "payment",
+            reference: invoice.lastPaymentReference || "",
+            status: invoice.invoiceStatus === "paid" ? "success" : "recorded",
+          }
+        : null);
+
+    return {
+      payments,
+      totalDue,
+      totalPaid,
+      latestPayment,
+      balance,
+    };
+  }
+
   function getClassManager() {
     return window.SchoolSphereClasses || null;
   }
@@ -9397,19 +9523,22 @@
 
     const getTeacherDirectory = () => {
       const workspaceId = normalizeWorkspaceId(getCurrentWorkspaceId());
-      return getUsers()
-        .filter(
-          (user) =>
-            normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE) === "Teacher" &&
-            !isUserDeactivated(user) &&
-            normalizeWorkspaceId(user.workspaceId || "public") === workspaceId,
-        )
+      return getActiveStaffUsers(workspaceId)
         .map((user) => ({
           value: String(user.email || "").trim(),
           label: user.displayName || buildDisplayName(user.email) || "Teacher",
         }))
         .filter((item) => item.value)
         .sort((left, right) => left.label.localeCompare(right.label));
+    };
+
+    const hasActiveStaff = () => getActiveStaffUsers(getCurrentWorkspaceId()).length > 0;
+    const requireStaffBeforeClasses = () => {
+      if (hasActiveStaff()) {
+        return true;
+      }
+      setStatus(status, "info", `Create at least one staff account in <a href="./admin-teachers.html">Teachers</a> before adding classes.`);
+      return false;
     };
 
     const getSubjectOptions = () =>
@@ -9613,6 +9742,9 @@
       if (!isAdmin || !manager) {
         return;
       }
+      if (!requireStaffBeforeClasses()) {
+        return;
+      }
 
       const shouldOpen = form.hidden;
 
@@ -9648,6 +9780,13 @@
       if (assignmentList) {
         renderTeacherAssignmentRows(currentRows.length ? currentRows : [{}]);
       }
+      const canAddClasses = Boolean(isAdmin && manager && hasActiveStaff());
+      if (formToggleButton) {
+        formToggleButton.disabled = !canAddClasses;
+      }
+      if (templateGenerateButton) {
+        templateGenerateButton.disabled = !canAddClasses;
+      }
     };
 
     refreshClassManagementSection();
@@ -9665,7 +9804,7 @@
     updateTemplateVisibility();
 
     if (formToggleButton) {
-      formToggleButton.disabled = !isAdmin || !manager;
+      formToggleButton.disabled = !isAdmin || !manager || !hasActiveStaff();
       formToggleButton.addEventListener("click", toggleClassFormVisibility);
     }
 
@@ -9699,10 +9838,13 @@
     }
 
     if (templateGenerateButton) {
-      templateGenerateButton.disabled = !isAdmin || !manager;
+      templateGenerateButton.disabled = !isAdmin || !manager || !hasActiveStaff();
       templateGenerateButton.addEventListener("click", () => {
         if (!isAdmin || !manager) {
           setStatus(status, "info", "Only administrators can generate class templates.");
+          return;
+        }
+        if (!requireStaffBeforeClasses()) {
           return;
         }
 
@@ -9837,6 +9979,9 @@
 
       if (!isAdmin) {
         setStatus(status, "info", "Only administrators can manage classes.");
+        return;
+      }
+      if (!requireStaffBeforeClasses()) {
         return;
       }
 
@@ -11043,6 +11188,9 @@
       if (action === "add-arm") {
         event.preventDefault();
         event.stopPropagation();
+        if (!requireStaffBeforeClasses()) {
+          return;
+        }
         const level = String(actionButton.dataset.classLevel || "").trim();
 
         if (!level) {
@@ -11313,6 +11461,7 @@
     });
 
     window.addEventListener(manager.eventName, refreshClassManagementSection);
+    window.addEventListener(STORAGE_KEYS.users, refreshClassManagementSection);
 
     if (courseManager?.eventName) {
       window.addEventListener(courseManager.eventName, refreshClassManagementSection);
@@ -15319,16 +15468,18 @@
       const timestamp = nowIso();
       const invoiceKey = `${context.sessionId}:${context.termId}:${context.classLevel}`;
       const totalDue = feeItems.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-      const previousPaid =
-        existing.invoiceKey === invoiceKey
-          ? Math.max(0, Number(existing.totalDue || 0) - Number(existing.balance || 0))
-          : 0;
+      const sameInvoice = existing.invoiceKey === invoiceKey;
+      const previousPaid = sameInvoice ? getFeeInvoicePaymentSummary(existing).totalPaid : 0;
+      const studentClassRecord = findClassRecordForStudent(student);
+      const studentClassArm = String(studentClassRecord?.name || student.classArm || student.arm || "")
+        .trim()
+        .replace(/^Arm\s+/i, "");
       const invoiceSeed = String(student.admissionNo || student.id || "student")
         .replace(/[^a-z0-9]/gi, "")
         .slice(-6)
         .toUpperCase() || "STUDENT";
       const invoiceNo =
-        existing.invoiceKey === invoiceKey && existing.invoiceNo
+        sameInvoice && existing.invoiceNo
           ? existing.invoiceNo
           : `INV-${timestamp.slice(2, 10).replace(/-/g, "")}${timestamp.slice(11, 16).replace(":", "")}-${invoiceSeed}`;
       const itemDueDates = feeItems
@@ -15336,6 +15487,13 @@
         .filter(Boolean)
         .sort();
       const dueDate = context.dueDate || itemDueDates[itemDueDates.length - 1] || "Not set";
+      const nextBalance = Math.max(0, totalDue - previousPaid);
+      const invoiceStatus =
+        nextBalance <= 0 && totalDue > 0
+          ? "paid"
+          : previousPaid > 0
+            ? "part-paid"
+            : "issued";
 
       return {
         ...existing,
@@ -15343,14 +15501,17 @@
         studentName: student.fullName,
         admissionNo: student.admissionNo,
         classLevel: context.classLevel,
+        classArm: studentClassArm,
+        exactClassLevel: studentClassRecord ? getClassDisplayName(studentClassRecord) : student.level || context.classLevel,
+        classRecordId: studentClassRecord?.id || student.classId || student.classRecordId || "",
         sessionId: context.sessionId,
         sessionName: context.session?.name || getSessionLabelFromCycle(context.cycleState, context.sessionId),
         termId: context.termId,
         termName: context.term?.name || getTermLabelFromCycle(context.cycleState, context.termId),
         invoiceNo,
         invoiceKey,
-        invoiceStatus: "issued",
-        invoiceGeneratedAt: existing.invoiceKey === invoiceKey ? existing.invoiceGeneratedAt || timestamp : timestamp,
+        invoiceStatus,
+        invoiceGeneratedAt: sameInvoice ? existing.invoiceGeneratedAt || timestamp : timestamp,
         invoiceItems: feeItems.map((item) => ({
           feeItemId: item.id,
           category: normalizeFeeCategoryKey(item.category || FEE_CATEGORY_FALLBACK),
@@ -15360,7 +15521,11 @@
           dueDate: item.dueDate || "",
         })),
         totalDue,
-        balance: Math.max(0, totalDue - previousPaid),
+        balance: nextBalance,
+        payments: sameInvoice && Array.isArray(existing.payments) ? existing.payments : [],
+        lastPaymentAmount: sameInvoice ? existing.lastPaymentAmount || 0 : 0,
+        lastPaymentAt: sameInvoice ? existing.lastPaymentAt || "" : "",
+        lastPaymentReference: sameInvoice ? existing.lastPaymentReference || "" : "",
         dueDate,
         updatedAt: timestamp,
       };
@@ -15380,22 +15545,7 @@
     };
 
     const getInvoicePaymentSummary = (invoice = {}) => {
-      const payments = (Array.isArray(invoice.payments) ? invoice.payments : [])
-        .filter((payment) => payment && Number(payment.amount || 0) > 0)
-        .sort((left, right) =>
-          String(right.paidAt || right.createdAt || "").localeCompare(
-            String(left.paidAt || left.createdAt || ""),
-          ),
-        );
-      const totalDue = Number(invoice.totalDue || 0);
-      const balance = Number(invoice.balance || 0);
-      const totalPaid = Math.max(0, totalDue - balance);
-
-      return {
-        payments,
-        totalPaid,
-        latestPayment: payments[0] || null,
-      };
+      return getFeeInvoicePaymentSummary(invoice);
     };
 
     const renderFeeTransactionHistory = (invoice = {}) => {
@@ -15442,9 +15592,7 @@
       const includePaymentHistory = options.includePaymentHistory !== false;
       const settings = getInvoiceSchoolSettings();
       const items = Array.isArray(invoice.invoiceItems) ? invoice.invoiceItems : [];
-      const totalDue = Number(invoice.totalDue || 0);
-      const balance = Number(invoice.balance || 0);
-      const { totalPaid, latestPayment } = getInvoicePaymentSummary(invoice);
+      const { totalDue, totalPaid, latestPayment, balance } = getInvoicePaymentSummary(invoice);
       const lineRows = items.length
         ? items
             .map(
@@ -15638,7 +15786,7 @@
 
     const renderFeeTransactionPrintDocument = (invoice = {}) => {
       const settings = getInvoiceSchoolSettings();
-      const { payments, totalPaid, latestPayment } = getInvoicePaymentSummary(invoice);
+      const { payments, totalPaid, latestPayment, balance } = getInvoicePaymentSummary(invoice);
       return `
         <!doctype html>
         <html>
@@ -15687,7 +15835,7 @@
                 <article><span>Transactions</span><strong>${payments.length}</strong></article>
                 <article><span>Total paid</span><strong>${escapeHtml(formatCurrencyAmount(totalPaid))}</strong></article>
                 <article><span>Latest payment</span><strong>${escapeHtml(formatCurrencyAmount(latestPayment?.amount || 0))}</strong></article>
-                <article><span>Balance</span><strong>${escapeHtml(formatCurrencyAmount(invoice.balance || 0))}</strong></article>
+                <article><span>Balance</span><strong>${escapeHtml(formatCurrencyAmount(balance))}</strong></article>
               </section>
               ${renderFeeTransactionHistory(invoice)}
             </main>
@@ -15716,7 +15864,7 @@
     const downloadFeeTransactionHistoryPdf = async (invoice = {}) => {
       const JsPdf = await loadReportCardPdfLibrary();
       const settings = getInvoiceSchoolSettings();
-      const { payments, totalPaid, latestPayment } = getInvoicePaymentSummary(invoice);
+      const { payments, totalPaid, latestPayment, balance } = getInvoicePaymentSummary(invoice);
       const formatPdfCurrency = (value) => formatCurrencyAmount(value).replace("₦", "NGN ");
       const doc = new JsPdf({ orientation: "landscape", unit: "mm", format: "a4" });
       const pageWidth = doc.internal.pageSize.getWidth();
@@ -15740,7 +15888,7 @@
         `Transactions: ${payments.length}`,
         `Total paid: ${formatPdfCurrency(totalPaid)}`,
         `Latest payment: ${formatPdfCurrency(latestPayment?.amount || 0)}`,
-        `Balance: ${formatPdfCurrency(invoice.balance || 0)}`,
+        `Balance: ${formatPdfCurrency(balance)}`,
       ];
       doc.setFont("helvetica", "bold");
       summary.forEach((line, index) => doc.text(line, margin + index * 68, y));
@@ -15806,6 +15954,59 @@
         .filter((entry) => entry && entry.invoiceNo)
         .sort((left, right) => String(right.updatedAt || "").localeCompare(String(left.updatedAt || "")));
       const activeClassGroups = getActiveClassGroups();
+      const activeStudents =
+        studentManager && typeof studentManager.getStudents === "function"
+          ? studentManager.getStudents().filter((student) => student.status === "active")
+          : [];
+      const normalizeInvoiceArmLabel = (value = "") =>
+        String(value || "")
+          .trim()
+          .replace(/^Arm\s+/i, "") || "No arm";
+      const getInvoiceStudentRecord = (invoice = {}) =>
+        activeStudents.find((student) => String(student.id || "") === String(invoice.studentId || "")) || null;
+      const getInvoiceBaseClassLevel = (invoice = {}) => {
+        const student = getInvoiceStudentRecord(invoice);
+        return String((student ? getStudentBaseClassLevel(student) : "") || invoice.classLevel || "Unassigned class").trim() || "Unassigned class";
+      };
+      const getInvoiceArmLabel = (invoice = {}) => {
+        const student = getInvoiceStudentRecord(invoice);
+        const classRecord = student ? findClassRecordForStudent(student) : null;
+        return normalizeInvoiceArmLabel(invoice.classArm || classRecord?.name || student?.classArm || student?.arm || "");
+      };
+      const renderInvoiceRow = (invoice = {}) => {
+        const summary = getInvoicePaymentSummary(invoice);
+        return `
+          <article class="portal-fee-invoice-row">
+            <div>
+              <strong>${escapeHtml(invoice.studentName || "Student")}</strong>
+              <span>${escapeHtml(invoice.admissionNo || "No admission no.")} • ${escapeHtml(invoice.invoiceNo)}</span>
+            </div>
+            <div>
+              <span>${escapeHtml(invoice.termName || "Period")}</span>
+              <small>${escapeHtml(invoice.sessionName || "Session")}</small>
+            </div>
+            <div>
+              <strong>${escapeHtml(formatCurrencyAmount(summary.totalDue))}</strong>
+              <span>Paid ${escapeHtml(formatCurrencyAmount(summary.totalPaid))}</span>
+              <span>Balance ${escapeHtml(formatCurrencyAmount(summary.balance))}</span>
+            </div>
+            <div>
+              <span>Due ${escapeHtml(invoice.dueDate || "Not set")}</span>
+              <small>${(invoice.invoiceItems || []).length} item${
+                (invoice.invoiceItems || []).length === 1 ? "" : "s"
+              }</small>
+            </div>
+            <div class="portal-fee-invoice-row-actions">
+              <button class="portal-class-button" type="button" data-fee-invoice-action="view" data-invoice-student-id="${escapeHtml(
+                invoice.studentId || "",
+              )}">View</button>
+              <button class="portal-class-button" type="button" data-fee-invoice-action="print" data-invoice-student-id="${escapeHtml(
+                invoice.studentId || "",
+              )}">Print</button>
+            </div>
+          </article>
+        `;
+      };
 
       if (!invoices.length && !activeClassGroups.length) {
         invoiceListTarget.innerHTML = `
@@ -15818,7 +16019,7 @@
       }
 
       const invoicesByClass = invoices.reduce((groups, invoice) => {
-        const classLevel = String(invoice.classLevel || "Unassigned class").trim() || "Unassigned class";
+        const classLevel = getInvoiceBaseClassLevel(invoice);
         if (!groups.has(classLevel)) {
           groups.set(classLevel, []);
         }
@@ -15839,8 +16040,9 @@
               const sortedInvoices = [...classInvoices].sort((left, right) =>
                 String(left.studentName || "").localeCompare(String(right.studentName || ""), undefined, { numeric: true }),
               );
-              const invoicedTotal = classInvoices.reduce((sum, invoice) => sum + Number(invoice.totalDue || 0), 0);
-              const outstandingTotal = classInvoices.reduce((sum, invoice) => sum + Number(invoice.balance || 0), 0);
+              const invoiceSummaries = classInvoices.map((invoice) => getInvoicePaymentSummary(invoice));
+              const invoicedTotal = invoiceSummaries.reduce((sum, summary) => sum + Number(summary.totalDue || 0), 0);
+              const outstandingTotal = invoiceSummaries.reduce((sum, summary) => sum + Number(summary.balance || 0), 0);
               const classStudents = getActiveStudentsForFeeClass(classLevel);
               const studentCount = classStudents.length;
               const classContext = getSelectedInvoiceContext({ classLevel });
@@ -15854,6 +16056,32 @@
                 );
               const classToken = normalizeLevelToken(classLevel);
               const isExpanded = feeState.expandedInvoiceClasses.has(classToken);
+              const activeGroup = activeClassGroups.find(
+                (group) => normalizeLevelToken(group.level) === normalizeLevelToken(classLevel),
+              );
+              const armLabels = new Set(
+                Array.from(activeGroup?.arms || [])
+                  .map((arm) => normalizeInvoiceArmLabel(arm))
+                  .filter(Boolean),
+              );
+              classStudents.forEach((student) => {
+                const classRecord = findClassRecordForStudent(student);
+                armLabels.add(normalizeInvoiceArmLabel(classRecord?.name || student.classArm || student.arm || ""));
+              });
+              sortedInvoices.forEach((invoice) => {
+                armLabels.add(getInvoiceArmLabel(invoice));
+              });
+              const invoiceGroupsByArm = sortedInvoices.reduce((groups, invoice) => {
+                const armLabel = getInvoiceArmLabel(invoice);
+                if (!groups.has(armLabel)) {
+                  groups.set(armLabel, []);
+                }
+                groups.get(armLabel).push(invoice);
+                return groups;
+              }, new Map());
+              const sortedArmLabels = Array.from(armLabels).sort((left, right) =>
+                left.localeCompare(right, undefined, { numeric: true }),
+              );
 
               return `
                 <details class="portal-fee-invoice-class-group" data-invoice-class-token="${escapeHtml(classToken)}" ${
@@ -15897,39 +16125,35 @@
                   <div class="portal-fee-invoice-table">
                     ${
                       sortedInvoices.length
-                        ? sortedInvoices
-                            .map(
-                              (invoice) => `
-                          <article class="portal-fee-invoice-row">
-                            <div>
-                              <strong>${escapeHtml(invoice.studentName || "Student")}</strong>
-                              <span>${escapeHtml(invoice.admissionNo || "No admission no.")} • ${escapeHtml(invoice.invoiceNo)}</span>
-                            </div>
-                            <div>
-                              <span>${escapeHtml(invoice.termName || "Period")}</span>
-                              <small>${escapeHtml(invoice.sessionName || "Session")}</small>
-                            </div>
-                            <div>
-                              <strong>${escapeHtml(formatCurrencyAmount(invoice.totalDue || 0))}</strong>
-                              <span>Balance ${escapeHtml(formatCurrencyAmount(invoice.balance || 0))}</span>
-                            </div>
-                            <div>
-                              <span>Due ${escapeHtml(invoice.dueDate || "Not set")}</span>
-                              <small>${(invoice.invoiceItems || []).length} item${
-                                (invoice.invoiceItems || []).length === 1 ? "" : "s"
-                              }</small>
-                            </div>
-                            <div class="portal-fee-invoice-row-actions">
-                              <button class="portal-class-button" type="button" data-fee-invoice-action="view" data-invoice-student-id="${escapeHtml(
-                                invoice.studentId || "",
-                              )}">View</button>
-                              <button class="portal-class-button" type="button" data-fee-invoice-action="print" data-invoice-student-id="${escapeHtml(
-                                invoice.studentId || "",
-                              )}">Print</button>
-                            </div>
-                          </article>
-                        `,
-                            )
+                        ? sortedArmLabels
+                            .map((armLabel) => {
+                              const armInvoices = invoiceGroupsByArm.get(armLabel) || [];
+                              if (!armInvoices.length) {
+                                return "";
+                              }
+                              const armTotal = armInvoices.reduce(
+                                (sum, invoice) => sum + getInvoicePaymentSummary(invoice).totalDue,
+                                0,
+                              );
+                              const armBalance = armInvoices.reduce(
+                                (sum, invoice) => sum + getInvoicePaymentSummary(invoice).balance,
+                                0,
+                              );
+                              return `
+                                <details class="portal-fee-invoice-arm-group" open>
+                                  <summary>
+                                    <strong>${escapeHtml(armLabel)}</strong>
+                                    <span>${armInvoices.length} invoice${armInvoices.length === 1 ? "" : "s"} • ${escapeHtml(
+                                      formatCurrencyAmount(armBalance),
+                                    )} outstanding</span>
+                                    <small>${escapeHtml(formatCurrencyAmount(armTotal))} invoiced</small>
+                                  </summary>
+                                  <div class="portal-fee-invoice-arm-list">
+                                    ${armInvoices.map(renderInvoiceRow).join("")}
+                                  </div>
+                                </details>
+                              `;
+                            })
                             .join("")
                         : `
                           <article class="portal-class-empty portal-fee-invoice-class-empty">
@@ -19483,6 +19707,10 @@
       .trim() || String(fallback || "").trim();
   }
 
+  function getStaffProfilePhotoUrl(user = {}) {
+    return String(user.profilePhotoUrl || user.staffPhotoUrl || user.avatarUrl || user.photoUrl || "").trim();
+  }
+
   function resetPortalStaffForm(form, isAdmin) {
     if (!form) {
       return;
@@ -19510,6 +19738,9 @@
     }
     if (form.elements.subjectCourse) {
       form.elements.subjectCourse.value = "";
+    }
+    if (form.elements.profilePhoto) {
+      form.elements.profilePhoto.value = "";
     }
 
     syncStaffDepartmentPicker(form);
@@ -19576,6 +19807,9 @@
     }
     if (form.elements.title) {
       form.elements.title.value = user.title || "";
+    }
+    if (form.elements.profilePhoto) {
+      form.elements.profilePhoto.value = "";
     }
     const submitButton = form.querySelector("[data-staff-submit]");
     const cancelButton = form.querySelector("[data-staff-cancel]");
@@ -19769,9 +20003,15 @@
           .filter(Boolean)
           .join(" / ") || "No department";
         const academicFocus = getStaffAcademicFocus(user);
+        const photoUrl = getStaffProfilePhotoUrl(user);
+        const initials = getInitials(user.displayName || user.email || "T").slice(0, 2);
         return `
           <button class="portal-staff-row" type="button" data-staff-open="${escapeHtml(user.id)}">
-            <span class="portal-staff-avatar">${escapeHtml(getInitials(user.displayName || user.email || "T").slice(0, 2))}</span>
+            <span class="portal-staff-avatar ${photoUrl ? "is-image" : ""}">${
+              photoUrl
+                ? `<img src="${escapeHtml(photoUrl)}" alt="${escapeHtml(user.displayName || user.email || "Staff")} profile picture" />`
+                : escapeHtml(initials)
+            }</span>
             <span class="portal-staff-main">
               <strong>${escapeHtml(user.displayName || user.email || "Teacher")}</strong>
               <small>${escapeHtml(user.email || "No email")}</small>
@@ -19832,6 +20072,8 @@
               <div class="portal-staff-view-content">
                 <div id="portal-staff-view-grid" class="portal-staff-view-grid"></div>
                 <div class="portal-staff-view-actions">
+                  <button class="button button-outline" type="button" data-staff-job-letter-print>Print job letter</button>
+                  <button class="button button-outline" type="button" data-staff-job-letter-mail>Mail job letter</button>
                   <button class="button button-primary" type="button" data-staff-view-edit>Edit profile</button>
                   <button class="portal-class-button is-archive" type="button" data-staff-view-status>Deactivate</button>
                   <button class="portal-class-button is-danger" type="button" data-staff-view-delete>Delete account</button>
@@ -19873,6 +20115,97 @@
       );
     };
 
+    const buildStaffJobLetterText = (user = {}) => {
+      const settings = getConfiguredSchoolSettings();
+      const schoolName = settings.schoolName || "The School";
+      const schoolAddress = settings.address || settings.campusDetails || "";
+      const staffName = user.displayName || user.email || "Staff member";
+      const roleTitle = user.title || getStaffAcademicFocus(user).value || "Academic Staff";
+      const department = [user.staffFaculty || user.faculty || "", user.department || ""]
+        .map((value) => String(value || "").trim())
+        .filter(Boolean)
+        .join(" / ") || "Academic Department";
+      const today = new Date().toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+
+      return [
+        schoolName,
+        schoolAddress,
+        "",
+        today,
+        "",
+        `Dear ${staffName},`,
+        "",
+        `LETTER OF APPOINTMENT`,
+        "",
+        `This letter confirms your appointment as ${roleTitle} in the ${department} of ${schoolName}.`,
+        `You are expected to perform your duties professionally, follow school policies, protect student information, and support teaching and learning standards.`,
+        "",
+        `Your staff portal account has been created with your registered email: ${user.email || "Not provided"}.`,
+        "",
+        "Please sign and return a copy of this letter to acknowledge acceptance.",
+        "",
+        "Sincerely,",
+        schoolName,
+      ].filter((line, index, lines) => line || lines[index - 1]).join("\n");
+    };
+
+    const renderStaffJobLetterDocument = (user = {}) => {
+      const letterText = buildStaffJobLetterText(user);
+      return `
+        <!doctype html>
+        <html>
+          <head>
+            <meta charset="utf-8" />
+            <title>${escapeHtml(user.displayName || user.email || "Staff")} job letter</title>
+            <style>
+              * { box-sizing: border-box; }
+              body { margin: 0; padding: 34px; color: #17233a; font-family: Inter, Arial, sans-serif; }
+              main { max-width: 760px; margin: 0 auto; }
+              pre { white-space: pre-wrap; font: 15px/1.75 Inter, Arial, sans-serif; }
+              @media print { body { padding: 0; } }
+            </style>
+          </head>
+          <body>
+            <main><pre>${escapeHtml(letterText)}</pre></main>
+            <script>
+              window.addEventListener("load", function () {
+                window.focus();
+                window.print();
+              });
+            </script>
+          </body>
+        </html>
+      `;
+    };
+
+    const printStaffJobLetter = (user = {}) => {
+      const printWindow = window.open("", "_blank", "width=860,height=760");
+      if (!printWindow) {
+        setStatus(status, "error", "Allow pop-ups for this page so the job letter can open.");
+        return;
+      }
+      printWindow.document.open();
+      printWindow.document.write(renderStaffJobLetterDocument(user));
+      printWindow.document.close();
+      setStatus(status, "success", "Job letter opened.");
+    };
+
+    const mailStaffJobLetter = (user = {}) => {
+      const email = normalizeEmail(user.email || "");
+      if (!email) {
+        setStatus(status, "error", "Staff email is required before mailing the job letter.");
+        return;
+      }
+      const subject = `Job letter - ${user.displayName || user.email || "Staff"}`;
+      const body = buildStaffJobLetterText(user);
+      window.location.href = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      setStatus(status, "info", "Mail draft opened.");
+    };
+
     const renderStaffViewContent = (user) => {
       if (!staffViewGrid || !user) {
         return;
@@ -19896,9 +20229,14 @@
       const lastLoginLabel = user.lastLoginAt ? formatTimestamp(user.lastLoginAt) : "Not signed in";
       const teachingAssignments = getStaffTeachingAssignments(user);
       const subjectCount = teachingAssignments.filter((entry) => entry.subject !== "Class register").length;
+      const profilePhotoUrl = getStaffProfilePhotoUrl(user);
       staffViewGrid.innerHTML = `
         <section class="portal-staff-profile-hero">
-          <span class="portal-staff-profile-avatar">${escapeHtml(initials)}</span>
+          <span class="portal-staff-profile-avatar ${profilePhotoUrl ? "is-image" : ""}">${
+            profilePhotoUrl
+              ? `<img src="${escapeHtml(profilePhotoUrl)}" alt="${escapeHtml(profileName)} profile picture" />`
+              : escapeHtml(initials)
+          }</span>
           <div class="portal-staff-profile-copy">
             <span>${escapeHtml(titleLabel)}</span>
             <h4>${escapeHtml(profileName)}</h4>
@@ -20243,6 +20581,7 @@
       const department = staffDepartmentSelection.department;
       const subjectCourse = String(form.elements.subjectCourse?.value || "").trim();
       const title = String(form.elements.title?.value || "").trim();
+      const profilePhotoFile = form.elements.profilePhoto?.files?.[0] || null;
       const existingUserForEmail = findUserByEmail(email);
 
       let hasError = false;
@@ -20273,9 +20612,35 @@
         hasError = true;
       }
 
+      if (profilePhotoFile) {
+        if (!String(profilePhotoFile.type || "").startsWith("image/")) {
+          setPortalStaffError(form, "profilePhoto", "Choose a JPG, PNG, or WebP image.");
+          hasError = true;
+        } else if (profilePhotoFile.size > 2 * 1024 * 1024) {
+          setPortalStaffError(form, "profilePhoto", "Profile picture must be 2MB or less.");
+          hasError = true;
+        }
+      }
+
       if (hasError) {
         setStatus(status, "error", "Fix the highlighted fields and try again.");
         return;
+      }
+
+      let profilePhotoPatch = {};
+      if (profilePhotoFile) {
+        try {
+          profilePhotoPatch = {
+            profilePhotoUrl: await readFileAsDataUrl(profilePhotoFile),
+            profilePhotoName: String(profilePhotoFile.name || "Profile picture"),
+            profilePhotoMimeType: String(profilePhotoFile.type || ""),
+            profilePhotoSizeBytes: Number(profilePhotoFile.size) || 0,
+          };
+        } catch {
+          setPortalStaffError(form, "profilePhoto", "Could not read the selected profile picture.");
+          setStatus(status, "error", "Could not read the selected profile picture.");
+          return;
+        }
       }
 
       const workspaceId = getCurrentWorkspaceId();
@@ -20318,6 +20683,7 @@
             staffSubject: schoolType === "higher" ? "" : subjectCourse,
             staffCourse: schoolType === "higher" ? subjectCourse : "",
             title,
+            ...profilePhotoPatch,
             staffProfileManaged: true,
             updatedAt: nowIso(),
           })),
@@ -20402,6 +20768,7 @@
         staffSubject: schoolType === "higher" ? "" : subjectCourse,
         staffCourse: schoolType === "higher" ? subjectCourse : "",
         title,
+        ...profilePhotoPatch,
         staffProfileManaged: true,
       }));
 
@@ -20477,6 +20844,24 @@
         const closeButton = event.target.closest("[data-staff-view-close]");
         if (closeButton) {
           setOverlayState(false);
+          return;
+        }
+
+        const printLetterButton = event.target.closest("[data-staff-job-letter-print]");
+        if (printLetterButton) {
+          const user = selectedStaffId ? getStaffById(selectedStaffId) : null;
+          if (user) {
+            printStaffJobLetter(user);
+          }
+          return;
+        }
+
+        const mailLetterButton = event.target.closest("[data-staff-job-letter-mail]");
+        if (mailLetterButton) {
+          const user = selectedStaffId ? getStaffById(selectedStaffId) : null;
+          if (user) {
+            mailStaffJobLetter(user);
+          }
           return;
         }
 
@@ -21147,6 +21532,8 @@
     const students = studentManager && typeof studentManager.getStudents === "function"
       ? studentManager.getStudents()
       : [];
+    const activeStaffCount = getActiveStaffUsers().length;
+    const canAddClassRecords = Boolean(isAdmin && activeStaffCount);
     const countStudentsForLevel = (level) =>
       students.filter(
         (student) =>
@@ -21260,15 +21647,19 @@
 
     Array.from(form.elements).forEach((field) => {
       if (field instanceof HTMLElement) {
-        field.disabled = !isAdmin;
+        field.disabled = !isAdmin || !activeStaffCount;
       }
     });
 
     if (!classes.length) {
       listTarget.innerHTML = `
         <article class="portal-class-empty">
-          <strong>No classes yet</strong>
-          <p>Choose a school type above and generate classes to start assigning students, teachers, timetable slots, and course coverage.</p>
+          <strong>${activeStaffCount ? "No classes yet" : "Create staff first"}</strong>
+          <p>${
+            activeStaffCount
+              ? "Choose a school type above and generate classes to start assigning students, teachers, timetable slots, and course coverage."
+              : 'Add at least one staff account from <a href="./admin-teachers.html">Teachers</a> before creating classes.'
+          }</p>
         </article>
       `;
     } else {
@@ -21319,7 +21710,7 @@
                               type="button"
                               data-class-action="add-arm"
                               data-class-level="${escapeHtml(level)}"
-                              ${isAdmin ? "" : "disabled"}
+                              ${canAddClassRecords ? "" : "disabled"}
                             >
                               Add arm
                             </button>
@@ -32575,6 +32966,7 @@
     const feeRecord = student
       ? readParentFeesState(user.workspaceId || getCurrentWorkspaceId())[student.id] || buildConfiguredParentFeeSnapshot(student)
       : null;
+    const feeSummary = feeRecord ? getFeeInvoicePaymentSummary(feeRecord) : { balance: 0 };
 
     target.innerHTML = `
       <article class="admin-metric-card admin-metric-card-blue">
@@ -32593,7 +32985,7 @@
         <p>Assigned to your class</p>
       </article>
       <article class="admin-metric-card admin-metric-card-rose">
-        <strong>${escapeHtml(formatCurrencyAmount(feeRecord?.balance || 0))}</strong>
+        <strong>${escapeHtml(formatCurrencyAmount(feeSummary.balance))}</strong>
         <h3>Fee Balance</h3>
         <p>${escapeHtml(attendance.currentTermLabel || "Current term")}</p>
       </article>
@@ -33225,6 +33617,7 @@
       invoiceItems: [],
       updatedAt: nowIso(),
     };
+    const feeSummary = getFeeInvoicePaymentSummary(current);
     const invoiceItems = Array.isArray(current.invoiceItems) ? current.invoiceItems : [];
     const paymentHistory = Array.isArray(current.payments) ? [...current.payments] : [];
     const invoiceItemRows = invoiceItems.length
@@ -33255,8 +33648,9 @@
           </div>
         </div>
         <div class="admin-session-grid">
-          <div class="admin-session-card"><span>Total due</span><strong>${escapeHtml(formatCurrencyAmount(current.totalDue || 0))}</strong></div>
-          <div class="admin-session-card"><span>Outstanding balance</span><strong>${escapeHtml(formatCurrencyAmount(current.balance || 0))}</strong></div>
+          <div class="admin-session-card"><span>Total due</span><strong>${escapeHtml(formatCurrencyAmount(feeSummary.totalDue))}</strong></div>
+          <div class="admin-session-card"><span>Total paid</span><strong>${escapeHtml(formatCurrencyAmount(feeSummary.totalPaid))}</strong></div>
+          <div class="admin-session-card"><span>Outstanding balance</span><strong>${escapeHtml(formatCurrencyAmount(feeSummary.balance))}</strong></div>
           <div class="admin-session-card"><span>Due date</span><strong>${escapeHtml(String(current.dueDate || "Not set"))}</strong></div>
           <div class="admin-session-card"><span>Academic period</span><strong>${escapeHtml(
             [current.sessionName, current.termName].filter(Boolean).join(" • ") || "Not selected",
@@ -33473,6 +33867,7 @@
           sender: user,
           recipient: thread.contact,
           message: payload.message,
+          attachments: payload.attachments,
           workspaceId: user.workspaceId,
           metadata: {
             conversationId: getSchoolMessageConversationId(thread.contact.role, thread.contact.email),
@@ -36148,9 +36543,11 @@
               : role === "Parent"
                 ? metadata.senderName || entry.actorName || metadata.replyByRole || "School"
                 : metadata.senderName || metadata.parentName || entry.actorName || "Parent";
+            const attachments = normalizeMessageAttachments(metadata.attachments || entry.attachments || []);
             return `
               <article class="portal-chat-bubble ${isOutgoing ? "is-outgoing" : "is-incoming"}">
                 <div class="portal-chat-bubble-copy">${escapeHtml(entry.message || "No message body.")}</div>
+                ${renderMessageAttachments(attachments)}
                 <footer>
                   <strong>${escapeHtml(sender)}</strong>
                   <time>${escapeHtml(formatTimestamp(entry.createdAt || nowIso()))}</time>
@@ -36260,10 +36657,15 @@
                       `
                       : ""
                   }
+                  <label class="portal-message-attach">
+                    <input name="attachments" type="file" multiple />
+                    <span>Attach files</span>
+                  </label>
+                  <div class="portal-message-attachment-preview" data-message-attachment-preview hidden></div>
                   <div class="portal-chat-compose-row">
                     <textarea name="message" rows="1" placeholder="${escapeHtml(
                       options.composerPlaceholder || `Reply to ${activeThread.name}`,
-                    )}" aria-label="Message" required></textarea>
+                    )}" aria-label="Message"></textarea>
                     <button class="portal-chat-send" type="submit" aria-label="Send message" title="Send message">
                       <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z"></path></svg>
                     </button>
@@ -36380,14 +36782,53 @@
       options.onRefresh?.();
     });
 
-    target.querySelector("[data-message-composer]")?.addEventListener("submit", (event) => {
+    const composer = target.querySelector("[data-message-composer]");
+    const attachmentInput = composer?.elements.attachments || null;
+    const attachmentPreview = composer?.querySelector("[data-message-attachment-preview]");
+    attachmentInput?.addEventListener("change", () => {
+      const files = Array.from(attachmentInput.files || []);
+      if (!attachmentPreview) {
+        return;
+      }
+      if (!files.length) {
+        attachmentPreview.hidden = true;
+        attachmentPreview.innerHTML = "";
+        return;
+      }
+      attachmentPreview.hidden = false;
+      attachmentPreview.innerHTML = files
+        .slice(0, MESSAGE_ATTACHMENT_MAX_COUNT)
+        .map(
+          (file) => `
+            <span>
+              <strong>${escapeHtml(file.name || "Attachment")}</strong>
+              <small>${escapeHtml(formatFileSize(file.size || 0))}</small>
+            </span>
+          `,
+        )
+        .join("");
+    });
+
+    composer?.addEventListener("submit", async (event) => {
       event.preventDefault();
       const form = event.currentTarget;
       const message = String(form.elements.message?.value || "").trim();
       const status = form.querySelector("[data-message-status]");
-      if (!message) {
-        setStatus(status, "error", "Type a message before sending.");
+      const files = Array.from(form.elements.attachments?.files || []);
+      if (!message && !files.length) {
+        setStatus(status, "error", "Type a message or attach a file.");
         form.elements.message?.focus();
+        return;
+      }
+      if (files.length > MESSAGE_ATTACHMENT_MAX_COUNT) {
+        setStatus(status, "error", `Attach up to ${MESSAGE_ATTACHMENT_MAX_COUNT} files.`);
+        return;
+      }
+      let attachments = [];
+      try {
+        attachments = await readMessageAttachmentFiles(files);
+      } catch (error) {
+        setStatus(status, "error", escapeHtml(error?.message || "Could not attach the selected file."));
         return;
       }
       if (typeof options.onSend === "function") {
@@ -36395,9 +36836,14 @@
           message,
           subject: String(form.elements.subject?.value || "").trim(),
           sendWhatsApp: Boolean(form.elements.sendWhatsApp?.checked),
+          attachments,
         });
       }
       form.reset();
+      if (attachmentPreview) {
+        attachmentPreview.hidden = true;
+        attachmentPreview.innerHTML = "";
+      }
       options.onRefresh?.();
     });
 
@@ -36603,6 +37049,7 @@
             sender: user,
             recipient: thread.contact,
             message: payload.message,
+            attachments: payload.attachments,
             workspaceId: user.workspaceId,
             metadata: {
               conversationId: getSchoolMessageConversationId("Teacher", user.email),
@@ -36615,7 +37062,7 @@
           (entry) => String(entry.entityType || "").toLowerCase() === "parent-message",
         );
         if (anchor) {
-          sendParentMessageReply(anchor, user, payload.message);
+          sendParentMessageReply(anchor, user, payload.message, payload.attachments);
           sendWhatsAppCopy(thread, payload);
           return;
         }
@@ -36624,6 +37071,7 @@
             sender: user,
             recipient: thread.contact,
             message: payload.message,
+            attachments: payload.attachments,
             workspaceId: user.workspaceId,
             metadata: {
               conversationId: thread.key,
@@ -38100,8 +38548,12 @@
     const cycleState = cycleManager && typeof cycleManager.getState === "function"
       ? cycleManager.getState()
       : { sessions: [], terms: [] };
+    const studentClassRecord = findClassRecordForStudent(student);
     const studentClassLevel = getStudentBaseClassLevel(student);
     const studentClassToken = normalizeLevelToken(studentClassLevel);
+    const studentClassArm = String(studentClassRecord?.name || student.classArm || student.arm || "")
+      .trim()
+      .replace(/^Arm\s+/i, "");
     const matchingItems = feeManager
       .getItems()
       .filter(
@@ -38141,6 +38593,9 @@
       studentName: student.fullName,
       admissionNo: student.admissionNo,
       classLevel: studentClassLevel,
+      classArm: studentClassArm,
+      exactClassLevel: studentClassRecord ? getClassDisplayName(studentClassRecord) : student.level || studentClassLevel,
+      classRecordId: studentClassRecord?.id || student.classId || student.classRecordId || "",
       sessionId,
       sessionName: sessionId ? getSessionLabelFromCycle(cycleState, sessionId) : "",
       termId,
@@ -38199,7 +38654,7 @@
 
   function isParentInvoiceOverdue(invoice = {}) {
     const dueDate = String(invoice.dueDate || "").trim();
-    const balance = Number(invoice.balance || 0);
+    const balance = getFeeInvoicePaymentSummary(invoice).balance;
 
     if (!dueDate || !/^\d{4}-\d{2}-\d{2}$/.test(dueDate) || !Number.isFinite(balance) || balance <= 0) {
       return false;
@@ -38226,9 +38681,9 @@
       {
         id: alertId,
         title: "Overdue fee balance",
-        message: `${student.fullName}'s outstanding balance of ${formatCurrencyAmount(invoice.balance || 0)} was due on ${
-          invoice.dueDate
-        }.`,
+        message: `${student.fullName}'s outstanding balance of ${formatCurrencyAmount(
+          getFeeInvoicePaymentSummary(invoice).balance,
+        )} was due on ${invoice.dueDate}.`,
         entityType: "fee-overdue",
         entityId: parentEmail,
         action: "overdue",
@@ -38240,7 +38695,7 @@
           studentName: student.fullName,
           invoiceNo: invoice.invoiceNo || "",
           invoiceKey: invoice.invoiceKey || "",
-          balance: Number(invoice.balance || 0),
+          balance: getFeeInvoicePaymentSummary(invoice).balance,
           dueDate: invoice.dueDate || "",
         },
       },
@@ -38324,20 +38779,21 @@
     return options;
   }
 
-  function sendParentMessageReply(message = {}, actorUser = {}, body = "") {
+  function sendParentMessageReply(message = {}, actorUser = {}, body = "", attachments = []) {
     const metadata = message.metadata || {};
     const parentEmail = normalizeEmail(metadata.parentEmail || "");
     const replyText = String(body || "").trim();
+    const safeAttachments = normalizeMessageAttachments(attachments);
     const replyByRole = normalizeRoleLabel(actorUser.role || getSession()?.role || DEFAULT_AUTH_ROLE);
 
-    if (!parentEmail || !replyText) {
+    if (!parentEmail || (!replyText && !safeAttachments.length)) {
       return null;
     }
 
     return pushNotification(
       {
         title: `Reply from ${actorUser.displayName || actorUser.email || "School"}`,
-        message: replyText,
+        message: replyText || `${safeAttachments.length} attachment${safeAttachments.length === 1 ? "" : "s"}`,
         entityType: "parent-message-reply",
         entityId: parentEmail,
         action: "replied",
@@ -38349,6 +38805,7 @@
           replyById: actorUser.id || "",
           replyByEmail: actorUser.email || "",
           replyByRole,
+          attachments: safeAttachments,
         },
       },
       message.workspaceId || actorUser.workspaceId || getCurrentWorkspaceId(),
@@ -38694,6 +39151,7 @@
     const feesState = readParentFeesState(workspaceId);
     const studentFee = feesState[student.id] || buildConfiguredParentFeeSnapshot(student) || { totalDue: 0, balance: 0, dueDate: "Not set" };
     ensureParentOverdueFeeAlert({ user, student, invoice: studentFee, workspaceId });
+    const studentFeeSummary = getFeeInvoicePaymentSummary(studentFee);
     const feeStatus = isParentInvoiceOverdue(studentFee) ? "Overdue" : "Outstanding Balance";
     const reportManager = getReportCardManager();
     const releasedCards =
@@ -38723,7 +39181,7 @@
           <p>From class/course setup</p>
         </article>
         <article class="admin-metric-card admin-metric-card-rose">
-          <strong>${escapeHtml(formatCurrencyAmount(studentFee.balance || 0))}</strong>
+          <strong>${escapeHtml(formatCurrencyAmount(studentFeeSummary.balance))}</strong>
           <h3>${escapeHtml(feeStatus)}</h3>
           <p>Due: ${escapeHtml(studentFee.dueDate || "Not set")}</p>
         </article>
@@ -38994,9 +39452,7 @@
   function renderParentFeeInvoiceDocument(invoice = {}) {
     const settings = getParentInvoiceSchoolSettings();
     const items = Array.isArray(invoice.invoiceItems) ? invoice.invoiceItems : [];
-    const totalDue = Number(invoice.totalDue || 0);
-    const balance = Number(invoice.balance || 0);
-    const paid = Math.max(0, totalDue - balance);
+    const { totalDue, totalPaid, latestPayment, balance } = getFeeInvoicePaymentSummary(invoice);
     const lineRows = items.length
       ? items
           .map(
@@ -39053,7 +39509,16 @@
 
         <div class="portal-fee-invoice-total-box">
           <div><span>Total due</span><strong>${escapeHtml(formatCurrencyAmount(totalDue))}</strong></div>
-          <div><span>Paid</span><strong>${escapeHtml(formatCurrencyAmount(paid))}</strong></div>
+          <div><span>Total paid</span><strong>${escapeHtml(formatCurrencyAmount(totalPaid))}</strong></div>
+          <div>
+            <span>Paid (latest)</span>
+            <strong>${escapeHtml(formatCurrencyAmount(latestPayment?.amount || 0))}</strong>
+            <small>${escapeHtml(
+              latestPayment
+                ? formatTimestamp(latestPayment.paidAt || latestPayment.createdAt || invoice.lastPaymentAt || nowIso())
+                : "No payment yet",
+            )}</small>
+          </div>
           <div><span>Balance</span><strong>${escapeHtml(formatCurrencyAmount(balance))}</strong></div>
         </div>
       </section>
@@ -39336,7 +39801,8 @@
     ensureParentOverdueFeeAlert({ user, student, invoice: current, workspaceId });
     const paystackPublicKey = getPaystackPublicKey();
     const paymentEmail = getPaystackPaymentEmail(user, student);
-    const outstandingBalance = Number(current.balance || 0);
+    const currentFeeSummary = getFeeInvoicePaymentSummary(current);
+    const outstandingBalance = currentFeeSummary.balance;
     const isOverdue = isParentInvoiceOverdue(current);
     const invoiceItems = Array.isArray(current.invoiceItems) ? current.invoiceItems : [];
     const paymentHistory = Array.isArray(current.payments) ? [...current.payments] : [];
@@ -39378,8 +39844,9 @@
           <div class="admin-session-card"><span>Invoice</span><strong>${escapeHtml(
             current.invoiceNo || (current.invoiceStatus === "configured" ? "Configured fees" : "Not generated"),
           )}</strong></div>
-          <div class="admin-session-card"><span>Total due</span><strong>${escapeHtml(formatCurrencyAmount(current.totalDue || 0))}</strong></div>
-          <div class="admin-session-card"><span>Outstanding balance</span><strong>${escapeHtml(formatCurrencyAmount(current.balance || 0))}</strong></div>
+          <div class="admin-session-card"><span>Total due</span><strong>${escapeHtml(formatCurrencyAmount(currentFeeSummary.totalDue))}</strong></div>
+          <div class="admin-session-card"><span>Total paid</span><strong>${escapeHtml(formatCurrencyAmount(currentFeeSummary.totalPaid))}</strong></div>
+          <div class="admin-session-card"><span>Outstanding balance</span><strong>${escapeHtml(formatCurrencyAmount(currentFeeSummary.balance))}</strong></div>
           <div class="admin-session-card"><span>Due date</span><strong>${escapeHtml(String(current.dueDate || "Not set"))}</strong></div>
           <div class="admin-session-card"><span>Academic period</span><strong>${escapeHtml(
             [current.sessionName, current.termName].filter(Boolean).join(" • ") || "Not selected",
@@ -39514,7 +39981,7 @@
       setStatus(paymentStatus, "info", "Opening Paystack checkout...");
 
       const completePayment = (transaction = {}) => {
-        const nextBalance = Math.max(0, Number(current.balance || 0) - amount);
+        const nextBalance = Math.max(0, currentFeeSummary.balance - amount);
         const paymentRecord = {
           amount,
           paidAt: nowIso(),
@@ -39526,6 +39993,7 @@
           ...allFees,
           [student.id]: {
             ...current,
+            totalDue: currentFeeSummary.totalDue,
             balance: nextBalance,
             invoiceStatus: nextBalance === 0 ? "paid" : "part-paid",
             updatedAt: nowIso(),
@@ -39721,6 +40189,7 @@
         const recipient = thread?.recipient || { role: "Admin", label: "School Admin" };
         const recipientRole = normalizeRoleLabel(recipient.role || "Admin");
         const selectedTeacherEmail = normalizeEmail(recipient.email || "");
+        const safeAttachments = normalizeMessageAttachments(payload.attachments || []);
         const targetEntityId =
           recipientRole === "Teacher"
             ? selectedTeacherEmail || recipient.email || student.level || student.id
@@ -39729,7 +40198,7 @@
         pushNotification(
           {
             title: payload.subject || `Message about ${student.fullName}`,
-            message: payload.message,
+            message: payload.message || `${safeAttachments.length} attachment${safeAttachments.length === 1 ? "" : "s"}`,
             entityType: "parent-message",
             entityId: targetEntityId,
             action: "sent",
@@ -39746,6 +40215,7 @@
               recipientEmail: recipientRole === "Teacher" ? selectedTeacherEmail || recipient.email || "" : "",
               recipientName: recipient.label || "School Admin",
               recipientScope: recipientRole === "Teacher" ? "teacher" : "admin",
+              attachments: safeAttachments,
             },
           },
           workspaceId,
@@ -39994,13 +40464,11 @@
 
     if (asksFee) {
       const fee = getParentChatbotFeeContext(student, user);
-      const totalDue = Number(fee?.totalDue || 0);
-      const balance = Number(fee?.balance || 0);
-      const paid = Math.max(0, totalDue - balance);
+      const feeSummary = getFeeInvoicePaymentSummary(fee || {});
       return [
-        `${studentName}'s fee balance is ${formatCurrencyAmount(balance)}.`,
-        `Total due: ${formatCurrencyAmount(totalDue)}.`,
-        `Paid: ${formatCurrencyAmount(paid)}.`,
+        `${studentName}'s fee balance is ${formatCurrencyAmount(feeSummary.balance)}.`,
+        `Total due: ${formatCurrencyAmount(feeSummary.totalDue)}.`,
+        `Paid: ${formatCurrencyAmount(feeSummary.totalPaid)}.`,
         fee?.invoiceNo ? `Invoice: ${fee.invoiceNo}.` : "",
         fee?.dueDate ? `Due date: ${fee.dueDate}.` : "",
       ]
@@ -42919,6 +43387,7 @@
         const parentName = metadata.parentName || entry.actorName || "Parent";
         const studentName = metadata.studentName || "Student not linked";
         const classLevel = metadata.classLevel || "Class not set";
+        const attachments = normalizeMessageAttachments(metadata.attachments || entry.attachments || []);
         return `
           <article class="admin-report-parent-message portal-message-bubble ${isReply ? "is-outgoing" : "is-incoming"}">
             <div class="portal-message-bubble-meta">
@@ -42926,6 +43395,7 @@
               <span>${escapeHtml(formatTimestamp(entry.createdAt || nowIso()))}</span>
             </div>
             <p>${escapeHtml(entry.message || "No message body.")}</p>
+            ${renderMessageAttachments(attachments)}
             <footer>
               <span>${escapeHtml(studentName)} - ${escapeHtml(classLevel)}</span>
               <span>${escapeHtml(isReply ? entry.title || "Reply sent" : entry.title || "Parent message")}</span>
@@ -43244,6 +43714,7 @@
           sender: user,
           recipient: thread.contact,
           message: payload.message,
+          attachments: payload.attachments,
           workspaceId: user.workspaceId,
           metadata: {
             conversationId: getSchoolMessageConversationId(thread.contact.role, thread.contact.email),
@@ -43297,8 +43768,9 @@
         ? timetableManager.summarize()
         : { entries: [], publishedCount: 0, draftCount: 0, classCount: 0, teacherCount: 0, activePeriods: [] };
     const invoices = Object.values(readParentFeesState(workspaceId) || {}).filter((invoice) => invoice && invoice.invoiceNo);
-    const invoiceTotalDue = invoices.reduce((sum, invoice) => sum + Number(invoice.totalDue || 0), 0);
-    const invoiceBalance = invoices.reduce((sum, invoice) => sum + Number(invoice.balance || 0), 0);
+    const invoiceSummaries = invoices.map((invoice) => getFeeInvoicePaymentSummary(invoice));
+    const invoiceTotalDue = invoiceSummaries.reduce((sum, summary) => sum + Number(summary.totalDue || 0), 0);
+    const invoiceBalance = invoiceSummaries.reduce((sum, summary) => sum + Number(summary.balance || 0), 0);
     const classTeacherCount = activeClasses.filter((item) => String(item.classTeacher || "").trim()).length;
     const attendanceMarkedScore = attendanceSummary.activeStudentCount
       ? (Number(attendanceSummary.markedCount || 0) / Number(attendanceSummary.activeStudentCount || 1)) * 100
@@ -43749,15 +44221,18 @@
       ]);
     } else if (type === "finance") {
       headers = ["Invoice", "Student", "Class", "Total Due", "Paid", "Balance", "Status"];
-      rows = report.invoices.map((invoice) => [
-        invoice.invoiceNo,
-        invoice.studentName,
-        invoice.classLevel,
-        invoice.totalDue,
-        Number(invoice.totalDue || 0) - Number(invoice.balance || 0),
-        invoice.balance,
-        invoice.status,
-      ]);
+      rows = report.invoices.map((invoice) => {
+        const summary = getFeeInvoicePaymentSummary(invoice);
+        return [
+          invoice.invoiceNo,
+          invoice.studentName,
+          invoice.classLevel,
+          summary.totalDue,
+          summary.totalPaid,
+          summary.balance,
+          invoice.invoiceStatus || invoice.status,
+        ];
+      });
     } else if (type === "attendance") {
       headers = ["Date", "Class", "Student", "Status", "Submitted By"];
       rows = (getAttendanceManager()?.getRecords?.() || []).flatMap((record) =>
