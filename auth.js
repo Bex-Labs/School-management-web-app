@@ -20482,12 +20482,18 @@
               <div class="portal-staff-view-content">
                 <div id="portal-staff-view-grid" class="portal-staff-view-grid"></div>
                 <div class="portal-staff-view-actions">
-                  <button class="button button-outline" type="button" data-staff-job-letter-print>Print job letter</button>
-                  <button class="button button-outline" type="button" data-staff-job-letter-mail>Mail job letter</button>
-                  <button class="button button-primary" type="button" data-staff-view-edit>Edit profile</button>
-                  <button class="portal-class-button is-archive" type="button" data-staff-view-status>Deactivate</button>
-                  <button class="portal-class-button is-danger" type="button" data-staff-view-delete>Delete account</button>
-                  <button class="button button-outline" type="button" data-staff-view-close>Close</button>
+                  <div class="portal-staff-view-action-group">
+                    <button class="button button-outline" type="button" data-staff-job-letter-print>Print job letter</button>
+                    <button class="button button-outline" type="button" data-staff-job-letter-mail>Mail job letter</button>
+                  </div>
+                  <div class="portal-staff-view-action-group is-account">
+                    <button class="button button-primary" type="button" data-staff-view-edit>Edit profile</button>
+                    <button class="portal-class-button is-archive" type="button" data-staff-view-status>Deactivate</button>
+                    <button class="portal-class-button is-danger" type="button" data-staff-view-delete>Delete account</button>
+                  </div>
+                  <div class="portal-staff-view-action-group is-close">
+                    <button class="button button-outline" type="button" data-staff-view-close>Close</button>
+                  </div>
                 </div>
               </div>
             </section>

@@ -12302,21 +12302,25 @@ body.admin-dashboard-page .portal-overlay-head .portal-overlay-kicker {
 }
 
 body.admin-dashboard-page .portal-staff-view-content {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 16px;
   min-height: 0;
   max-height: min(72vh, 680px);
-  overflow: auto;
-  padding: 20px;
+  overflow: hidden;
+  padding: 20px 20px 0;
   background: #f7fbff;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
 }
 
 body.admin-dashboard-page .portal-staff-view-grid {
   display: grid;
   gap: 14px;
+  flex: 1 1 auto;
   min-height: 0;
+  overflow: auto;
+  padding-bottom: 4px;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 body.admin-dashboard-page .portal-staff-profile-hero {
@@ -12527,17 +12531,40 @@ body.admin-dashboard-page .portal-staff-assignment-row small {
 }
 
 body.admin-dashboard-page .portal-staff-view-actions {
-  position: sticky;
-  bottom: 0;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 10px;
-  margin: 0 -20px -20px;
+  position: static;
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  margin: 0 -20px;
   padding: 16px 20px;
   border-top: 1px solid #dfe8f4;
   background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(10px);
+}
+
+body.admin-dashboard-page .portal-staff-view-action-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+body.admin-dashboard-page .portal-staff-view-action-group.is-account {
+  justify-content: flex-end;
+}
+
+body.admin-dashboard-page .portal-staff-view-action-group.is-close {
+  justify-content: flex-end;
+}
+
+body.admin-dashboard-page .portal-staff-view-action-group .button,
+body.admin-dashboard-page .portal-staff-view-action-group .portal-class-button {
+  min-height: 38px;
+  padding-inline: 13px;
+  white-space: nowrap;
 }
 
 body.admin-dashboard-page .portal-staff-created-panel {
@@ -16285,7 +16312,7 @@ body.admin-dashboard-page .portal-class-empty p {
   }
 
   body.admin-dashboard-page .portal-staff-view-content {
-    padding: 14px;
+    padding: 14px 14px 0;
   }
 
   body.admin-dashboard-page .portal-staff-profile-hero {
@@ -16319,9 +16346,17 @@ body.admin-dashboard-page .portal-class-empty p {
 
   body.admin-dashboard-page .portal-staff-view-actions {
     align-items: stretch;
-    flex-direction: column;
-    margin: 0 -14px -14px;
+    grid-template-columns: 1fr;
+    margin: 0 -14px;
     padding: 14px;
+  }
+
+  body.admin-dashboard-page .portal-staff-view-action-group,
+  body.admin-dashboard-page .portal-staff-view-action-group.is-account,
+  body.admin-dashboard-page .portal-staff-view-action-group.is-close {
+    display: grid;
+    grid-template-columns: 1fr;
+    justify-content: stretch;
   }
 
   body.admin-dashboard-page .portal-staff-view-actions .button,
