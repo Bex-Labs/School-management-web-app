@@ -9983,13 +9983,12 @@ body.admin-dashboard-page .portal-message-attach {
   display: inline-flex;
   align-items: center;
   position: relative;
-  width: fit-content;
-  max-width: 100%;
-  gap: 8px;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
   color: #2f5f95;
   cursor: pointer;
-  font-size: 0.78rem;
-  font-weight: 900;
 }
 
 body.admin-dashboard-page .portal-message-attach input {
@@ -10005,12 +10004,18 @@ body.admin-dashboard-page .portal-message-attach input {
 body.admin-dashboard-page .portal-message-attach span {
   display: inline-flex;
   align-items: center;
-  min-height: 34px;
-  padding: 7px 12px;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
   border: 1px solid #c9ddf7;
-  border-radius: 999px;
+  border-radius: 50%;
   background: #f6faff;
   color: #2f6fed;
+}
+
+body.admin-dashboard-page .portal-message-attach svg {
+  width: 19px;
+  height: 19px;
 }
 
 body.admin-dashboard-page .portal-message-attach:focus-within span {
@@ -12533,6 +12538,75 @@ body.admin-dashboard-page .portal-staff-view-actions {
   border-top: 1px solid #dfe8f4;
   background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(10px);
+}
+
+body.admin-dashboard-page .portal-staff-created-panel {
+  width: min(560px, 100%);
+  overflow: hidden;
+  border-color: #d6e2f0;
+  border-radius: 22px;
+  background: #ffffff;
+}
+
+body.admin-dashboard-page .portal-staff-created-content {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+  background: #f7fbff;
+}
+
+body.admin-dashboard-page .portal-staff-created-card {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  padding: 18px;
+  border: 1px solid #d7eadf;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 14px 34px rgba(15, 43, 74, 0.08);
+}
+
+body.admin-dashboard-page .portal-staff-created-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: #eaf8f0;
+  color: #14804a;
+  font-size: 1.4rem;
+  font-weight: 900;
+}
+
+body.admin-dashboard-page .portal-staff-created-card strong {
+  display: block;
+  color: #17233a;
+  font-size: 1.08rem;
+}
+
+body.admin-dashboard-page .portal-staff-created-card span {
+  display: block;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+  color: #4c5a73;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+body.admin-dashboard-page .portal-staff-created-card p {
+  margin: 12px 0 0;
+  color: #667188;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+body.admin-dashboard-page .portal-staff-created-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 body.admin-dashboard-page .portal-student-view-panel,
@@ -17937,6 +18011,8 @@ body.admin-dashboard-page .portal-class-button:hover:not(:disabled) {
 :root[data-theme="dark"] .portal-fee-invoice-panel,
 :root[data-theme="dark"] .portal-fee-invoice-form-body,
 :root[data-theme="dark"] .portal-fee-invoice-modal-body,
+:root[data-theme="dark"] .portal-staff-created-panel,
+:root[data-theme="dark"] .portal-staff-created-content,
 :root[data-theme="dark"] .portal-fee-line-item-card,
 :root[data-theme="dark"] .student-fee-line-item-card,
 :root[data-theme="dark"] .portal-admission-config-panel,
@@ -17965,6 +18041,7 @@ body.admin-dashboard-page .portal-class-button:hover:not(:disabled) {
 :root[data-theme="dark"] .portal-fee-invoice-arm-group,
 :root[data-theme="dark"] .portal-fee-invoice-arm-group > summary,
 :root[data-theme="dark"] .portal-fee-invoice-row,
+:root[data-theme="dark"] .portal-staff-created-card,
 :root[data-theme="dark"] .portal-admission-open-classes-shell summary,
 :root[data-theme="dark"] .portal-admission-choice,
 :root[data-theme="dark"] .portal-admission-setup-card,
@@ -17994,6 +18071,7 @@ body.admin-dashboard-page .portal-class-button:hover:not(:disabled) {
 :root[data-theme="dark"] .portal-fee-invoice-class-toolbar strong,
 :root[data-theme="dark"] .portal-fee-invoice-arm-group > summary strong,
 :root[data-theme="dark"] .portal-fee-invoice-row strong,
+:root[data-theme="dark"] .portal-staff-created-card strong,
 :root[data-theme="dark"] .portal-list-subheading,
 :root[data-theme="dark"] .portal-admission-setup-card strong,
 :root[data-theme="dark"] .portal-admission-name-copy strong,
@@ -18026,6 +18104,8 @@ body.admin-dashboard-page .portal-class-button:hover:not(:disabled) {
 :root[data-theme="dark"] .portal-fee-invoice-arm-group > summary small,
 :root[data-theme="dark"] .portal-fee-invoice-row span,
 :root[data-theme="dark"] .portal-fee-invoice-row small,
+:root[data-theme="dark"] .portal-staff-created-card span,
+:root[data-theme="dark"] .portal-staff-created-card p,
 :root[data-theme="dark"] .portal-admission-choice-group > span,
 :root[data-theme="dark"] .portal-admission-setup-card span,
 :root[data-theme="dark"] .portal-admission-setup-card p,

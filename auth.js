@@ -16146,7 +16146,7 @@
                                 0,
                               );
                               return `
-                                <details class="portal-fee-invoice-arm-group" open>
+                                <details class="portal-fee-invoice-arm-group">
                                   <summary>
                                     <strong>${escapeHtml(armLabel)}</strong>
                                     <span>${armInvoices.length} invoice${armInvoices.length === 1 ? "" : "s"} • ${escapeHtml(
@@ -20454,6 +20454,9 @@
     let selectedStaffId = "";
     let staffViewOverlay = null;
     let staffViewGrid = null;
+    let staffCreatedOverlay = null;
+    let staffCreatedContent = null;
+    let createdStaffUser = null;
     const staffDepartmentElements = getStaffFormElements(form);
 
     const ensureStaffViewOverlay = () => {
@@ -20611,6 +20614,92 @@
       const body = buildStaffJobLetterText(user);
       window.location.href = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
       setStatus(status, "info", "Mail draft opened.");
+    };
+
+    const ensureStaffCreatedOverlay = () => {
+      if (staffCreatedOverlay) {
+        return staffCreatedOverlay;
+      }
+
+      let overlay = document.getElementById("portal-staff-created-overlay");
+      if (!overlay) {
+        document.body.insertAdjacentHTML(
+          "beforeend",
+          `
+          <div id="portal-staff-created-overlay" class="portal-overlay" hidden>
+            <button class="portal-overlay-backdrop" type="button" data-staff-created-close aria-label="Close staff creation message"></button>
+            <section class="portal-overlay-panel portal-overlay-panel-sm portal-staff-created-panel" role="dialog" aria-modal="true" aria-labelledby="portal-staff-created-title">
+              <header class="portal-overlay-head portal-staff-created-head">
+                <div>
+                  <span class="portal-overlay-kicker">Staff created</span>
+                  <h3 id="portal-staff-created-title">Staff account created</h3>
+                </div>
+                <button class="portal-overlay-close" type="button" data-staff-created-close aria-label="Close staff creation message">&times;</button>
+              </header>
+              <div class="portal-staff-created-content">
+                <div id="portal-staff-created-content"></div>
+                <div class="portal-staff-created-actions">
+                  <button class="button button-primary" type="button" data-staff-created-print>Print job letter</button>
+                  <button class="button button-outline" type="button" data-staff-created-mail>Mail job letter</button>
+                  <button class="button button-outline" type="button" data-staff-created-close>Close</button>
+                </div>
+              </div>
+            </section>
+          </div>
+          `,
+        );
+        overlay = document.getElementById("portal-staff-created-overlay");
+      }
+
+      staffCreatedOverlay = overlay;
+      staffCreatedContent = document.getElementById("portal-staff-created-content");
+      staffCreatedOverlay.addEventListener("click", (event) => {
+        if (event.target.closest("[data-staff-created-close]")) {
+          staffCreatedOverlay.hidden = true;
+          const hasOpenOverlay = Boolean(document.querySelector(".portal-overlay:not([hidden])"));
+          document.body.classList.toggle("portal-overlay-open", hasOpenOverlay);
+          createdStaffUser = null;
+          return;
+        }
+
+        if (event.target.closest("[data-staff-created-print]")) {
+          if (createdStaffUser) {
+            printStaffJobLetter(createdStaffUser);
+          }
+          return;
+        }
+
+        if (event.target.closest("[data-staff-created-mail]")) {
+          if (createdStaffUser) {
+            mailStaffJobLetter(createdStaffUser);
+          }
+        }
+      });
+      return staffCreatedOverlay;
+    };
+
+    const openStaffCreatedModal = (user = {}, options = {}) => {
+      const overlay = ensureStaffCreatedOverlay();
+      createdStaffUser = user;
+      const staffName = user.displayName || user.email || "Staff member";
+      const passwordCopy = options.defaultPassword
+        ? `<p>Default password: <strong>${escapeHtml(options.defaultPassword)}</strong>. The staff member can change it after signing in.</p>`
+        : `<p>Password was left unchanged for this account.</p>`;
+      if (staffCreatedContent) {
+        staffCreatedContent.innerHTML = `
+          <article class="portal-staff-created-card">
+            <span class="portal-staff-created-icon" aria-hidden="true">&#10003;</span>
+            <div>
+              <strong>${escapeHtml(staffName)}</strong>
+              <span>${escapeHtml(user.email || "No email saved")}</span>
+              ${passwordCopy}
+            </div>
+          </article>
+        `;
+      }
+      overlay.hidden = false;
+      document.body.classList.add("portal-overlay-open");
+      overlay.querySelector("[data-staff-created-print]")?.focus?.();
     };
 
     const renderStaffViewContent = (user) => {
@@ -21217,6 +21306,11 @@
               DEFAULT_STAFF_PASSWORD,
             )}</strong> • The staff member must change it from their portal.`,
       );
+      if (!staffId) {
+        openStaffCreatedModal(updatedProfile || result.user, {
+          defaultPassword: shouldIssueDefaultPassword ? DEFAULT_STAFF_PASSWORD : "",
+        });
+      }
       } catch (error) {
         setStatus(
           status,
@@ -37064,15 +37158,19 @@
                       `
                       : ""
                   }
-                  <label class="portal-message-attach">
-                    <input name="attachments" type="file" multiple />
-                    <span>Attach files</span>
-                  </label>
                   <div class="portal-message-attachment-preview" data-message-attachment-preview hidden></div>
                   <div class="portal-chat-compose-row">
                     <textarea name="message" rows="1" placeholder="${escapeHtml(
                       options.composerPlaceholder || `Reply to ${activeThread.name}`,
                     )}" aria-label="Message"></textarea>
+                    <label class="portal-message-attach" title="Attach files">
+                      <input name="attachments" type="file" multiple aria-label="Attach files" />
+                      <span aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="m21.4 11.6-8.9 8.9a6 6 0 0 1-8.5-8.5l9.4-9.4a4 4 0 0 1 5.7 5.7l-9.4 9.4a2 2 0 0 1-2.8-2.8l8.9-8.9"></path>
+                        </svg>
+                      </span>
+                    </label>
                     <button class="portal-chat-send" type="submit" aria-label="Send message" title="Send message">
                       <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z"></path></svg>
                     </button>
