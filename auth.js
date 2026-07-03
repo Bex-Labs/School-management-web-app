@@ -1242,6 +1242,11 @@
       ? users.map((record) => normalizeUserRecord(record))
       : [];
     localStorage.setItem(STORAGE_KEYS.users, JSON.stringify(normalizedUsers));
+    window.dispatchEvent(
+      new CustomEvent(STORAGE_KEYS.users, {
+        detail: { users: normalizedUsers },
+      }),
+    );
   }
 
   function getMailLog() {
@@ -3230,6 +3235,7 @@
       id: String(record.id || createId()),
       email: String(record.email || "").trim(),
       normalizedEmail: normalizeEmail(record.email || record.normalizedEmail || ""),
+      username: String(record.username || record.displayName || record.name || "").trim(),
       role: normalizeRoleLabel(record.role || DEFAULT_AUTH_ROLE),
       authMethod: normalizeAccessMethod(record.authMethod),
       status: normalizeAccessStatus(record.status),
@@ -19187,7 +19193,365 @@
     }
   }
 
-  function renderAccessGrantModalContent(grant) {
+  function getAccessUserDisplayName(user = {}, fallback = "") {
+    return (
+      [user.firstName, user.lastName].filter(Boolean).join(" ").trim() ||
+      user.displayName ||
+      user.name ||
+      user.fullName ||
+      fallback ||
+      (user.email ? buildDisplayName(user.email) : "") ||
+      "Unnamed user"
+    );
+  }
+
+  function getAccessStudentDisplayName(student = {}) {
+    return (
+      student.fullName ||
+      [student.firstName, student.lastName].filter(Boolean).join(" ").trim() ||
+      student.admissionNo ||
+      "Unnamed student"
+    );
+  }
+
+  function getAccessGuardianDisplayName(guardian = {}, fallback = "") {
+    return guardian.name || guardian.fullName || fallback || (guardian.email ? buildDisplayName(guardian.email) : "") || "Parent/Guardian";
+  }
+
+  function pushUniqueAccessLink(list, item = {}, keyFields = ["id", "email", "name"]) {
+    const key = keyFields
+      .map((field) => String(item?.[field] || "").trim().toLowerCase())
+      .filter(Boolean)
+      .join(":");
+
+    if (!key || list.some((entry) => keyFields.map((field) => String(entry?.[field] || "").trim().toLowerCase()).filter(Boolean).join(":") === key)) {
+      return;
+    }
+
+    list.push(item);
+  }
+
+  function createAccessDirectoryBuilder(workspaceId = getCurrentWorkspaceId()) {
+    const targetWorkspaceId = normalizeWorkspaceId(workspaceId || getCurrentWorkspaceId());
+    const directory = new Map();
+    const makeKey = (role, email = "", fallback = "") => {
+      const roleLabel = normalizeRoleLabel(role || DEFAULT_AUTH_ROLE);
+      const normalizedEmail = normalizeEmail(email || "");
+      return `${roleLabel}:${normalizedEmail || String(fallback || createId()).trim().toLowerCase()}`;
+    };
+    const ensureEntry = ({ role, email = "", fallback = "", displayName = "" } = {}) => {
+      const roleLabel = normalizeRoleLabel(role || DEFAULT_AUTH_ROLE);
+      const normalizedEmail = normalizeEmail(email || "");
+      const key = makeKey(roleLabel, normalizedEmail, fallback);
+      if (!directory.has(key)) {
+        directory.set(key, {
+          key,
+          id: "",
+          grantId: "",
+          grant: null,
+          hasGrant: false,
+          role: roleLabel,
+          email: String(email || "").trim(),
+          normalizedEmail,
+          displayName: String(displayName || "").trim(),
+          authMethod: "any",
+          status: "active",
+          user: null,
+          student: null,
+          guardians: [],
+          linkedStudents: [],
+          sourceLabels: new Set(),
+          phone: "",
+          workspaceId: targetWorkspaceId,
+        });
+      }
+
+      const entry = directory.get(key);
+      if (!entry.email && email) {
+        entry.email = String(email || "").trim();
+        entry.normalizedEmail = normalizedEmail;
+      }
+      if (displayName && (!entry.displayName || /^pending user$/i.test(entry.displayName))) {
+        entry.displayName = String(displayName || "").trim();
+      }
+      return entry;
+    };
+
+    return { directory, ensureEntry, targetWorkspaceId };
+  }
+
+  function buildAccessDirectoryEntries(workspaceId = getCurrentWorkspaceId()) {
+    const { directory, ensureEntry, targetWorkspaceId } = createAccessDirectoryBuilder(workspaceId);
+    const grants = getAccessGrants({ workspaceId: targetWorkspaceId });
+    const users = getUsers().filter(
+      (user) => normalizeWorkspaceId(user.workspaceId || "public") === targetWorkspaceId,
+    );
+    const studentManager = getStudentManager();
+    const students =
+      studentManager && typeof studentManager.getStudents === "function"
+        ? studentManager.getStudents()
+        : [];
+    const findUser = (email = "", role = "") => {
+      const normalizedEmail = normalizeEmail(email || "");
+      const roleLabel = normalizeRoleLabel(role || "");
+      return (
+        users.find(
+          (user) =>
+            user.normalizedEmail === normalizedEmail &&
+            (!roleLabel || normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE) === roleLabel),
+        ) || null
+      );
+    };
+
+    grants.forEach((grant) => {
+      const user = findUser(grant.email, grant.role);
+      const entry = ensureEntry({
+        role: grant.role,
+        email: grant.email,
+        fallback: `grant:${grant.id}`,
+        displayName: grant.username || (user ? getAccessUserDisplayName(user) : ""),
+      });
+      entry.grantId = grant.id;
+      entry.grant = grant;
+      entry.hasGrant = true;
+      entry.authMethod = grant.authMethod;
+      entry.status = grant.status;
+      entry.user = entry.user || user;
+      entry.sourceLabels.add("Access grant");
+    });
+
+    users.forEach((user) => {
+      const roleLabel = normalizeRoleLabel(user.role || DEFAULT_AUTH_ROLE);
+      if (!["Teacher", "Parent", "Student"].includes(roleLabel)) {
+        return;
+      }
+      const entry = ensureEntry({
+        role: roleLabel,
+        email: user.email,
+        fallback: `user:${user.id}`,
+        displayName: getAccessUserDisplayName(user),
+      });
+      entry.user = user;
+      entry.authMethod = entry.hasGrant ? entry.authMethod : normalizeAccessMethod(user.provider || "password");
+      entry.status = entry.hasGrant
+        ? entry.status
+        : normalizeUserStatus(user.status) === "active"
+          ? "active"
+          : "revoked";
+      entry.phone = entry.phone || user.phone || "";
+      entry.sourceLabels.add(roleLabel === "Teacher" ? "Staff account" : `${roleLabel} account`);
+    });
+
+    students.forEach((student) => {
+      const studentName = getAccessStudentDisplayName(student);
+      const studentEmail = String(student.studentEmail || student.email || "").trim();
+      const studentLink = {
+        id: student.id || "",
+        name: studentName,
+        admissionNo: student.admissionNo || "",
+        classLevel: getStudentLevelDisplayLabel(student.level || student.classLevel || student.baseLevel) || student.level || "",
+        status: student.status || "active",
+      };
+      const studentEntry = ensureEntry({
+        role: "Student",
+        email: studentEmail,
+        fallback: `student:${student.id || student.admissionNo || studentName}`,
+        displayName: studentName,
+      });
+      studentEntry.student = student;
+      studentEntry.status = studentEntry.hasGrant ? studentEntry.status : student.status === "active" ? "active" : "revoked";
+      studentEntry.sourceLabels.add("Student record");
+      pushUniqueAccessLink(studentEntry.linkedStudents, studentLink, ["id", "admissionNo", "name"]);
+
+      (Array.isArray(student.guardians) ? student.guardians : []).forEach((guardian) => {
+        const guardianEmail = String(guardian.email || "").trim();
+        const guardianName = getAccessGuardianDisplayName(guardian, guardianEmail);
+        const guardianEntry = ensureEntry({
+          role: "Parent",
+          email: guardianEmail,
+          fallback: `guardian:${student.id || student.admissionNo}:${guardian.id || guardianName}`,
+          displayName: guardianName,
+        });
+        guardianEntry.phone = guardianEntry.phone || guardian.phone || "";
+        guardianEntry.status = guardianEntry.hasGrant ? guardianEntry.status : student.status === "active" ? "active" : "revoked";
+        guardianEntry.sourceLabels.add("Guardian record");
+        pushUniqueAccessLink(guardianEntry.linkedStudents, studentLink, ["id", "admissionNo", "name"]);
+        pushUniqueAccessLink(
+          guardianEntry.guardians,
+          {
+            id: guardian.id || `${student.id || student.admissionNo}:${guardianName}`,
+            name: guardianName,
+            relationship: guardian.relationship || "Guardian",
+            phone: guardian.phone || "",
+            email: guardianEmail,
+            studentName,
+            classLevel: studentLink.classLevel,
+          },
+          ["id", "email", "name"],
+        );
+      });
+    });
+
+    return Array.from(directory.values())
+      .map((entry) => ({
+        ...entry,
+        id: entry.grantId ? `grant:${entry.grantId}` : `directory:${encodeURIComponent(entry.key)}`,
+        displayName: entry.displayName || (entry.email ? buildDisplayName(entry.email) : "Unnamed user"),
+        sourceLabel: Array.from(entry.sourceLabels).join(" • ") || "Directory record",
+        accountStatus: entry.user ? normalizeUserStatus(entry.user.status) : "Not created yet",
+      }))
+      .sort((left, right) => {
+        const roleOrder = { Teacher: 0, Parent: 1, Student: 2 };
+        const roleComparison = (roleOrder[left.role] ?? 9) - (roleOrder[right.role] ?? 9);
+        if (roleComparison !== 0) return roleComparison;
+        return left.displayName.localeCompare(right.displayName, undefined, { numeric: true });
+      });
+  }
+
+  function getAccessDirectoryEntryById(entryId = "") {
+    const id = String(entryId || "").trim();
+    if (!id) {
+      return null;
+    }
+    return buildAccessDirectoryEntries().find((entry) => entry.id === id) || null;
+  }
+
+  function getAccessEditablePayload(entry = {}) {
+    return {
+      ...(entry.grant || {}),
+      id: entry.grantId || "",
+      username: entry.displayName || entry.grant?.username || "",
+      email: entry.email || entry.grant?.email || "",
+      role: entry.role || entry.grant?.role || "Teacher",
+      authMethod: entry.authMethod || entry.grant?.authMethod || "any",
+      status: entry.status || entry.grant?.status || "active",
+    };
+  }
+
+  function renderAccessGrantModalContent(entry) {
+    const accessEntry = entry?.key ? entry : getAccessDirectoryEntryById(`grant:${entry?.id || ""}`);
+    if (!accessEntry) {
+      return "";
+    }
+    const formatModalLine = (parts = []) => parts.filter(Boolean).map((part) => escapeHtml(part)).join(" • ");
+    const linkedStudents = accessEntry.linkedStudents || [];
+    const linkedStudentCopy = linkedStudents.length
+      ? linkedStudents
+          .map((student) =>
+            formatModalLine([
+              student.name,
+              student.admissionNo ? `Admission ${student.admissionNo}` : "",
+              student.classLevel,
+            ]),
+          )
+          .join("<br>")
+      : accessEntry.student
+        ? formatModalLine([
+            getAccessStudentDisplayName(accessEntry.student),
+            accessEntry.student.admissionNo ? `Admission ${accessEntry.student.admissionNo}` : "",
+            getStudentLevelDisplayLabel(accessEntry.student.level) || accessEntry.student.level || "",
+          ])
+        : "No linked student record";
+    const guardianCopy = (accessEntry.guardians || []).length
+      ? accessEntry.guardians
+          .map((guardian) =>
+            formatModalLine([
+              guardian.name,
+              guardian.relationship,
+              guardian.phone,
+              guardian.email,
+              guardian.studentName ? `For ${guardian.studentName}` : "",
+            ]),
+          )
+          .join("<br>")
+      : "No guardian link";
+    const statusLabel = accessEntry.hasGrant
+      ? accessEntry.status === "active"
+        ? "Active"
+        : "Revoked"
+      : accessEntry.email
+        ? "No grant yet"
+        : "Email needed";
+    const accountStatus =
+      accessEntry.accountStatus === "Not created yet"
+        ? accessEntry.accountStatus
+        : accessEntry.accountStatus.charAt(0).toUpperCase() + accessEntry.accountStatus.slice(1);
+
+    return `
+      <div class="portal-access-grant-summary">
+        <div class="portal-access-grant-identity">
+          <strong>${escapeHtml(accessEntry.displayName)}</strong>
+          <span>${escapeHtml(accessEntry.email || "No email saved")}</span>
+        </div>
+        <div class="portal-access-grant-grid">
+          <div class="portal-access-grant-item">
+            <span>Role</span>
+            <strong>${escapeHtml(accessEntry.role)}</strong>
+          </div>
+          <div class="portal-access-grant-item">
+            <span>Access</span>
+            <strong>${escapeHtml(statusLabel)}</strong>
+          </div>
+          <div class="portal-access-grant-item">
+            <span>Auth method</span>
+            <strong>${escapeHtml(accessEntry.authMethod || "any")}</strong>
+          </div>
+          <div class="portal-access-grant-item">
+            <span>Account record</span>
+            <strong>${escapeHtml(accountStatus)}</strong>
+          </div>
+          <div class="portal-access-grant-item portal-access-grant-item-span">
+            <span>Source</span>
+            <strong>${escapeHtml(accessEntry.sourceLabel)}</strong>
+          </div>
+          ${
+            accessEntry.role === "Teacher"
+              ? `
+                <div class="portal-access-grant-item portal-access-grant-item-span">
+                  <span>Staff details</span>
+                  <strong>${escapeHtml(
+                    [
+                      accessEntry.user?.title || accessEntry.user?.department || "",
+                      accessEntry.user?.subjectCourse || accessEntry.user?.academicFocus || "",
+                      accessEntry.phone,
+                    ]
+                      .filter(Boolean)
+                      .join(" • ") || "No extra staff details saved",
+                  )}</strong>
+                </div>
+              `
+              : ""
+          }
+          ${
+            accessEntry.role === "Student"
+              ? `
+                <div class="portal-access-grant-item portal-access-grant-item-span">
+                  <span>Student record</span>
+                  <strong>${linkedStudentCopy}</strong>
+                </div>
+              `
+              : ""
+          }
+          ${
+            accessEntry.role === "Parent"
+              ? `
+                <div class="portal-access-grant-item portal-access-grant-item-span">
+                  <span>Linked student(s)</span>
+                  <strong>${linkedStudentCopy}</strong>
+                </div>
+                <div class="portal-access-grant-item portal-access-grant-item-span">
+                  <span>Guardian contact</span>
+                  <strong>${guardianCopy}</strong>
+                </div>
+              `
+              : ""
+          }
+        </div>
+      </div>
+    `;
+  }
+
+  function renderLegacyAccessGrantModalContent(grant) {
     const users = getUsers();
     const existingUser =
       users.find(
@@ -19236,17 +19600,19 @@
     `;
   }
 
-  function openAccessGrantModal(grant) {
-    if (!grant) {
+  function openAccessGrantModal(entry) {
+    if (!entry) {
       return;
     }
 
     ensureAccessGrantModal();
     if (accessGrantModalTitle) {
-      accessGrantModalTitle.textContent = `${grant.role} access`;
+      accessGrantModalTitle.textContent = `${entry.role || "User"} access`;
     }
     if (accessGrantModalBody) {
-      accessGrantModalBody.innerHTML = renderAccessGrantModalContent(grant);
+      accessGrantModalBody.innerHTML = entry.key
+        ? renderAccessGrantModalContent(entry)
+        : renderLegacyAccessGrantModalContent(entry);
     }
     setAccessGrantModalOpen(true);
   }
@@ -19256,129 +19622,151 @@
       return;
     }
 
-    const grants = getAccessGrants();
-    const users = getUsers();
-    const groupedGrants = {
+    const entries = buildAccessDirectoryEntries();
+    const groupedEntries = {
       Teacher: [],
       Parent: [],
       Student: [],
     };
 
-    grants.forEach((grant) => {
-      const roleLabel = normalizeRoleLabel(grant.role);
-      if (groupedGrants[roleLabel]) {
-        groupedGrants[roleLabel].push(grant);
+    entries.forEach((entry) => {
+      const roleLabel = normalizeRoleLabel(entry.role);
+      if (groupedEntries[roleLabel]) {
+        groupedEntries[roleLabel].push(entry);
       }
     });
 
-    const activeCount = grants.filter((entry) => entry.status === "active").length;
-    const revokedCount = grants.filter((entry) => entry.status === "revoked").length;
-    const claimedCount = grants.filter((entry) => entry.claimedAt).length;
+    const activeCount = entries.filter((entry) => entry.status === "active").length;
+    const grantCount = entries.filter((entry) => entry.hasGrant).length;
+    const missingGrantCount = entries.filter((entry) => !entry.hasGrant && entry.email).length;
+    const noEmailCount = entries.filter((entry) => !entry.email).length;
 
     summaryTarget.innerHTML = `
-      <strong>${activeCount} active access grants</strong>
+      <strong>${activeCount} active user access records</strong>
       <span>${
         isAdmin
-          ? `${claimedCount} claimed • ${revokedCount} revoked. Users can only create accounts when a matching grant exists.`
-          : "Only administrators can create or update access grants."
+          ? `${groupedEntries.Teacher.length} teachers • ${groupedEntries.Parent.length} parents • ${groupedEntries.Student.length} students. ${grantCount} saved grant${grantCount === 1 ? "" : "s"}${missingGrantCount ? ` • ${missingGrantCount} ready to grant` : ""}${noEmailCount ? ` • ${noEmailCount} need email` : ""}.`
+          : "Only administrators can create or update user access."
       }</span>
     `;
 
-    if (!grants.length) {
+    if (!entries.length) {
       listTarget.innerHTML = `
         <article class="portal-class-empty">
-          <strong>No access grants yet</strong>
-          <p>Add teacher, student, or parent emails here to control who can create accounts.</p>
+          <strong>No registered users yet</strong>
+          <p>Teachers, students, and parent/guardian records will appear here after they are created.</p>
         </article>
       `;
       return;
     }
 
-    const renderGrantCard = (grant) => {
-        const existingUser =
-          users.find(
-            (entry) =>
-              entry.normalizedEmail === grant.normalizedEmail &&
-              normalizeWorkspaceId(entry.workspaceId || "public") === normalizeWorkspaceId(grant.workspaceId || "public"),
-          ) || null;
-        const displayName = existingUser
-          ? [existingUser.firstName, existingUser.lastName].filter(Boolean).join(" ").trim() ||
-            existingUser.name ||
-            existingUser.fullName ||
-            "Unnamed user"
-          : "Pending user";
+    const renderEntryCard = (entry) => {
+      const statusLabel = entry.hasGrant
+        ? entry.status === "active"
+          ? "Active"
+          : "Revoked"
+        : entry.email
+          ? "Needs grant"
+          : "Needs email";
+      const contextLine =
+        entry.role === "Parent" && entry.linkedStudents.length
+          ? `Parent of ${entry.linkedStudents.map((student) => student.name).join(", ")}`
+          : entry.role === "Student" && entry.linkedStudents.length
+            ? entry.linkedStudents
+                .map((student) => [student.admissionNo, student.classLevel].filter(Boolean).join(" • "))
+                .filter(Boolean)
+                .join(", ")
+            : entry.sourceLabel;
 
-        return `
-          <article class="portal-class-card portal-access-grant-card" data-access-id="${grant.id}" role="button" tabindex="0" aria-label="View details for ${escapeHtml(displayName)}">
-            <div class="portal-access-grant-card-head">
-              <div>
-                <span class="portal-access-grant-card-kicker">${escapeHtml(grant.role)} access</span>
-                <h3>${escapeHtml(displayName)}</h3>
-              </div>
+      return `
+        <article class="portal-class-card portal-access-grant-card" data-access-id="${escapeHtml(entry.id)}" role="button" tabindex="0" aria-label="View details for ${escapeHtml(entry.displayName)}">
+          <div class="portal-access-grant-card-head">
+            <div>
+              <span class="portal-access-grant-card-kicker">${escapeHtml(entry.role)} access</span>
+              <h3>${escapeHtml(entry.displayName)}</h3>
+              <p>${escapeHtml(contextLine || entry.sourceLabel)}</p>
             </div>
-            <div class="portal-class-meta">
-              <div class="portal-class-meta-item">
-                <span>Username</span>
-                <strong>${escapeHtml(displayName)}</strong>
-              </div>
-              <div class="portal-class-meta-item">
-                <span>Email</span>
-                <strong>${escapeHtml(grant.email)}</strong>
-              </div>
+            <span class="portal-access-grant-card-state">${escapeHtml(statusLabel)}</span>
+          </div>
+          <div class="portal-class-meta">
+            <div class="portal-class-meta-item">
+              <span>Username</span>
+              <strong>${escapeHtml(entry.displayName)}</strong>
             </div>
-            <div class="portal-class-actions">
-              <button class="portal-class-button" type="button" data-access-action="view" data-access-id="${grant.id}" ${
-          isAdmin ? "" : "disabled"
-        }>
-                View details
-              </button>
-              <button class="portal-class-button" type="button" data-access-action="edit" data-access-id="${grant.id}" ${
-          isAdmin ? "" : "disabled"
-        }>
-                Edit
-              </button>
-              <button
-                class="portal-class-button ${grant.status === "active" ? "is-archive" : "is-restore"}"
-                type="button"
-                data-access-action="${grant.status === "active" ? "revoke" : "activate"}"
-                data-access-id="${grant.id}"
-                ${isAdmin ? "" : "disabled"}
-              >
-                ${grant.status === "active" ? "Revoke" : "Activate"}
-              </button>
-              <button
-                class="portal-class-button"
-                type="button"
-                data-access-action="delete"
-                data-access-id="${grant.id}"
-                ${isAdmin ? "" : "disabled"}
-              >
-                Delete
-              </button>
+            <div class="portal-class-meta-item">
+              <span>Email</span>
+              <strong>${escapeHtml(entry.email || "No email saved")}</strong>
             </div>
-          </article>
-        `;
+          </div>
+          <div class="portal-class-actions">
+            <button class="portal-class-button" type="button" data-access-action="view" data-access-id="${escapeHtml(entry.id)}" ${
+              isAdmin ? "" : "disabled"
+            }>
+              View details
+            </button>
+            ${
+              entry.hasGrant
+                ? `
+                  <button class="portal-class-button" type="button" data-access-action="edit" data-access-id="${escapeHtml(entry.id)}" ${
+                    isAdmin ? "" : "disabled"
+                  }>
+                    Edit
+                  </button>
+                  <button
+                    class="portal-class-button ${entry.status === "active" ? "is-archive" : "is-restore"}"
+                    type="button"
+                    data-access-action="${entry.status === "active" ? "revoke" : "activate"}"
+                    data-access-id="${escapeHtml(entry.id)}"
+                    ${isAdmin ? "" : "disabled"}
+                  >
+                    ${entry.status === "active" ? "Revoke" : "Activate"}
+                  </button>
+                  <button
+                    class="portal-class-button"
+                    type="button"
+                    data-access-action="delete"
+                    data-access-id="${escapeHtml(entry.id)}"
+                    ${isAdmin ? "" : "disabled"}
+                  >
+                    Delete
+                  </button>
+                `
+                : `
+                  <button
+                    class="portal-class-button"
+                    type="button"
+                    data-access-action="grant"
+                    data-access-id="${escapeHtml(entry.id)}"
+                    ${isAdmin && entry.email ? "" : "disabled"}
+                  >
+                    ${entry.email ? "Grant login" : "Add email first"}
+                  </button>
+                `
+            }
+          </div>
+        </article>
+      `;
     };
 
     const renderRoleSection = (roleLabel) => {
-      const roleGrants = groupedGrants[roleLabel] || [];
+      const roleEntries = groupedEntries[roleLabel] || [];
       return `
-        <details class="portal-access-role-group" ${roleGrants.length === 1 ? "open" : ""}>
+        <details class="portal-access-role-group" ${roleEntries.length ? "open" : ""}>
           <summary class="portal-access-role-summary">
             <div>
               <strong>${escapeHtml(roleLabel)} access</strong>
-              <span>${roleGrants.length} ${roleGrants.length === 1 ? "user" : "users"}</span>
+              <span>${roleEntries.length} ${roleEntries.length === 1 ? "record" : "records"}</span>
             </div>
-            <span class="portal-access-role-count">${roleGrants.length}</span>
+            <span class="portal-access-role-count">${roleEntries.length}</span>
           </summary>
           <div class="portal-access-role-list">
             ${
-              roleGrants.length
-                ? roleGrants.map((grant) => renderGrantCard(grant)).join("")
+              roleEntries.length
+                ? roleEntries.map((entry) => renderEntryCard(entry)).join("")
                 : `
                   <article class="portal-class-empty portal-access-role-empty">
-                    <strong>No ${escapeHtml(roleLabel.toLowerCase())} access yet</strong>
-                    <p>Grant access for ${escapeHtml(roleLabel.toLowerCase())} users here.</p>
+                    <strong>No ${escapeHtml(roleLabel.toLowerCase())} records yet</strong>
+                    <p>${escapeHtml(roleLabel)} records will appear here after they are added to the school.</p>
                   </article>
                 `
             }
@@ -19530,27 +19918,39 @@
 
       const action = button.dataset.accessAction;
       const accessId = button.dataset.accessId;
-      const grant = getAccessGrants().find((entry) => entry.id === accessId);
+      const accessEntry = getAccessDirectoryEntryById(accessId);
+      const grant = accessEntry?.grant || null;
 
-      if (!grant) {
+      if (!accessEntry) {
         return;
       }
 
       if (action === "view") {
-        openAccessGrantModal(grant);
+        openAccessGrantModal(accessEntry);
         return;
       }
 
-      if (action === "edit") {
+      if (action === "edit" || action === "grant") {
+        const editableRecord = getAccessEditablePayload(accessEntry);
+        if (!editableRecord.email) {
+          setStatus(status, "info", "Add email first.");
+          return;
+        }
         clearPortalAccessErrors(form);
-        populatePortalAccessForm(form, grant, isAdmin);
+        populatePortalAccessForm(form, editableRecord, isAdmin);
         form.scrollIntoView({ behavior: "smooth", block: "start" });
         form.elements.email?.focus?.();
         setStatus(
           status,
           "info",
-          `Editing access for <strong>${escapeHtml(grant.email)}</strong>.`,
+          action === "grant"
+            ? `Ready to grant access for <strong>${escapeHtml(editableRecord.email)}</strong>.`
+            : `Editing access for <strong>${escapeHtml(editableRecord.email)}</strong>.`,
         );
+        return;
+      }
+
+      if (!grant) {
         return;
       }
 
@@ -19621,9 +20021,9 @@
         return;
       }
 
-      const grant = getAccessGrants().find((entry) => entry.id === card.dataset.accessId);
-      if (grant) {
-        openAccessGrantModal(grant);
+      const accessEntry = getAccessDirectoryEntryById(card.dataset.accessId);
+      if (accessEntry) {
+        openAccessGrantModal(accessEntry);
       }
     });
 
@@ -19638,9 +20038,9 @@
       }
 
       event.preventDefault();
-      const grant = getAccessGrants().find((entry) => entry.id === card.dataset.accessId);
-      if (grant) {
-        openAccessGrantModal(grant);
+      const accessEntry = getAccessDirectoryEntryById(card.dataset.accessId);
+      if (accessEntry) {
+        openAccessGrantModal(accessEntry);
       }
     });
 
@@ -19651,6 +20051,13 @@
         resetPortalAccessForm(form, isAdmin);
         setStatus(status, "", "");
       });
+    }
+
+    window.addEventListener(ACCESS_GRANTS_EVENT_NAME, refreshAccessProvisioning);
+    window.addEventListener(STORAGE_KEYS.users, refreshAccessProvisioning);
+    const studentManager = getStudentManager();
+    if (studentManager?.eventName) {
+      window.addEventListener(studentManager.eventName, refreshAccessProvisioning);
     }
   }
 
