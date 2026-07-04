@@ -31244,11 +31244,14 @@
             .sort(([left], [right]) => left.localeCompare(right, undefined, { numeric: true }))
             .map(
               ([level, rows]) => `
-                <section class="attendance-review-group">
-                  <header class="attendance-review-group-head">
-                    <strong>${escapeHtml(level)}</strong>
-                    <span>${rows.length} student${rows.length === 1 ? "" : "s"}</span>
-                  </header>
+                <details class="attendance-review-group">
+                  <summary class="attendance-review-group-head">
+                    <div>
+                      <strong>${escapeHtml(level)}</strong>
+                      <span>${rows.length} student${rows.length === 1 ? "" : "s"}</span>
+                    </div>
+                    <span class="attendance-review-group-arrow" aria-hidden="true">›</span>
+                  </summary>
                   <div class="attendance-review-table">
                     ${rows
                       .map(({ student, counts, recordedDays, attendanceRate, lastEntry }) => {
@@ -31277,7 +31280,7 @@
                       })
                       .join("")}
                   </div>
-                </section>
+                </details>
               `,
             )
             .join("");
@@ -31378,11 +31381,14 @@
             .sort(([left], [right]) => left.localeCompare(right, undefined, { numeric: true }))
             .map(
               ([level, rows]) => `
-                <section class="attendance-review-group">
-                  <header class="attendance-review-group-head">
-                    <strong>${escapeHtml(level)}</strong>
-                    <span>${rows.length} student${rows.length === 1 ? "" : "s"}</span>
-                  </header>
+                <details class="attendance-review-group">
+                  <summary class="attendance-review-group-head">
+                    <div>
+                      <strong>${escapeHtml(level)}</strong>
+                      <span>${rows.length} student${rows.length === 1 ? "" : "s"}</span>
+                    </div>
+                    <span class="attendance-review-group-arrow" aria-hidden="true">›</span>
+                  </summary>
                   <div class="attendance-review-table">
                     ${rows
                       .map(({ student, entry, status }) => {
@@ -31411,7 +31417,7 @@
                       })
                       .join("")}
                   </div>
-                </section>
+                </details>
               `,
             )
             .join("");
