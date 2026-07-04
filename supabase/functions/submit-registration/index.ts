@@ -643,6 +643,7 @@ Deno.serve(async (request) => {
   const lastName = String(rawPayload.lastName || "").trim();
   const fullName = composeFullName(rawPayload);
   const studentEmail = String(rawPayload.studentEmail || rawPayload.email || "").trim();
+  const profilePhotoUrl = String(rawPayload.profilePhotoUrl || "").trim();
   const level = String(rawPayload.level || "").trim();
   const guardianName = String(rawPayload.guardianName || rawPayload.guardianFullName || "").trim();
   const guardianRelationship = String(rawPayload.guardianRelationship || "Guardian").trim();
@@ -703,6 +704,11 @@ Deno.serve(async (request) => {
       lastName,
       fullName,
       studentEmail,
+      profilePhotoUrl,
+      profilePhotoName: profilePhotoUrl ? String(rawPayload.profilePhotoName || "Profile picture").trim() : "",
+      profilePhotoMimeType: profilePhotoUrl ? String(rawPayload.profilePhotoMimeType || "").trim() : "",
+      profilePhotoSizeBytes: profilePhotoUrl ? Number(rawPayload.profilePhotoSizeBytes || 0) || 0 : 0,
+      profilePhotoRemoved: false,
       admissionNo,
       level: exactLevel,
       classLevel: baseLevel,
