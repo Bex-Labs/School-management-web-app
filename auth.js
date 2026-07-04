@@ -20573,6 +20573,9 @@
 
     const filterSearchInput = document.getElementById("portal-staff-filter-search");
     const filterStatusSelect = document.getElementById("portal-staff-filter-status");
+    const staffFormOverlay = document.getElementById("portal-staff-form-overlay");
+    const staffFormOpenButton = document.querySelector("[data-staff-form-open]");
+    const staffFormTitle = document.getElementById("portal-staff-form-title");
     let searchQuery = String(filterSearchInput?.value || "").trim();
     let statusFilter = String(filterStatusSelect?.value || "all").trim().toLowerCase() || "all";
     let selectedStaffId = "";
@@ -20582,6 +20585,43 @@
     let staffCreatedContent = null;
     let createdStaffUser = null;
     const staffDepartmentElements = getStaffFormElements(form);
+
+    const setStaffFormOverlayState = (isVisible, title = "") => {
+      if (!staffFormOverlay) {
+        return;
+      }
+      staffFormOverlay.hidden = !isVisible;
+      if (staffFormTitle && title) {
+        staffFormTitle.textContent = title;
+      }
+      const hasOpenOverlay = Boolean(document.querySelector(".portal-overlay:not([hidden])"));
+      document.body.classList.toggle("portal-overlay-open", hasOpenOverlay);
+      if (isVisible) {
+        window.setTimeout(() => {
+          form.elements.firstName?.focus?.();
+        }, 0);
+      }
+    };
+
+    const openCreateStaffForm = () => {
+      if (!isAdmin) {
+        setStatus(status, "info", "Only administrators can add staff accounts.");
+        return;
+      }
+      clearPortalStaffErrors(form);
+      resetPortalStaffForm(form, isAdmin);
+      setStatus(status, "", "");
+      setStaffFormOverlayState(true, "Create staff account");
+    };
+
+    const closeStaffForm = (options = {}) => {
+      clearPortalStaffErrors(form);
+      if (options.reset !== false) {
+        resetPortalStaffForm(form, isAdmin);
+      }
+      setStatus(status, "", "");
+      setStaffFormOverlayState(false);
+    };
 
     const ensureStaffViewOverlay = () => {
       if (staffViewOverlay) {
@@ -21428,6 +21468,19 @@
     refreshStaff();
     resetPortalStaffForm(form, isAdmin);
 
+    if (staffFormOpenButton) {
+      staffFormOpenButton.disabled = !isAdmin;
+      staffFormOpenButton.addEventListener("click", openCreateStaffForm);
+    }
+
+    if (staffFormOverlay) {
+      staffFormOverlay.addEventListener("click", (event) => {
+        if (event.target.closest("[data-staff-form-close]")) {
+          closeStaffForm();
+        }
+      });
+    }
+
     if (filterSearchInput) {
       filterSearchInput.addEventListener("input", () => {
         searchQuery = String(filterSearchInput.value || "").trim();
@@ -21732,6 +21785,7 @@
       clearFormDraftFor(form);
       refreshStaff();
       setOverlayState(false);
+      setStaffFormOverlayState(false);
 
       setStatus(
         status,
@@ -21818,6 +21872,7 @@
           populatePortalStaffForm(form, user, isAdmin);
           setStatus(status, "info", `Editing staff account for <strong>${escapeHtml(user.email)}</strong>.`);
           setOverlayState(false);
+          setStaffFormOverlayState(true, "Edit staff account");
           return;
         }
 
@@ -21862,15 +21917,16 @@
         if (event.key === "Escape" && !overlay.hidden) {
           setOverlayState(false);
         }
+        if (event.key === "Escape" && staffFormOverlay && !staffFormOverlay.hidden) {
+          closeStaffForm();
+        }
       });
     }
 
     const cancelButton = form.querySelector("[data-staff-cancel]");
     if (cancelButton) {
       cancelButton.addEventListener("click", () => {
-        clearPortalStaffErrors(form);
-        resetPortalStaffForm(form, isAdmin);
-        setStatus(status, "", "");
+        closeStaffForm();
       });
     }
   }

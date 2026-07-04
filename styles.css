@@ -7313,6 +7313,23 @@ body.admin-dashboard-page[data-page="admin-teachers"] .portal-settings-form-wide
   background: #fbfdff;
 }
 
+body.admin-dashboard-page[data-page="admin-teachers"] .portal-staff-create-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin: 34px 0 18px;
+}
+
+body.admin-dashboard-page[data-page="admin-teachers"] .portal-staff-form-panel {
+  width: min(980px, 100%);
+}
+
+body.admin-dashboard-page[data-page="admin-teachers"] .portal-staff-form-panel .portal-settings-form-wide {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: #fbfdff;
+}
+
 body.admin-dashboard-page[data-page="admin-teachers"] .portal-settings-section-head {
   margin-bottom: 2px;
   padding-bottom: 10px;

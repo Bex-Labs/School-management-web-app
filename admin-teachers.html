@@ -149,100 +149,115 @@
               </div>
               <div id="staff-self-registration-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
             </section>
-            <form id="portal-staff-form" class="portal-settings-form portal-settings-form-wide" novalidate>
-              <div id="portal-staff-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
-              <input type="hidden" name="staffId" />
-              <div class="portal-settings-grid">
-                <div class="portal-settings-section-head portal-field-span-2">
-                  <strong>Staff profile</strong>
-                  <span>Create teacher access and staff details from one place.</span>
-                </div>
-                <input id="staff-name" name="displayName" type="hidden" />
-                <label class="portal-field" for="staff-prefix">
-                  <span>Prefix</span>
-                  <select id="staff-prefix" name="prefix" autocomplete="honorific-prefix">
-                    <option value="">None</option>
-                    <option value="Mr.">Mr.</option>
-                    <option value="Mrs.">Mrs.</option>
-                    <option value="Ms.">Ms.</option>
-                    <option value="Miss">Miss</option>
-                    <option value="Dr.">Dr.</option>
-                    <option value="Prof.">Prof.</option>
-                    <option value="Engr.">Engr.</option>
-                  </select>
-                  <p class="portal-field-error" data-staff-error-for="prefix"></p>
-                </label>
-                <label class="portal-field" for="staff-first-name">
-                  <span>First name <span class="form-required">*</span></span>
-                  <input id="staff-first-name" name="firstName" type="text" placeholder="First Name" autocomplete="given-name" />
-                  <p class="portal-field-error" data-staff-error-for="firstName"></p>
-                </label>
-                <label class="portal-field" for="staff-last-name">
-                  <span>Last name <span class="form-required">*</span></span>
-                  <input id="staff-last-name" name="lastName" type="text" placeholder="Last Name" autocomplete="family-name" />
-                  <p class="portal-field-error" data-staff-error-for="lastName"></p>
-                </label>
-                <label class="portal-field" for="staff-email">
-                  <span>Staff email <span class="form-required">*</span></span>
-                  <input id="staff-email" name="email" type="email" placeholder="teacher@school.com" autocomplete="off" />
-                  <p class="portal-field-error" data-staff-error-for="email"></p>
-                </label>
-                <label class="portal-field" for="staff-phone">
-                  <span>Phone</span>
-                  <input id="staff-phone" name="phone" type="text" placeholder="+234 800 000 0000" autocomplete="tel" />
-                  <p class="portal-field-error" data-staff-error-for="phone"></p>
-                </label>
-                <label class="portal-field" for="staff-profile-photo">
-                  <span>Profile picture</span>
-                  <input id="staff-profile-photo" name="profilePhoto" type="file" accept="image/png,image/jpeg,image/webp" />
-                  <small>Optional JPG, PNG, or WebP. Maximum 2MB.</small>
-                  <p class="portal-field-error" data-staff-error-for="profilePhoto"></p>
-                </label>
-                <label class="portal-field" for="staff-school-type" data-staff-school-type-field hidden>
-                  <span>School section</span>
-                  <select id="staff-school-type" name="schoolType"></select>
-                  <p class="portal-field-error" data-staff-error-for="schoolType"></p>
-                </label>
-                <label class="portal-field" for="staff-faculty" data-staff-faculty-field hidden>
-                  <span>Faculty</span>
-                  <select id="staff-faculty" name="faculty"></select>
-                  <p class="portal-field-error" data-staff-error-for="faculty"></p>
-                </label>
-                <label class="portal-field" for="staff-custom-faculty" data-staff-custom-faculty-field hidden>
-                  <span>Others</span>
-                  <input id="staff-custom-faculty" name="customFaculty" type="text" placeholder="Enter faculty, school, or program" />
-                  <p class="portal-field-error" data-staff-error-for="customFaculty"></p>
-                </label>
-                <label class="portal-field" for="staff-department">
-                  <span>Department</span>
-                  <select id="staff-department" name="department"></select>
-                  <p class="portal-field-error" data-staff-error-for="department"></p>
-                </label>
-                <label class="portal-field" for="staff-custom-department" data-staff-custom-department-field hidden>
-                  <span>Others</span>
-                  <input id="staff-custom-department" name="customDepartment" type="text" placeholder="Enter department" />
-                  <p class="portal-field-error" data-staff-error-for="customDepartment"></p>
-                </label>
-                <label class="portal-field" for="staff-subject-course" data-staff-subject-course-field>
-                  <span>Subject</span>
-                  <input id="staff-subject-course" name="subjectCourse" type="text" placeholder="e.g. Mathematics" />
-                  <p class="portal-field-error" data-staff-error-for="subjectCourse"></p>
-                </label>
-                <label class="portal-field" for="staff-title">
-                  <span>Title</span>
-                  <input id="staff-title" name="title" type="text" placeholder="Mathematics Teacher" />
-                  <p class="portal-field-error" data-staff-error-for="title"></p>
-                </label>
-                <div class="portal-staff-password-note portal-field-span-2">
-                  <strong>Default staff password</strong>
-                  <span>New staff accounts use Staff@123. Only the staff member can change it after signing in to their portal.</span>
-                </div>
-              </div>
-              <div class="utility-actions">
-                <button class="button button-primary" type="submit" data-staff-submit>Create staff account</button>
-                <button class="button button-outline" type="button" data-staff-cancel hidden>Cancel edit</button>
-              </div>
-            </form>
+            <div class="portal-staff-create-actions">
+              <button class="button button-primary" type="button" data-staff-form-open>Create staff</button>
+            </div>
+            <div id="portal-staff-form-overlay" class="portal-overlay" hidden>
+              <button class="portal-overlay-backdrop" type="button" data-staff-form-close aria-label="Close staff form"></button>
+              <section class="portal-overlay-panel portal-staff-form-panel" role="dialog" aria-modal="true" aria-labelledby="portal-staff-form-title">
+                <header class="portal-overlay-head">
+                  <div>
+                    <span class="portal-overlay-kicker">Staff account</span>
+                    <h3 id="portal-staff-form-title">Create staff account</h3>
+                  </div>
+                  <button class="portal-overlay-close" type="button" data-staff-form-close aria-label="Close staff form">&times;</button>
+                </header>
+                <form id="portal-staff-form" class="portal-settings-form portal-settings-form-wide" novalidate>
+                  <div id="portal-staff-status" class="auth-status" role="alert" aria-live="polite" hidden></div>
+                  <input type="hidden" name="staffId" />
+                  <div class="portal-settings-grid">
+                    <div class="portal-settings-section-head portal-field-span-2">
+                      <strong>Staff profile</strong>
+                      <span>Create teacher access and staff details from one place.</span>
+                    </div>
+                    <input id="staff-name" name="displayName" type="hidden" />
+                    <label class="portal-field" for="staff-prefix">
+                      <span>Prefix</span>
+                      <select id="staff-prefix" name="prefix" autocomplete="honorific-prefix">
+                        <option value="">None</option>
+                        <option value="Mr.">Mr.</option>
+                        <option value="Mrs.">Mrs.</option>
+                        <option value="Ms.">Ms.</option>
+                        <option value="Miss">Miss</option>
+                        <option value="Dr.">Dr.</option>
+                        <option value="Prof.">Prof.</option>
+                        <option value="Engr.">Engr.</option>
+                      </select>
+                      <p class="portal-field-error" data-staff-error-for="prefix"></p>
+                    </label>
+                    <label class="portal-field" for="staff-first-name">
+                      <span>First name <span class="form-required">*</span></span>
+                      <input id="staff-first-name" name="firstName" type="text" placeholder="First Name" autocomplete="given-name" />
+                      <p class="portal-field-error" data-staff-error-for="firstName"></p>
+                    </label>
+                    <label class="portal-field" for="staff-last-name">
+                      <span>Last name <span class="form-required">*</span></span>
+                      <input id="staff-last-name" name="lastName" type="text" placeholder="Last Name" autocomplete="family-name" />
+                      <p class="portal-field-error" data-staff-error-for="lastName"></p>
+                    </label>
+                    <label class="portal-field" for="staff-email">
+                      <span>Staff email <span class="form-required">*</span></span>
+                      <input id="staff-email" name="email" type="email" placeholder="teacher@school.com" autocomplete="off" />
+                      <p class="portal-field-error" data-staff-error-for="email"></p>
+                    </label>
+                    <label class="portal-field" for="staff-phone">
+                      <span>Phone</span>
+                      <input id="staff-phone" name="phone" type="text" placeholder="+234 800 000 0000" autocomplete="tel" />
+                      <p class="portal-field-error" data-staff-error-for="phone"></p>
+                    </label>
+                    <label class="portal-field" for="staff-profile-photo">
+                      <span>Profile picture</span>
+                      <input id="staff-profile-photo" name="profilePhoto" type="file" accept="image/png,image/jpeg,image/webp" />
+                      <small>Optional JPG, PNG, or WebP. Maximum 2MB.</small>
+                      <p class="portal-field-error" data-staff-error-for="profilePhoto"></p>
+                    </label>
+                    <label class="portal-field" for="staff-school-type" data-staff-school-type-field hidden>
+                      <span>School section</span>
+                      <select id="staff-school-type" name="schoolType"></select>
+                      <p class="portal-field-error" data-staff-error-for="schoolType"></p>
+                    </label>
+                    <label class="portal-field" for="staff-faculty" data-staff-faculty-field hidden>
+                      <span>Faculty</span>
+                      <select id="staff-faculty" name="faculty"></select>
+                      <p class="portal-field-error" data-staff-error-for="faculty"></p>
+                    </label>
+                    <label class="portal-field" for="staff-custom-faculty" data-staff-custom-faculty-field hidden>
+                      <span>Others</span>
+                      <input id="staff-custom-faculty" name="customFaculty" type="text" placeholder="Enter faculty, school, or program" />
+                      <p class="portal-field-error" data-staff-error-for="customFaculty"></p>
+                    </label>
+                    <label class="portal-field" for="staff-department">
+                      <span>Department</span>
+                      <select id="staff-department" name="department"></select>
+                      <p class="portal-field-error" data-staff-error-for="department"></p>
+                    </label>
+                    <label class="portal-field" for="staff-custom-department" data-staff-custom-department-field hidden>
+                      <span>Others</span>
+                      <input id="staff-custom-department" name="customDepartment" type="text" placeholder="Enter department" />
+                      <p class="portal-field-error" data-staff-error-for="customDepartment"></p>
+                    </label>
+                    <label class="portal-field" for="staff-subject-course" data-staff-subject-course-field>
+                      <span>Subject</span>
+                      <input id="staff-subject-course" name="subjectCourse" type="text" placeholder="e.g. Mathematics" />
+                      <p class="portal-field-error" data-staff-error-for="subjectCourse"></p>
+                    </label>
+                    <label class="portal-field" for="staff-title">
+                      <span>Title</span>
+                      <input id="staff-title" name="title" type="text" placeholder="Mathematics Teacher" />
+                      <p class="portal-field-error" data-staff-error-for="title"></p>
+                    </label>
+                    <div class="portal-staff-password-note portal-field-span-2">
+                      <strong>Default staff password</strong>
+                      <span>New staff accounts use Staff@123. Only the staff member can change it after signing in to their portal.</span>
+                    </div>
+                  </div>
+                  <div class="utility-actions">
+                    <button class="button button-primary" type="submit" data-staff-submit>Create staff account</button>
+                    <button class="button button-outline" type="button" data-staff-cancel hidden>Cancel edit</button>
+                  </div>
+                </form>
+              </section>
+            </div>
             <div class="portal-list-head">
               <h3 class="portal-list-subheading">All Staff</h3>
               <div class="portal-staff-filters">
