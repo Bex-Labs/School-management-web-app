@@ -11703,34 +11703,55 @@
         .sort((left, right) => left.label.localeCompare(right.label));
     };
 
-    const renderTeacherOptions = (selected = "") => {
+    const getSelectedCourseTeacherValues = () => getSelectSelectedValues(teacherSelect);
+
+    const renderTeacherOptions = (selected = []) => {
       if (!(teacherSelect instanceof HTMLSelectElement)) {
         return;
       }
 
-      const selectedValue = String(selected || "").trim();
+      const selectedValues = (Array.isArray(selected) ? selected : [selected])
+        .map((value) => String(value || "").trim())
+        .filter(Boolean);
+      const selectedSet = new Set(selectedValues);
       const teachers = getTeacherDirectory();
-      const hasSelected = teachers.some((teacher) => teacher.value === selectedValue);
-      teacherSelect.innerHTML = `
-        <option value="">Select registered teacher</option>
+      const teacherValues = new Set(teachers.map((teacher) => teacher.value));
+      const missingSelected = selectedValues.filter((value) => value && !teacherValues.has(value));
+      teacherSelect.size = Math.min(6, Math.max(3, teachers.length || missingSelected.length || 1));
+      teacherSelect.innerHTML = teachers.length || missingSelected.length
+        ? `
         ${teachers
           .map(
             (teacher) => `
-              <option value="${escapeHtml(teacher.value)}" ${teacher.value === selectedValue ? "selected" : ""}>
+              <option value="${escapeHtml(teacher.value)}" ${selectedSet.has(teacher.value) ? "selected" : ""}>
                 ${escapeHtml(teacher.label)}
               </option>
             `,
           )
           .join("")}
-        ${
-          selectedValue && !hasSelected
-            ? `<option value="${escapeHtml(selectedValue)}" selected>${escapeHtml(
-                getTeacherDisplayNameForValue(selectedValue),
-              )}</option>`
-            : ""
-        }
-      `;
+        ${missingSelected
+          .map(
+            (value) => `<option value="${escapeHtml(value)}" selected>${escapeHtml(
+              getTeacherDisplayNameForValue(value),
+            )}</option>`,
+          )
+          .join("")}
+      `
+        : `<option value="" disabled>Create teacher first</option>`;
     };
+
+    if (teacherSelect instanceof HTMLSelectElement) {
+      teacherSelect.addEventListener("mousedown", (event) => {
+        const option = event.target.closest("option");
+        if (!option || option.disabled) {
+          return;
+        }
+        event.preventDefault();
+        option.selected = !option.selected;
+        teacherSelect.focus();
+        teacherSelect.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+    }
 
     const getClassLevelOptions = () => {
       if (!classManager || typeof classManager.getClasses !== "function") {
@@ -12112,8 +12133,8 @@
       const { cycleState } = getCourseOpenPeriod();
       const selectedSessionId = String(sessionSelect?.value || "").trim();
       const selectedTermId = String(termSelect?.value || "").trim();
-      const selectedTeacher = String(teacherSelect?.value || "").trim();
-      const selectedTeacherLabel = getTeacherDisplayNameForValue(selectedTeacher);
+      const selectedTeacherValues = getSelectedCourseTeacherValues();
+      const selectedTeacherLabel = formatTeacherAssignmentNames(selectedTeacherValues);
       const selectedCategory =
         type === "secondary"
           ? String(categoryField?.value || "").trim()
@@ -12131,7 +12152,7 @@
         { label: "Class / level", value: selectedLevel },
         { label: "Arm selection", value: selectedClassArmLabel },
         { label: type === "higher" ? "Course" : "Subject", value: selectedSubject },
-        { label: "Teacher", value: selectedTeacherLabel },
+        { label: "Teachers", value: selectedTeacherLabel },
       ].filter((item) => String(item.value || "").trim());
 
       templateList.innerHTML = summaryItems.length
@@ -12219,7 +12240,7 @@
         status,
         listTarget,
       });
-      renderTeacherOptions(teacherSelect?.value || "");
+      renderTeacherOptions(getSelectedCourseTeacherValues());
       renderCourseSessionOptions(sessionSelect?.value || "");
       renderCourseTermOptions(termSelect?.value || "");
       renderClassLevelOptions(Array.from(levelSelect?.selectedOptions || []).map((option) => option.value));
@@ -12425,9 +12446,7 @@
         classRecordId: isAllArmsCourse ? "" : selectedClassRecord?.id || "",
         classLabel: isAllArmsCourse ? `${selectedLevels[0] || "Class"} - All arms` : selectedClassRecord ? getClassDisplayName(selectedClassRecord) : "",
         classArm: isAllArmsCourse ? "All arms" : selectedClassRecord?.name || "",
-        teacherAssignments: form.elements.teacherAssignments.value.trim()
-          ? [form.elements.teacherAssignments.value.trim()]
-          : [],
+        teacherAssignments: getSelectedCourseTeacherValues(),
         studentAssignments: [],
       };
       const cycleState = getCycleState();
@@ -12536,7 +12555,9 @@
         summary: currentRecord
           ? `Updated course ${payload.code} · ${payload.name}`
           : `Created course ${payload.code || "New"} · ${payload.name}`,
-        details: `${payload.sessionName} • ${payload.termName} • ${payload.level} • ${targetSummary} • ${payload.teacherAssignments.length} teacher assignment`,
+        details: `${payload.sessionName} • ${payload.termName} • ${payload.level} • ${targetSummary} • ${payload.teacherAssignments.length} teacher assignment${
+          payload.teacherAssignments.length === 1 ? "" : "s"
+        }`,
       });
 
       resetCourseWizardState();
@@ -12609,7 +12630,7 @@
         populatePortalCourseForm(form, record, isAdmin);
         renderCourseArmOptions(courseArmValue);
         renderSubjectPickerOptions(record.name || "");
-        renderTeacherOptions((record.teacherAssignments || [])[0] || "");
+        renderTeacherOptions(record.teacherAssignments || []);
         updateCourseTerminology();
         renderSubjectLibrary();
         setCourseFormVisibility(true);
@@ -12700,7 +12721,7 @@
     });
 
     window.addEventListener(manager.eventName, refreshCourseManagementSection);
-    window.addEventListener(STORAGE_KEYS.users, () => renderTeacherOptions(teacherSelect?.value || ""));
+    window.addEventListener(STORAGE_KEYS.users, () => renderTeacherOptions(getSelectedCourseTeacherValues()));
     const settingsManager = getSchoolSettingsManager();
     if (settingsManager?.eventName) {
       window.addEventListener(settingsManager.eventName, () => {
@@ -14408,23 +14429,32 @@
       return true;
     };
 
-    const getAutoAssignedTeacherForSubject = () => {
+    const getAssignedTeacherRecordsForSubject = () => {
       const subjectSelect = form.elements.subjectId;
       const selectedSubjectId = String(subjectSelect?.value || "").trim();
       if (!selectedSubjectId || selectedSubjectId === "__custom") {
-        return null;
+        return [];
       }
       const selectedSubject = getSubjectOptions().find((subject) => subject.id === selectedSubjectId) || null;
       const assignedValues = Array.isArray(selectedSubject?.teacherAssignments)
         ? selectedSubject.teacherAssignments
         : [];
+      const seen = new Set();
+      const teachers = [];
       for (const teacherValue of assignedValues) {
         const teacher = resolveTeacherDirectoryValue(teacherValue);
-        if (teacher) {
-          return teacher;
+        const key = String(teacher?.id || teacher?.email || teacher?.name || "").trim().toLowerCase();
+        if (teacher && key && !seen.has(key)) {
+          seen.add(key);
+          teachers.push(teacher);
         }
       }
-      return null;
+      return teachers;
+    };
+
+    const getAutoAssignedTeacherForSubject = () => {
+      const assignedTeachers = getAssignedTeacherRecordsForSubject();
+      return assignedTeachers.length === 1 ? assignedTeachers[0] : null;
     };
 
     const updateTimetableTeacherAssignment = () => {
@@ -14433,6 +14463,31 @@
         return;
       }
       const teacherField = teacherSelect.closest(".portal-field");
+      const assignedSubjectTeachers = getAssignedTeacherRecordsForSubject();
+      const autoTeacher = getAutoAssignedTeacherForSubject();
+      if (autoTeacher) {
+        teacherSelect.value = autoTeacher.id;
+        teacherSelect.dataset.autoAssignedTeacher = autoTeacher.id;
+        delete teacherSelect.dataset.classTeacherAuto;
+        teacherSelect.disabled = true;
+        if (teacherField) {
+          teacherField.hidden = true;
+        }
+        return;
+      }
+      if (assignedSubjectTeachers.length > 1) {
+        const assignedIds = new Set(assignedSubjectTeachers.map((teacher) => teacher.id));
+        if (!assignedIds.has(teacherSelect.value)) {
+          teacherSelect.value = assignedSubjectTeachers[0]?.id || "";
+        }
+        delete teacherSelect.dataset.classTeacherAuto;
+        delete teacherSelect.dataset.autoAssignedTeacher;
+        teacherSelect.disabled = !isAdmin;
+        if (teacherField) {
+          teacherField.hidden = false;
+        }
+        return;
+      }
       const classTeacher = getClassTeacherForTimetable();
       if (classTeacher) {
         teacherSelect.value = classTeacher.id;
@@ -14445,16 +14500,6 @@
         return;
       }
       delete teacherSelect.dataset.classTeacherAuto;
-      const autoTeacher = getAutoAssignedTeacherForSubject();
-      if (autoTeacher) {
-        teacherSelect.value = autoTeacher.id;
-        teacherSelect.dataset.autoAssignedTeacher = autoTeacher.id;
-        teacherSelect.disabled = true;
-        if (teacherField) {
-          teacherField.hidden = true;
-        }
-        return;
-      }
       const previousAutoTeacher = String(teacherSelect.dataset.autoAssignedTeacher || "").trim();
       if (previousAutoTeacher && teacherSelect.value === previousAutoTeacher) {
         teacherSelect.value = "";
@@ -14602,10 +14647,17 @@
       const subjectOptions = getSubjectOptions();
       const selectedSubjectId = String(form.elements.subjectId?.value || "").trim();
       const selectedSubject = subjectOptions.find((subject) => subject.id === selectedSubjectId) || null;
+      const assignedSubjectTeachers = getAssignedTeacherRecordsForSubject();
+      const selectedTeacherId = String(form.elements.teacherId?.value || "").trim();
+      const manualTeacher = getTeacherDirectory().find((teacher) => teacher.id === selectedTeacherId) || null;
+      const selectedSubjectTeacher =
+        assignedSubjectTeachers.length === 1
+          ? assignedSubjectTeachers[0]
+          : assignedSubjectTeachers.find((teacher) => teacher.id === selectedTeacherId) || null;
       const selectedTeacher =
+        selectedSubjectTeacher ||
+        manualTeacher ||
         getClassTeacherForTimetable(selectedClass) ||
-        getAutoAssignedTeacherForSubject() ||
-        getTeacherDirectory().find((teacher) => teacher.id === String(form.elements.teacherId?.value || "").trim()) ||
         null;
       const customSubject = String(form.elements.subject?.value || "").trim();
       return {
@@ -14729,7 +14781,7 @@
       const entryId = String(form.elements.timetableEntryId?.value || "").trim();
       const existing = manager.getEntries().find((row) => row.id === entryId) || null;
       const selectedClassForTeacherSync = getSelectedClass();
-      const autoTeacherForSubject = getAutoAssignedTeacherForSubject();
+      const hasSubjectTeacherAssignment = getAssignedTeacherRecordsForSubject().length > 0;
       const payload = buildEntryPayloadFromForm();
       payload.status = existing ? existing.status : "draft";
 
@@ -14773,7 +14825,7 @@
 
       manager.upsertEntry(payload);
       const classTeacherUpdated = assignClassTeacherFromTimetable(selectedClassForTeacherSync, payload.teacherId, {
-        skipSubjectTeacher: Boolean(autoTeacherForSubject),
+        skipSubjectTeacher: hasSubjectTeacherAssignment,
       });
       const teacher = getTeacherDirectory().find((entry) => entry.id === payload.teacherId);
       const load = manager.getTeacherLoad(payload);
@@ -18261,6 +18313,40 @@
     }
   }
 
+  function getSelectSelectedValues(select) {
+    if (!(select instanceof HTMLSelectElement)) {
+      return [];
+    }
+
+    return Array.from(select.selectedOptions || [])
+      .map((option) => String(option.value || "").trim())
+      .filter(Boolean);
+  }
+
+  function setSelectSelectedValues(select, values = []) {
+    if (!(select instanceof HTMLSelectElement)) {
+      return;
+    }
+
+    const selected = new Set(
+      (Array.isArray(values) ? values : [values])
+        .map((value) => String(value || "").trim())
+        .filter(Boolean),
+    );
+
+    Array.from(select.options || []).forEach((option) => {
+      option.selected = selected.has(String(option.value || "").trim());
+    });
+  }
+
+  function formatTeacherAssignmentNames(values = []) {
+    const names = (Array.isArray(values) ? values : [values])
+      .map((value) => getTeacherDisplayNameForValue(value))
+      .filter(Boolean);
+
+    return names.length ? names.join(", ") : "";
+  }
+
   function resetPortalClassForm(form, isAdmin) {
     if (!form) {
       return;
@@ -18362,7 +18448,7 @@
     }
 
     if (form.elements.teacherAssignments) {
-      form.elements.teacherAssignments.value = "";
+      setSelectSelectedValues(form.elements.teacherAssignments, []);
     }
 
     if (form.elements.sessionId) {
@@ -18484,7 +18570,7 @@
       }
     }
     if (form.elements.teacherAssignments) {
-      form.elements.teacherAssignments.value = (record.teacherAssignments || [])[0] || "";
+      setSelectSelectedValues(form.elements.teacherAssignments, record.teacherAssignments || []);
     }
     if (form.elements.studentAssignments) {
       form.elements.studentAssignments.value = (record.studentAssignments || []).join("\n");
@@ -20569,62 +20655,370 @@
       );
     };
 
-    const buildStaffJobLetterText = (user = {}) => {
-      const settings = getConfiguredSchoolSettings();
-      const schoolName = settings.schoolName || "The School";
-      const schoolAddress = settings.address || settings.campusDetails || "";
-      const staffName = user.displayName || user.email || "Staff member";
-      const roleTitle = user.title || getStaffAcademicFocus(user).value || "Academic Staff";
-      const department = [user.staffFaculty || user.faculty || "", user.department || ""]
-        .map((value) => String(value || "").trim())
-        .filter(Boolean)
-        .join(" / ") || "Academic Department";
-      const today = new Date().toLocaleDateString(undefined, {
+    const formatStaffLetterDate = (value = "") => {
+      const source = value ? new Date(value) : new Date();
+      const date = Number.isNaN(source.getTime()) ? new Date() : source;
+      return date.toLocaleDateString(undefined, {
         year: "numeric",
         month: "long",
         day: "numeric",
       });
+    };
 
+    const getStaffLetterId = (user = {}) => {
+      const source = String(user.staffId || user.employeeId || user.id || user.email || "").trim();
+      if (!source) {
+        return "Not assigned";
+      }
+      return source.replace(/[^a-z0-9]/gi, "").slice(-8).toUpperCase() || source;
+    };
+
+    const getStaffLetterDetails = (user = {}) => {
+      const settings = getConfiguredSchoolSettings();
+      const academicFocus = getStaffAcademicFocus(user);
+      const faculty = String(user.staffFaculty || user.faculty || "").trim();
+      const department = [faculty, user.department || ""]
+        .map((value) => String(value || "").trim())
+        .filter(Boolean)
+        .join(" / ") || "Academic Department";
+      const schoolContacts = [
+        settings.phone,
+        settings.website,
+        settings.address || settings.campusDetails,
+      ]
+        .map((value) => String(value || "").trim())
+        .filter(Boolean);
+
+      return {
+        schoolName: settings.schoolName || "The School",
+        logoUrl: String(settings.logoUrl || "").trim(),
+        schoolTagline: String(settings.schoolProfile || settings.campusDetails || "Your School Management Platform").trim(),
+        schoolContacts,
+        staffName: user.displayName || user.email || "Staff member",
+        staffId: getStaffLetterId(user),
+        registrationId: String(user.registrationId || user.staffRegistrationId || getStaffLetterId(user)).trim(),
+        nationalId: String(user.nationalId || user.nin || "").trim(),
+        roleTitle: user.title || academicFocus.value || "Academic Staff",
+        department,
+        salary: String(user.monthlySalary || user.salary || "").trim(),
+        joiningDate: formatStaffLetterDate(user.joiningDate || user.createdAt || nowIso()),
+        username: user.email || "Not provided",
+        password: user.provider === "google" ? "Google sign-in" : DEFAULT_STAFF_PASSWORD,
+        homeAddress: String(user.address || user.homeAddress || "").trim(),
+        dateOfBirth: String(user.dateOfBirth || "").trim(),
+        gender: String(user.gender || "").trim(),
+        religion: String(user.religion || "").trim(),
+        bloodGroup: String(user.bloodGroup || "").trim(),
+        education: String(user.education || user.qualification || "").trim(),
+        experience: String(user.experience || "").trim(),
+        mobileNo: String(user.phone || "").trim(),
+        emailAddress: String(user.email || "").trim(),
+        focusLabel: academicFocus.label,
+        focusValue: academicFocus.value || "",
+        photoUrl: getStaffProfilePhotoUrl(user),
+      };
+    };
+
+    const renderStaffLetterField = (label, value = "") => {
+      const displayValue = String(value || "").trim();
+      return `
+        <article class="letter-field">
+          <span>${escapeHtml(label)}</span>
+          <strong>${displayValue ? escapeHtml(displayValue) : "&nbsp;"}</strong>
+        </article>
+      `;
+    };
+
+    const renderStaffLetterPhoto = (details = {}) => {
+      if (details.photoUrl) {
+        return `<img src="${escapeHtml(details.photoUrl)}" alt="${escapeHtml(details.staffName)} profile picture" />`;
+      }
+      return `<span>${escapeHtml(getInitials(details.staffName).slice(0, 2) || "ST")}</span>`;
+    };
+
+    const buildStaffJobLetterText = (user = {}) => {
+      const details = getStaffLetterDetails(user);
       return [
-        schoolName,
-        schoolAddress,
+        `${details.schoolName} - Job Letter`,
+        `Name: ${details.staffName}`,
+        `Staff ID: ${details.staffId}`,
+        `Role: ${details.roleTitle}`,
+        `Department: ${details.department}`,
+        `Date of Joining: ${details.joiningDate}`,
+        `Username: ${details.username}`,
+        `Password: ${details.password}`,
         "",
-        today,
+        `This confirms the appointment of ${details.staffName} as ${details.roleTitle} at ${details.schoolName}.`,
+        "The staff member is expected to follow school policies, protect student information, support teaching and learning standards, and maintain professional conduct.",
         "",
-        `Dear ${staffName},`,
-        "",
-        `LETTER OF APPOINTMENT`,
-        "",
-        `This letter confirms your appointment as ${roleTitle} in the ${department} of ${schoolName}.`,
-        `You are expected to perform your duties professionally, follow school policies, protect student information, and support teaching and learning standards.`,
-        "",
-        `Your staff portal account has been created with your registered email: ${user.email || "Not provided"}.`,
-        "",
-        "Please sign and return a copy of this letter to acknowledge acceptance.",
-        "",
-        "Sincerely,",
-        schoolName,
-      ].filter((line, index, lines) => line || lines[index - 1]).join("\n");
+        "Signature of Authority: ______________________________",
+        "Institute Stamp: ______________________________",
+      ].join("\n");
     };
 
     const renderStaffJobLetterDocument = (user = {}) => {
-      const letterText = buildStaffJobLetterText(user);
+      const details = getStaffLetterDetails(user);
+      const contactLine = details.schoolContacts.map((item) => escapeHtml(item)).join(" | ");
+      const rules = [
+        "Staff members are expected to maintain professional conduct at all times.",
+        "Staff members must follow school policies, attendance expectations, and child protection rules.",
+        "Staff members must keep student, parent, and school information confidential.",
+        "Staff members should prepare lessons, keep records, and support the academic progress of learners.",
+        "Staff members should respect colleagues, students, parents, and school property.",
+        "Staff members should report issues, absences, or emergencies to school management promptly.",
+      ];
       return `
         <!doctype html>
         <html>
           <head>
             <meta charset="utf-8" />
-            <title>${escapeHtml(user.displayName || user.email || "Staff")} job letter</title>
+            <title>${escapeHtml(details.staffName)} job letter</title>
             <style>
+              @page { size: A4; margin: 0; }
               * { box-sizing: border-box; }
-              body { margin: 0; padding: 34px; color: #17233a; font-family: Inter, Arial, sans-serif; }
-              main { max-width: 760px; margin: 0 auto; }
-              pre { white-space: pre-wrap; font: 15px/1.75 Inter, Arial, sans-serif; }
-              @media print { body { padding: 0; } }
+              body {
+                margin: 0;
+                background: #f3f5fb;
+                color: #222333;
+                font-family: Arial, Helvetica, sans-serif;
+              }
+              .letter-page {
+                width: 210mm;
+                min-height: 297mm;
+                margin: 0 auto;
+                padding: 18mm 16mm 14mm;
+                background: #ffffff;
+              }
+              .letter-top {
+                text-align: center;
+              }
+              .letter-logo {
+                display: inline-flex;
+                width: 74px;
+                height: 74px;
+                align-items: center;
+                justify-content: center;
+                overflow: hidden;
+                border-radius: 18px;
+                background: #3154d4;
+                color: #ffffff;
+                font-size: 26px;
+                font-weight: 900;
+              }
+              .letter-logo img {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+              }
+              h1 {
+                margin: 10px 0 4px;
+                color: #111827;
+                font-size: 30px;
+                line-height: 1;
+              }
+              .letter-tagline {
+                margin: 0;
+                color: #1f2937;
+                font-size: 12px;
+                font-weight: 800;
+                text-transform: uppercase;
+              }
+              .letter-contact {
+                margin: 6px 0 0;
+                color: #333746;
+                font-size: 13px;
+              }
+              .letter-title {
+                margin: 10px 0 28px;
+                color: #4b55aa;
+                font-size: 28px;
+                font-weight: 900;
+              }
+              .letter-rule {
+                height: 1px;
+                margin: 0 0 24px;
+                background: #d8dbe3;
+              }
+              .letter-profile {
+                display: grid;
+                grid-template-columns: 210px 1fr 1fr;
+                gap: 26px;
+                align-items: start;
+              }
+              .letter-photo {
+                display: flex;
+                width: 170px;
+                height: 170px;
+                align-items: center;
+                justify-content: center;
+                overflow: hidden;
+                border-radius: 50%;
+                background: #eef0f5;
+                color: #4b55aa;
+                font-size: 42px;
+                font-weight: 900;
+              }
+              .letter-photo img {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+              }
+              .letter-field {
+                margin: 0 0 12px;
+              }
+              .letter-field span {
+                display: block;
+                color: #555b8b;
+                font-size: 13px;
+                line-height: 1.1;
+              }
+              .letter-field strong {
+                display: block;
+                min-height: 22px;
+                border-bottom: 1px solid #929292;
+                color: #222333;
+                font-size: 17px;
+                line-height: 1.25;
+              }
+              .letter-field strong::before {
+                content: "-> ";
+                color: #8a8f99;
+                font-weight: 500;
+              }
+              .letter-address {
+                margin-top: 28px;
+                max-width: 360px;
+              }
+              .letter-mid-rule {
+                height: 1px;
+                margin: 28px 0 20px;
+                background: #999999;
+              }
+              .letter-detail-grid {
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 18px 42px;
+              }
+              .letter-section-rule {
+                height: 1px;
+                margin: 30px 0 22px;
+                background: #d8dbe3;
+              }
+              .letter-rules h2 {
+                margin: 0 0 8px;
+                color: #555b8b;
+                font-size: 20px;
+              }
+              .letter-rules p,
+              .letter-rules li {
+                color: #4b4f5f;
+                font-size: 13.5px;
+                line-height: 1.45;
+              }
+              .letter-rules p {
+                margin: 0 0 6px;
+              }
+              .letter-rules ul {
+                margin: 0;
+                padding-left: 18px;
+              }
+              .letter-signatures {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 60px;
+                margin-top: 70px;
+                color: #222333;
+                font-size: 14px;
+              }
+              .signature-line {
+                display: inline-block;
+                width: 190px;
+                border-bottom: 1px solid #777777;
+                transform: translateY(-3px);
+              }
+              @media print {
+                body { background: #ffffff; }
+                .letter-page {
+                  margin: 0;
+                  box-shadow: none;
+                }
+              }
             </style>
           </head>
           <body>
-            <main><pre>${escapeHtml(letterText)}</pre></main>
+            <main class="letter-page">
+              <header class="letter-top">
+                <div class="letter-logo">${
+                  details.logoUrl
+                    ? `<img src="${escapeHtml(details.logoUrl)}" alt="${escapeHtml(details.schoolName)} logo" />`
+                    : escapeHtml(getInitials(details.schoolName).slice(0, 2) || "S")
+                }</div>
+                <h1>${escapeHtml(details.schoolName)}</h1>
+                <p class="letter-tagline">${escapeHtml(details.schoolTagline || "School Management")}</p>
+                ${contactLine ? `<p class="letter-contact">${contactLine}</p>` : ""}
+                <div class="letter-title">Job Letter</div>
+              </header>
+              <div class="letter-rule"></div>
+
+              <section class="letter-profile">
+                <div>
+                  <div class="letter-photo">${renderStaffLetterPhoto(details)}</div>
+                </div>
+                <div>
+                  ${renderStaffLetterField("Serial No", details.staffId)}
+                  ${renderStaffLetterField("Registration/ID", details.registrationId)}
+                  ${renderStaffLetterField("Name of Employee", details.staffName)}
+                  ${renderStaffLetterField("Department", details.department)}
+                </div>
+                <div>
+                  ${renderStaffLetterField("National ID", details.nationalId)}
+                  ${renderStaffLetterField("Employee Role", details.roleTitle)}
+                  ${renderStaffLetterField("Monthly Salary", details.salary)}
+                  ${renderStaffLetterField("Date of Joining", details.joiningDate)}
+                  ${renderStaffLetterField("Username", details.username)}
+                  ${renderStaffLetterField("Password", details.password)}
+                </div>
+              </section>
+
+              <div class="letter-address">
+                ${renderStaffLetterField("Home Address", details.homeAddress)}
+              </div>
+
+              <div class="letter-mid-rule"></div>
+
+              <section class="letter-detail-grid">
+                <div>
+                  ${renderStaffLetterField("Date of Birth", details.dateOfBirth)}
+                  ${renderStaffLetterField("Gender", details.gender)}
+                  ${renderStaffLetterField("Religion", details.religion)}
+                </div>
+                <div>
+                  ${renderStaffLetterField("Blood Group", details.bloodGroup)}
+                  ${renderStaffLetterField("Experience", details.experience)}
+                  ${renderStaffLetterField(details.focusLabel, details.focusValue)}
+                </div>
+                <div>
+                  ${renderStaffLetterField("Education", details.education)}
+                  ${renderStaffLetterField("Mobile No", details.mobileNo)}
+                  ${renderStaffLetterField("Email Address", details.emailAddress)}
+                </div>
+              </section>
+
+              <div class="letter-section-rule"></div>
+
+              <section class="letter-rules">
+                <h2>Rules And Regulations:</h2>
+                <p>This appointment is subject to the school's policies, professional standards, and administrative guidelines.</p>
+                <ul>
+                  ${rules.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+                </ul>
+              </section>
+
+              <footer class="letter-signatures">
+                <div>Signature of Authority<span class="signature-line"></span></div>
+                <div>Institute Stamp<span class="signature-line"></span></div>
+              </footer>
+            </main>
             <script>
               window.addEventListener("load", function () {
                 window.focus();
@@ -22582,10 +22976,8 @@
                               <strong>${escapeHtml(record.code || "Not set")}</strong>
                             </div>
                             <div class="portal-class-meta-item">
-                              <span>Teacher</span>
-                              <strong>${escapeHtml(
-                                getTeacherDisplayNameForValue((record.teacherAssignments || [])[0]) || "Not assigned",
-                              )}</strong>
+                              <span>Teachers</span>
+                              <strong>${escapeHtml(formatTeacherAssignmentNames(record.teacherAssignments || []) || "Not assigned")}</strong>
                             </div>
                             <div class="portal-class-meta-item">
                               <span>Class arm</span>

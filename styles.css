@@ -3834,6 +3834,17 @@ input[type="file"]:hover::-webkit-file-upload-button {
   padding: 0 16px;
 }
 
+.portal-field select[multiple] {
+  height: auto;
+  min-height: 136px;
+  padding: 10px 12px;
+}
+
+.portal-field select[multiple] option {
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
 .portal-field textarea {
   min-height: 118px;
   padding: 14px 16px;
@@ -7459,6 +7470,10 @@ body.admin-dashboard-page .portal-field input {
 
 body.admin-dashboard-page .portal-field select {
   min-height: 54px;
+}
+
+body.admin-dashboard-page .portal-field select[multiple] {
+  min-height: 136px;
 }
 
 body.admin-dashboard-page .portal-toggle-summary {

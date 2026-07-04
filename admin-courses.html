@@ -236,10 +236,11 @@
                     </label>
 
                     <label class="portal-field" for="course-teacher-assignments" data-course-teacher-field hidden>
-                      <span>Teacher / lecturer</span>
-                      <select id="course-teacher-assignments" name="teacherAssignments">
-                        <option value="">Select registered teacher</option>
+                      <span>Teachers / lecturers</span>
+                      <select id="course-teacher-assignments" name="teacherAssignments" multiple size="5">
+                        <option value="" disabled>Create teachers first</option>
                       </select>
+                      <small>Click teachers to select or remove more than one teacher.</small>
                       <p class="portal-field-error" data-course-error-for="teacherAssignments"></p>
                     </label>
 
