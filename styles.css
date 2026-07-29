@@ -17262,38 +17262,46 @@ body[data-page="products"] #products-lane-grid .card-badge {
 }
 
 .careers-team-card {
+  overflow: hidden;
   border: 1px solid #dbe4ef;
   border-radius: 12px;
   background: #ffffff;
-  padding: 18px;
-  display: grid;
-  grid-template-rows: auto auto 1fr;
-  min-height: 236px;
-}
-
-.placeholder-chip {
-  min-height: 86px;
-  border: 1px dashed #bbc7d7;
-  border-radius: 10px;
-  background: #f1f5fa;
-  color: #53657a;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  font-size: 0.82rem;
-  margin-bottom: 12px;
+  flex-direction: column;
+  min-width: 0;
 }
 
-.role-chip {
-  border-style: solid;
-  border-color: #d4e2f2;
-  background:
-    radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.9), transparent 34%),
-    linear-gradient(135deg, #eaf2fb, #d7e5f4);
-  color: #1e4673;
-  font-size: 1.65rem;
-  font-weight: 800;
+.role-card-media {
+  overflow: hidden;
+  aspect-ratio: 1;
+  background: #f7f5f0;
+}
+
+.role-card-media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 280ms ease;
+}
+
+.careers-team-card:hover .role-card-media img {
+  transform: scale(1.025);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .role-card-media img {
+    transition: none;
+  }
+
+  .careers-team-card:hover .role-card-media img {
+    transform: none;
+  }
+}
+
+.role-card-copy {
+  flex: 1;
+  padding: 18px 20px 22px;
 }
 
 .careers-team-card h3 {
