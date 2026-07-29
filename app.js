@@ -4525,10 +4525,10 @@ function renderHeader() {
   const platformName = DEFAULT_PLATFORM_NAME;
 
   const primaryNavHtml = homeNavLinks
-    .map(
-      (item) =>
-        `<a class="nav-direct-link ${hrefMatchesCurrentFile(item.href, currentFile) ? "is-active" : ""}" href="${item.href}">${item.label}</a>`,
-    )
+    .map((item) => {
+      const isCurrent = hrefMatchesCurrentFile(item.href, currentFile);
+      return `<a class="nav-direct-link${isCurrent ? " is-active" : ""}" href="${item.href}"${isCurrent ? ' aria-current="page"' : ""}>${item.label}</a>`;
+    })
     .join("");
 
   const navAuthHtml = `

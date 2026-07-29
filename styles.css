@@ -16821,10 +16821,101 @@ body[data-page="home"] .site-bg {
   border-bottom: 2px solid transparent;
 }
 
-.nav-direct-link:hover,
 .nav-direct-link.is-active {
+  background: transparent;
   color: #1260d0;
   border-bottom-color: #1260d0;
+}
+
+.nav-direct-link:not(.is-active):hover {
+  background: transparent;
+  color: #22354b;
+  border-bottom-color: transparent;
+}
+
+.nav-direct-link:focus-visible {
+  outline: 2px solid #1260d0;
+  outline-offset: 4px;
+}
+
+/* Products: keep the illustrative dashboard deliberately abstract. */
+body[data-page="products"] .hero-visual {
+  display: flex;
+  align-items: center;
+  min-height: 470px;
+}
+
+body[data-page="products"] .dashboard-mockup {
+  width: min(100%, 470px);
+  margin: 0 auto;
+}
+
+body[data-page="products"] .dashboard-layout {
+  display: block;
+  min-height: 350px;
+}
+
+body[data-page="products"] .dashboard-side {
+  min-height: 350px;
+  padding: 44px 46px;
+  border-right: 0;
+  background:
+    linear-gradient(145deg, rgba(244, 250, 255, 0.98), rgba(255, 255, 255, 0.98));
+}
+
+body[data-page="products"] .dashboard-nav {
+  gap: 0;
+  margin-top: 0;
+}
+
+body[data-page="products"] .dashboard-nav span {
+  min-height: auto;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--navy-700);
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+body[data-page="products"] .dashboard-nav span:last-child {
+  border-bottom: 0;
+}
+
+body[data-page="products"] .hero-pills {
+  gap: 0;
+  align-items: center;
+}
+
+body[data-page="products"] .hero-pills span {
+  min-height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--navy-700);
+  font-size: 0.86rem;
+  font-weight: 650;
+}
+
+body[data-page="products"] .hero-pills span:not(:last-child)::after {
+  content: "·";
+  margin: 0 10px;
+  color: var(--sky-500);
+}
+
+body[data-page="products"] #products-lane-grid .card-badge {
+  display: block;
+  min-height: auto;
+  width: fit-content;
+  padding: 0 0 7px;
+  border-bottom: 2px solid var(--sky-500);
+  border-radius: 0;
+  background: transparent;
+  color: var(--sky-700);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .nav-auth {
