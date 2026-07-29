@@ -17273,7 +17273,7 @@ body[data-page="products"] #products-lane-grid .card-badge {
 
 .role-card-media {
   overflow: hidden;
-  aspect-ratio: 1;
+  aspect-ratio: 2 / 1;
   background: #f7f5f0;
 }
 
