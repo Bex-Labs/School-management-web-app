@@ -1,6 +1,6 @@
 # Safe staged extraction plan
 
-Snapshot: 2026-10-02; HEAD e1eb094, main tracking origin/main. Initial working tree was clean. Planning only: no extraction is authorized by completion of this documentation stage. Stop after the four documentation files.
+Original plan: 2026-10-02 at e1eb094. E01 was explicitly requested and implemented from clean refactor/javascript-structure at 39ec400. Static and isolated checks pass; browser acceptance remains outstanding. Stop after E01; no subsequent stage has started.
 
 ## Non-negotiable boundaries
 
@@ -42,15 +42,15 @@ For auth.js closures, first extract pure functions or a cohesive feature factory
 
 Use explicit import/export as a later destination. Do not flip one classic script to type=module while leaving consumers dependent on its old globals and execution order. Coordinated entry-point conversion happens only after interfaces are explicit and acceptance checks are available. No build tool is required for the initial extraction.
 
-## E01 — recommended first extraction: renderWhyGrid
+## E01 — implemented: renderWhyGrid (browser acceptance pending)
 
-**Exact scope:** move only app.js:4628–4646, the renderWhyGrid(targetId, items) function, unchanged into js/website/why-grid.js. Keep whyCards, initPageContent and all other functions/state in app.js.
+**Implemented scope:** moved the original app.js:4628–4646 renderWhyGrid(targetId, items) function unchanged into js/website/why-grid.js:1–19. whyCards, initPageContent and all other functions/state remain in app.js. One classic script tag was added before app.js on each of its 57 HTML consumers.
 
 **Reason:** static binding analysis found no application dependencies, only document.getElementById and its parameters. It has one lexical consumer, initPageContent, which calls it for why-preview-grid and why-page-grid. Only why-page-grid is present in current root HTML (why-it-works.html:36); missing-target behavior must remain a no-op. It has no storage, network, listeners, permissions or mutable module state.
 
-**Current baseline evidence:** isolated VM checks passed for missing target, synthetic title/copy rendering and empty input. Browser appearance and full generated-markup equivalence are still NOT TESTED.
+**E01 evidence:** exact source equality; five full-output fixtures including the real whyCards; missing-target no-op; isolated initPageContent trace and output parity; exactly one declaration and one script inclusion per consumer; all 214 local script references resolve; five JS files parse. The original 157 tags/inline bodies are unchanged, app.js is otherwise byte-identical, and unrelated files match the pre-extraction snapshot. Browser HTTP/visual/login/portal acceptance is NOT TESTED because localhost browser access was previously policy-blocked. The existing contact syntax failure remains unchanged.
 
-### Implementation sequence when the user requests E01
+### E01 procedure and remaining acceptance
 
 1. Recheck git status and these source anchors. Protect any new unrelated changes.
 2. Record the original function and rendered HTML for a synthetic fixture; open why-it-works over HTTP to capture its actual appearance if browser access is available.
@@ -106,4 +106,6 @@ Run the full checklist on representative roles and two synthetic school workspac
 
 ## Current completion boundary
 
-Only docs/refactor/inventory.md, contracts.md, checklist.md and plan.md are created in this task. All symbols are still unmoved. E01 is recommended, not implemented.
+E01 only is implemented: one new JS file, one function removed from app.js, one script tag added in each of 57 HTML files, and four documentation files updated. No other declaration moved. No commit, push, deployment, database change or E02 work occurred.
+
+Next action is browser acceptance for E01 in an environment permitted to serve/open localhost, especially why-it-works.html, a missing-target page, and login/portal startup. Preserve the known contact failure as a separate issue. Do not treat the static checks as proof of those workflows or proceed automatically to E02. Rollback is limited to this extraction’s function/tag/documentation hunks using 39ec400 as the pre-extraction checkpoint; retain any later unrelated user changes.

@@ -9,7 +9,7 @@ Snapshot: 2026-10-02; HEAD e1eb094 on main. This task documents a future refacto
 - **NOT TESTED**: required behavior has not been exercised; source presence alone is insufficient.
 - **BLOCKED**: record the concrete missing prerequisite when a future attempt cannot run. Do not silently promote it to PASS.
 
-## Checks actually performed
+## Planning-stage checks (historical; before E01)
 
 | Check | Result | Evidence and limit |
 | --- | --- | --- |
@@ -137,3 +137,28 @@ Preserve pre-test storage in the disposable profile. Run through HTTP rather tha
 ## Result log template
 
 For each future run record: extraction ID; local revision/working state; check IDs; synthetic fixture role/school; expected vs actual; PASS/FAIL/NOT TESTED; console/network evidence with secrets redacted; touched paths; remaining risks; rollback checkpoint. A screenshot or syntax pass alone cannot substitute for data, access or synchronization checks.
+
+## E01 result log
+
+Scope: renderWhyGrid extraction only, from clean branch refactor/javascript-structure at pre-extraction HEAD 39ec400. No commit/push/deployment/database work. The original planning-stage PASS rows above describe that earlier stage, not current file counts.
+
+| Check | Result | Evidence / limitation |
+| --- | --- | --- |
+| Working tree before extraction | PASS | Clean; branch refactor/javascript-structure tracking origin/refactor/javascript-structure. |
+| Dependency/consumer audit | PASS | Helper uses parameters and document only. initPageContent is the sole callable consumer with two existing calls. Only why-page-grid is present in current HTML. All 57 app.js consumers need synchronous inclusion. |
+| Exact function move | PASS | New file is byte-for-byte the original 19-line function plus final newline. app.js equals its baseline with only that declaration and following blank line removed (20 lines). |
+| Full renderer output parity | PASS | Node VM comparison of exact innerHTML, lookup trace and write count for real three-card whyCards, empty input, one item, markup-containing text and eleven items. Each existing target receives one write. |
+| Missing target | PASS | Both old/new return without reading a null items argument and without writing. |
+| Page-content composition | PASS — isolated | Original/new renderer used with original initPageContent and synthetic document plus stubbed other renderers gives identical call order and HTML. This does not execute the full application or authenticate a portal. |
+| Initialization ownership | PASS — static/isolated | New file has one function declaration only: no initializer/listener/timer. app.js retains its one top-level initPageContent call and the two existing renderWhyGrid calls. |
+| All HTML entry points | PASS — source | 58 files checked; 57 contain exactly one new classic script directly before app.js. All original tag attributes, bodies, ordering and cache query strings are unchanged. Removing the single added line recreates each baseline HTML byte-for-byte. Verification HTML is unchanged. |
+| Script delivery prerequisites | PASS — filesystem only | All 214 external references resolve locally; 157 original plus 57 helper inclusions. Actual HTTP delivery, MIME handling and browser/cache behavior are NOT TESTED. |
+| JS syntax | PASS | Acorn parses app.js, auth.js, configuration, link companion and new helper as classic scripts. |
+| Inline scripts | PASS for unchanged status | Original/new inline parse results identical. Contact still fails at relative inline line 53 (original HTML line 958, now 959 after script insertion). Other inline scripts parse; dormant inbox stays dormant. |
+| Existing interfaces and unrelated code | PASS | app.js differs only by helper removal, preserving manager objects, other functions, data and startup text. auth.js/config/styles/backend files and all other non-target files match the captured baseline. |
+| Browser appearance and navigation | NOT TESTED | Earlier browser access to localhost was explicitly blocked by browser network policy; no alternate browser surface or headless workaround used. Card layout has not been visually verified this turn. |
+| Login/portal HTTP startup | NOT TESTED | No browser startup/session checks run; no database or account mutations made. Source loading order checked only. |
+
+Changed paths: js/website/why-grid.js (new), app.js, the 57 HTML consumers listed in contracts.md, and all four refactoring documents. Code movement is complete; E01 browser acceptance is still outstanding. Do not infer full workflow acceptance from the static/isolated results.
+
+Next manual checks: serve the repo using the usual local HTTP preview in an environment allowed to open it; check why-it-works.html card appearance, public navigation and a missing-target page, then login/portal startup and console/network errors. Expect the separately documented contact syntax error; do not fix it as part of E01. Do not proceed automatically to E02.

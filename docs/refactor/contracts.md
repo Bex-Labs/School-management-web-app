@@ -1,10 +1,10 @@
 # Contracts to preserve during JavaScript extraction
 
-Snapshot: 2026-10-02, HEAD e1eb094. These are observed source contracts, not a guarantee that current production or every workflow works. No application code, configuration, schema or deployment was changed. See checklist.md for evidence and limitations.
+Original contracts snapshot: 2026-10-02, e1eb094. Updated for E01 from pre-extraction 39ec400: renderWhyGrid is defined in js/website/why-grid.js and loaded before app.js. Configuration, schema and deployment remain unchanged. The HTML script manifest below is current; other HTML/inline locations retain baseline anchors and shift by one after the inserted script tag. See checklist.md for remaining untested workflows.
 
 ## Loading and startup
 
-All external HTML scripts inspected are classic scripts, without async/defer/type=module attributes. 57 of 58 HTML documents load app.js; the Google verification document has no script. The full ordered manifest below includes cache-busting query strings, which must remain valid. Most portal/auth pages load app.js, then supabase-config.js, then auth.js. Students and teachers administration additionally load self-registration-links.js after auth.js.
+All external HTML scripts inspected are classic scripts, without async/defer/type=module attributes. 57 of 58 HTML documents load app.js; the Google verification document has no script. The full ordered manifest below includes cache-busting query strings, which must remain valid. Most portal/auth pages load app.js, then supabase-config.js, then auth.js. Students and teachers administration additionally load self-registration-links.js after auth.js. After E01 every app.js tag is immediately preceded by one synchronous classic js/website/why-grid.js tag. There are now 214 external tags (157 original plus 57 new).
 
 ### app.js
 
@@ -12,7 +12,7 @@ All external HTML scripts inspected are classic scripts, without async/defer/typ
 2. Top-level lexical declarations and functions establish shared models and helpers. clearLegacySharedState() executes at line 505 and removes legacy unscoped keys. Do not accidentally re-run this cleanup per feature.
 3. window.SchoolSphere* manager objects are assigned at lines 4197–4417. Their object identity and public members are compatibility boundaries.
 4. A storage listener at line 4419 re-emits feature events for scoped keys.
-5. Immediate calls at lines 4871–4875 render header/footer, bind outside-click behavior, render page content, and apply branding. Subsequent listeners handle school settings, hash navigation and feature toggles.
+5. Immediate calls at lines 4851–4855 render header/footer, bind outside-click behavior, render page content, and apply branding. Subsequent listeners handle school settings, hash navigation and feature toggles.
 
 ### auth.js
 
@@ -74,68 +74,68 @@ initSupabaseAuthBridge registers onAuthStateChange and defers callback processin
 
 ## HTML entry-point manifest
 
-Each row lists source tags in their current order, including inline script locations. Paths remain document-relative.
+Each row lists current source tags after E01, in their original order plus the preceding why-grid.js tag, including current inline script locations. Paths remain document-relative.
 
 | HTML file | data-page | Ordered scripts |
 | --- | --- | --- |
-| `admin-admissions.html` | `admin-admissions` | `./app.js` @359 → `./supabase-config.js` @360 → `./auth.js?v=upload-remove-x` @361 |
-| `admin-attendance.html` | `admin-attendance` | `./app.js` @208 → `./supabase-config.js` @209 → `./auth.js` @210 |
-| `admin-classes.html` | `admin-classes` | `./app.js` @289 → `./supabase-config.js` @290 → `./auth.js` @291 |
-| `admin-courses.html` | `admin-courses` | `./app.js` @283 → `./supabase-config.js` @284 → `./auth.js` @285 |
-| `admin-feature-modules.html` | `admin-feature-modules` | `./app.js` @166 → `./supabase-config.js` @167 → `./auth.js` @168 |
-| `admin-fees.html` | `admin-fees` | `./app.js` @316 → `./supabase-config.js` @317 → `./auth.js` @318 |
-| `admin-messages.html` | `admin-messages` | `./app.js` @590 → `./supabase-config.js` @591 → `./auth.js` @592 → `inline` @593 |
-| `admin-reports.html` | `admin-reports` | `./app.js` @236 → `./supabase-config.js` @237 → `./auth.js` @238 |
-| `admin-schedule.html` | `admin-schedule` | `./app.js` @349 → `./supabase-config.js` @350 → `./auth.js` @351 |
-| `admin-settings-academic.html` | `admin-settings-academic` | `./app.js` @258 → `./supabase-config.js` @259 → `./auth.js` @260 |
-| `admin-settings-access.html` | `admin-settings-access` | `./app.js` @211 → `./supabase-config.js` @212 → `./auth.js` @213 |
-| `admin-settings-grading.html` | `admin-settings-grading` | `./app.js` @280 → `./supabase-config.js` @281 → `./auth.js` @282 |
-| `admin-settings-roles.html` | `admin-settings-roles` | `./app.js?v=20260611-student-messages` @174 → `./supabase-config.js` @175 → `./auth.js?v=20260611-student-messages` @176 |
-| `admin-settings-school.html` | `admin-settings-school` | `./app.js` @341 → `./supabase-config.js` @342 → `./auth.js` @343 |
-| `admin-settings.html` | `admin-settings` | `inline` @10 → `./app.js` @182 → `./supabase-config.js` @183 → `./auth.js` @184 |
-| `admin-students.html` | `admin-students` | `./app.js` @382 → `./supabase-config.js` @383 → `./auth.js?v=self-registration-links` @384 → `./self-registration-links.js?v=copy-open-fix` @385 |
-| `admin-teachers.html` | `admin-teachers` | `./app.js` @300 → `./supabase-config.js` @301 → `./auth.js?v=self-registration-links` @302 → `./self-registration-links.js?v=copy-open-fix` @303 |
-| `admissions-apply.html` | `admissions-apply` | `./app.js` @294 → `./supabase-config.js` @295 → `./auth.js?v=upload-remove-x` @296 |
-| `confirm-email.html` | `confirm-email` | `./app.js` @36 → `./supabase-config.js` @37 → `./auth.js` @38 |
-| `contact.html` | `contact` | `./app.js` @905 → `inline` @906 |
-| `forgot-password.html` | `forgot-password` | `./app.js` @101 → `./supabase-config.js` @102 → `./auth.js` @103 |
+| `admin-admissions.html` | `admin-admissions` | `./js/website/why-grid.js` @359 → `./app.js` @360 → `./supabase-config.js` @361 → `./auth.js?v=upload-remove-x` @362 |
+| `admin-attendance.html` | `admin-attendance` | `./js/website/why-grid.js` @208 → `./app.js` @209 → `./supabase-config.js` @210 → `./auth.js` @211 |
+| `admin-classes.html` | `admin-classes` | `./js/website/why-grid.js` @289 → `./app.js` @290 → `./supabase-config.js` @291 → `./auth.js` @292 |
+| `admin-courses.html` | `admin-courses` | `./js/website/why-grid.js` @283 → `./app.js` @284 → `./supabase-config.js` @285 → `./auth.js` @286 |
+| `admin-feature-modules.html` | `admin-feature-modules` | `./js/website/why-grid.js` @166 → `./app.js` @167 → `./supabase-config.js` @168 → `./auth.js` @169 |
+| `admin-fees.html` | `admin-fees` | `./js/website/why-grid.js` @316 → `./app.js` @317 → `./supabase-config.js` @318 → `./auth.js` @319 |
+| `admin-messages.html` | `admin-messages` | `./js/website/why-grid.js` @590 → `./app.js` @591 → `./supabase-config.js` @592 → `./auth.js` @593 → `inline` @594 |
+| `admin-reports.html` | `admin-reports` | `./js/website/why-grid.js` @236 → `./app.js` @237 → `./supabase-config.js` @238 → `./auth.js` @239 |
+| `admin-schedule.html` | `admin-schedule` | `./js/website/why-grid.js` @349 → `./app.js` @350 → `./supabase-config.js` @351 → `./auth.js` @352 |
+| `admin-settings-academic.html` | `admin-settings-academic` | `./js/website/why-grid.js` @258 → `./app.js` @259 → `./supabase-config.js` @260 → `./auth.js` @261 |
+| `admin-settings-access.html` | `admin-settings-access` | `./js/website/why-grid.js` @211 → `./app.js` @212 → `./supabase-config.js` @213 → `./auth.js` @214 |
+| `admin-settings-grading.html` | `admin-settings-grading` | `./js/website/why-grid.js` @280 → `./app.js` @281 → `./supabase-config.js` @282 → `./auth.js` @283 |
+| `admin-settings-roles.html` | `admin-settings-roles` | `./js/website/why-grid.js` @174 → `./app.js?v=20260611-student-messages` @175 → `./supabase-config.js` @176 → `./auth.js?v=20260611-student-messages` @177 |
+| `admin-settings-school.html` | `admin-settings-school` | `./js/website/why-grid.js` @341 → `./app.js` @342 → `./supabase-config.js` @343 → `./auth.js` @344 |
+| `admin-settings.html` | `admin-settings` | `inline` @10 → `./js/website/why-grid.js` @182 → `./app.js` @183 → `./supabase-config.js` @184 → `./auth.js` @185 |
+| `admin-students.html` | `admin-students` | `./js/website/why-grid.js` @382 → `./app.js` @383 → `./supabase-config.js` @384 → `./auth.js?v=self-registration-links` @385 → `./self-registration-links.js?v=copy-open-fix` @386 |
+| `admin-teachers.html` | `admin-teachers` | `./js/website/why-grid.js` @300 → `./app.js` @301 → `./supabase-config.js` @302 → `./auth.js?v=self-registration-links` @303 → `./self-registration-links.js?v=copy-open-fix` @304 |
+| `admissions-apply.html` | `admissions-apply` | `./js/website/why-grid.js` @294 → `./app.js` @295 → `./supabase-config.js` @296 → `./auth.js?v=upload-remove-x` @297 |
+| `confirm-email.html` | `confirm-email` | `./js/website/why-grid.js` @36 → `./app.js` @37 → `./supabase-config.js` @38 → `./auth.js` @39 |
+| `contact.html` | `contact` | `./js/website/why-grid.js` @905 → `./app.js` @906 → `inline` @907 |
+| `forgot-password.html` | `forgot-password` | `./js/website/why-grid.js` @101 → `./app.js` @102 → `./supabase-config.js` @103 → `./auth.js` @104 |
 | `google20c973feb5773234.html` | `none` | None |
-| `in-practice.html` | `practice` | `./app.js` @34 |
-| `index.html` | `home` | `./app.js?v=index-ui-20260603` @190 |
-| `login.html` | `login` | `./app.js` @214 → `./supabase-config.js` @215 → `./auth.js` @216 |
-| `modules.html` | `modules` | `./app.js` @33 |
-| `owner-access.html` | `owner-access` | `./app.js?v=20260611-student-messages` @121 → `./supabase-config.js` @122 → `./auth.js?v=20260611-student-messages` @123 |
-| `parent-attendance.html` | `parent-attendance` | `./app.js` @52 → `./supabase-config.js` @53 → `./auth.js` @54 |
-| `parent-courses.html` | `parent-courses` | `./app.js` @52 → `./supabase-config.js` @53 → `./auth.js` @54 |
-| `parent-fees.html` | `parent-fees` | `./app.js` @52 → `./supabase-config.js` @53 → `./auth.js` @54 |
-| `parent-messages.html` | `parent-messages` | `./app.js` @54 → `./supabase-config.js` @55 → `./auth.js` @56 |
-| `parent-portal.html` | `parent-portal` | `./app.js` @54 → `./supabase-config.js` @55 → `./auth.js` @56 |
-| `parent-reports.html` | `parent-reports` | `./app.js` @52 → `./supabase-config.js` @53 → `./auth.js` @54 |
-| `parent-settings.html` | `parent-settings` | `./app.js` @198 → `./supabase-config.js` @199 → `./auth.js` @200 |
-| `parent-teachers.html` | `parent-teachers` | `./app.js` @52 → `./supabase-config.js` @53 → `./auth.js` @54 |
-| `portal.html` | `portal` | `./app.js?v=20260611-student-messages` @185 → `./supabase-config.js` @186 → `./auth.js?v=20260611-student-messages` @187 |
-| `products.html` | `products` | `./app.js` @84 |
-| `reset-password.html` | `reset-password` | `./app.js` @118 → `./supabase-config.js` @119 → `./auth.js` @120 |
-| `school-types.html` | `types` | `./app.js` @34 |
-| `self-register.html` | `self-register` | `./app.js` @234 → `./supabase-config.js` @235 → `./auth.js?v=self-registration-links` @236 |
-| `signup.html` | `signup` | `./app.js` @218 → `./supabase-config.js` @219 → `./auth.js` @220 |
-| `staff-attendance.html` | `staff-attendance` | `./app.js` @45 → `./supabase-config.js` @46 → `./auth.js` @47 |
-| `staff-classes.html` | `staff-classes` | `./app.js` @25 → `./supabase-config.js` @25 → `./auth.js` @25 |
-| `staff-dashboard.html` | `staff-dashboard` | `./app.js` @82 → `./supabase-config.js` @83 → `./auth.js` @84 |
-| `staff-gradebook.html` | `staff-gradebook` | `./app.js` @25 → `./supabase-config.js` @25 → `./auth.js` @25 |
-| `staff-leave.html` | `staff-leave` | `./app.js` @25 → `./supabase-config.js` @25 → `./auth.js` @25 |
-| `staff-lesson-plans.html` | `staff-lesson-plans` | `./app.js` @25 → `./supabase-config.js` @25 → `./auth.js` @25 |
-| `staff-messages.html` | `staff-messages` | `./app.js` @25 → `./supabase-config.js` @25 → `./auth.js` @25 |
-| `staff-results.html` | `staff-results` | `./app.js` @25 → `./supabase-config.js` @25 → `./auth.js` @25 |
-| `staff-settings.html` | `staff-settings` | `./app.js` @143 → `./supabase-config.js` @144 → `./auth.js` @145 |
-| `staff-timetable.html` | `staff-timetable` | `./app.js` @53 → `./supabase-config.js` @54 → `./auth.js` @55 |
-| `super-admin-accounts.html` | `super-admin-accounts` | `./app.js?v=20260611-student-messages` @128 → `./supabase-config.js` @129 → `./auth.js?v=20260611-student-messages` @130 |
-| `super-admin-activity.html` | `super-admin-activity` | `./app.js?v=20260611-student-messages` @102 → `./supabase-config.js` @103 → `./auth.js?v=20260611-student-messages` @104 |
-| `super-admin-schools.html` | `super-admin-schools` | `./app.js?v=20260611-student-messages` @102 → `./supabase-config.js` @103 → `./auth.js?v=20260611-student-messages` @104 |
-| `super-admin.html` | `super-admin` | `./app.js?v=20260611-student-messages` @105 → `./supabase-config.js` @106 → `./auth.js?v=20260611-student-messages` @107 |
-| `user-settings.html` | `user-settings` | `./app.js` @143 → `./supabase-config.js` @144 → `./auth.js` @145 |
-| `why-it-works.html` | `why` | `./app.js` @41 |
-| `workflows.html` | `workflows` | `./app.js` @33 |
+| `in-practice.html` | `practice` | `./js/website/why-grid.js` @34 → `./app.js` @35 |
+| `index.html` | `home` | `./js/website/why-grid.js` @190 → `./app.js?v=index-ui-20260603` @191 |
+| `login.html` | `login` | `./js/website/why-grid.js` @214 → `./app.js` @215 → `./supabase-config.js` @216 → `./auth.js` @217 |
+| `modules.html` | `modules` | `./js/website/why-grid.js` @33 → `./app.js` @34 |
+| `owner-access.html` | `owner-access` | `./js/website/why-grid.js` @121 → `./app.js?v=20260611-student-messages` @122 → `./supabase-config.js` @123 → `./auth.js?v=20260611-student-messages` @124 |
+| `parent-attendance.html` | `parent-attendance` | `./js/website/why-grid.js` @52 → `./app.js` @53 → `./supabase-config.js` @54 → `./auth.js` @55 |
+| `parent-courses.html` | `parent-courses` | `./js/website/why-grid.js` @52 → `./app.js` @53 → `./supabase-config.js` @54 → `./auth.js` @55 |
+| `parent-fees.html` | `parent-fees` | `./js/website/why-grid.js` @52 → `./app.js` @53 → `./supabase-config.js` @54 → `./auth.js` @55 |
+| `parent-messages.html` | `parent-messages` | `./js/website/why-grid.js` @54 → `./app.js` @55 → `./supabase-config.js` @56 → `./auth.js` @57 |
+| `parent-portal.html` | `parent-portal` | `./js/website/why-grid.js` @54 → `./app.js` @55 → `./supabase-config.js` @56 → `./auth.js` @57 |
+| `parent-reports.html` | `parent-reports` | `./js/website/why-grid.js` @52 → `./app.js` @53 → `./supabase-config.js` @54 → `./auth.js` @55 |
+| `parent-settings.html` | `parent-settings` | `./js/website/why-grid.js` @198 → `./app.js` @199 → `./supabase-config.js` @200 → `./auth.js` @201 |
+| `parent-teachers.html` | `parent-teachers` | `./js/website/why-grid.js` @52 → `./app.js` @53 → `./supabase-config.js` @54 → `./auth.js` @55 |
+| `portal.html` | `portal` | `./js/website/why-grid.js` @185 → `./app.js?v=20260611-student-messages` @186 → `./supabase-config.js` @187 → `./auth.js?v=20260611-student-messages` @188 |
+| `products.html` | `products` | `./js/website/why-grid.js` @84 → `./app.js` @85 |
+| `reset-password.html` | `reset-password` | `./js/website/why-grid.js` @118 → `./app.js` @119 → `./supabase-config.js` @120 → `./auth.js` @121 |
+| `school-types.html` | `types` | `./js/website/why-grid.js` @34 → `./app.js` @35 |
+| `self-register.html` | `self-register` | `./js/website/why-grid.js` @234 → `./app.js` @235 → `./supabase-config.js` @236 → `./auth.js?v=self-registration-links` @237 |
+| `signup.html` | `signup` | `./js/website/why-grid.js` @218 → `./app.js` @219 → `./supabase-config.js` @220 → `./auth.js` @221 |
+| `staff-attendance.html` | `staff-attendance` | `./js/website/why-grid.js` @45 → `./app.js` @46 → `./supabase-config.js` @47 → `./auth.js` @48 |
+| `staff-classes.html` | `staff-classes` | `./js/website/why-grid.js` @25 → `./app.js` @26 → `./supabase-config.js` @26 → `./auth.js` @26 |
+| `staff-dashboard.html` | `staff-dashboard` | `./js/website/why-grid.js` @82 → `./app.js` @83 → `./supabase-config.js` @84 → `./auth.js` @85 |
+| `staff-gradebook.html` | `staff-gradebook` | `./js/website/why-grid.js` @25 → `./app.js` @26 → `./supabase-config.js` @26 → `./auth.js` @26 |
+| `staff-leave.html` | `staff-leave` | `./js/website/why-grid.js` @25 → `./app.js` @26 → `./supabase-config.js` @26 → `./auth.js` @26 |
+| `staff-lesson-plans.html` | `staff-lesson-plans` | `./js/website/why-grid.js` @25 → `./app.js` @26 → `./supabase-config.js` @26 → `./auth.js` @26 |
+| `staff-messages.html` | `staff-messages` | `./js/website/why-grid.js` @25 → `./app.js` @26 → `./supabase-config.js` @26 → `./auth.js` @26 |
+| `staff-results.html` | `staff-results` | `./js/website/why-grid.js` @25 → `./app.js` @26 → `./supabase-config.js` @26 → `./auth.js` @26 |
+| `staff-settings.html` | `staff-settings` | `./js/website/why-grid.js` @143 → `./app.js` @144 → `./supabase-config.js` @145 → `./auth.js` @146 |
+| `staff-timetable.html` | `staff-timetable` | `./js/website/why-grid.js` @53 → `./app.js` @54 → `./supabase-config.js` @55 → `./auth.js` @56 |
+| `super-admin-accounts.html` | `super-admin-accounts` | `./js/website/why-grid.js` @128 → `./app.js?v=20260611-student-messages` @129 → `./supabase-config.js` @130 → `./auth.js?v=20260611-student-messages` @131 |
+| `super-admin-activity.html` | `super-admin-activity` | `./js/website/why-grid.js` @102 → `./app.js?v=20260611-student-messages` @103 → `./supabase-config.js` @104 → `./auth.js?v=20260611-student-messages` @105 |
+| `super-admin-schools.html` | `super-admin-schools` | `./js/website/why-grid.js` @102 → `./app.js?v=20260611-student-messages` @103 → `./supabase-config.js` @104 → `./auth.js?v=20260611-student-messages` @105 |
+| `super-admin.html` | `super-admin` | `./js/website/why-grid.js` @105 → `./app.js?v=20260611-student-messages` @106 → `./supabase-config.js` @107 → `./auth.js?v=20260611-student-messages` @108 |
+| `user-settings.html` | `user-settings` | `./js/website/why-grid.js` @143 → `./app.js` @144 → `./supabase-config.js` @145 → `./auth.js` @146 |
+| `why-it-works.html` | `why` | `./js/website/why-grid.js` @41 → `./app.js` @42 |
+| `workflows.html` | `workflows` | `./js/website/why-grid.js` @33 → `./app.js` @34 |
 
 ## Public global interfaces
 
@@ -616,64 +616,64 @@ Preserve DOM IDs, classes used by styles, data-* action attributes, form field n
 
 | Page | Declared IDs |
 | --- | --- |
-| `admin-admissions.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `portal-admission-apply-link`, `portal-admission-link-value`, `portal-admission-copy-link`, `portal-admission-open-link`, `portal-admission-qr-image`, `portal-admission-summary`, `portal-admission-form-overlay`, `portal-admission-form-title`, `portal-admission-form`, `portal-admission-status`, `admission-full-name`, `admission-email`, `admission-phone`, `admission-level`, `admission-date-of-birth`, `admission-passport-photo`, `admission-guardian-name`, `admission-guardian-email`, `admission-guardian-phone`, `admission-doc-previous-report`, `admission-doc-birth-certificate`, `admission-doc-previous-school-result`, `admission-doc-transfer-certificate`, `admission-doc-other`, `admission-notes`, `portal-admission-submit-button`, `portal-admission-cancel-edit`, `portal-admission-list`, `portal-admission-history`, `portal-admission-config-summary`, `portal-admission-setup-form`, `portal-admission-setup-status`, `admission-setup-session-name`, `admission-setup-session-status`, `portal-admission-class-picker`, `admission-setup-stages`, `portal-admission-setup-preview` |
-| `admin-attendance.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `portal-attendance-summary`, `attendance-review-view`, `attendance-review-date`, `attendance-review-term`, `attendance-review-class`, `attendance-review-student`, `attendance-review-status`, `attendance-review-search`, `portal-attendance-status`, `portal-attendance-review-list`, `portal-attendance-submission-list` |
-| `admin-classes.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `portal-class-summary`, `class-template-title`, `class-template-type`, `class-template-arm`, `class-template-custom-arm`, `class-template-stream`, `class-template-custom-stream`, `class-template-faculty`, `class-template-custom-faculty`, `class-template-department`, `class-template-custom-department`, `class-template-capacity`, `portal-class-status`, `portal-class-form`, `class-name`, `class-level`, `class-capacity`, `class-teacher`, `class-subjects`, `teacher-assignments`, `class-arms`, `portal-class-list` |
-| `admin-courses.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `portal-course-summary`, `course-library-title`, `portal-course-form`, `portal-course-status`, `course-name`, `course-template-type`, `course-session-id`, `course-term-id`, `course-category`, `course-faculty`, `course-department`, `course-custom-department`, `course-level`, `course-class-arm`, `course-subject-select`, `course-custom-subject`, `course-teacher-assignments`, `course-code`, `course-credit-unit`, `course-description`, `portal-course-list` |
-| `admin-feature-modules.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `portal-feature-toggle-status`, `portal-feature-toggle-summary`, `portal-feature-toggle-grid` |
-| `admin-fees.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `portal-fee-summary`, `portal-fee-category-options`, `portal-fee-setup-notice`, `portal-fee-list`, `portal-fee-form-overlay`, `portal-fee-form-modal-title`, `portal-fee-form`, `portal-fee-status`, `fee-item-category`, `fee-item-class`, `fee-item-name`, `fee-item-amount`, `fee-item-session`, `fee-item-term`, `fee-item-due-date`, `fee-item-description`, `portal-fee-invoice-title`, `portal-fee-invoice-status`, `portal-fee-invoice-list`, `portal-fee-invoice-form-overlay`, `portal-fee-invoice-form-title`, `fee-invoice-session`, `fee-invoice-term`, `fee-invoice-class`, `fee-invoice-student`, `fee-invoice-due-date`, `fee-invoice-whatsapp`, `portal-fee-invoice-overlay`, `portal-fee-invoice-modal-title`, `portal-fee-invoice-modal-body` |
-| `admin-messages.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `admin-report-title`, `admin-report-parent-messages`, `admin-announcement-form`, `admin-announcement-status`, `admin-announcement-scope`, `admin-announcement-title`, `admin-announcement-message`, `admin-announcement-alert-type`, `admin-announcement-whatsapp`, `admin-announcement-class-options`, `admin-announcement-feed-title`, `admin-announcement-list`, `ss-chat-scroll`, `ss-reply-input`, `ss-send-btn`, `ss-search`, `ss-inbox-list`, `ss-chat-pane` |
-| `admin-reports.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `admin-report-title`, `admin-report-kpis`, `admin-report-enrollment-session`, `admin-report-enrollment-class`, `admin-report-enrollment-gender`, `admin-report-enrollment`, `admin-report-performance-session`, `admin-report-performance-class`, `admin-report-performance-subject`, `admin-report-performance`, `admin-report-insights`, `admin-report-health`, `admin-report-areas`, `admin-report-checklist` |
-| `admin-schedule.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `portal-calendar-summary`, `portal-academic-calendar-form`, `portal-academic-calendar-status`, `calendar-title`, `calendar-type`, `calendar-start-date`, `calendar-end-date`, `calendar-notes`, `portal-academic-calendar-list`, `portal-calendar-substitution-log`, `portal-timetable-summary`, `timetable-session-id`, `timetable-term-id`, `timetable-view-mode`, `timetable-class-level`, `timetable-teacher-view`, `timetable-week-type`, `portal-timetable-status`, `portal-timetable-list`, `portal-timetable-lesson-overlay`, `timetable-form-title`, `timetable-form-context`, `portal-timetable-form`, `timetable-subject`, `timetable-custom-subject`, `timetable-teacher`, `portal-timetable-period-overlay`, `timetable-period-title`, `portal-timetable-period-form`, `timetable-period-name`, `timetable-period-start`, `timetable-period-end` |
-| `admin-settings-academic.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `portal-academic-cycle-summary`, `portal-session-form`, `portal-session-status`, `session-name`, `session-start-date`, `session-end-date`, `session-status-select`, `portal-session-list`, `portal-term-form`, `portal-term-status`, `term-session-id`, `term-period-type`, `term-name`, `term-start-date`, `term-end-date`, `term-status-select`, `portal-term-list` |
-| `admin-settings-access.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `portal-access-summary`, `portal-access-form`, `portal-access-status`, `access-username`, `access-email`, `access-role`, `access-method`, `access-status-select`, `portal-access-list` |
-| `admin-settings-grading.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `portal-report-configuration-form`, `portal-report-configuration-status`, `report-ca-maximum`, `report-exam-maximum`, `portal-grading-scale-list`, `report-template-title`, `portal-report-school-comment-form`, `portal-report-school-comment-status`, `report-school-comment-class`, `report-school-comment-student`, `report-school-comment-session`, `report-school-comment-term`, `portal-report-school-comment-summary`, `report-school-comment-text` |
-| `admin-settings-roles.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `portal-role-permission-status`, `portal-role-permission-summary`, `portal-role-permission-grid` |
-| `admin-settings-school.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `portal-school-settings-preview`, `portal-school-settings-form`, `portal-school-settings-status`, `school-name`, `school-logo-url`, `school-logo-file`, `school-profile`, `school-address`, `school-phone`, `school-website`, `campus-details`, `school-type-all`, `school-type-nursery`, `school-type-primary`, `school-type-secondary`, `school-type-higher`, `higher-institution-type`, `academic-year-start`, `academic-year-end`, `portal-account-delete-status` |
-| `admin-settings.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading` |
-| `admin-students.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `portal-student-summary`, `student-self-registration-title`, `student-self-registration-link`, `student-self-registration-status`, `portal-student-search`, `portal-student-class-filters`, `portal-student-list`, `portal-student-create-overlay`, `portal-student-create-title`, `portal-student-form`, `portal-student-status`, `student-first-name`, `student-last-name`, `student-admission-no`, `student-email`, `student-profile-photo`, `student-level`, `student-class-arm`, `student-dob`, `student-gender`, `student-promotion-decision`, `portal-guardian-list`, `portal-student-import-overlay`, `portal-student-import-title`, `portal-student-import-panel`, `portal-student-import-status`, `portal-student-import-file`, `portal-student-import-preview`, `portal-student-view-overlay`, `portal-student-view-title`, `portal-student-view-content`, `portal-student-docs-overlay`, `portal-student-docs-title`, `portal-student-docs-status`, `portal-student-docs-student-id`, `portal-student-docs-student-name`, `portal-student-doc-type`, `portal-student-doc-file`, `portal-student-doc-list` |
-| `admin-teachers.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `portal-staff-summary`, `staff-self-registration-title`, `staff-self-registration-link`, `staff-self-registration-status`, `portal-staff-form-overlay`, `portal-staff-form-title`, `portal-staff-form`, `portal-staff-status`, `staff-name`, `staff-prefix`, `staff-first-name`, `staff-last-name`, `staff-email`, `staff-phone`, `staff-profile-photo`, `staff-school-type`, `staff-faculty`, `staff-custom-faculty`, `staff-department`, `staff-custom-department`, `staff-subject-course`, `staff-title`, `portal-staff-filter-search`, `portal-staff-filter-status`, `portal-staff-list`, `portal-staff-leave-status-filter`, `portal-staff-leave-review-status`, `portal-staff-leave-summary`, `portal-staff-leave-list` |
-| `admissions-apply.html` | `admissions-apply-brand-mark`, `admissions-apply-school-name`, `admissions-apply-copy`, `admissions-apply-form`, `admissions-apply-status`, `admissions-step-indicator`, `admissions-workspace-id`, `apply-first-name`, `apply-middle-name`, `apply-last-name`, `apply-gender`, `apply-date-of-birth`, `apply-student-email`, `apply-passport-photo`, `apply-guardian-full-name`, `apply-guardian-relationship`, `apply-guardian-phone`, `apply-guardian-email`, `apply-guardian-address`, `apply-guardian-occupation`, `apply-last-class-attended`, `apply-academic-class`, `apply-previous-school-name`, `apply-previous-school-address`, `apply-health-condition`, `health-condition-details-wrap`, `apply-health-condition-details`, `apply-health-allergies`, `apply-health-medications`, `apply-previous-report`, `apply-birth-certificate`, `apply-previous-school-result`, `apply-transfer-certificate`, `apply-other-document`, `admissions-review-panel` |
-| `confirm-email.html` | `site-header`, `confirm-status`, `confirm-heading`, `confirm-copy`, `confirm-details`, `site-footer` |
-| `contact.html` | `site-header`, `contact-status`, `contact-form`, `contact-first-name`, `contact-last-name`, `contact-email`, `contact-phone`, `contact-school`, `contact-role`, `contact-subject`, `contact-message`, `contact-submit-btn`, `faq-list`, `site-footer` |
-| `forgot-password.html` | `forgot-form-view`, `forgot-form`, `forgot-status`, `forgot-email`, `forgot-sent-view`, `lg`, `lb` |
-| `google20c973feb5773234.html` | None |
-| `in-practice.html` | `site-header`, `practice-page-grid`, `site-footer` |
-| `index.html` | `site-header`, `site-footer` |
-| `login.html` | `login-form`, `login-status`, `login-email`, `login-password`, `login-remember` |
-| `modules.html` | `site-header`, `module-page-grid`, `site-footer` |
-| `owner-access.html` | `owner-login-copy`, `owner-login-form`, `owner-login-status`, `owner-username`, `owner-password`, `owner-confirm-block`, `owner-confirm-password`, `owner-remember`, `owner-login-submit` |
-| `parent-attendance.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `parent-child-switcher`, `parent-page-content` |
-| `parent-courses.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `parent-child-switcher`, `parent-page-content` |
-| `parent-fees.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `parent-child-switcher`, `parent-page-content` |
-| `parent-messages.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `parent-child-switcher`, `parent-page-content` |
-| `parent-portal.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `parent-child-switcher`, `parent-page-content` |
-| `parent-reports.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `parent-child-switcher`, `parent-page-content` |
-| `parent-settings.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `user-profile-form`, `user-profile-status`, `user-settings-photo-preview`, `user-profile-photo-url`, `user-display-name`, `user-profile-photo`, `user-settings-name`, `user-settings-role`, `user-settings-email`, `user-notification-preferences-form`, `user-notification-preferences-status`, `user-settings-hint`, `user-settings-form`, `user-settings-status`, `user-current-password`, `user-new-password`, `user-confirm-password` |
-| `parent-teachers.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `parent-child-switcher`, `parent-page-content` |
-| `portal.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `admin-global-search`, `admin-search-suggestions`, `admin-notification-button`, `admin-notification-dot`, `staff-dashboard`, `portal-metrics`, `admin-events`, `staff-portal-workspace`, `student-portal-workspace`, `teacher-attendance-workspace` |
-| `products.html` | `site-header`, `products-lane-grid`, `site-footer` |
-| `reset-password.html` | `reset-form-wrapper`, `reset-form`, `reset-status`, `reset-password`, `reset-confirm`, `reset-invalid-view`, `reset-success-view`, `sg`, `sf` |
-| `school-types.html` | `site-header`, `school-type-page-grid`, `site-footer` |
-| `self-register.html` | `self-register-brand-mark`, `self-register-school-name`, `self-register-title`, `self-register-copy`, `self-register-form`, `self-register-status`, `self-register-workspace-id`, `self-register-type`, `self-student-first-name`, `self-student-last-name`, `self-student-email`, `self-student-profile-photo`, `self-student-gender`, `self-student-date-of-birth`, `self-student-level`, `self-guardian-name`, `self-guardian-relationship`, `self-guardian-phone`, `self-guardian-email`, `self-guardian-address`, `self-staff-name`, `self-staff-prefix`, `self-staff-first-name`, `self-staff-last-name`, `self-staff-email`, `self-staff-phone`, `self-staff-title`, `self-staff-school-type`, `self-staff-faculty`, `self-staff-custom-faculty`, `self-staff-department`, `self-staff-custom-department`, `self-register-submit` |
-| `signup.html` | `signup-form`, `signup-status`, `signup-email`, `signup-password`, `signup-confirm-password`, `signup-terms` |
-| `staff-attendance.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `admin-global-search`, `admin-search-suggestions`, `admin-notification-button`, `admin-notification-dot`, `staff-page-content` |
-| `staff-classes.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `admin-global-search`, `admin-search-suggestions`, `admin-notification-button`, `admin-notification-dot`, `staff-page-content` |
-| `staff-dashboard.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `admin-global-search`, `admin-search-suggestions`, `admin-notification-button`, `admin-notification-dot`, `portal-metrics`, `admin-events`, `staff-portal-workspace` |
-| `staff-gradebook.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `admin-global-search`, `admin-search-suggestions`, `admin-notification-button`, `admin-notification-dot`, `staff-page-content` |
-| `staff-leave.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `admin-global-search`, `admin-search-suggestions`, `admin-notification-button`, `admin-notification-dot`, `staff-page-content` |
-| `staff-lesson-plans.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `admin-global-search`, `admin-search-suggestions`, `admin-notification-button`, `admin-notification-dot`, `staff-page-content` |
-| `staff-messages.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `admin-global-search`, `admin-search-suggestions`, `admin-notification-button`, `admin-notification-dot`, `staff-page-content` |
-| `staff-results.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `admin-global-search`, `admin-search-suggestions`, `admin-notification-button`, `admin-notification-dot`, `staff-page-content` |
-| `staff-settings.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `admin-global-search`, `admin-search-suggestions`, `admin-notification-button`, `admin-notification-dot`, `user-profile-form`, `user-profile-status`, `user-settings-photo-preview`, `user-profile-photo-url`, `user-display-name`, `user-profile-photo`, `user-settings-name`, `user-settings-role`, `user-settings-email`, `user-settings-hint`, `user-settings-form`, `user-settings-status`, `user-current-password`, `user-new-password`, `user-confirm-password` |
-| `staff-timetable.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `admin-global-search`, `admin-search-suggestions`, `admin-notification-button`, `admin-notification-dot`, `staff-page-content` |
-| `super-admin-accounts.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `super-admin-status`, `super-users`, `super-admin-search`, `super-admin-role-filter`, `super-admin-status-filter`, `super-admin-users` |
-| `super-admin-activity.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `super-admin-status`, `super-activity`, `super-admin-activity` |
-| `super-admin-schools.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `super-admin-status`, `super-workspaces`, `super-admin-workspaces` |
-| `super-admin.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `super-overview`, `super-admin-status`, `super-admin-metrics` |
-| `user-settings.html` | `admin-brand-mark`, `admin-brand-name`, `admin-brand-subtitle`, `admin-profile-avatar`, `admin-profile-name`, `admin-profile-role`, `portal-gate`, `portal-last-updated`, `portal-heading`, `portal-copy`, `user-profile-form`, `user-profile-status`, `user-settings-photo-preview`, `user-profile-photo-url`, `user-display-name`, `user-profile-photo`, `user-settings-name`, `user-settings-role`, `user-settings-email`, `user-settings-hint`, `user-settings-form`, `user-settings-status`, `user-current-password`, `user-new-password`, `user-confirm-password` |
-| `why-it-works.html` | `site-header`, `why-page-grid`, `site-footer` |
-| `workflows.html` | `site-header`, `workflow-page-grid`, `site-footer` |
+| `admin-admissions.html` | `admin-admissions` | `./js/website/why-grid.js` @359 → `./app.js` @360 → `./supabase-config.js` @361 → `./auth.js?v=upload-remove-x` @362 |
+| `admin-attendance.html` | `admin-attendance` | `./js/website/why-grid.js` @208 → `./app.js` @209 → `./supabase-config.js` @210 → `./auth.js` @211 |
+| `admin-classes.html` | `admin-classes` | `./js/website/why-grid.js` @289 → `./app.js` @290 → `./supabase-config.js` @291 → `./auth.js` @292 |
+| `admin-courses.html` | `admin-courses` | `./js/website/why-grid.js` @283 → `./app.js` @284 → `./supabase-config.js` @285 → `./auth.js` @286 |
+| `admin-feature-modules.html` | `admin-feature-modules` | `./js/website/why-grid.js` @166 → `./app.js` @167 → `./supabase-config.js` @168 → `./auth.js` @169 |
+| `admin-fees.html` | `admin-fees` | `./js/website/why-grid.js` @316 → `./app.js` @317 → `./supabase-config.js` @318 → `./auth.js` @319 |
+| `admin-messages.html` | `admin-messages` | `./js/website/why-grid.js` @590 → `./app.js` @591 → `./supabase-config.js` @592 → `./auth.js` @593 → `inline` @594 |
+| `admin-reports.html` | `admin-reports` | `./js/website/why-grid.js` @236 → `./app.js` @237 → `./supabase-config.js` @238 → `./auth.js` @239 |
+| `admin-schedule.html` | `admin-schedule` | `./js/website/why-grid.js` @349 → `./app.js` @350 → `./supabase-config.js` @351 → `./auth.js` @352 |
+| `admin-settings-academic.html` | `admin-settings-academic` | `./js/website/why-grid.js` @258 → `./app.js` @259 → `./supabase-config.js` @260 → `./auth.js` @261 |
+| `admin-settings-access.html` | `admin-settings-access` | `./js/website/why-grid.js` @211 → `./app.js` @212 → `./supabase-config.js` @213 → `./auth.js` @214 |
+| `admin-settings-grading.html` | `admin-settings-grading` | `./js/website/why-grid.js` @280 → `./app.js` @281 → `./supabase-config.js` @282 → `./auth.js` @283 |
+| `admin-settings-roles.html` | `admin-settings-roles` | `./js/website/why-grid.js` @174 → `./app.js?v=20260611-student-messages` @175 → `./supabase-config.js` @176 → `./auth.js?v=20260611-student-messages` @177 |
+| `admin-settings-school.html` | `admin-settings-school` | `./js/website/why-grid.js` @341 → `./app.js` @342 → `./supabase-config.js` @343 → `./auth.js` @344 |
+| `admin-settings.html` | `admin-settings` | `inline` @10 → `./js/website/why-grid.js` @182 → `./app.js` @183 → `./supabase-config.js` @184 → `./auth.js` @185 |
+| `admin-students.html` | `admin-students` | `./js/website/why-grid.js` @382 → `./app.js` @383 → `./supabase-config.js` @384 → `./auth.js?v=self-registration-links` @385 → `./self-registration-links.js?v=copy-open-fix` @386 |
+| `admin-teachers.html` | `admin-teachers` | `./js/website/why-grid.js` @300 → `./app.js` @301 → `./supabase-config.js` @302 → `./auth.js?v=self-registration-links` @303 → `./self-registration-links.js?v=copy-open-fix` @304 |
+| `admissions-apply.html` | `admissions-apply` | `./js/website/why-grid.js` @294 → `./app.js` @295 → `./supabase-config.js` @296 → `./auth.js?v=upload-remove-x` @297 |
+| `confirm-email.html` | `confirm-email` | `./js/website/why-grid.js` @36 → `./app.js` @37 → `./supabase-config.js` @38 → `./auth.js` @39 |
+| `contact.html` | `contact` | `./js/website/why-grid.js` @905 → `./app.js` @906 → `inline` @907 |
+| `forgot-password.html` | `forgot-password` | `./js/website/why-grid.js` @101 → `./app.js` @102 → `./supabase-config.js` @103 → `./auth.js` @104 |
+| `google20c973feb5773234.html` | `none` | None |
+| `in-practice.html` | `practice` | `./js/website/why-grid.js` @34 → `./app.js` @35 |
+| `index.html` | `home` | `./js/website/why-grid.js` @190 → `./app.js?v=index-ui-20260603` @191 |
+| `login.html` | `login` | `./js/website/why-grid.js` @214 → `./app.js` @215 → `./supabase-config.js` @216 → `./auth.js` @217 |
+| `modules.html` | `modules` | `./js/website/why-grid.js` @33 → `./app.js` @34 |
+| `owner-access.html` | `owner-access` | `./js/website/why-grid.js` @121 → `./app.js?v=20260611-student-messages` @122 → `./supabase-config.js` @123 → `./auth.js?v=20260611-student-messages` @124 |
+| `parent-attendance.html` | `parent-attendance` | `./js/website/why-grid.js` @52 → `./app.js` @53 → `./supabase-config.js` @54 → `./auth.js` @55 |
+| `parent-courses.html` | `parent-courses` | `./js/website/why-grid.js` @52 → `./app.js` @53 → `./supabase-config.js` @54 → `./auth.js` @55 |
+| `parent-fees.html` | `parent-fees` | `./js/website/why-grid.js` @52 → `./app.js` @53 → `./supabase-config.js` @54 → `./auth.js` @55 |
+| `parent-messages.html` | `parent-messages` | `./js/website/why-grid.js` @54 → `./app.js` @55 → `./supabase-config.js` @56 → `./auth.js` @57 |
+| `parent-portal.html` | `parent-portal` | `./js/website/why-grid.js` @54 → `./app.js` @55 → `./supabase-config.js` @56 → `./auth.js` @57 |
+| `parent-reports.html` | `parent-reports` | `./js/website/why-grid.js` @52 → `./app.js` @53 → `./supabase-config.js` @54 → `./auth.js` @55 |
+| `parent-settings.html` | `parent-settings` | `./js/website/why-grid.js` @198 → `./app.js` @199 → `./supabase-config.js` @200 → `./auth.js` @201 |
+| `parent-teachers.html` | `parent-teachers` | `./js/website/why-grid.js` @52 → `./app.js` @53 → `./supabase-config.js` @54 → `./auth.js` @55 |
+| `portal.html` | `portal` | `./js/website/why-grid.js` @185 → `./app.js?v=20260611-student-messages` @186 → `./supabase-config.js` @187 → `./auth.js?v=20260611-student-messages` @188 |
+| `products.html` | `products` | `./js/website/why-grid.js` @84 → `./app.js` @85 |
+| `reset-password.html` | `reset-password` | `./js/website/why-grid.js` @118 → `./app.js` @119 → `./supabase-config.js` @120 → `./auth.js` @121 |
+| `school-types.html` | `types` | `./js/website/why-grid.js` @34 → `./app.js` @35 |
+| `self-register.html` | `self-register` | `./js/website/why-grid.js` @234 → `./app.js` @235 → `./supabase-config.js` @236 → `./auth.js?v=self-registration-links` @237 |
+| `signup.html` | `signup` | `./js/website/why-grid.js` @218 → `./app.js` @219 → `./supabase-config.js` @220 → `./auth.js` @221 |
+| `staff-attendance.html` | `staff-attendance` | `./js/website/why-grid.js` @45 → `./app.js` @46 → `./supabase-config.js` @47 → `./auth.js` @48 |
+| `staff-classes.html` | `staff-classes` | `./js/website/why-grid.js` @25 → `./app.js` @26 → `./supabase-config.js` @26 → `./auth.js` @26 |
+| `staff-dashboard.html` | `staff-dashboard` | `./js/website/why-grid.js` @82 → `./app.js` @83 → `./supabase-config.js` @84 → `./auth.js` @85 |
+| `staff-gradebook.html` | `staff-gradebook` | `./js/website/why-grid.js` @25 → `./app.js` @26 → `./supabase-config.js` @26 → `./auth.js` @26 |
+| `staff-leave.html` | `staff-leave` | `./js/website/why-grid.js` @25 → `./app.js` @26 → `./supabase-config.js` @26 → `./auth.js` @26 |
+| `staff-lesson-plans.html` | `staff-lesson-plans` | `./js/website/why-grid.js` @25 → `./app.js` @26 → `./supabase-config.js` @26 → `./auth.js` @26 |
+| `staff-messages.html` | `staff-messages` | `./js/website/why-grid.js` @25 → `./app.js` @26 → `./supabase-config.js` @26 → `./auth.js` @26 |
+| `staff-results.html` | `staff-results` | `./js/website/why-grid.js` @25 → `./app.js` @26 → `./supabase-config.js` @26 → `./auth.js` @26 |
+| `staff-settings.html` | `staff-settings` | `./js/website/why-grid.js` @143 → `./app.js` @144 → `./supabase-config.js` @145 → `./auth.js` @146 |
+| `staff-timetable.html` | `staff-timetable` | `./js/website/why-grid.js` @53 → `./app.js` @54 → `./supabase-config.js` @55 → `./auth.js` @56 |
+| `super-admin-accounts.html` | `super-admin-accounts` | `./js/website/why-grid.js` @128 → `./app.js?v=20260611-student-messages` @129 → `./supabase-config.js` @130 → `./auth.js?v=20260611-student-messages` @131 |
+| `super-admin-activity.html` | `super-admin-activity` | `./js/website/why-grid.js` @102 → `./app.js?v=20260611-student-messages` @103 → `./supabase-config.js` @104 → `./auth.js?v=20260611-student-messages` @105 |
+| `super-admin-schools.html` | `super-admin-schools` | `./js/website/why-grid.js` @102 → `./app.js?v=20260611-student-messages` @103 → `./supabase-config.js` @104 → `./auth.js?v=20260611-student-messages` @105 |
+| `super-admin.html` | `super-admin` | `./js/website/why-grid.js` @105 → `./app.js?v=20260611-student-messages` @106 → `./supabase-config.js` @107 → `./auth.js?v=20260611-student-messages` @108 |
+| `user-settings.html` | `user-settings` | `./js/website/why-grid.js` @143 → `./app.js` @144 → `./supabase-config.js` @145 → `./auth.js` @146 |
+| `why-it-works.html` | `why` | `./js/website/why-grid.js` @41 → `./app.js` @42 |
+| `workflows.html` | `workflows` | `./js/website/why-grid.js` @33 → `./app.js` @34 |
 
 ### DOM lookup call sites
 
@@ -685,16 +685,16 @@ All 1095 AST lookup sites from parsable scripts, including template/dynamic expr
 | `app.js:4518` | `renderHeader` | `getElementById` | `"site-header"` |
 | `app.js:4574` | `renderFooter` | `getElementById` | `"site-footer"` |
 | `app.js:4620` | `closeMenusOnOutsideClick` | `querySelectorAll` | `".nav-menu[open]"` |
-| `app.js:4629` | `renderWhyGrid` | `getElementById` | `targetId` |
-| `app.js:4649` | `renderOfferingPreviewGrid` | `getElementById` | `targetId` |
-| `app.js:4669` | `renderStandoutList` | `getElementById` | `targetId` |
-| `app.js:4679` | `renderFeatureGrid` | `getElementById` | `targetId` |
-| `app.js:4712` | `renderSchoolGrid` | `getElementById` | `targetId` |
-| `app.js:4735` | `renderPracticeGrid` | `getElementById` | `targetId` |
-| `app.js:4759` | `renderOfferingTabs` | `getElementById` | `"home-offering-tabs"` |
-| `app.js:4760` | `renderOfferingTabs` | `getElementById` | `"home-offering-panel"` |
-| `app.js:4805` | `renderOfferingTabs` | `querySelectorAll` | `"[data-offering]"` |
-| `app.js:4814` | `renderWorkflowPage` | `getElementById` | `"workflow-page-grid"` |
+| `js/website/why-grid.js:2` | `renderWhyGrid` | `getElementById` | `targetId` |
+| `app.js:4629` | `renderOfferingPreviewGrid` | `getElementById` | `targetId` |
+| `app.js:4649` | `renderStandoutList` | `getElementById` | `targetId` |
+| `app.js:4659` | `renderFeatureGrid` | `getElementById` | `targetId` |
+| `app.js:4692` | `renderSchoolGrid` | `getElementById` | `targetId` |
+| `app.js:4715` | `renderPracticeGrid` | `getElementById` | `targetId` |
+| `app.js:4739` | `renderOfferingTabs` | `getElementById` | `"home-offering-tabs"` |
+| `app.js:4740` | `renderOfferingTabs` | `getElementById` | `"home-offering-panel"` |
+| `app.js:4785` | `renderOfferingTabs` | `querySelectorAll` | `"[data-offering]"` |
+| `app.js:4794` | `renderWorkflowPage` | `getElementById` | `"workflow-page-grid"` |
 | `auth.js:687` | `syncThemeToggleButton` | `querySelector` | `"[data-theme-toggle-label]"` |
 | `auth.js:705` | `applyThemePreference` | `querySelectorAll` | `"[data-theme-toggle]"` |
 | `auth.js:735` | `initThemeControls` | `querySelector` | `".admin-sidebar"` |
@@ -2381,3 +2381,7 @@ function getParentFeesStorageKey(workspaceId = null) {
     return `${PARENT_FEES_STORAGE_PREFIX}:${normalizeWorkspaceId(workspaceId || getCurrentWorkspaceId())}`;
   }
 ```
+
+## E01 renderer boundary
+
+js/website/why-grid.js contains only the unchanged renderWhyGrid function declaration. It depends on document.getElementById, targetId and items, and writes the same innerHTML. Missing targets return without reading items. It creates no new initializer or side effect at load time. initPageContent remains in app.js:4836 with its two calls at 4837–4838; the single immediate bootstrap call remains at app.js:4854. All 57 app.js consumers include the helper exactly once immediately before app.js, preserving its classic-script global function interface. Browser/HTTP delivery and visual checks remain unverified; local path and syntax checks passed.

@@ -1,16 +1,16 @@
 # Refactoring inventory
 
-Snapshot: 2026-10-02; repository HEAD observed as e1eb094. Planning only; no code has moved. Read plan.md for the next bounded step and checklist.md for actual verification status.
+Original inventory: 2026-10-02 at e1eb094. E01 implementation started from clean branch refactor/javascript-structure at 39ec400. renderWhyGrid is now relocated; all other declarations remain unmoved. Current app.js references after the removed function have been adjusted by 20 lines. HTML/inline source locations outside the current manifest retain their original snapshot anchors; insertions shift lines at/after each new script tag by one. See checklist.md for acceptance evidence and remaining browser checks.
 
 ## Coverage and interpretation
 
-- Parsed all four browser JavaScript files without executing them: app.js (4,882 lines), auth.js (47,521), self-registration-links.js (175), supabase-config.js (43).
-- Catalogued 1222 named direct declarations: 318 in app.js, 893 inside the auth.js IIFE, 10 inside the registration-link IIFE, and one in configuration. A const is a binding, not proof its object is immutable.
+- Current browser files: app.js (4,862 lines), auth.js (47,521), self-registration-links.js (175), supabase-config.js (43), and js/website/why-grid.js (19). All five parse as classic scripts.
+- Catalogued 1,222 named direct declarations: now 317 in app.js, one in js/website/why-grid.js, 893 inside the auth.js IIFE, 10 inside the registration-link IIFE, and one in configuration. A const binding does not make its object immutable.
 - Inspected all 58 root HTML documents, their ordered script tags and three inline scripts. Two inline scripts parse; contact.html does not (see checklist.md). The verification HTML has no scripts.
 - Four Supabase function interfaces are retained in place; contracts.md records their request/response shapes. SQL/schema files were inspected for integration context, not run.
 - No AGENTS.md was found in the repository (including hidden paths excluding .git) or its ancestor chain. No package.json or test/spec files were found in the source-file scan. Existing system parsers were used; no dependencies installed.
 - Dependency/consumer columns use lexical bindings, not a complete runtime call graph. Nested callbacks are attributed to their outer owner. Cross-file window manager access is catalogued separately. Dynamic selectors, computed properties, string references and runtime event dispatch still require feature-specific review. Zero lexical references is NOT permission to delete a symbol.
-- Grouping and destinations are proposals, not executable move instructions. Multi-responsibility functions stay intact until closure dependencies have been reviewed. Every symbol remains **inventoried / unmoved**.
+- Grouping and destinations remain proposals except E01. renderWhyGrid is moved unchanged to js/website/why-grid.js:1–19; every other symbol remains **inventoried / unmoved**. E02 has not started.
 - Default password constants are listed by name only. No configuration keys, account data, or stored user values are copied here.
 
 ## Functional groups
@@ -36,7 +36,7 @@ Snapshot: 2026-10-02; repository HEAD observed as e1eb094. Planning only; no cod
 | Parent portal | 13 | `js/pages/parent/ + shared feature views` | Inventoried / unmoved |
 | Permissions and feature modules | 31 | `js/features/access/permissions.js or js/features/settings/modules.js` | Inventoried / unmoved |
 | Portal shell and composition | 36 | `js/shared-ui/ + js/pages/` | Inventoried / unmoved |
-| Public website | 57 | `js/website/ (content, navigation, individual renderers)` | Inventoried / unmoved |
+| Public website | 57 | `js/website/ (content, navigation, individual renderers)` | E01: renderWhyGrid moved; 56 other declarations unmoved |
 | Reports and gradebook | 84 | `js/features/reports/ or js/features/gradebook/ (choose by responsibility)` | Inventoried / unmoved |
 | Runtime configuration | 1 | `supabase-config.js (retain initially)` | Inventoried / unmoved |
 | School settings and academic templates | 45 | `js/features/settings/` | Inventoried / unmoved |
@@ -800,7 +800,7 @@ Proposed destination: `js/shared-ui/ + js/pages/`. Status for all rows: **invent
 
 ## Public website
 
-Proposed destination: `js/website/ (content, navigation, individual renderers)`. Status for all rows: **inventoried / unmoved**. Dependencies in this table are outer lexical bindings; external/browser identifiers follow after “external”. Consumers are direct lexical reference owners, including startup registration; mutation locations are tracked separately.
+Proposed destination: `js/website/ (content, navigation, individual renderers)`. Status: **renderWhyGrid moved in E01; other rows inventoried / unmoved**. Dependencies in this table are outer lexical bindings; external/browser identifiers follow after “external”. Consumers are direct lexical reference owners, including startup registration; mutation locations are tracked separately.
 
 | Symbol | Kind / location | Dependencies and external references | Direct consumers |
 | --- | --- | --- | --- |
@@ -850,17 +850,17 @@ Proposed destination: `js/website/ (content, navigation, individual renderers)`.
 | `renderHeader` | function `app.js:4517-4571` | `DEFAULT_PLATFORM_NAME`, `buildBrandMarkHtml`, `escapeHtml`, `homeNavLinks`, `hrefMatchesCurrentFile`; external: `document`, `window` | `startup@4871`, `startup@4877`, `startup@4881` |
 | `renderFooter` | function `app.js:4573-4616` | `DEFAULT_PLATFORM_NAME`, `buildBrandMarkHtml`, `escapeHtml`; external: `document` | `startup@4872`, `startup@4878` |
 | `closeMenusOnOutsideClick` | function `app.js:4618-4626` | ; external: `document` | `startup@4873` |
-| `renderWhyGrid` | function `app.js:4628-4646` | ; external: `document` | `initPageContent` |
-| `renderOfferingPreviewGrid` | function `app.js:4648-4666` | ; external: `document` | `initPageContent` |
-| `renderStandoutList` | function `app.js:4668-4676` | `standoutBullets`; external: `document` | `initPageContent` |
-| `renderFeatureGrid` | function `app.js:4678-4709` | `getEnabledFeatures`; external: `document` | `renderFeatureSurfaces` |
-| `renderSchoolGrid` | function `app.js:4711-4732` | ; external: `document` | `initPageContent` |
-| `renderPracticeGrid` | function `app.js:4734-4754` | ; external: `document` | `initPageContent` |
-| `activeOfferingId` | let `app.js:4756` | `offerings` | `renderOfferingTabs` |
-| `renderOfferingTabs` | function `app.js:4758-4811` | `activeOfferingId`, `offerings`; external: `document` | `initPageContent`, `renderOfferingTabs` |
-| `renderWorkflowPage` | function `app.js:4813-4849` | `offerings`; external: `document` | `initPageContent` |
-| `renderFeatureSurfaces` | function `app.js:4851-4854` | `features`, `renderFeatureGrid` | `initPageContent`, `startup@4882` |
-| `initPageContent` | function `app.js:4856-4869` | `offerings`, `practiceStories`, `renderFeatureSurfaces`, `renderOfferingPreviewGrid`, `renderOfferingTabs`, `renderPracticeGrid`, `renderSchoolGrid`, `renderStandoutList`, `renderWhyGrid`, `renderWorkflowPage`, `schoolTypes`, `whyCards` | `startup@4874` |
+| `renderWhyGrid` | function `js/website/why-grid.js:1-19` — E01 moved unchanged | Parameters targetId/items; external: `document`; no shared state/constants | `app.js:initPageContent` at 4836, calls at 4837/4838; script loaded once before app.js by all 57 consumer pages |
+| `renderOfferingPreviewGrid` | function `app.js:4628-4646` | ; external: `document` | `initPageContent` |
+| `renderStandoutList` | function `app.js:4648-4656` | `standoutBullets`; external: `document` | `initPageContent` |
+| `renderFeatureGrid` | function `app.js:4658-4689` | `getEnabledFeatures`; external: `document` | `renderFeatureSurfaces` |
+| `renderSchoolGrid` | function `app.js:4691-4712` | ; external: `document` | `initPageContent` |
+| `renderPracticeGrid` | function `app.js:4714-4734` | ; external: `document` | `initPageContent` |
+| `activeOfferingId` | let `app.js:4736` | `offerings` | `renderOfferingTabs` |
+| `renderOfferingTabs` | function `app.js:4738-4791` | `activeOfferingId`, `offerings`; external: `document` | `initPageContent`, `renderOfferingTabs` |
+| `renderWorkflowPage` | function `app.js:4793-4829` | `offerings`; external: `document` | `initPageContent` |
+| `renderFeatureSurfaces` | function `app.js:4831-4834` | `features`, `renderFeatureGrid` | `initPageContent`, `startup@4882` |
+| `initPageContent` | function `app.js:4836-4849` | `offerings`, `practiceStories`, `renderFeatureSurfaces`, `renderOfferingPreviewGrid`, `renderOfferingTabs`, `renderPracticeGrid`, `renderSchoolGrid`, `renderStandoutList`, `renderWhyGrid`, `renderWorkflowPage`, `schoolTypes`, `whyCards` | `startup@4874` |
 
 ## Reports and gradebook
 
@@ -1518,7 +1518,7 @@ Do not duplicate these bindings across files. Getter/setter or service methods m
 
 | Binding | Declaration | Read consumers | Assignment/update lines |
 | --- | --- | --- | --- |
-| `activeOfferingId` | `app.js:4756` | renderOfferingTabs | 4807 |
+| `activeOfferingId` | `app.js:4736` | renderOfferingTabs | 4807 |
 | `supabaseClientPromise` | `auth.js:158` | getSupabaseClient | 3500 |
 | `isSignOutInProgress` | `auth.js:159` | syncSupabaseSessionToLocal, wireSignOutButton | 9296 |
 | `lastActionFeedbackContext` | `auth.js:160` | setStatus, showInlineActionFeedback | 28219 |
@@ -1558,14 +1558,14 @@ These execute when their current script/wrapper executes or register later work.
 | `app.js:4401-4409` | `window.SchoolSphereGradebook = { defaults: DEFAULT_GRADEBOOK_RECORDS, getRecords: getGradebookRecords, saveRecords: saveGradebookRecords, upsertRecord: ups` | Existing bootstrap/manager adapter; unmoved |
 | `app.js:4411-4417` | `window.SchoolSphereAuditTrail = { getEntries: getAuditTrailEntries, saveEntries: saveAuditTrailEntries, record: recordAuditTrailEntry, clear: clearAuditTra` | Existing bootstrap/manager adapter; unmoved |
 | `app.js:4419-4495` | `window.addEventListener("storage", (event) => { if (isWorkspaceScopedStorageEventKey(event.key, FEATURE_TOGGLE_STORAGE_KEY)) { emitFeatureToggleUpdate(getF` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4871` | `renderHeader();` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4872` | `renderFooter();` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4873` | `closeMenusOnOutsideClick();` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4874` | `initPageContent();` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4875` | `applySchoolSettingsBranding();` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4876-4880` | `window.addEventListener(SCHOOL_SETTINGS_EVENT, () => { renderHeader(); renderFooter(); applySchoolSettingsBranding(); });` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4881` | `window.addEventListener("hashchange", renderHeader);` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4882` | `window.addEventListener(FEATURE_TOGGLE_EVENT, renderFeatureSurfaces);` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4851` | `renderHeader();` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4852` | `renderFooter();` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4853` | `closeMenusOnOutsideClick();` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4854` | `initPageContent();` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4855` | `applySchoolSettingsBranding();` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4856-4860` | `window.addEventListener(SCHOOL_SETTINGS_EVENT, () => { renderHeader(); renderFooter(); applySchoolSettingsBranding(); });` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4861` | `window.addEventListener("hashchange", renderHeader);` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4862` | `window.addEventListener(FEATURE_TOGGLE_EVENT, renderFeatureSurfaces);` | Existing bootstrap/manager adapter; unmoved |
 | `auth.js:603` | `applyThemePreference(getThemePreference());` | Auth bootstrap; unmoved |
 | `auth.js:605-657` | `document.addEventListener("DOMContentLoaded", async () => { applyThemePreference(getThemePreference()); initThemeControls(); wireSignOutButton(document); t` | Auth bootstrap; unmoved |
 | `self-registration-links.js:170-174` | `if (document.readyState === "loading") { document.addEventListener("DOMContentLoaded", init, { once: true }); } else { init(); }` | Existing entry point; retained |
@@ -1676,10 +1676,10 @@ All 423 AST call sites found in parsable browser/inline scripts are listed. This
 | `app.js:19` | `startup/inline` | `document.addEventListener` | `DOMContentLoaded` | `—` |
 | `app.js:4419` | `startup/inline` | `window.addEventListener` | `storage` | `—` |
 | `app.js:4619` | `closeMenusOnOutsideClick` | `document.addEventListener` | `click` | `—` |
-| `app.js:4806` | `renderOfferingTabs` | `button.addEventListener` | `click` | `—` |
-| `app.js:4876` | `startup/inline` | `window.addEventListener` | `SCHOOL_SETTINGS_EVENT` | `—` |
-| `app.js:4881` | `startup/inline` | `window.addEventListener` | `hashchange` | `—` |
-| `app.js:4882` | `startup/inline` | `window.addEventListener` | `FEATURE_TOGGLE_EVENT` | `—` |
+| `app.js:4786` | `renderOfferingTabs` | `button.addEventListener` | `click` | `—` |
+| `app.js:4856` | `startup/inline` | `window.addEventListener` | `SCHOOL_SETTINGS_EVENT` | `—` |
+| `app.js:4861` | `startup/inline` | `window.addEventListener` | `hashchange` | `—` |
+| `app.js:4862` | `startup/inline` | `window.addEventListener` | `FEATURE_TOGGLE_EVENT` | `—` |
 | `auth.js:605` | `startup/inline` | `document.addEventListener` | `DOMContentLoaded` | `—` |
 | `auth.js:727` | `createThemeToggleButton` | `button.addEventListener` | `click` | `—` |
 | `auth.js:894` | `withNetworkTimeout` | `window.setTimeout` | `callback/expression` | `timeoutMs` |
@@ -2136,3 +2136,9 @@ All declarations below remain in admin-messages.html after its immediate return.
 | `inboxActive` | var | `admin-messages.html:1088` |
 | `observer` | var | `admin-messages.html:1089` |
 | `mountInbox` | function | `admin-messages.html:1091` |
+
+## E01 execution record
+
+Pre-extraction checkpoint: 39ec400, clean refactor/javascript-structure branch. Moved exactly one 19-line function, renderWhyGrid, into js/website/why-grid.js. Removed its old declaration and following blank separator from app.js; no other app.js bytes changed. Added one classic script tag immediately before app.js in each of 57 HTML consumers. whyCards and both existing initPageContent calls remain in app.js. The new script contains no startup call, listener, timer or mutable state.
+
+Five output fixtures (including the actual three whyCards) and missing-target behavior match exactly; isolated initPageContent call trace and markup match. All 214 external script tags resolve locally, preserving all 157 original tags. Static/isolated checks pass. Browser HTTP startup and visual acceptance remain NOT TESTED due to the previously observed localhost browser-policy block. This is not a full behavioral acceptance claim. Stop after E01.
