@@ -810,11 +810,11 @@ Proposed destination: `js/website/ (content, navigation, individual renderers)`.
 | `offerings` | const `app.js:55-146` | None detected | `activeOfferingId`, `initPageContent`, `renderOfferingTabs`, `renderWorkflowPage` |
 | `features` | const `app.js:148-219` | None detected | `getEnabledFeatures`, `getFeatureToggleDefaults`, `getFeatureToggleState`, `renderFeatureSurfaces`, `startup@4198`, `summarizeFeatureToggleState` |
 | `FEATURE_TOGGLE_STORAGE_KEY` | const `app.js:221` | None detected | `clearLegacySharedState`, `getFeatureToggleState`, `setFeatureEnabled`, `startup@4420` |
-| `FEATURE_TOGGLE_EVENT` | const `app.js:222` | None detected | `emitFeatureToggleUpdate`, `startup@4203`, `startup@4882` |
+| `FEATURE_TOGGLE_EVENT` | const `app.js:222` | None detected | `emitFeatureToggleUpdate`, `startup@4203`, `startup@4862` |
 | `DEFAULT_PLATFORM_NAME` | const `app.js:223` | None detected | `DEFAULT_SCHOOL_SETTINGS`, `getSchoolInitial`, `hasSchoolSettingsContext`, `renderFooter`, `renderHeader` |
 | `DEFAULT_SCHOOL_SETTINGS` | const `app.js:224-240` | `DEFAULT_PLATFORM_NAME` | `hasSchoolSettingsContext`, `normalizeHigherInstitutionType`, `normalizeSchoolSettings`, `startup@4221` |
 | `SCHOOL_SETTINGS_STORAGE_KEY` | const `app.js:241` | None detected | `clearLegacySharedState`, `getSchoolSettings`, `resetSchoolSettings`, `saveSchoolSettings`, `startup@4424` |
-| `SCHOOL_SETTINGS_EVENT` | const `app.js:242` | None detected | `emitSchoolSettingsUpdate`, `startup@4229`, `startup@4876` |
+| `SCHOOL_SETTINGS_EVENT` | const `app.js:242` | None detected | `emitSchoolSettingsUpdate`, `startup@4229`, `startup@4856` |
 | `DEFAULT_ACADEMIC_CYCLES` | const `app.js:243-246` | None detected | `getAcademicCycles`, `startup@4233` |
 | `SCHOOL_ACADEMIC_CYCLES_STORAGE_KEY` | const `app.js:247` | None detected | `clearLegacySharedState`, `getAcademicCycles`, `saveAcademicCycles`, `startup@4428` |
 | `SCHOOL_ACADEMIC_CYCLES_EVENT` | const `app.js:248` | None detected | `emitAcademicCyclesUpdate`, `startup@4241` |
@@ -847,9 +847,9 @@ Proposed destination: `js/website/ (content, navigation, individual renderers)`.
 | `SCHOOL_ATTENDANCE_EVENT` | const `app.js:284` | None detected | `emitAttendanceUpdate`, `startup@4379` |
 | `currentPage` | function `app.js:4497-4499` | ; external: `document` | No lexical read found; inspect global interface and writes before removal |
 | `hrefMatchesCurrentFile` | function `app.js:4501-4515` | ; external: `String`, `window` | `renderHeader` |
-| `renderHeader` | function `app.js:4517-4571` | `DEFAULT_PLATFORM_NAME`, `buildBrandMarkHtml`, `escapeHtml`, `homeNavLinks`, `hrefMatchesCurrentFile`; external: `document`, `window` | `startup@4871`, `startup@4877`, `startup@4881` |
-| `renderFooter` | function `app.js:4573-4616` | `DEFAULT_PLATFORM_NAME`, `buildBrandMarkHtml`, `escapeHtml`; external: `document` | `startup@4872`, `startup@4878` |
-| `closeMenusOnOutsideClick` | function `app.js:4618-4626` | ; external: `document` | `startup@4873` |
+| `renderHeader` | function `app.js:4517-4571` | `DEFAULT_PLATFORM_NAME`, `buildBrandMarkHtml`, `escapeHtml`, `homeNavLinks`, `hrefMatchesCurrentFile`; external: `document`, `window` | `startup@4851`, `startup@4857`, `startup@4861` |
+| `renderFooter` | function `app.js:4573-4616` | `DEFAULT_PLATFORM_NAME`, `buildBrandMarkHtml`, `escapeHtml`; external: `document` | `startup@4852`, `startup@4858` |
+| `closeMenusOnOutsideClick` | function `app.js:4618-4626` | ; external: `document` | `startup@4853` |
 | `renderWhyGrid` | function `js/website/why-grid.js:1-19` — E01 moved unchanged | Parameters targetId/items; external: `document`; no shared state/constants | `app.js:initPageContent` at 4836, calls at 4837/4838; script loaded once before app.js by all 57 consumer pages |
 | `renderOfferingPreviewGrid` | function `app.js:4628-4646` | ; external: `document` | `initPageContent` |
 | `renderStandoutList` | function `app.js:4648-4656` | `standoutBullets`; external: `document` | `initPageContent` |
@@ -859,8 +859,8 @@ Proposed destination: `js/website/ (content, navigation, individual renderers)`.
 | `activeOfferingId` | let `app.js:4736` | `offerings` | `renderOfferingTabs` |
 | `renderOfferingTabs` | function `app.js:4738-4791` | `activeOfferingId`, `offerings`; external: `document` | `initPageContent`, `renderOfferingTabs` |
 | `renderWorkflowPage` | function `app.js:4793-4829` | `offerings`; external: `document` | `initPageContent` |
-| `renderFeatureSurfaces` | function `app.js:4831-4834` | `features`, `renderFeatureGrid` | `initPageContent`, `startup@4882` |
-| `initPageContent` | function `app.js:4836-4849` | `offerings`, `practiceStories`, `renderFeatureSurfaces`, `renderOfferingPreviewGrid`, `renderOfferingTabs`, `renderPracticeGrid`, `renderSchoolGrid`, `renderStandoutList`, `renderWhyGrid`, `renderWorkflowPage`, `schoolTypes`, `whyCards` | `startup@4874` |
+| `renderFeatureSurfaces` | function `app.js:4831-4834` | `features`, `renderFeatureGrid` | `initPageContent`, `startup@4862` |
+| `initPageContent` | function `app.js:4836-4849` | `offerings`, `practiceStories`, `renderFeatureSurfaces`, `renderOfferingPreviewGrid`, `renderOfferingTabs`, `renderPracticeGrid`, `renderSchoolGrid`, `renderStandoutList`, `renderWhyGrid`, `renderWorkflowPage`, `schoolTypes`, `whyCards` | `startup@4854` |
 
 ## Reports and gradebook
 
@@ -977,7 +977,7 @@ Proposed destination: `js/features/settings/`. Status for all rows: **inventorie
 | `getSchoolInitial` | function `app.js:782-784` | `DEFAULT_PLATFORM_NAME`; external: `String` | `buildBrandMarkHtml` |
 | `hasSchoolSettingsContext` | function `app.js:786-800` | `DEFAULT_PLATFORM_NAME`, `DEFAULT_SCHOOL_SETTINGS`, `getSchoolSettings`; external: `Boolean`, `JSON` | `startup@4228` |
 | `buildBrandMarkHtml` | function `app.js:802-812` | `escapeHtml`, `getSchoolInitial` | `renderFooter`, `renderHeader` |
-| `applySchoolSettingsBranding` | function `app.js:814-828` | `formatAcademicYearLabel`, `getSchoolSettings`; external: `Boolean`, `document` | `startup@4875`, `startup@4879` |
+| `applySchoolSettingsBranding` | function `app.js:814-828` | `formatAcademicYearLabel`, `getSchoolSettings`; external: `Boolean`, `document` | `startup@4855`, `startup@4859` |
 | `emitSchoolSettingsUpdate` | function `app.js:830-836` | `SCHOOL_SETTINGS_EVENT`, `getSchoolSettings`; external: `CustomEvent`, `window` | `resetSchoolSettings`, `saveSchoolSettings`, `startup@4425` |
 | `saveSchoolSettings` | function `app.js:838-843` | `SCHOOL_SETTINGS_STORAGE_KEY`, `emitSchoolSettingsUpdate`, `normalizeSchoolSettings`, `writeWorkspaceState` | `startup@4225` |
 | `resetSchoolSettings` | function `app.js:845-850` | `SCHOOL_SETTINGS_STORAGE_KEY`, `emitSchoolSettingsUpdate`, `getSchoolSettings`, `removeWorkspaceState` | `startup@4226` |
@@ -1518,7 +1518,7 @@ Do not duplicate these bindings across files. Getter/setter or service methods m
 
 | Binding | Declaration | Read consumers | Assignment/update lines |
 | --- | --- | --- | --- |
-| `activeOfferingId` | `app.js:4736` | renderOfferingTabs | 4807 |
+| `activeOfferingId` | `app.js:4736` | renderOfferingTabs | 4787 |
 | `supabaseClientPromise` | `auth.js:158` | getSupabaseClient | 3500 |
 | `isSignOutInProgress` | `auth.js:159` | syncSupabaseSessionToLocal, wireSignOutButton | 9296 |
 | `lastActionFeedbackContext` | `auth.js:160` | setStatus, showInlineActionFeedback | 28219 |
