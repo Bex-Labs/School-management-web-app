@@ -1,6 +1,6 @@
 # Contracts to preserve during JavaScript extraction
 
-Original contracts snapshot: 2026-10-02 at e1eb094. E01 extracted renderWhyGrid; E02 extracted renderPracticeGrid from 7b1e613. The HTML script manifest and app.js locations below are current after both extractions. Other HTML/inline references retain original baseline anchors and shift by two after the inserted script tags. Configuration, schema and deployment are unchanged. See checklist.md for verification limits.
+Original contracts snapshot: 2026-10-02 at e1eb094. E01 extracted renderWhyGrid; E02 extracted renderPracticeGrid; E03 moved whyCards into why-grid.js from 1dd813e. Current app.js and why-grid.js references reflect E03. The HTML script manifest is unchanged from E02; other HTML/inline references retain original anchors and shift by two after the E01/E02 script tags. Configuration, schema and deployment are unchanged.
 
 ## Loading and startup
 
@@ -9,10 +9,10 @@ All external HTML scripts inspected are classic scripts, without async/defer/typ
 ### app.js
 
 1. Immediate theme IIFE reads schoolsphere.theme.v1, updates the root and body, and registers a one-time DOMContentLoaded callback when loading.
-2. Top-level lexical declarations and functions establish shared models and helpers. clearLegacySharedState() executes at line 505 and removes legacy unscoped keys. Do not accidentally re-run this cleanup per feature.
-3. window.SchoolSphere* manager objects are assigned at lines 4197–4417. Their object identity and public members are compatibility boundaries.
-4. A storage listener at line 4419 re-emits feature events for scoped keys.
-5. Immediate calls at lines 4829–4833 render header/footer, bind outside-click behavior, render page content, and apply branding. Subsequent listeners handle school settings, hash navigation and feature toggles.
+2. Top-level lexical declarations and functions establish shared models and helpers. clearLegacySharedState() executes at line 487 and removes legacy unscoped keys. Do not accidentally re-run this cleanup per feature.
+3. window.SchoolSphere* manager objects are assigned at lines 4179–4399. Their object identity and public members are compatibility boundaries.
+4. A storage listener at line 4401 re-emits feature events for scoped keys.
+5. Immediate calls at lines 4811–4815 render header/footer, bind outside-click behavior, render page content, and apply branding. Subsequent listeners handle school settings, hash navigation and feature toggles.
 
 ### auth.js
 
@@ -143,7 +143,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereFeatureModules
 
-`app.js:4197`
+`app.js:4179`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -156,7 +156,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereRolePermissions
 
-`app.js:4206`
+`app.js:4188`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -174,7 +174,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereSiteSettings
 
-`app.js:4220`
+`app.js:4202`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -190,7 +190,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereAcademicCycles
 
-`app.js:4232`
+`app.js:4214`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -206,7 +206,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereAcademicCalendar
 
-`app.js:4244`
+`app.js:4226`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -224,7 +224,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereAdmissionConfig
 
-`app.js:4258`
+`app.js:4240`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -242,7 +242,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereTimetable
 
-`app.js:4272`
+`app.js:4254`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -273,7 +273,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereFeeItems
 
-`app.js:4299`
+`app.js:4281`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -288,7 +288,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereClasses
 
-`app.js:4310`
+`app.js:4292`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -304,7 +304,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereCourses
 
-`app.js:4322`
+`app.js:4304`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -321,7 +321,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereLessonPlans
 
-`app.js:4335`
+`app.js:4317`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -336,7 +336,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereLeaveRequests
 
-`app.js:4346`
+`app.js:4328`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -351,7 +351,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereStudents
 
-`app.js:4357`
+`app.js:4339`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -370,7 +370,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereAttendance
 
-`app.js:4372`
+`app.js:4354`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -384,7 +384,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereReportCards
 
-`app.js:4382`
+`app.js:4364`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -399,7 +399,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereReportConfiguration
 
-`app.js:4393`
+`app.js:4375`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -411,7 +411,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereGradebook
 
-`app.js:4401`
+`app.js:4383`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -425,7 +425,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereAuditTrail
 
-`app.js:4411`
+`app.js:4393`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -455,7 +455,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ## Storage and school isolation
 
-- app.js:414–476 normalizes workspace identifiers (trim/lowercase, unsupported characters become hyphens), gives transient session precedence over persistent session, prefers session.workspaceId, and otherwise falls back to userId/email (including its explicit administrator fallback). resolveWorkspaceStorageKey builds baseKey::workspaceId. readWorkspaceState does not read legacy shared values unless allowLegacyFallback is true.
+- app.js:396–458 normalizes workspace identifiers (trim/lowercase, unsupported characters become hyphens), gives transient session precedence over persistent session, prefers session.workspaceId, and otherwise falls back to userId/email (including its explicit administrator fallback). resolveWorkspaceStorageKey builds baseKey::workspaceId. readWorkspaceState does not read legacy shared values unless allowLegacyFallback is true.
 - auth.js:1280 onward also gives transient session precedence. getCurrentWorkspaceId and parent/student discovery/alignment operate over account and guardian links; do not replace them with an apparently similar helper without comparing precedence and fallbacks.
 - self-registration-links.js:39–41 uses workspaceId, then email, then userId, then public. This differs from app.js.
 - Regular feature collections use double-colon suffixes. Notifications, admissions and parent fees use single-colon suffixes.
@@ -471,29 +471,29 @@ Names only; no stored values. Colons/hyphens/case are significant. Some event na
 
 | Literal name | Source occurrences |
 | --- | --- |
-| `schoolsphere.academicCalendar.v1` | `app.js:250`, `auth.js:535`, `auth.js:567` |
-| `schoolsphere.academicCycles.v1` | `app.js:247`, `auth.js:534`, `auth.js:565` |
+| `schoolsphere.academicCalendar.v1` | `app.js:232`, `auth.js:535`, `auth.js:567` |
+| `schoolsphere.academicCycles.v1` | `app.js:229`, `auth.js:534`, `auth.js:565` |
 | `schoolsphere.access.grants.v1` | `auth.js:17` |
 | `schoolsphere.access.guard.notice.v1` | `auth.js:18` |
 | `schoolsphere.accessGrants.v1` | `auth.js:575`, `auth.js:3646` |
 | `schoolsphere.admin.sidebar.collapsed.v1` | `auth.js:11` |
-| `schoolsphere.admissionConfig.v1` | `app.js:262`, `auth.js:536`, `auth.js:566` |
+| `schoolsphere.admissionConfig.v1` | `app.js:244`, `auth.js:536`, `auth.js:566` |
 | `schoolsphere.admissions.v1` | `auth.js:72`, `auth.js:572`, `auth.js:3614` |
 | `schoolsphere.announcement-toast.v1` | `auth.js:23` |
-| `schoolsphere.attendance.v1` | `app.js:283`, `auth.js:545`, `auth.js:560` |
-| `schoolsphere.auditTrail.v1` | `app.js:326`, `auth.js:551` |
+| `schoolsphere.attendance.v1` | `app.js:265`, `auth.js:545`, `auth.js:560` |
+| `schoolsphere.auditTrail.v1` | `app.js:308`, `auth.js:551` |
 | `schoolsphere.auth.password-recovery.v1` | `auth.js:16` |
 | `schoolsphere.auth.pending.role.v1` | `auth.js:15` |
 | `schoolsphere.auth.persistence.local.v1` | `auth.js:13` |
 | `schoolsphere.auth.persistence.session.v1` | `auth.js:14` |
-| `schoolsphere.classes.v1` | `app.js:274`, `auth.js:542`, `auth.js:557` |
-| `schoolsphere.courses.v1` | `app.js:277`, `auth.js:543`, `auth.js:558` |
-| `schoolsphere.featureModules.v1` | `app.js:221`, `auth.js:549`, `auth.js:553` |
-| `schoolsphere.feeItems.v1` | `app.js:271`, `auth.js:541`, `auth.js:564` |
+| `schoolsphere.classes.v1` | `app.js:256`, `auth.js:542`, `auth.js:557` |
+| `schoolsphere.courses.v1` | `app.js:259`, `auth.js:543`, `auth.js:558` |
+| `schoolsphere.featureModules.v1` | `app.js:203`, `auth.js:549`, `auth.js:553` |
+| `schoolsphere.feeItems.v1` | `app.js:253`, `auth.js:541`, `auth.js:564` |
 | `schoolsphere.form-draft.v1` | `auth.js:24` |
-| `schoolsphere.gradebook.v1` | `app.js:291`, `auth.js:548`, `auth.js:563` |
-| `schoolsphere.leaveRequests.v1` | `app.js:297` |
-| `schoolsphere.lessonPlans.v1` | `app.js:294` |
+| `schoolsphere.gradebook.v1` | `app.js:273`, `auth.js:548`, `auth.js:563` |
+| `schoolsphere.leaveRequests.v1` | `app.js:279` |
+| `schoolsphere.lessonPlans.v1` | `app.js:276` |
 | `schoolsphere.mail.v1` | `auth.js:4` |
 | `schoolsphere.notification-preferences.v1` | `auth.js:22` |
 | `schoolsphere.notifications.v1` | `auth.js:20`, `auth.js:573`, `auth.js:3601`, `admin-messages.html:inline@593:27` |
@@ -502,52 +502,52 @@ Names only; no stored values. Colons/hyphens/case are significant. Some event na
 | `schoolsphere.parentFees.v1` | `auth.js:574`, `auth.js:3627` |
 | `schoolsphere.passwordRecovery.v1` | `auth.js:5` |
 | `schoolsphere.portalOnboarding.v1` | `auth.js:576` |
-| `schoolsphere.reportCards.v1` | `app.js:286`, `auth.js:546`, `auth.js:561` |
-| `schoolsphere.reportConfiguration.v1` | `app.js:288`, `auth.js:547`, `auth.js:562` |
-| `schoolsphere.rolePermissions.studentMessagesDefault.v1` | `app.js:332` |
-| `schoolsphere.rolePermissions.v1` | `app.js:329`, `auth.js:550`, `auth.js:554` |
-| `schoolsphere.schoolSettings.v1` | `app.js:241`, `auth.js:533`, `auth.js:556` |
-| `schoolsphere.session.persistent.v1` | `app.js:410`, `auth.js:6`, `self-registration-links.js:4` |
-| `schoolsphere.session.transient.v1` | `app.js:411`, `auth.js:7`, `self-registration-links.js:3` |
-| `schoolsphere.students.v1` | `app.js:280`, `auth.js:26`, `auth.js:544`, `auth.js:559` |
+| `schoolsphere.reportCards.v1` | `app.js:268`, `auth.js:546`, `auth.js:561` |
+| `schoolsphere.reportConfiguration.v1` | `app.js:270`, `auth.js:547`, `auth.js:562` |
+| `schoolsphere.rolePermissions.studentMessagesDefault.v1` | `app.js:314` |
+| `schoolsphere.rolePermissions.v1` | `app.js:311`, `auth.js:550`, `auth.js:554` |
+| `schoolsphere.schoolSettings.v1` | `app.js:223`, `auth.js:533`, `auth.js:556` |
+| `schoolsphere.session.persistent.v1` | `app.js:392`, `auth.js:6`, `self-registration-links.js:4` |
+| `schoolsphere.session.transient.v1` | `app.js:393`, `auth.js:7`, `self-registration-links.js:3` |
+| `schoolsphere.students.v1` | `app.js:262`, `auth.js:26`, `auth.js:544`, `auth.js:559` |
 | `schoolsphere.supabase.auth.v1` | `auth.js:10` |
 | `schoolsphere.theme.v1` | `app.js:4`, `auth.js:12` |
-| `schoolsphere.timetable.periods.v1` | `app.js:267`, `auth.js:538`, `auth.js:569` |
-| `schoolsphere.timetable.rooms.v1` | `app.js:268`, `auth.js:539`, `auth.js:570` |
-| `schoolsphere.timetable.substitutions.v1` | `app.js:269`, `auth.js:540`, `auth.js:571` |
-| `schoolsphere.timetable.v1` | `app.js:265`, `auth.js:537`, `auth.js:568` |
+| `schoolsphere.timetable.periods.v1` | `app.js:249`, `auth.js:538`, `auth.js:569` |
+| `schoolsphere.timetable.rooms.v1` | `app.js:250`, `auth.js:539`, `auth.js:570` |
+| `schoolsphere.timetable.substitutions.v1` | `app.js:251`, `auth.js:540`, `auth.js:571` |
+| `schoolsphere.timetable.v1` | `app.js:247`, `auth.js:537`, `auth.js:568` |
 | `schoolsphere.users.v1` | `auth.js:3` |
-| `schoolsphere:academic-calendar-updated` | `app.js:251` |
-| `schoolsphere:academic-cycles-updated` | `app.js:248` |
+| `schoolsphere:academic-calendar-updated` | `app.js:233` |
+| `schoolsphere:academic-cycles-updated` | `app.js:230` |
 | `schoolsphere:access-grants:updated` | `auth.js:19` |
-| `schoolsphere:admission-config-updated` | `app.js:263` |
+| `schoolsphere:admission-config-updated` | `app.js:245` |
 | `schoolsphere:admissions:updated` | `auth.js:73` |
-| `schoolsphere:attendance-updated` | `app.js:284` |
-| `schoolsphere:audit-trail-updated` | `app.js:327` |
-| `schoolsphere:classes-updated` | `app.js:275` |
-| `schoolsphere:courses-updated` | `app.js:278` |
-| `schoolsphere:feature-modules-updated` | `app.js:222` |
-| `schoolsphere:fee-items-updated` | `app.js:272` |
-| `schoolsphere:gradebook-updated` | `app.js:292` |
-| `schoolsphere:leave-requests-updated` | `app.js:298` |
-| `schoolsphere:lesson-plans-updated` | `app.js:295` |
+| `schoolsphere:attendance-updated` | `app.js:266` |
+| `schoolsphere:audit-trail-updated` | `app.js:309` |
+| `schoolsphere:classes-updated` | `app.js:257` |
+| `schoolsphere:courses-updated` | `app.js:260` |
+| `schoolsphere:feature-modules-updated` | `app.js:204` |
+| `schoolsphere:fee-items-updated` | `app.js:254` |
+| `schoolsphere:gradebook-updated` | `app.js:274` |
+| `schoolsphere:leave-requests-updated` | `app.js:280` |
+| `schoolsphere:lesson-plans-updated` | `app.js:277` |
 | `schoolsphere:notifications:updated` | `auth.js:21`, `admin-messages.html:inline@593:416`, `admin-messages.html:inline@593:530` |
 | `schoolsphere:parent-fees:updated` | `auth.js:33` |
-| `schoolsphere:report-cards-updated` | `app.js:287` |
-| `schoolsphere:report-configuration-updated` | `app.js:289` |
-| `schoolsphere:role-permissions-updated` | `app.js:330` |
-| `schoolsphere:school-settings-updated` | `app.js:242` |
-| `schoolsphere:students-updated` | `app.js:281` |
-| `schoolsphere:timetable-updated` | `app.js:266` |
+| `schoolsphere:report-cards-updated` | `app.js:269` |
+| `schoolsphere:report-configuration-updated` | `app.js:271` |
+| `schoolsphere:role-permissions-updated` | `app.js:312` |
+| `schoolsphere:school-settings-updated` | `app.js:224` |
+| `schoolsphere:students-updated` | `app.js:263` |
+| `schoolsphere:timetable-updated` | `app.js:248` |
 
 ### Key and workspace resolution owners
 
 | Owner | Location | Outer dependencies |
 | --- | --- | --- |
-| `normalizeWorkspaceStorageId` | `app.js:414-422` |  |
-| `getWorkspaceSessionSnapshot` | `app.js:424-429` | `AUTH_SESSION_STORAGE_KEYS`, `parseStoredJSON` |
-| `getActiveWorkspaceStorageId` | `app.js:431-449` | `getWorkspaceSessionSnapshot`, `normalizeWorkspaceStorageId` |
-| `resolveWorkspaceStorageKey` | `app.js:451-453` | `getActiveWorkspaceStorageId` |
+| `normalizeWorkspaceStorageId` | `app.js:396-404` |  |
+| `getWorkspaceSessionSnapshot` | `app.js:406-411` | `AUTH_SESSION_STORAGE_KEYS`, `parseStoredJSON` |
+| `getActiveWorkspaceStorageId` | `app.js:413-431` | `getWorkspaceSessionSnapshot`, `normalizeWorkspaceStorageId` |
+| `resolveWorkspaceStorageKey` | `app.js:433-435` | `getActiveWorkspaceStorageId` |
 | `getFormDraftStorageKey` | `auth.js:791-793` | `FORM_DRAFT_STORAGE_PREFIX` |
 | `normalizeWorkspaceId` | `auth.js:1341-1348` |  |
 | `deriveWorkspaceIdFromRecord` | `auth.js:1350-1369` | `DEFAULT_AUTH_ROLE`, `SUPER_ADMIN_ROLE`, `SUPER_ADMIN_WORKSPACE_ID`, `normalizeEmail`, `normalizeRoleLabel`, `normalizeWorkspaceId` |
@@ -573,26 +573,26 @@ Local data mutations generally write storage then emit an event. Native storage 
 
 | Dispatch location | Owner | Event expression | detail shape/expression |
 | --- | --- | --- | --- |
-| `app.js:832` | `emitSchoolSettingsUpdate` | `SCHOOL_SETTINGS_EVENT` | `{ settings }` |
-| `app.js:919` | `emitAcademicCyclesUpdate` | `SCHOOL_ACADEMIC_CYCLES_EVENT` | `{ state }` |
-| `app.js:1200` | `emitAcademicCalendarUpdate` | `SCHOOL_ACADEMIC_CALENDAR_EVENT` | `{ events }` |
-| `app.js:1408` | `emitAdmissionConfigurationUpdate` | `SCHOOL_ADMISSION_CONFIG_EVENT` | `{ state }` |
-| `app.js:1842` | `emitSchoolTimetableUpdate` | `SCHOOL_TIMETABLE_EVENT` | `{ entries }` |
-| `app.js:2267` | `emitSchoolFeeItemsUpdate` | `SCHOOL_FEE_ITEMS_EVENT` | `{ items }` |
-| `app.js:2404` | `emitSchoolClassesUpdate` | `SCHOOL_CLASSES_EVENT` | `{ classes }` |
-| `app.js:2595` | `emitSchoolCoursesUpdate` | `SCHOOL_COURSES_EVENT` | `{ courses }` |
-| `app.js:2821` | `emitLessonPlansUpdate` | `SCHOOL_LESSON_PLANS_EVENT` | `{ records }` |
-| `app.js:2993` | `emitLeaveRequestsUpdate` | `SCHOOL_LEAVE_REQUESTS_EVENT` | `{ records }` |
-| `app.js:3218` | `emitSchoolStudentsUpdate` | `SCHOOL_STUDENTS_EVENT` | `{ students }` |
-| `app.js:3500` | `emitAttendanceUpdate` | `SCHOOL_ATTENDANCE_EVENT` | `{ records }` |
-| `app.js:3725` | `saveGradebookRecords` | `SCHOOL_GRADEBOOK_EVENT` | `{ records: normalized }` |
-| `app.js:3791` | `saveReportConfiguration` | `SCHOOL_REPORT_CONFIGURATION_EVENT` | `{ configuration: normalized }` |
-| `app.js:3895` | `emitReportCardsUpdate` | `SCHOOL_REPORT_CARDS_EVENT` | `{ records }` |
-| `app.js:4004` | `emitAuditTrailUpdate` | `AUDIT_TRAIL_EVENT` | `{ entries }` |
-| `app.js:4051` | `emitFeatureToggleUpdate` | `FEATURE_TOGGLE_EVENT` | `{ state }` |
-| `app.js:4144` | `emitRolePermissionsUpdate` | `ROLE_PERMISSIONS_EVENT` | `{ rolePermissions }` |
-| `app.js:4470` | `startup/inline` | `SCHOOL_REPORT_CONFIGURATION_EVENT` | `{ configuration: getReportConfiguration() }` |
-| `app.js:4478` | `startup/inline` | `SCHOOL_GRADEBOOK_EVENT` | `{ records: getGradebookRecords() }` |
+| `app.js:814` | `emitSchoolSettingsUpdate` | `SCHOOL_SETTINGS_EVENT` | `{ settings }` |
+| `app.js:901` | `emitAcademicCyclesUpdate` | `SCHOOL_ACADEMIC_CYCLES_EVENT` | `{ state }` |
+| `app.js:1182` | `emitAcademicCalendarUpdate` | `SCHOOL_ACADEMIC_CALENDAR_EVENT` | `{ events }` |
+| `app.js:1390` | `emitAdmissionConfigurationUpdate` | `SCHOOL_ADMISSION_CONFIG_EVENT` | `{ state }` |
+| `app.js:1824` | `emitSchoolTimetableUpdate` | `SCHOOL_TIMETABLE_EVENT` | `{ entries }` |
+| `app.js:2249` | `emitSchoolFeeItemsUpdate` | `SCHOOL_FEE_ITEMS_EVENT` | `{ items }` |
+| `app.js:2386` | `emitSchoolClassesUpdate` | `SCHOOL_CLASSES_EVENT` | `{ classes }` |
+| `app.js:2577` | `emitSchoolCoursesUpdate` | `SCHOOL_COURSES_EVENT` | `{ courses }` |
+| `app.js:2803` | `emitLessonPlansUpdate` | `SCHOOL_LESSON_PLANS_EVENT` | `{ records }` |
+| `app.js:2975` | `emitLeaveRequestsUpdate` | `SCHOOL_LEAVE_REQUESTS_EVENT` | `{ records }` |
+| `app.js:3200` | `emitSchoolStudentsUpdate` | `SCHOOL_STUDENTS_EVENT` | `{ students }` |
+| `app.js:3482` | `emitAttendanceUpdate` | `SCHOOL_ATTENDANCE_EVENT` | `{ records }` |
+| `app.js:3707` | `saveGradebookRecords` | `SCHOOL_GRADEBOOK_EVENT` | `{ records: normalized }` |
+| `app.js:3773` | `saveReportConfiguration` | `SCHOOL_REPORT_CONFIGURATION_EVENT` | `{ configuration: normalized }` |
+| `app.js:3877` | `emitReportCardsUpdate` | `SCHOOL_REPORT_CARDS_EVENT` | `{ records }` |
+| `app.js:3986` | `emitAuditTrailUpdate` | `AUDIT_TRAIL_EVENT` | `{ entries }` |
+| `app.js:4033` | `emitFeatureToggleUpdate` | `FEATURE_TOGGLE_EVENT` | `{ state }` |
+| `app.js:4126` | `emitRolePermissionsUpdate` | `ROLE_PERMISSIONS_EVENT` | `{ rolePermissions }` |
+| `app.js:4452` | `startup/inline` | `SCHOOL_REPORT_CONFIGURATION_EVENT` | `{ configuration: getReportConfiguration() }` |
+| `app.js:4460` | `startup/inline` | `SCHOOL_GRADEBOOK_EVENT` | `{ records: getGradebookRecords() }` |
 | `auth.js:1246` | `saveUsers` | `STORAGE_KEYS.users` | `{ users: normalizedUsers }` |
 | `auth.js:2143` | `pushNotification` | `NOTIFICATION_EVENT_NAME` | `{ workspaceId: normalizedWorkspaceId, }` |
 | `auth.js:2264` | `updateNotificationsForViewer` | `NOTIFICATION_EVENT_NAME` | `{ workspaceId: normalizedWorkspaceId, }` |
@@ -681,20 +681,20 @@ All 1095 AST lookup sites from parsable scripts, including template/dynamic expr
 
 | Location | Owner | Lookup | Argument |
 | --- | --- | --- | --- |
-| `app.js:824` | `applySchoolSettingsBranding` | `querySelectorAll` | `"[data-school-context]"` |
-| `app.js:4518` | `renderHeader` | `getElementById` | `"site-header"` |
-| `app.js:4574` | `renderFooter` | `getElementById` | `"site-footer"` |
-| `app.js:4620` | `closeMenusOnOutsideClick` | `querySelectorAll` | `".nav-menu[open]"` |
-| `js/website/why-grid.js:2` | `renderWhyGrid` | `getElementById` | `targetId` |
-| `app.js:4629` | `renderOfferingPreviewGrid` | `getElementById` | `targetId` |
-| `app.js:4649` | `renderStandoutList` | `getElementById` | `targetId` |
-| `app.js:4659` | `renderFeatureGrid` | `getElementById` | `targetId` |
-| `app.js:4692` | `renderSchoolGrid` | `getElementById` | `targetId` |
+| `app.js:806` | `applySchoolSettingsBranding` | `querySelectorAll` | `"[data-school-context]"` |
+| `app.js:4500` | `renderHeader` | `getElementById` | `"site-header"` |
+| `app.js:4556` | `renderFooter` | `getElementById` | `"site-footer"` |
+| `app.js:4602` | `closeMenusOnOutsideClick` | `querySelectorAll` | `".nav-menu[open]"` |
+| `js/website/why-grid.js:20` | `renderWhyGrid` | `getElementById` | `targetId` |
+| `app.js:4611` | `renderOfferingPreviewGrid` | `getElementById` | `targetId` |
+| `app.js:4631` | `renderStandoutList` | `getElementById` | `targetId` |
+| `app.js:4641` | `renderFeatureGrid` | `getElementById` | `targetId` |
+| `app.js:4674` | `renderSchoolGrid` | `getElementById` | `targetId` |
 | `js/website/practice-grid.js:2` | `renderPracticeGrid` | `getElementById` | `targetId` |
-| `app.js:4717` | `renderOfferingTabs` | `getElementById` | `"home-offering-tabs"` |
-| `app.js:4718` | `renderOfferingTabs` | `getElementById` | `"home-offering-panel"` |
-| `app.js:4763` | `renderOfferingTabs` | `querySelectorAll` | `"[data-offering]"` |
-| `app.js:4772` | `renderWorkflowPage` | `getElementById` | `"workflow-page-grid"` |
+| `app.js:4699` | `renderOfferingTabs` | `getElementById` | `"home-offering-tabs"` |
+| `app.js:4700` | `renderOfferingTabs` | `getElementById` | `"home-offering-panel"` |
+| `app.js:4745` | `renderOfferingTabs` | `querySelectorAll` | `"[data-offering]"` |
+| `app.js:4754` | `renderWorkflowPage` | `getElementById` | `"workflow-page-grid"` |
 | `auth.js:687` | `syncThemeToggleButton` | `querySelector` | `"[data-theme-toggle-label]"` |
 | `auth.js:705` | `applyThemePreference` | `querySelectorAll` | `"[data-theme-toggle]"` |
 | `auth.js:735` | `initThemeControls` | `querySelector` | `".admin-sidebar"` |
@@ -2022,27 +2022,27 @@ Top-level object fields returned from named record normalizers are indexed below
 
 | Normalizer | Location | Returned object keys (may include nested returns) |
 | --- | --- | --- |
-| `normalizeSchoolSettings` | `app.js:722-747` | `schoolName`, `logoUrl`, `schoolProfile`, `address`, `campusDetails`, `phone`, `website`, `academicYearStart`, `academicYearEnd`, `schoolTypes`, `higherInstitutionType`, `hasNursery`, `hasPrimary`, `hasSecondary`, `hasHigherInstitution` |
-| `normalizeAcademicSession` | `app.js:860-873` | `id`, `name`, `startDate`, `endDate`, `status`, `createdAt`, `updatedAt` |
-| `normalizeAcademicTerm` | `app.js:875-893` | `id`, `sessionId`, `periodType`, `name`, `startDate`, `endDate`, `status`, `createdAt`, `updatedAt` |
-| `normalizeAdmissionConfigSession` | `app.js:1321-1333` | `id`, `name`, `startDate`, `endDate`, `status`, `createdAt`, `updatedAt` |
-| `normalizeAdmissionConfigClass` | `app.js:1335-1344` | `id`, `name`, `status`, `createdAt`, `updatedAt` |
-| `normalizeAdmissionConfiguration` | `app.js:1359-1396` | `...spread`, `status`, `sessions`, `classes`, `stages` |
-| `normalizeSchoolTimetableEntry` | `app.js:1771-1802` | `id`, `periodId`, `classId`, `classLevel`, `subjectId`, `teacherId`, `roomId`, `sessionId`, `termId`, `day`, `startTime`, `endTime`, `subject`, `teacher`, `room`, `weekType`, `status`, `publishedAt`, `createdAt`, `updatedAt`, `archivedAt` |
-| `normalizeSchoolClass` | `app.js:2338-2372` | `id`, `name`, `level`, `capacity`, `classTeacher`, `arms`, `subjects`, `teacherAssignments`, `status`, `createdAt`, `updatedAt`, `archivedAt` |
-| `normalizeSchoolCourse` | `app.js:2510-2538` | `id`, `name`, `code`, `category`, `creditUnit`, `description`, `level`, `sessionId`, `sessionName`, `termId`, `termName`, `classId`, `classRecordId`, `classLabel`, `classArm`, `classScope`, `teacherAssignments`, `studentAssignments`, `status`, `createdAt`, `updatedAt`, `archivedAt` |
-| `normalizeLessonPlanAttachment` | `app.js:2717-2728` | `id`, `name`, `type`, `size`, `dataUrl`, `uploadedAt` |
-| `normalizeLessonPlanRecord` | `app.js:2730-2797` | `id`, `teacherId`, `teacherName`, `teacherEmail`, `subject`, `subjectCode`, `classId`, `classLevel`, `sessionId`, `sessionName`, `termId`, `termName`, `weekNumber`, `planDate`, `planView`, `topic`, `subTopic`, `curriculumTopic`, `syllabusOrder`, `coverageStatus`, `objectives`, `materials`, `teachingMethods`, `classActivities`, `assessment`, `homework`, `remarks`, `reflection`, `delivery`, `attachments`, `status`, `submittedAt`, `deliveredAt`, `createdAt`, `updatedAt` |
-| `normalizeLeaveAttachment` | `app.js:2911-2922` | `id`, `name`, `type`, `size`, `dataUrl`, `uploadedAt` |
-| `normalizeStudentProgressionEntry` | `app.js:3081-3090` | `id`, `type`, `fromLevel`, `toLevel`, `note`, `timestamp` |
-| `normalizeStudentDocumentRecord` | `app.js:3092-3104` | `id`, `name`, `documentType`, `mimeType`, `sizeBytes`, `dataUrl`, `uploadedBy`, `uploadedAt` |
-| `normalizeStudentRecord` | `app.js:3106-3186` | `id`, `firstName`, `lastName`, `fullName`, `admissionNo`, `studentEmail`, `profilePhotoUrl`, `profilePhotoName`, `profilePhotoMimeType`, `profilePhotoSizeBytes`, `profilePhotoRemoved`, `level`, `classId`, `classRecordId`, `classLevel`, `baseLevel`, `classArm`, `dateOfBirth`, `gender`, `guardians`, `progressionHistory`, `documents`, `status`, `promotionDecision`, `examOutcome`, `lastPromotionSessionId`, `lastPromotionOutcome`, `createdAt`, `updatedAt`, `archivedAt`, `transferredAt`, `transferReason` |
-| `normalizeAttendanceEntry` | `app.js:3393-3404` | `studentId`, `studentName`, `admissionNo`, `status`, `note` |
-| `normalizeAttendanceRecord` | `app.js:3433-3475` | `id`, `date`, `classId`, `lessonId`, `timetableEntryId`, `subject`, `periodId`, `day`, `startTime`, `endTime`, `weekType`, `sessionId`, `termId`, `className`, `level`, `submittedById`, `submittedByEmail`, `submittedByName`, `status`, `entries`, `takenAt`, `createdAt`, `updatedAt` |
-| `normalizeReportConfiguration` | `app.js:3619-3662` | `scoreStructure`, `gradingScale`, `template` |
-| `normalizeGradebookRecord` | `app.js:3672-3712` | `studentId`, `studentName`, `admissionNo`, `componentScores`, `id`, `classId`, `classLevel`, `subject`, `subjectCode`, `sessionId`, `sessionName`, `termId`, `termName`, `teacherId`, `teacherName`, `components`, `scores`, `createdAt`, `updatedAt` |
-| `normalizeReportCardRecord` | `app.js:3842-3870` | `id`, `studentId`, `studentName`, `admissionNo`, `classId`, `classLevel`, `sessionId`, `sessionName`, `termId`, `termName`, `subjects`, `teacherComment`, `schoolComment`, `status`, `createdById`, `createdByName`, `releasedById`, `releasedByName`, `releasedAt`, `createdAt`, `updatedAt` |
-| `normalizeAuditTrailEntry` | `app.js:3980-3992` | `id`, `timestamp`, `actorName`, `actorRole`, `action`, `entityType`, `entityId`, `summary`, `details` |
+| `normalizeSchoolSettings` | `app.js:704-729` | `schoolName`, `logoUrl`, `schoolProfile`, `address`, `campusDetails`, `phone`, `website`, `academicYearStart`, `academicYearEnd`, `schoolTypes`, `higherInstitutionType`, `hasNursery`, `hasPrimary`, `hasSecondary`, `hasHigherInstitution` |
+| `normalizeAcademicSession` | `app.js:842-855` | `id`, `name`, `startDate`, `endDate`, `status`, `createdAt`, `updatedAt` |
+| `normalizeAcademicTerm` | `app.js:857-875` | `id`, `sessionId`, `periodType`, `name`, `startDate`, `endDate`, `status`, `createdAt`, `updatedAt` |
+| `normalizeAdmissionConfigSession` | `app.js:1303-1315` | `id`, `name`, `startDate`, `endDate`, `status`, `createdAt`, `updatedAt` |
+| `normalizeAdmissionConfigClass` | `app.js:1317-1326` | `id`, `name`, `status`, `createdAt`, `updatedAt` |
+| `normalizeAdmissionConfiguration` | `app.js:1341-1378` | `...spread`, `status`, `sessions`, `classes`, `stages` |
+| `normalizeSchoolTimetableEntry` | `app.js:1753-1784` | `id`, `periodId`, `classId`, `classLevel`, `subjectId`, `teacherId`, `roomId`, `sessionId`, `termId`, `day`, `startTime`, `endTime`, `subject`, `teacher`, `room`, `weekType`, `status`, `publishedAt`, `createdAt`, `updatedAt`, `archivedAt` |
+| `normalizeSchoolClass` | `app.js:2320-2354` | `id`, `name`, `level`, `capacity`, `classTeacher`, `arms`, `subjects`, `teacherAssignments`, `status`, `createdAt`, `updatedAt`, `archivedAt` |
+| `normalizeSchoolCourse` | `app.js:2492-2520` | `id`, `name`, `code`, `category`, `creditUnit`, `description`, `level`, `sessionId`, `sessionName`, `termId`, `termName`, `classId`, `classRecordId`, `classLabel`, `classArm`, `classScope`, `teacherAssignments`, `studentAssignments`, `status`, `createdAt`, `updatedAt`, `archivedAt` |
+| `normalizeLessonPlanAttachment` | `app.js:2699-2710` | `id`, `name`, `type`, `size`, `dataUrl`, `uploadedAt` |
+| `normalizeLessonPlanRecord` | `app.js:2712-2779` | `id`, `teacherId`, `teacherName`, `teacherEmail`, `subject`, `subjectCode`, `classId`, `classLevel`, `sessionId`, `sessionName`, `termId`, `termName`, `weekNumber`, `planDate`, `planView`, `topic`, `subTopic`, `curriculumTopic`, `syllabusOrder`, `coverageStatus`, `objectives`, `materials`, `teachingMethods`, `classActivities`, `assessment`, `homework`, `remarks`, `reflection`, `delivery`, `attachments`, `status`, `submittedAt`, `deliveredAt`, `createdAt`, `updatedAt` |
+| `normalizeLeaveAttachment` | `app.js:2893-2904` | `id`, `name`, `type`, `size`, `dataUrl`, `uploadedAt` |
+| `normalizeStudentProgressionEntry` | `app.js:3063-3072` | `id`, `type`, `fromLevel`, `toLevel`, `note`, `timestamp` |
+| `normalizeStudentDocumentRecord` | `app.js:3074-3086` | `id`, `name`, `documentType`, `mimeType`, `sizeBytes`, `dataUrl`, `uploadedBy`, `uploadedAt` |
+| `normalizeStudentRecord` | `app.js:3088-3168` | `id`, `firstName`, `lastName`, `fullName`, `admissionNo`, `studentEmail`, `profilePhotoUrl`, `profilePhotoName`, `profilePhotoMimeType`, `profilePhotoSizeBytes`, `profilePhotoRemoved`, `level`, `classId`, `classRecordId`, `classLevel`, `baseLevel`, `classArm`, `dateOfBirth`, `gender`, `guardians`, `progressionHistory`, `documents`, `status`, `promotionDecision`, `examOutcome`, `lastPromotionSessionId`, `lastPromotionOutcome`, `createdAt`, `updatedAt`, `archivedAt`, `transferredAt`, `transferReason` |
+| `normalizeAttendanceEntry` | `app.js:3375-3386` | `studentId`, `studentName`, `admissionNo`, `status`, `note` |
+| `normalizeAttendanceRecord` | `app.js:3415-3457` | `id`, `date`, `classId`, `lessonId`, `timetableEntryId`, `subject`, `periodId`, `day`, `startTime`, `endTime`, `weekType`, `sessionId`, `termId`, `className`, `level`, `submittedById`, `submittedByEmail`, `submittedByName`, `status`, `entries`, `takenAt`, `createdAt`, `updatedAt` |
+| `normalizeReportConfiguration` | `app.js:3601-3644` | `scoreStructure`, `gradingScale`, `template` |
+| `normalizeGradebookRecord` | `app.js:3654-3694` | `studentId`, `studentName`, `admissionNo`, `componentScores`, `id`, `classId`, `classLevel`, `subject`, `subjectCode`, `sessionId`, `sessionName`, `termId`, `termName`, `teacherId`, `teacherName`, `components`, `scores`, `createdAt`, `updatedAt` |
+| `normalizeReportCardRecord` | `app.js:3824-3852` | `id`, `studentId`, `studentName`, `admissionNo`, `classId`, `classLevel`, `sessionId`, `sessionName`, `termId`, `termName`, `subjects`, `teacherComment`, `schoolComment`, `status`, `createdById`, `createdByName`, `releasedById`, `releasedByName`, `releasedAt`, `createdAt`, `updatedAt` |
+| `normalizeAuditTrailEntry` | `app.js:3962-3974` | `id`, `timestamp`, `actorName`, `actorRole`, `action`, `entityType`, `entityId`, `summary`, `details` |
 | `normalizeUserRecord` | `auth.js:1427-1437` | `...spread`, `displayName`, `profilePhotoUrl`, `role`, `status`, `mustChangePassword`, `workspaceId` |
 | `normalizeNotificationEntry` | `auth.js:2092-2111` | `id`, `title`, `message`, `entityType`, `entityId`, `action`, `actorName`, `createdAt`, `readAt`, `workspaceId`, `visibleToRoles`, `metadata` |
 | `normalizeAdmissionFileRecord` | `auth.js:2873-2907` | `id`, `label`, `name`, `type`, `size`, `dataUrl`, `uploadedAt` |
@@ -2056,7 +2056,7 @@ Literal mapping snapshots only; preserve keys and aliases. These are source cont
 
 ### app.js / ROLE_PERMISSION_ROLES
 
-`app.js:333`
+`app.js:315`
 
 ```js
 ROLE_PERMISSION_ROLES = ["Teacher", "Parent", "Student"]
@@ -2064,7 +2064,7 @@ ROLE_PERMISSION_ROLES = ["Teacher", "Parent", "Student"]
 
 ### app.js / ROLE_PERMISSION_OPTIONS_BY_ROLE
 
-`app.js:334`
+`app.js:316`
 
 ```js
 ROLE_PERMISSION_OPTIONS_BY_ROLE = {
@@ -2106,7 +2106,7 @@ ROLE_PERMISSION_OPTIONS_BY_ROLE = {
 
 ### app.js / ROLE_PERMISSION_OPTIONS
 
-`app.js:369`
+`app.js:351`
 
 ```js
 ROLE_PERMISSION_OPTIONS = Object.values(ROLE_PERMISSION_OPTIONS_BY_ROLE)
@@ -2384,10 +2384,16 @@ function getParentFeesStorageKey(workspaceId = null) {
 
 ## E01 renderer boundary
 
-js/website/why-grid.js still contains only the unchanged renderWhyGrid declaration. It depends on document and its arguments, writes identical innerHTML, and returns early for missing targets. Current initPageContent is at app.js:4814, its two Why calls are at 4815–4816, and its sole immediate invocation is at app.js:4832. All 57 app.js consumers include why-grid.js exactly once immediately before app.js; E02 adds practice-grid.js before that pair. E01 browser completion was user-reported, not independently verified.
+js/website/why-grid.js now contains whyCards at lines 1–17 (E03) and the unchanged renderWhyGrid declaration at lines 19–37 (E01). The renderer still depends only on document and its arguments, writes identical innerHTML and returns early for absent targets. Current initPageContent is at app.js:4796, its Why calls at 4797–4798, and its sole immediate invocation at app.js:4814. All 57 consumers still load why-grid.js once immediately before app.js. E01 browser completion was user-reported, not independently verified.
 
 ## E02 renderer boundary
 
 js/website/practice-grid.js declares renderPracticeGrid(targetId, items) only. Dependencies: document.getElementById and supplied array records with title, label and copy. Its unchanged template emits quote-card and quote-meta classes; styles.css is untouched. No storage, permissions, SchoolSphere manager, Supabase call, private shared state or initialization is added. Missing targets return before accessing items.
 
-The sole caller is initPageContent (app.js:4814); calls at 4825 and 4826 pass practiceStories.slice(0, 3) for home-practice-grid and practice-page-grid. Only practice-page-grid exists in current HTML (in-practice.html:29). practiceStories remains at app.js:592–617 and contains four records. All 57 pages need the new script even where the target is absent because app.js calls the function unconditionally. Loading is synchronous, with no async/defer/module conversion and no startup call in the helper. Browser/HTTP delivery and visual checks for E02 remain unverified.
+The sole caller of renderPracticeGrid is initPageContent (app.js:4796); calls at 4807 and 4808 pass practiceStories.slice(0, 3) for home-practice-grid and practice-page-grid. Only practice-page-grid exists in current HTML (in-practice.html:29). practiceStories remains in app.js:574–599 with four records. Synchronous classic loading and helper behavior are unchanged by E03. E02 browser checks passed according to the user; no independent browser evidence was captured.
+
+## E03 content boundary
+
+whyCards is initialized once by the existing classic js/website/why-grid.js script, above renderWhyGrid. Preserve the top-level const name, array order, three records, title/copy field names and exact string contents. The binding remains accessible to later classic scripts but is not a window property; const prevents reassignment, not mutation of its array or records. Do not add exports, wrappers, freezing or a window adapter.
+
+The only detected consumers are app.js:initPageContent calls at 4797–4798, passing the same whyCards array to renderWhyGrid for why-preview-grid and why-page-grid. Only why-page-grid exists in current HTML (why-it-works.html:36). No content, renderer or caller logic changed. Loading remains practice-grid.js → why-grid.js → app.js → existing subsequent scripts on all 57 consumers; all 58 HTML files and 271 external references are unchanged. Moving literal allocation before the app.js theme bootstrap introduces no external side effects. No listener, storage key, permission, data format or Supabase behavior changes. E03 HTTP/visual/startup checks remain unverified.

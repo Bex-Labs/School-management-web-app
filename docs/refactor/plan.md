@@ -1,6 +1,6 @@
 # Safe staged extraction plan
 
-Original plan: 2026-10-02 at e1eb094. E01 was implemented from 39ec400; the user subsequently reported completing its manual browser checks (not independently verified). E02 was explicitly approved and implemented from clean refactor/javascript-structure at 7b1e613. E02 static/isolated checks pass; E02 browser acceptance remains outstanding. Stop after E02; no subsequent stage has started.
+Original plan: 2026-10-02 at e1eb094. E01 and E02 are implemented, with browser completion reported by the user rather than independently observed. E03 was explicitly approved and implemented from clean refactor/javascript-structure at 1dd813e. E03 static/isolated checks pass; E03 browser acceptance remains outstanding. Stop after E03; no subsequent stage has started.
 
 ## Non-negotiable boundaries
 
@@ -69,7 +69,9 @@ The evidence and procedure in this section describe E01 at implementation time. 
 
 **Tradeoff:** HTML edits span many files, but each is one mechanical loading-order change. Loading only on why-it-works would break other pages because app.js invokes the function on all pages. Converting modules or introducing an async loader to avoid those edits would add timing risk.
 
-## E02 — implemented: renderPracticeGrid (browser acceptance pending)
+## E02 — implemented: renderPracticeGrid (historical execution record)
+
+The source anchors and results in this section describe E02 at implementation time. The user subsequently confirmed that E02 browser checks passed while approving E03. This is user-reported acceptance, not independent browser evidence. Current source locations are in inventory.md and contracts.md.
 
 **Approved scope:** moved only the 21-line renderPracticeGrid(targetId, items) declaration from pre-E02 app.js:4714–4734 into js/website/practice-grid.js:1–21, unchanged. Removed the declaration and following blank line (22 lines). All other app.js bytes are unchanged. practiceStories remains at app.js:592–617, with four records; both callers retain slice(0, 3), displaying three stories.
 
@@ -83,14 +85,28 @@ The evidence and procedure in this section describe E01 at implementation time. 
 
 **Rollback boundary:** the new practice-grid.js file, the removed function and blank line, all 57 practice script additions, and E02 documentation hunks form one unit against 7b1e613. Preserve E01 and unrelated subsequent changes; do not reset the repository or clear storage. Stop after E02 and await user review. No commit, push, deployment, database work or E03 extraction is authorized.
 
+## E03 — implemented: whyCards (browser acceptance pending)
+
+**Approved scope:** moved only the unchanged 17-line const whyCards declaration from pre-E03 app.js:30–46 to js/website/why-grid.js:1–17, above the unchanged renderWhyGrid function now at lines 19–37. Removed the original declaration and blank separator (18 lines) from app.js. All remaining app.js bytes are unchanged. No new file, HTML tag, URL, CSS or content change.
+
+**Dependencies and consumers:** three literal title/copy records; no external dependencies or detected mutations. The only consumers are the two unchanged initPageContent calls, now app.js:4797–4798. initPageContent is at 4796, with its sole immediate invocation at 4814. Only why-page-grid exists in HTML; why-preview-grid remains a no-op.
+
+**Loading and ownership:** preserve the existing synchronous practice-grid.js → why-grid.js → app.js ordering on all 57 consumers. whyCards remains one global lexical const accessible to later classic scripts, not window.whyCards. No wrapper, export, freezing, initializer call or new listener. Its literal array is allocated earlier, before app.js begins; this adds no DOM, storage or network side effects. Both callers retain the same array identity and the same three records.
+
+**Evidence:** exact dataset-source equality, unchanged renderer and remaining app.js, one declaration, equivalent data serialization, preserved const/array/global-access semantics, exact rendering and isolated initPageContent traces for present and absent targets, six classic JS files parse, all 58 HTML files unchanged, all 271 external paths resolve. Existing contact inline syntax failure is unchanged. Browser HTTP/visual/navigation and login/portal startup for E03 remain NOT TESTED.
+
+**Remaining acceptance:** verify Why It Works displays the same three cards on desktop/mobile; check In Practice, Home, public navigation and representative login/portal startup. Confirm no new console/reference/network errors using the usual local HTTP preview. No database/account mutations are needed.
+
+**Rollback boundary:** only app.js, js/website/why-grid.js and E03 documentation hunks against 1dd813e. Restore the dataset to its original location and remove its new copy as one operation; preserve E01/E02 and unrelated changes. No storage rollback is involved. Stop before E04; no commit, push, deployment or database changes.
+
 ## Extraction queue (provisional; never execute as a batch)
 
 Each row is a planning group. Rows containing several features MUST be expanded into one exact extraction before implementation. Dependency analysis and runtime evidence may change ordering.
 
 | ID | Bounded next unit | Required prerequisites/dependencies | Acceptance focus | Rollback unit |
 | --- | --- | --- | --- | --- |
-| E02 | Implemented: renderPracticeGrid only; browser acceptance pending | Parameter/document-only dependency audit complete; classic loader pattern retained | Static/isolated checks pass; HTTP/visual/startup checks outstanding | practice-grid.js, function removal, 57 script additions and E02 docs |
-| E03 | One public content dataset or offerings component | Audit features array: it is also the module manager catalog; activeOfferingId must have one owner | Tabs/feature toggles and settings event refresh unchanged | Dataset/component and exact consumers |
+| E02 | Implemented: renderPracticeGrid only | Parameter/document-only dependency audit complete; classic loader pattern retained | Static/isolated checks pass; browser checks passed according to user | practice-grid.js, function removal, 57 script additions and E02 docs |
+| E03 | Implemented: whyCards dataset only | Literal-only const; two callers retained; existing classic loading order | Static/isolated checks pass; E03 browser checks outstanding | Dataset relocation between app.js/why-grid.js and E03 docs |
 | E04 | One pure shared helper | Prove matching semantics at every caller; app/auth escaping/JSON helpers may differ | Representative null/invalid/legacy input and escaping cases | Helper plus explicit caller changes |
 | E05 | Workspace/storage primitives as individually reviewed boundaries | Workspace fallback/key contracts captured; synthetic A/B fixtures ready | Key equality, transient precedence, legacy behavior and isolation | Helper/interface and consumers; never clear storage |
 | E06 | One app.js manager, e.g. classes only after dependency review | Storage API stable; constants/normalizers/event methods accounted for; global adapter retained | CRUD/reload/event payload and dependent view refresh | One manager implementation + adapter |
@@ -122,6 +138,6 @@ Run the full checklist on representative roles and two synthetic school workspac
 
 ## Current completion boundary
 
-E01 and the approved E02 are implemented. E02 adds one JS file, removes one unchanged function from app.js, adds one script tag to each of 57 HTML files, and updates the four refactoring documents. No other declaration moved during E02. No commit, push, deployment, database change or subsequent extraction occurred during this implementation.
+E01–E03 are implemented. E03 moves only whyCards from app.js into the existing why-grid.js and updates the four refactoring documents. No HTML, other declaration or runtime logic changed during E03. No commit, push, deployment, database change or subsequent extraction occurred during this implementation.
 
-Next action is browser acceptance for E02 in an environment permitted to serve/open localhost, especially in-practice.html, why-it-works.html, a missing-target page, and login/portal startup. Preserve the known contact failure separately. Do not treat static checks as proof of those workflows or proceed automatically to E03. The E02 rollback baseline is 7b1e613; retain E01 and later unrelated user changes.
+Next action is browser acceptance for E03 in an environment permitted to serve/open localhost, especially why-it-works.html, In Practice, a missing-target page, and login/portal startup. Preserve the known contact failure separately. Do not treat static checks as proof of those workflows or proceed automatically to E04. The E03 rollback baseline is 1dd813e; retain E01/E02 and later unrelated user changes.

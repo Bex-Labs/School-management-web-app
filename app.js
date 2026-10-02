@@ -27,24 +27,6 @@ const homeNavLinks = [
   { label: "Contact", href: "./contact.html" },
 ];
 
-const whyCards = [
-  {
-    title: "One student record from admission to report card",
-    copy:
-      "Admissions, payments, attendance, and results all point back to the same learner history instead of sitting in separate silos.",
-  },
-  {
-    title: "Less front desk traffic",
-    copy:
-      "Parents can see invoices, notices, attendance, and updates without turning every small request into a call or visit.",
-  },
-  {
-    title: "Result week gets calmer",
-    copy:
-      "Teachers know what is pending, administrators know where the delays are, and the school stops managing grade entry through scattered sheets.",
-  },
-];
-
 const standoutBullets = [
   "Clear admissions and student record trail",
   "Attendance and punctuality visible by class or cohort",

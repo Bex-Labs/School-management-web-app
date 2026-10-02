@@ -192,3 +192,29 @@ Scope: renderPracticeGrid only, from clean refactor/javascript-structure at 7b1e
 Changed paths: app.js, new js/website/practice-grid.js, 57 HTML consumers in the current contracts manifest, and these four refactoring documents. The HTML ID catalog must remain unchanged; update only the separate script manifest and relevant source references.
 
 Manual acceptance: serve over local HTTP; check three In Practice cards on desktop/mobile, Why It Works, public navigation and a missing-target page; check representative login/portal startup without submitting records; confirm practice-grid.js → why-grid.js → app.js load successfully once and no new console errors appear. Record any failure and the known contact exception separately. Stop before E03. Rollback only E02 hunks against 7b1e613 while preserving E01 and unrelated work.
+
+## E02 user-reported follow-up
+
+The user answered yes when asked whether E02 browser checks passed and whether to approve the proposed E03 scope. Record E02 browser acceptance as user-reported PASS, not an independently observed result. No detailed console/network evidence was supplied. Historical NOT TESTED entries remain the record of checks the agent did not run.
+
+## E03 result log
+
+Scope: whyCards dataset only, from clean refactor/javascript-structure at 1dd813e. No commit, push, deployment, database work or subsequent extraction.
+
+| Check | Result | Evidence / limitation |
+| --- | --- | --- |
+| Dependency/consumer audit | PASS — source | Three literal records; only two reads in initPageContent. No detected mutation or external dependency. |
+| Exact relocation | PASS | why-grid.js equals the original dataset plus a blank separator plus its unchanged renderer. app.js equals baseline with only the dataset declaration and following blank line removed (18 lines). |
+| Single ownership and interfaces | PASS — static/isolated | Exactly one top-level whyCards declaration across six scripts. Later classic scripts can read it; no window.whyCards property. Renderer remains globally callable. const reassignment still fails; array/record mutation and shared array identity remain possible as before. Tests use disposable in-memory fixtures only. |
+| Dataset and rendering | PASS — isolated | Original/new data serialization is identical. Exact HTML and lookup/write traces match for the two existing calls with present why-page-grid and with absent targets. No DOM work occurs during dataset/helper definition. |
+| Page-content composition | PASS — isolated | Original/new dataset placement with unchanged initPageContent and stubbed other renderers has identical traces and HTML for present and absent Why targets. This is not a full browser/app test. |
+| Loading and HTML | PASS — source | All 58 HTML files are byte-identical to baseline; 57 consumers retain synchronous practice-grid.js → why-grid.js → app.js order. why-grid.js is loaded once per consumer. All 271 external paths resolve locally. |
+| JavaScript syntax | PASS | All six browser scripts parse as classic scripts. |
+| Inline syntax | PASS for unchanged status | Unchanged HTML retains existing parse outcomes. Contact fails at inline line 53/current HTML line 960; other inline scripts parse. Contact functionality is not claimed to pass. |
+| Documentation integrity | PASS — source | All 318 app/extracted-file declaration locations and 248 app startup references match current source; 803 source-line mapping checks passed. HTML ID catalog and script manifest are byte-identical to pre-E03. Historical logs retain their prior anchors. |
+| Scope and whitespace | PASS | Only the two approved JS files and four refactoring documents changed. All 90 other tracked files match 1dd813e; no new files; git diff --check passes. |
+| E03 browser acceptance | NOT TESTED | HTTP/cache delivery, desktop/mobile appearance, navigation and login/portal startup remain manual checks. Previous browser-policy restrictions were not bypassed. No account or database actions performed. |
+
+Changes are limited to app.js, js/website/why-grid.js and these four documentation files. No new files or script references. References in the current inventory/contracts are adjusted for the 18-line move; prior execution logs retain explicitly historical source anchors. The HTML ID catalog and script manifest must remain unchanged.
+
+Manual acceptance: use local HTTP preview to check Why It Works has the same three cards on desktop/mobile; check In Practice, Home, navigation and representative login/portal startup without submitting forms or records. Inspect console/network for new errors. Record the pre-existing contact error separately. Stop before E04. Rollback only E03 hunks against 1dd813e, preserving E01/E02 and unrelated work.
