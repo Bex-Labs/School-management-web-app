@@ -162,3 +162,33 @@ Scope: renderWhyGrid extraction only, from clean branch refactor/javascript-stru
 Changed paths: js/website/why-grid.js (new), app.js, the 57 HTML consumers listed in contracts.md, and all four refactoring documents. Code movement is complete; E01 browser acceptance is still outstanding. Do not infer full workflow acceptance from the static/isolated results.
 
 Next manual checks: serve the repo using the usual local HTTP preview in an environment allowed to open it; check why-it-works.html card appearance, public navigation and a missing-target page, then login/portal startup and console/network errors. Expect the separately documented contact syntax error; do not fix it as part of E01. Do not proceed automatically to E02.
+
+## E01 user-reported follow-up
+
+After the documentation corrections, the user reported completing the manual E01 browser checklist and approved review of E02, then explicitly approved its bounded implementation. Treat E01 browser completion as user-reported only: no independent browser observation, console/network capture or detailed per-check evidence was supplied. Historical NOT TESTED entries above describe the agent's own execution, not a new browser pass.
+
+## E02 result log
+
+Scope: renderPracticeGrid only, from clean refactor/javascript-structure at 7b1e613. No commit, push, deployment, database work or subsequent extraction.
+
+| Check | Result | Evidence / limitation |
+| --- | --- | --- |
+| Dependency/consumer audit | PASS — source | Only document and parameters; two calls in initPageContent. Dataset, slice(0, 3), CSS and selectors retained. Only practice-page-grid exists in current HTML. |
+| Exact function move | PASS | New 21-line function equals baseline byte-for-byte. app.js equals baseline with only that declaration and following blank line removed (22 lines). |
+| Full renderer parity | PASS — isolated | Exact innerHTML, lookup and write traces match for first three real stories, all four stories, empty array, one story, markup-containing strings and eleven stories. One write per present target; zero at script definition. |
+| Missing-target behavior | PASS — isolated | Null items with absent target returns safely; one lookup and no writes, equal to baseline. |
+| Page-content composition | PASS — isolated | Original/current renderer with unchanged initPageContent, synthetic document and other renderers stubbed produces identical traces/HTML for a present practice-page-grid and for absent targets. Not a full app/browser startup test. |
+| Initialization ownership | PASS — static | New file has one function declaration only, no initializer/listener/timer. Single top-level initPageContent call retained; its body and both practice calls are unchanged. |
+| HTML entry points | PASS — source | All 58 HTML files checked. Exactly one practice-grid.js inclusion before why-grid.js and app.js on all 57 consumers. Removing the added line restores each original HTML byte-for-byte. Verification HTML unchanged. |
+| Script paths | PASS — filesystem only | All 271 external references resolve locally (214 pre-E02 plus 57 new). HTTP status, MIME handling and browser cache remain NOT TESTED. |
+| JavaScript syntax | PASS | All six browser JS files parse as classic scripts. |
+| Inline syntax | PASS for unchanged status | Inline bodies and parse outcomes match baseline. Contact still fails at inline line 53, now HTML line 960; other inline scripts parse. This does not mark contact functionality as passing. |
+| Other application files | PASS — source | No changes to why-grid.js, auth.js, configuration, registration companion, styles, assets or backend files. app.js manager interfaces, state, storage, permissions and startup are otherwise identical. |
+| Documentation integrity | PASS — source | HTML ID catalog preserved byte-for-byte and all 1,009 listed IDs across 58 pages match current source. All 58 manifest rows match current tag order and line numbers; 12 shifted startup references and affected function/state locations were verified. |
+| Scope and whitespace | PASS | Exactly app.js, 57 HTML files, four refactoring documents and one new renderer changed. All 33 other tracked files match 7b1e613; git diff --check passes. |
+| E02 HTTP/visual/navigation | NOT TESTED | Earlier localhost browser access was policy-blocked; no bypass or alternate browser surface used. Requires manual desktop/mobile and console/network checks. |
+| E02 login/portal startup | NOT TESTED | No authenticated session or account/database operations performed. Source loading checks only. |
+
+Changed paths: app.js, new js/website/practice-grid.js, 57 HTML consumers in the current contracts manifest, and these four refactoring documents. The HTML ID catalog must remain unchanged; update only the separate script manifest and relevant source references.
+
+Manual acceptance: serve over local HTTP; check three In Practice cards on desktop/mobile, Why It Works, public navigation and a missing-target page; check representative login/portal startup without submitting records; confirm practice-grid.js → why-grid.js → app.js load successfully once and no new console errors appear. Record any failure and the known contact exception separately. Stop before E03. Rollback only E02 hunks against 7b1e613 while preserving E01 and unrelated work.

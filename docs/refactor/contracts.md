@@ -1,10 +1,10 @@
 # Contracts to preserve during JavaScript extraction
 
-Original contracts snapshot: 2026-10-02, e1eb094. Updated for E01 from pre-extraction 39ec400: renderWhyGrid is defined in js/website/why-grid.js and loaded before app.js. Configuration, schema and deployment remain unchanged. The HTML script manifest below is current; other HTML/inline locations retain baseline anchors and shift by one after the inserted script tag. See checklist.md for remaining untested workflows.
+Original contracts snapshot: 2026-10-02 at e1eb094. E01 extracted renderWhyGrid; E02 extracted renderPracticeGrid from 7b1e613. The HTML script manifest and app.js locations below are current after both extractions. Other HTML/inline references retain original baseline anchors and shift by two after the inserted script tags. Configuration, schema and deployment are unchanged. See checklist.md for verification limits.
 
 ## Loading and startup
 
-All external HTML scripts inspected are classic scripts, without async/defer/type=module attributes. 57 of 58 HTML documents load app.js; the Google verification document has no script. The full ordered manifest below includes cache-busting query strings, which must remain valid. Most portal/auth pages load app.js, then supabase-config.js, then auth.js. Students and teachers administration additionally load self-registration-links.js after auth.js. After E01 every app.js tag is immediately preceded by one synchronous classic js/website/why-grid.js tag. There are now 214 external tags (157 original plus 57 new).
+All external HTML scripts inspected are classic scripts, without async/defer/type=module attributes. 57 of 58 HTML documents load app.js; the Google verification document has no script. The full ordered manifest below includes cache-busting query strings, which must remain valid. Most portal/auth pages load app.js, then supabase-config.js, then auth.js. Students and teachers administration additionally load self-registration-links.js after auth.js. After E02 the synchronous classic order is js/website/practice-grid.js, js/website/why-grid.js, app.js, then the unchanged subsequent scripts. Each helper is included once on all 57 app.js consumers. There are 271 external tags: 157 original, 57 from E01 and 57 from E02.
 
 ### app.js
 
@@ -12,7 +12,7 @@ All external HTML scripts inspected are classic scripts, without async/defer/typ
 2. Top-level lexical declarations and functions establish shared models and helpers. clearLegacySharedState() executes at line 505 and removes legacy unscoped keys. Do not accidentally re-run this cleanup per feature.
 3. window.SchoolSphere* manager objects are assigned at lines 4197–4417. Their object identity and public members are compatibility boundaries.
 4. A storage listener at line 4419 re-emits feature events for scoped keys.
-5. Immediate calls at lines 4851–4855 render header/footer, bind outside-click behavior, render page content, and apply branding. Subsequent listeners handle school settings, hash navigation and feature toggles.
+5. Immediate calls at lines 4829–4833 render header/footer, bind outside-click behavior, render page content, and apply branding. Subsequent listeners handle school settings, hash navigation and feature toggles.
 
 ### auth.js
 
@@ -74,68 +74,68 @@ initSupabaseAuthBridge registers onAuthStateChange and defers callback processin
 
 ## HTML entry-point manifest
 
-Each row lists current source tags after E01, in their original order plus the preceding why-grid.js tag, including current inline script locations. Paths remain document-relative.
+Each row lists current source tags after E02, preserving original order with practice-grid.js then why-grid.js before app.js. Inline locations are current in this manifest. Paths remain document-relative.
 
 | HTML file | data-page | Ordered scripts |
 | --- | --- | --- |
-| `admin-admissions.html` | `admin-admissions` | `./js/website/why-grid.js` @359 → `./app.js` @360 → `./supabase-config.js` @361 → `./auth.js?v=upload-remove-x` @362 |
-| `admin-attendance.html` | `admin-attendance` | `./js/website/why-grid.js` @208 → `./app.js` @209 → `./supabase-config.js` @210 → `./auth.js` @211 |
-| `admin-classes.html` | `admin-classes` | `./js/website/why-grid.js` @289 → `./app.js` @290 → `./supabase-config.js` @291 → `./auth.js` @292 |
-| `admin-courses.html` | `admin-courses` | `./js/website/why-grid.js` @283 → `./app.js` @284 → `./supabase-config.js` @285 → `./auth.js` @286 |
-| `admin-feature-modules.html` | `admin-feature-modules` | `./js/website/why-grid.js` @166 → `./app.js` @167 → `./supabase-config.js` @168 → `./auth.js` @169 |
-| `admin-fees.html` | `admin-fees` | `./js/website/why-grid.js` @316 → `./app.js` @317 → `./supabase-config.js` @318 → `./auth.js` @319 |
-| `admin-messages.html` | `admin-messages` | `./js/website/why-grid.js` @590 → `./app.js` @591 → `./supabase-config.js` @592 → `./auth.js` @593 → `inline` @594 |
-| `admin-reports.html` | `admin-reports` | `./js/website/why-grid.js` @236 → `./app.js` @237 → `./supabase-config.js` @238 → `./auth.js` @239 |
-| `admin-schedule.html` | `admin-schedule` | `./js/website/why-grid.js` @349 → `./app.js` @350 → `./supabase-config.js` @351 → `./auth.js` @352 |
-| `admin-settings-academic.html` | `admin-settings-academic` | `./js/website/why-grid.js` @258 → `./app.js` @259 → `./supabase-config.js` @260 → `./auth.js` @261 |
-| `admin-settings-access.html` | `admin-settings-access` | `./js/website/why-grid.js` @211 → `./app.js` @212 → `./supabase-config.js` @213 → `./auth.js` @214 |
-| `admin-settings-grading.html` | `admin-settings-grading` | `./js/website/why-grid.js` @280 → `./app.js` @281 → `./supabase-config.js` @282 → `./auth.js` @283 |
-| `admin-settings-roles.html` | `admin-settings-roles` | `./js/website/why-grid.js` @174 → `./app.js?v=20260611-student-messages` @175 → `./supabase-config.js` @176 → `./auth.js?v=20260611-student-messages` @177 |
-| `admin-settings-school.html` | `admin-settings-school` | `./js/website/why-grid.js` @341 → `./app.js` @342 → `./supabase-config.js` @343 → `./auth.js` @344 |
-| `admin-settings.html` | `admin-settings` | `inline` @10 → `./js/website/why-grid.js` @182 → `./app.js` @183 → `./supabase-config.js` @184 → `./auth.js` @185 |
-| `admin-students.html` | `admin-students` | `./js/website/why-grid.js` @382 → `./app.js` @383 → `./supabase-config.js` @384 → `./auth.js?v=self-registration-links` @385 → `./self-registration-links.js?v=copy-open-fix` @386 |
-| `admin-teachers.html` | `admin-teachers` | `./js/website/why-grid.js` @300 → `./app.js` @301 → `./supabase-config.js` @302 → `./auth.js?v=self-registration-links` @303 → `./self-registration-links.js?v=copy-open-fix` @304 |
-| `admissions-apply.html` | `admissions-apply` | `./js/website/why-grid.js` @294 → `./app.js` @295 → `./supabase-config.js` @296 → `./auth.js?v=upload-remove-x` @297 |
-| `confirm-email.html` | `confirm-email` | `./js/website/why-grid.js` @36 → `./app.js` @37 → `./supabase-config.js` @38 → `./auth.js` @39 |
-| `contact.html` | `contact` | `./js/website/why-grid.js` @905 → `./app.js` @906 → `inline` @907 |
-| `forgot-password.html` | `forgot-password` | `./js/website/why-grid.js` @101 → `./app.js` @102 → `./supabase-config.js` @103 → `./auth.js` @104 |
+| `admin-admissions.html` | `admin-admissions` | `./js/website/practice-grid.js` @359 → `./js/website/why-grid.js` @360 → `./app.js` @361 → `./supabase-config.js` @362 → `./auth.js?v=upload-remove-x` @363 |
+| `admin-attendance.html` | `admin-attendance` | `./js/website/practice-grid.js` @208 → `./js/website/why-grid.js` @209 → `./app.js` @210 → `./supabase-config.js` @211 → `./auth.js` @212 |
+| `admin-classes.html` | `admin-classes` | `./js/website/practice-grid.js` @289 → `./js/website/why-grid.js` @290 → `./app.js` @291 → `./supabase-config.js` @292 → `./auth.js` @293 |
+| `admin-courses.html` | `admin-courses` | `./js/website/practice-grid.js` @283 → `./js/website/why-grid.js` @284 → `./app.js` @285 → `./supabase-config.js` @286 → `./auth.js` @287 |
+| `admin-feature-modules.html` | `admin-feature-modules` | `./js/website/practice-grid.js` @166 → `./js/website/why-grid.js` @167 → `./app.js` @168 → `./supabase-config.js` @169 → `./auth.js` @170 |
+| `admin-fees.html` | `admin-fees` | `./js/website/practice-grid.js` @316 → `./js/website/why-grid.js` @317 → `./app.js` @318 → `./supabase-config.js` @319 → `./auth.js` @320 |
+| `admin-messages.html` | `admin-messages` | `./js/website/practice-grid.js` @590 → `./js/website/why-grid.js` @591 → `./app.js` @592 → `./supabase-config.js` @593 → `./auth.js` @594 → `inline` @595 |
+| `admin-reports.html` | `admin-reports` | `./js/website/practice-grid.js` @236 → `./js/website/why-grid.js` @237 → `./app.js` @238 → `./supabase-config.js` @239 → `./auth.js` @240 |
+| `admin-schedule.html` | `admin-schedule` | `./js/website/practice-grid.js` @349 → `./js/website/why-grid.js` @350 → `./app.js` @351 → `./supabase-config.js` @352 → `./auth.js` @353 |
+| `admin-settings-academic.html` | `admin-settings-academic` | `./js/website/practice-grid.js` @258 → `./js/website/why-grid.js` @259 → `./app.js` @260 → `./supabase-config.js` @261 → `./auth.js` @262 |
+| `admin-settings-access.html` | `admin-settings-access` | `./js/website/practice-grid.js` @211 → `./js/website/why-grid.js` @212 → `./app.js` @213 → `./supabase-config.js` @214 → `./auth.js` @215 |
+| `admin-settings-grading.html` | `admin-settings-grading` | `./js/website/practice-grid.js` @280 → `./js/website/why-grid.js` @281 → `./app.js` @282 → `./supabase-config.js` @283 → `./auth.js` @284 |
+| `admin-settings-roles.html` | `admin-settings-roles` | `./js/website/practice-grid.js` @174 → `./js/website/why-grid.js` @175 → `./app.js?v=20260611-student-messages` @176 → `./supabase-config.js` @177 → `./auth.js?v=20260611-student-messages` @178 |
+| `admin-settings-school.html` | `admin-settings-school` | `./js/website/practice-grid.js` @341 → `./js/website/why-grid.js` @342 → `./app.js` @343 → `./supabase-config.js` @344 → `./auth.js` @345 |
+| `admin-settings.html` | `admin-settings` | `inline` @10 → `./js/website/practice-grid.js` @182 → `./js/website/why-grid.js` @183 → `./app.js` @184 → `./supabase-config.js` @185 → `./auth.js` @186 |
+| `admin-students.html` | `admin-students` | `./js/website/practice-grid.js` @382 → `./js/website/why-grid.js` @383 → `./app.js` @384 → `./supabase-config.js` @385 → `./auth.js?v=self-registration-links` @386 → `./self-registration-links.js?v=copy-open-fix` @387 |
+| `admin-teachers.html` | `admin-teachers` | `./js/website/practice-grid.js` @300 → `./js/website/why-grid.js` @301 → `./app.js` @302 → `./supabase-config.js` @303 → `./auth.js?v=self-registration-links` @304 → `./self-registration-links.js?v=copy-open-fix` @305 |
+| `admissions-apply.html` | `admissions-apply` | `./js/website/practice-grid.js` @294 → `./js/website/why-grid.js` @295 → `./app.js` @296 → `./supabase-config.js` @297 → `./auth.js?v=upload-remove-x` @298 |
+| `confirm-email.html` | `confirm-email` | `./js/website/practice-grid.js` @36 → `./js/website/why-grid.js` @37 → `./app.js` @38 → `./supabase-config.js` @39 → `./auth.js` @40 |
+| `contact.html` | `contact` | `./js/website/practice-grid.js` @905 → `./js/website/why-grid.js` @906 → `./app.js` @907 → `inline` @908 |
+| `forgot-password.html` | `forgot-password` | `./js/website/practice-grid.js` @101 → `./js/website/why-grid.js` @102 → `./app.js` @103 → `./supabase-config.js` @104 → `./auth.js` @105 |
 | `google20c973feb5773234.html` | `none` | None |
-| `in-practice.html` | `practice` | `./js/website/why-grid.js` @34 → `./app.js` @35 |
-| `index.html` | `home` | `./js/website/why-grid.js` @190 → `./app.js?v=index-ui-20260603` @191 |
-| `login.html` | `login` | `./js/website/why-grid.js` @214 → `./app.js` @215 → `./supabase-config.js` @216 → `./auth.js` @217 |
-| `modules.html` | `modules` | `./js/website/why-grid.js` @33 → `./app.js` @34 |
-| `owner-access.html` | `owner-access` | `./js/website/why-grid.js` @121 → `./app.js?v=20260611-student-messages` @122 → `./supabase-config.js` @123 → `./auth.js?v=20260611-student-messages` @124 |
-| `parent-attendance.html` | `parent-attendance` | `./js/website/why-grid.js` @52 → `./app.js` @53 → `./supabase-config.js` @54 → `./auth.js` @55 |
-| `parent-courses.html` | `parent-courses` | `./js/website/why-grid.js` @52 → `./app.js` @53 → `./supabase-config.js` @54 → `./auth.js` @55 |
-| `parent-fees.html` | `parent-fees` | `./js/website/why-grid.js` @52 → `./app.js` @53 → `./supabase-config.js` @54 → `./auth.js` @55 |
-| `parent-messages.html` | `parent-messages` | `./js/website/why-grid.js` @54 → `./app.js` @55 → `./supabase-config.js` @56 → `./auth.js` @57 |
-| `parent-portal.html` | `parent-portal` | `./js/website/why-grid.js` @54 → `./app.js` @55 → `./supabase-config.js` @56 → `./auth.js` @57 |
-| `parent-reports.html` | `parent-reports` | `./js/website/why-grid.js` @52 → `./app.js` @53 → `./supabase-config.js` @54 → `./auth.js` @55 |
-| `parent-settings.html` | `parent-settings` | `./js/website/why-grid.js` @198 → `./app.js` @199 → `./supabase-config.js` @200 → `./auth.js` @201 |
-| `parent-teachers.html` | `parent-teachers` | `./js/website/why-grid.js` @52 → `./app.js` @53 → `./supabase-config.js` @54 → `./auth.js` @55 |
-| `portal.html` | `portal` | `./js/website/why-grid.js` @185 → `./app.js?v=20260611-student-messages` @186 → `./supabase-config.js` @187 → `./auth.js?v=20260611-student-messages` @188 |
-| `products.html` | `products` | `./js/website/why-grid.js` @84 → `./app.js` @85 |
-| `reset-password.html` | `reset-password` | `./js/website/why-grid.js` @118 → `./app.js` @119 → `./supabase-config.js` @120 → `./auth.js` @121 |
-| `school-types.html` | `types` | `./js/website/why-grid.js` @34 → `./app.js` @35 |
-| `self-register.html` | `self-register` | `./js/website/why-grid.js` @234 → `./app.js` @235 → `./supabase-config.js` @236 → `./auth.js?v=self-registration-links` @237 |
-| `signup.html` | `signup` | `./js/website/why-grid.js` @218 → `./app.js` @219 → `./supabase-config.js` @220 → `./auth.js` @221 |
-| `staff-attendance.html` | `staff-attendance` | `./js/website/why-grid.js` @45 → `./app.js` @46 → `./supabase-config.js` @47 → `./auth.js` @48 |
-| `staff-classes.html` | `staff-classes` | `./js/website/why-grid.js` @25 → `./app.js` @26 → `./supabase-config.js` @26 → `./auth.js` @26 |
-| `staff-dashboard.html` | `staff-dashboard` | `./js/website/why-grid.js` @82 → `./app.js` @83 → `./supabase-config.js` @84 → `./auth.js` @85 |
-| `staff-gradebook.html` | `staff-gradebook` | `./js/website/why-grid.js` @25 → `./app.js` @26 → `./supabase-config.js` @26 → `./auth.js` @26 |
-| `staff-leave.html` | `staff-leave` | `./js/website/why-grid.js` @25 → `./app.js` @26 → `./supabase-config.js` @26 → `./auth.js` @26 |
-| `staff-lesson-plans.html` | `staff-lesson-plans` | `./js/website/why-grid.js` @25 → `./app.js` @26 → `./supabase-config.js` @26 → `./auth.js` @26 |
-| `staff-messages.html` | `staff-messages` | `./js/website/why-grid.js` @25 → `./app.js` @26 → `./supabase-config.js` @26 → `./auth.js` @26 |
-| `staff-results.html` | `staff-results` | `./js/website/why-grid.js` @25 → `./app.js` @26 → `./supabase-config.js` @26 → `./auth.js` @26 |
-| `staff-settings.html` | `staff-settings` | `./js/website/why-grid.js` @143 → `./app.js` @144 → `./supabase-config.js` @145 → `./auth.js` @146 |
-| `staff-timetable.html` | `staff-timetable` | `./js/website/why-grid.js` @53 → `./app.js` @54 → `./supabase-config.js` @55 → `./auth.js` @56 |
-| `super-admin-accounts.html` | `super-admin-accounts` | `./js/website/why-grid.js` @128 → `./app.js?v=20260611-student-messages` @129 → `./supabase-config.js` @130 → `./auth.js?v=20260611-student-messages` @131 |
-| `super-admin-activity.html` | `super-admin-activity` | `./js/website/why-grid.js` @102 → `./app.js?v=20260611-student-messages` @103 → `./supabase-config.js` @104 → `./auth.js?v=20260611-student-messages` @105 |
-| `super-admin-schools.html` | `super-admin-schools` | `./js/website/why-grid.js` @102 → `./app.js?v=20260611-student-messages` @103 → `./supabase-config.js` @104 → `./auth.js?v=20260611-student-messages` @105 |
-| `super-admin.html` | `super-admin` | `./js/website/why-grid.js` @105 → `./app.js?v=20260611-student-messages` @106 → `./supabase-config.js` @107 → `./auth.js?v=20260611-student-messages` @108 |
-| `user-settings.html` | `user-settings` | `./js/website/why-grid.js` @143 → `./app.js` @144 → `./supabase-config.js` @145 → `./auth.js` @146 |
-| `why-it-works.html` | `why` | `./js/website/why-grid.js` @41 → `./app.js` @42 |
-| `workflows.html` | `workflows` | `./js/website/why-grid.js` @33 → `./app.js` @34 |
+| `in-practice.html` | `practice` | `./js/website/practice-grid.js` @34 → `./js/website/why-grid.js` @35 → `./app.js` @36 |
+| `index.html` | `home` | `./js/website/practice-grid.js` @190 → `./js/website/why-grid.js` @191 → `./app.js?v=index-ui-20260603` @192 |
+| `login.html` | `login` | `./js/website/practice-grid.js` @214 → `./js/website/why-grid.js` @215 → `./app.js` @216 → `./supabase-config.js` @217 → `./auth.js` @218 |
+| `modules.html` | `modules` | `./js/website/practice-grid.js` @33 → `./js/website/why-grid.js` @34 → `./app.js` @35 |
+| `owner-access.html` | `owner-access` | `./js/website/practice-grid.js` @121 → `./js/website/why-grid.js` @122 → `./app.js?v=20260611-student-messages` @123 → `./supabase-config.js` @124 → `./auth.js?v=20260611-student-messages` @125 |
+| `parent-attendance.html` | `parent-attendance` | `./js/website/practice-grid.js` @52 → `./js/website/why-grid.js` @53 → `./app.js` @54 → `./supabase-config.js` @55 → `./auth.js` @56 |
+| `parent-courses.html` | `parent-courses` | `./js/website/practice-grid.js` @52 → `./js/website/why-grid.js` @53 → `./app.js` @54 → `./supabase-config.js` @55 → `./auth.js` @56 |
+| `parent-fees.html` | `parent-fees` | `./js/website/practice-grid.js` @52 → `./js/website/why-grid.js` @53 → `./app.js` @54 → `./supabase-config.js` @55 → `./auth.js` @56 |
+| `parent-messages.html` | `parent-messages` | `./js/website/practice-grid.js` @54 → `./js/website/why-grid.js` @55 → `./app.js` @56 → `./supabase-config.js` @57 → `./auth.js` @58 |
+| `parent-portal.html` | `parent-portal` | `./js/website/practice-grid.js` @54 → `./js/website/why-grid.js` @55 → `./app.js` @56 → `./supabase-config.js` @57 → `./auth.js` @58 |
+| `parent-reports.html` | `parent-reports` | `./js/website/practice-grid.js` @52 → `./js/website/why-grid.js` @53 → `./app.js` @54 → `./supabase-config.js` @55 → `./auth.js` @56 |
+| `parent-settings.html` | `parent-settings` | `./js/website/practice-grid.js` @198 → `./js/website/why-grid.js` @199 → `./app.js` @200 → `./supabase-config.js` @201 → `./auth.js` @202 |
+| `parent-teachers.html` | `parent-teachers` | `./js/website/practice-grid.js` @52 → `./js/website/why-grid.js` @53 → `./app.js` @54 → `./supabase-config.js` @55 → `./auth.js` @56 |
+| `portal.html` | `portal` | `./js/website/practice-grid.js` @185 → `./js/website/why-grid.js` @186 → `./app.js?v=20260611-student-messages` @187 → `./supabase-config.js` @188 → `./auth.js?v=20260611-student-messages` @189 |
+| `products.html` | `products` | `./js/website/practice-grid.js` @84 → `./js/website/why-grid.js` @85 → `./app.js` @86 |
+| `reset-password.html` | `reset-password` | `./js/website/practice-grid.js` @118 → `./js/website/why-grid.js` @119 → `./app.js` @120 → `./supabase-config.js` @121 → `./auth.js` @122 |
+| `school-types.html` | `types` | `./js/website/practice-grid.js` @34 → `./js/website/why-grid.js` @35 → `./app.js` @36 |
+| `self-register.html` | `self-register` | `./js/website/practice-grid.js` @234 → `./js/website/why-grid.js` @235 → `./app.js` @236 → `./supabase-config.js` @237 → `./auth.js?v=self-registration-links` @238 |
+| `signup.html` | `signup` | `./js/website/practice-grid.js` @218 → `./js/website/why-grid.js` @219 → `./app.js` @220 → `./supabase-config.js` @221 → `./auth.js` @222 |
+| `staff-attendance.html` | `staff-attendance` | `./js/website/practice-grid.js` @45 → `./js/website/why-grid.js` @46 → `./app.js` @47 → `./supabase-config.js` @48 → `./auth.js` @49 |
+| `staff-classes.html` | `staff-classes` | `./js/website/practice-grid.js` @25 → `./js/website/why-grid.js` @26 → `./app.js` @27 → `./supabase-config.js` @27 → `./auth.js` @27 |
+| `staff-dashboard.html` | `staff-dashboard` | `./js/website/practice-grid.js` @82 → `./js/website/why-grid.js` @83 → `./app.js` @84 → `./supabase-config.js` @85 → `./auth.js` @86 |
+| `staff-gradebook.html` | `staff-gradebook` | `./js/website/practice-grid.js` @25 → `./js/website/why-grid.js` @26 → `./app.js` @27 → `./supabase-config.js` @27 → `./auth.js` @27 |
+| `staff-leave.html` | `staff-leave` | `./js/website/practice-grid.js` @25 → `./js/website/why-grid.js` @26 → `./app.js` @27 → `./supabase-config.js` @27 → `./auth.js` @27 |
+| `staff-lesson-plans.html` | `staff-lesson-plans` | `./js/website/practice-grid.js` @25 → `./js/website/why-grid.js` @26 → `./app.js` @27 → `./supabase-config.js` @27 → `./auth.js` @27 |
+| `staff-messages.html` | `staff-messages` | `./js/website/practice-grid.js` @25 → `./js/website/why-grid.js` @26 → `./app.js` @27 → `./supabase-config.js` @27 → `./auth.js` @27 |
+| `staff-results.html` | `staff-results` | `./js/website/practice-grid.js` @25 → `./js/website/why-grid.js` @26 → `./app.js` @27 → `./supabase-config.js` @27 → `./auth.js` @27 |
+| `staff-settings.html` | `staff-settings` | `./js/website/practice-grid.js` @143 → `./js/website/why-grid.js` @144 → `./app.js` @145 → `./supabase-config.js` @146 → `./auth.js` @147 |
+| `staff-timetable.html` | `staff-timetable` | `./js/website/practice-grid.js` @53 → `./js/website/why-grid.js` @54 → `./app.js` @55 → `./supabase-config.js` @56 → `./auth.js` @57 |
+| `super-admin-accounts.html` | `super-admin-accounts` | `./js/website/practice-grid.js` @128 → `./js/website/why-grid.js` @129 → `./app.js?v=20260611-student-messages` @130 → `./supabase-config.js` @131 → `./auth.js?v=20260611-student-messages` @132 |
+| `super-admin-activity.html` | `super-admin-activity` | `./js/website/practice-grid.js` @102 → `./js/website/why-grid.js` @103 → `./app.js?v=20260611-student-messages` @104 → `./supabase-config.js` @105 → `./auth.js?v=20260611-student-messages` @106 |
+| `super-admin-schools.html` | `super-admin-schools` | `./js/website/practice-grid.js` @102 → `./js/website/why-grid.js` @103 → `./app.js?v=20260611-student-messages` @104 → `./supabase-config.js` @105 → `./auth.js?v=20260611-student-messages` @106 |
+| `super-admin.html` | `super-admin` | `./js/website/practice-grid.js` @105 → `./js/website/why-grid.js` @106 → `./app.js?v=20260611-student-messages` @107 → `./supabase-config.js` @108 → `./auth.js?v=20260611-student-messages` @109 |
+| `user-settings.html` | `user-settings` | `./js/website/practice-grid.js` @143 → `./js/website/why-grid.js` @144 → `./app.js` @145 → `./supabase-config.js` @146 → `./auth.js` @147 |
+| `why-it-works.html` | `why` | `./js/website/practice-grid.js` @41 → `./js/website/why-grid.js` @42 → `./app.js` @43 |
+| `workflows.html` | `workflows` | `./js/website/practice-grid.js` @33 → `./js/website/why-grid.js` @34 → `./app.js` @35 |
 
 ## Public global interfaces
 
@@ -690,11 +690,11 @@ All 1095 AST lookup sites from parsable scripts, including template/dynamic expr
 | `app.js:4649` | `renderStandoutList` | `getElementById` | `targetId` |
 | `app.js:4659` | `renderFeatureGrid` | `getElementById` | `targetId` |
 | `app.js:4692` | `renderSchoolGrid` | `getElementById` | `targetId` |
-| `app.js:4715` | `renderPracticeGrid` | `getElementById` | `targetId` |
-| `app.js:4739` | `renderOfferingTabs` | `getElementById` | `"home-offering-tabs"` |
-| `app.js:4740` | `renderOfferingTabs` | `getElementById` | `"home-offering-panel"` |
-| `app.js:4785` | `renderOfferingTabs` | `querySelectorAll` | `"[data-offering]"` |
-| `app.js:4794` | `renderWorkflowPage` | `getElementById` | `"workflow-page-grid"` |
+| `js/website/practice-grid.js:2` | `renderPracticeGrid` | `getElementById` | `targetId` |
+| `app.js:4717` | `renderOfferingTabs` | `getElementById` | `"home-offering-tabs"` |
+| `app.js:4718` | `renderOfferingTabs` | `getElementById` | `"home-offering-panel"` |
+| `app.js:4763` | `renderOfferingTabs` | `querySelectorAll` | `"[data-offering]"` |
+| `app.js:4772` | `renderWorkflowPage` | `getElementById` | `"workflow-page-grid"` |
 | `auth.js:687` | `syncThemeToggleButton` | `querySelector` | `"[data-theme-toggle-label]"` |
 | `auth.js:705` | `applyThemePreference` | `querySelectorAll` | `"[data-theme-toggle]"` |
 | `auth.js:735` | `initThemeControls` | `querySelector` | `".admin-sidebar"` |
@@ -2384,4 +2384,10 @@ function getParentFeesStorageKey(workspaceId = null) {
 
 ## E01 renderer boundary
 
-js/website/why-grid.js contains only the unchanged renderWhyGrid function declaration. It depends on document.getElementById, targetId and items, and writes the same innerHTML. Missing targets return without reading items. It creates no new initializer or side effect at load time. initPageContent remains in app.js:4836 with its two calls at 4837–4838; the single immediate bootstrap call remains at app.js:4854. All 57 app.js consumers include the helper exactly once immediately before app.js, preserving its classic-script global function interface. Browser/HTTP delivery and visual checks remain unverified; local path and syntax checks passed.
+js/website/why-grid.js still contains only the unchanged renderWhyGrid declaration. It depends on document and its arguments, writes identical innerHTML, and returns early for missing targets. Current initPageContent is at app.js:4814, its two Why calls are at 4815–4816, and its sole immediate invocation is at app.js:4832. All 57 app.js consumers include why-grid.js exactly once immediately before app.js; E02 adds practice-grid.js before that pair. E01 browser completion was user-reported, not independently verified.
+
+## E02 renderer boundary
+
+js/website/practice-grid.js declares renderPracticeGrid(targetId, items) only. Dependencies: document.getElementById and supplied array records with title, label and copy. Its unchanged template emits quote-card and quote-meta classes; styles.css is untouched. No storage, permissions, SchoolSphere manager, Supabase call, private shared state or initialization is added. Missing targets return before accessing items.
+
+The sole caller is initPageContent (app.js:4814); calls at 4825 and 4826 pass practiceStories.slice(0, 3) for home-practice-grid and practice-page-grid. Only practice-page-grid exists in current HTML (in-practice.html:29). practiceStories remains at app.js:592–617 and contains four records. All 57 pages need the new script even where the target is absent because app.js calls the function unconditionally. Loading is synchronous, with no async/defer/module conversion and no startup call in the helper. Browser/HTTP delivery and visual checks for E02 remain unverified.

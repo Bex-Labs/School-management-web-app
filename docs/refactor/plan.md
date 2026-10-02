@@ -1,6 +1,6 @@
 # Safe staged extraction plan
 
-Original plan: 2026-10-02 at e1eb094. E01 was explicitly requested and implemented from clean refactor/javascript-structure at 39ec400. Static and isolated checks pass; browser acceptance remains outstanding. Stop after E01; no subsequent stage has started.
+Original plan: 2026-10-02 at e1eb094. E01 was implemented from 39ec400; the user subsequently reported completing its manual browser checks (not independently verified). E02 was explicitly approved and implemented from clean refactor/javascript-structure at 7b1e613. E02 static/isolated checks pass; E02 browser acceptance remains outstanding. Stop after E02; no subsequent stage has started.
 
 ## Non-negotiable boundaries
 
@@ -42,7 +42,9 @@ For auth.js closures, first extract pure functions or a cohesive feature factory
 
 Use explicit import/export as a later destination. Do not flip one classic script to type=module while leaving consumers dependent on its old globals and execution order. Coordinated entry-point conversion happens only after interfaces are explicit and acceptance checks are available. No build tool is required for the initial extraction.
 
-## E01 — implemented: renderWhyGrid (browser acceptance pending)
+## E01 — implemented: renderWhyGrid (historical execution record)
+
+The evidence and procedure in this section describe E01 at implementation time. The user later reported completing the manual browser checks; this is user-reported, not an independently observed browser pass. Current source locations and loading order are in inventory.md and contracts.md.
 
 **Implemented scope:** moved the original app.js:4628–4646 renderWhyGrid(targetId, items) function unchanged into js/website/why-grid.js:1–19. whyCards, initPageContent and all other functions/state remain in app.js. One classic script tag was added before app.js on each of its 57 HTML consumers.
 
@@ -67,13 +69,27 @@ Use explicit import/export as a later destination. Do not flip one classic scrip
 
 **Tradeoff:** HTML edits span many files, but each is one mechanical loading-order change. Loading only on why-it-works would break other pages because app.js invokes the function on all pages. Converting modules or introducing an async loader to avoid those edits would add timing risk.
 
-## Subsequent extraction queue (provisional; never execute as a batch)
+## E02 — implemented: renderPracticeGrid (browser acceptance pending)
+
+**Approved scope:** moved only the 21-line renderPracticeGrid(targetId, items) declaration from pre-E02 app.js:4714–4734 into js/website/practice-grid.js:1–21, unchanged. Removed the declaration and following blank line (22 lines). All other app.js bytes are unchanged. practiceStories remains at app.js:592–617, with four records; both callers retain slice(0, 3), displaying three stories.
+
+**Dependencies and consumers:** document.getElementById, targetId/items, and story.title/label/copy only. No shared state, constants, listeners, timers, storage, permissions, manager or Supabase dependencies. initPageContent remains the sole callable consumer, now at app.js:4814, with calls at 4825–4826. Its single immediate startup call remains at 4832. Only in-practice.html:29 contains practice-page-grid; home-practice-grid is absent and remains a no-op.
+
+**Loading:** added one synchronous classic practice-grid.js tag immediately before why-grid.js on all 57 app.js consumers. Order: practice-grid.js → why-grid.js → app.js → unchanged subsequent scripts. The new helper declares a function only; it does not initialize itself. Original tags, inline bodies, query strings and relative order are unchanged. The Google verification HTML is untouched.
+
+**Checks performed:** exact function/source preservation; six present-target fixtures (first three real records, all four records, empty, single, markup-containing text and eleven records) plus missing target with null items; full output/lookup/write trace equality; initPageContent composition equality for present and absent practice targets; one top-level initializer; six classic JS files parse; all 271 external paths resolve locally. Existing contact inline parse failure is unchanged (current contact.html:960). Browser HTTP delivery, visual/navigation and login/portal startup checks for E02 are NOT TESTED.
+
+**Remaining acceptance:** open in-practice.html through local HTTP and compare all three cards on desktop/mobile; verify why-it-works and public navigation, a missing-target page, and representative login/portal startup. Inspect console/network for new errors, successful helper delivery and exactly-once loading. Record observed results without making database/account changes. Source checks do not prove browser acceptance.
+
+**Rollback boundary:** the new practice-grid.js file, the removed function and blank line, all 57 practice script additions, and E02 documentation hunks form one unit against 7b1e613. Preserve E01 and unrelated subsequent changes; do not reset the repository or clear storage. Stop after E02 and await user review. No commit, push, deployment, database work or E03 extraction is authorized.
+
+## Extraction queue (provisional; never execute as a batch)
 
 Each row is a planning group. Rows containing several features MUST be expanded into one exact extraction before implementation. Dependency analysis and runtime evidence may change ordering.
 
 | ID | Bounded next unit | Required prerequisites/dependencies | Acceptance focus | Rollback unit |
 | --- | --- | --- | --- | --- |
-| E02 | Remaining public renderers, one at a time; next likely renderPracticeGrid | E01 loader pattern verified; identify own content/manager dependencies | Identical markup, missing targets and public routes | One renderer plus loader references/callers |
+| E02 | Implemented: renderPracticeGrid only; browser acceptance pending | Parameter/document-only dependency audit complete; classic loader pattern retained | Static/isolated checks pass; HTTP/visual/startup checks outstanding | practice-grid.js, function removal, 57 script additions and E02 docs |
 | E03 | One public content dataset or offerings component | Audit features array: it is also the module manager catalog; activeOfferingId must have one owner | Tabs/feature toggles and settings event refresh unchanged | Dataset/component and exact consumers |
 | E04 | One pure shared helper | Prove matching semantics at every caller; app/auth escaping/JSON helpers may differ | Representative null/invalid/legacy input and escaping cases | Helper plus explicit caller changes |
 | E05 | Workspace/storage primitives as individually reviewed boundaries | Workspace fallback/key contracts captured; synthetic A/B fixtures ready | Key equality, transient precedence, legacy behavior and isolation | Helper/interface and consumers; never clear storage |
@@ -106,6 +122,6 @@ Run the full checklist on representative roles and two synthetic school workspac
 
 ## Current completion boundary
 
-E01 only is implemented: one new JS file, one function removed from app.js, one script tag added in each of 57 HTML files, and four documentation files updated. No other declaration moved. No commit, push, deployment, database change or E02 work occurred.
+E01 and the approved E02 are implemented. E02 adds one JS file, removes one unchanged function from app.js, adds one script tag to each of 57 HTML files, and updates the four refactoring documents. No other declaration moved during E02. No commit, push, deployment, database change or subsequent extraction occurred during this implementation.
 
-Next action is browser acceptance for E01 in an environment permitted to serve/open localhost, especially why-it-works.html, a missing-target page, and login/portal startup. Preserve the known contact failure as a separate issue. Do not treat the static checks as proof of those workflows or proceed automatically to E02. Rollback is limited to this extraction’s function/tag/documentation hunks using 39ec400 as the pre-extraction checkpoint; retain any later unrelated user changes.
+Next action is browser acceptance for E02 in an environment permitted to serve/open localhost, especially in-practice.html, why-it-works.html, a missing-target page, and login/portal startup. Preserve the known contact failure separately. Do not treat static checks as proof of those workflows or proceed automatically to E03. The E02 rollback baseline is 7b1e613; retain E01 and later unrelated user changes.
