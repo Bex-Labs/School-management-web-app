@@ -1,16 +1,16 @@
 # Refactoring inventory
 
-Original inventory: 2026-10-02 at e1eb094. E01 moved renderWhyGrid, E02 moved renderPracticeGrid, and E03 moved whyCards from clean 1dd813e on refactor/javascript-structure. Current source references include all three moves; E03 removes 18 lines from app.js and prepends 18 lines to why-grid.js. Historical execution records retain their stage-specific anchors. HTML/inline anchors outside the contracts manifest remain original snapshot references (two inserted tags from E01/E02). E02 browser checks passed according to the user; E03 browser checks remain unverified.
+Original inventory: 2026-10-02 at e1eb094; current update 2026-10-03. E01–E03 moved two renderers and whyCards. E04 moves only app.js escapeHtml from clean 28bf6cf on refactor/javascript-structure into js/core/escape-html.js. Current app.js references account for nine lines removed by E04. Historical execution records retain stage-specific anchors. HTML/inline anchors outside the contracts manifest remain original snapshot references (three inserted tags from E01/E02/E04). E03 and E04 browser acceptance remain unverified in this record.
 
 ## Coverage and interpretation
 
-- Current browser files: app.js (4,822 lines), auth.js (47,521), self-registration-links.js (175), supabase-config.js (43), js/website/why-grid.js (37), and js/website/practice-grid.js (21). All six parse as classic scripts.
-- Catalogued 1,222 named direct declarations: now 315 in app.js, two in why-grid.js (whyCards and renderWhyGrid), one in practice-grid.js, 893 inside the auth.js IIFE, 10 inside the registration-link IIFE, and one in configuration. A const binding does not make its object immutable.
+- Current browser files: app.js (4,813 lines), auth.js (47,521), self-registration-links.js (175), supabase-config.js (43), js/website/why-grid.js (37), js/website/practice-grid.js (21), and js/core/escape-html.js (8). All seven parse as classic scripts.
+- Catalogued 1,222 named direct declarations: now 314 in app.js, two in why-grid.js, one in practice-grid.js, one in escape-html.js, 893 inside the auth.js IIFE, 10 inside the registration-link IIFE, and one in configuration. A const binding does not make its object immutable.
 - Inspected all 58 root HTML documents, their ordered script tags and three inline scripts. Two inline scripts parse; contact.html does not (see checklist.md). The verification HTML has no scripts.
 - Four Supabase function interfaces are retained in place; contracts.md records their request/response shapes. SQL/schema files were inspected for integration context, not run.
 - No AGENTS.md was found in the repository (including hidden paths excluding .git) or its ancestor chain. No package.json or test/spec files were found in the source-file scan. Existing system parsers were used; no dependencies installed.
 - Dependency/consumer columns use lexical bindings, not a complete runtime call graph. Nested callbacks are attributed to their outer owner. Cross-file window manager access is catalogued separately. Dynamic selectors, computed properties, string references and runtime event dispatch still require feature-specific review. Zero lexical references is NOT permission to delete a symbol.
-- Grouping and destinations remain proposals except E01–E03. whyCards is in js/website/why-grid.js:1–17; renderWhyGrid is in that file at 19–37; renderPracticeGrid is in js/website/practice-grid.js:1–21. All three moved unchanged. Every other symbol remains **inventoried / unmoved**. No subsequent extraction has started.
+- Grouping and destinations remain proposals except E01–E04. whyCards and renderWhyGrid remain in why-grid.js; renderPracticeGrid remains in practice-grid.js; app.js escapeHtml is now in js/core/escape-html.js:1–8. All moved unchanged. The private auth.js escapeHtml stays unmoved. Every other symbol remains **inventoried / unmoved**. No subsequent extraction has started.
 - Default password constants are listed by name only. No configuration keys, account data, or stored user values are copied here.
 
 ## Functional groups
@@ -43,7 +43,7 @@ Original inventory: 2026-10-02 at e1eb094. E01 moved renderWhyGrid, E02 moved re
 | Self-registration | 18 | `js/features/self-registration/` | Inventoried / unmoved |
 | Self-registration link companion | 10 | `js/features/self-registration/links.js` | Inventoried / unmoved |
 | Shared feedback UI | 11 | `js/shared-ui/feedback.js or dialog.js` | Inventoried / unmoved |
-| Shared helpers — boundary review | 95 | `js/core/ only if truly shared; otherwise retain with owning feature` | Inventoried / unmoved |
+| Shared helpers — boundary review | 95 | `js/core/ only if truly shared; otherwise retain with owning feature` | E04: app escapeHtml moved; 94 other declarations unmoved |
 | Staff | 46 | `js/features/teachers/` | Inventoried / unmoved |
 | Students and guardians | 81 | `js/features/students/` | Inventoried / unmoved |
 | Supabase and synchronization | 39 | `js/services/ (client, institution, workspace-sync, table adapters)` | Inventoried / unmoved |
@@ -58,18 +58,18 @@ Proposed destination: `js/features/academic-calendar/`. Status for all rows: **i
 
 | Symbol | Kind / location | Dependencies and external references | Direct consumers |
 | --- | --- | --- | --- |
-| `normalizeAcademicCalendarType` | function `app.js:1105-1117` | ; external: `String` | `normalizeAcademicCalendarEvent` |
-| `normalizeAcademicCalendarStatus` | function `app.js:1119-1121` | ; external: `String` | `normalizeAcademicCalendarEvent` |
-| `normalizeAcademicCalendarEvent` | function `app.js:1123-1145` | `createStorageId`, `normalizeAcademicCalendarStatus`, `normalizeAcademicCalendarType`; external: `Date`, `String` | `findAcademicCalendarConflicts`, `getAcademicCalendarEvents`, `saveAcademicCalendarEvents`, `upsertAcademicCalendarEvent` |
-| `compareAcademicCalendarEvents` | function `app.js:1147-1165` | ; external: `undefined` | `getAcademicCalendarEvents`, `saveAcademicCalendarEvents` |
-| `getAcademicCalendarEvents` | function `app.js:1167-1178` | `DEFAULT_ACADEMIC_CALENDAR_EVENTS`, `SCHOOL_ACADEMIC_CALENDAR_STORAGE_KEY`, `compareAcademicCalendarEvents`, `normalizeAcademicCalendarEvent`, `readWorkspaceState`; external: `Array` | `emitAcademicCalendarUpdate`, `findAcademicCalendarConflicts`, `getUpcomingAcademicCalendarEvents`, `setAcademicCalendarEventArchived`, `startup@4229`, `startup@4415`, `summarizeAcademicCalendarEvents`, `upsertAcademicCalendarEvent` |
-| `emitAcademicCalendarUpdate` | function `app.js:1180-1186` | `SCHOOL_ACADEMIC_CALENDAR_EVENT`, `getAcademicCalendarEvents`; external: `CustomEvent`, `window` | `saveAcademicCalendarEvents`, `startup@4415` |
-| `saveAcademicCalendarEvents` | function `app.js:1188-1196` | `SCHOOL_ACADEMIC_CALENDAR_STORAGE_KEY`, `compareAcademicCalendarEvents`, `emitAcademicCalendarUpdate`, `normalizeAcademicCalendarEvent`, `writeWorkspaceState` | `setAcademicCalendarEventArchived`, `startup@4231`, `upsertAcademicCalendarEvent` |
-| `upsertAcademicCalendarEvent` | function `app.js:1198-1223` | `getAcademicCalendarEvents`, `normalizeAcademicCalendarEvent`, `saveAcademicCalendarEvents`; external: `Date` | `startup@4232` |
-| `setAcademicCalendarEventArchived` | function `app.js:1225-1241` | `getAcademicCalendarEvents`, `saveAcademicCalendarEvents`; external: `Date` | `startup@4233`, `startup@4234` |
-| `findAcademicCalendarConflicts` | function `app.js:1243-1265` | `getAcademicCalendarEvents`, `normalizeAcademicCalendarEvent` | `startup@4235` |
-| `getUpcomingAcademicCalendarEvents` | function `app.js:1267-1281` | `getAcademicCalendarEvents`; external: `Date`, `Math`, `Number` | `startup@4236`, `summarizeAcademicCalendarEvents` |
-| `summarizeAcademicCalendarEvents` | function `app.js:1283-1296` | `getAcademicCalendarEvents`, `getUpcomingAcademicCalendarEvents` | `startup@4230` |
+| `normalizeAcademicCalendarType` | function `app.js:1096-1108` | ; external: `String` | `normalizeAcademicCalendarEvent` |
+| `normalizeAcademicCalendarStatus` | function `app.js:1110-1112` | ; external: `String` | `normalizeAcademicCalendarEvent` |
+| `normalizeAcademicCalendarEvent` | function `app.js:1114-1136` | `createStorageId`, `normalizeAcademicCalendarStatus`, `normalizeAcademicCalendarType`; external: `Date`, `String` | `findAcademicCalendarConflicts`, `getAcademicCalendarEvents`, `saveAcademicCalendarEvents`, `upsertAcademicCalendarEvent` |
+| `compareAcademicCalendarEvents` | function `app.js:1138-1156` | ; external: `undefined` | `getAcademicCalendarEvents`, `saveAcademicCalendarEvents` |
+| `getAcademicCalendarEvents` | function `app.js:1158-1169` | `DEFAULT_ACADEMIC_CALENDAR_EVENTS`, `SCHOOL_ACADEMIC_CALENDAR_STORAGE_KEY`, `compareAcademicCalendarEvents`, `normalizeAcademicCalendarEvent`, `readWorkspaceState`; external: `Array` | `emitAcademicCalendarUpdate`, `findAcademicCalendarConflicts`, `getUpcomingAcademicCalendarEvents`, `setAcademicCalendarEventArchived`, `startup@4220`, `startup@4406`, `summarizeAcademicCalendarEvents`, `upsertAcademicCalendarEvent` |
+| `emitAcademicCalendarUpdate` | function `app.js:1171-1177` | `SCHOOL_ACADEMIC_CALENDAR_EVENT`, `getAcademicCalendarEvents`; external: `CustomEvent`, `window` | `saveAcademicCalendarEvents`, `startup@4406` |
+| `saveAcademicCalendarEvents` | function `app.js:1179-1187` | `SCHOOL_ACADEMIC_CALENDAR_STORAGE_KEY`, `compareAcademicCalendarEvents`, `emitAcademicCalendarUpdate`, `normalizeAcademicCalendarEvent`, `writeWorkspaceState` | `setAcademicCalendarEventArchived`, `startup@4222`, `upsertAcademicCalendarEvent` |
+| `upsertAcademicCalendarEvent` | function `app.js:1189-1214` | `getAcademicCalendarEvents`, `normalizeAcademicCalendarEvent`, `saveAcademicCalendarEvents`; external: `Date` | `startup@4223` |
+| `setAcademicCalendarEventArchived` | function `app.js:1216-1232` | `getAcademicCalendarEvents`, `saveAcademicCalendarEvents`; external: `Date` | `startup@4224`, `startup@4225` |
+| `findAcademicCalendarConflicts` | function `app.js:1234-1256` | `getAcademicCalendarEvents`, `normalizeAcademicCalendarEvent` | `startup@4226` |
+| `getUpcomingAcademicCalendarEvents` | function `app.js:1258-1272` | `getAcademicCalendarEvents`; external: `Date`, `Math`, `Number` | `startup@4227`, `summarizeAcademicCalendarEvents` |
+| `summarizeAcademicCalendarEvents` | function `app.js:1274-1287` | `getAcademicCalendarEvents`, `getUpcomingAcademicCalendarEvents` | `startup@4221` |
 | `SUPABASE_STATE_KEY_ACADEMIC_CALENDAR` | const `auth.js:567` | None detected | `SUPABASE_WORKSPACE_HYDRATE_KEYS`, `emitHydratedWorkspaceStateEvent`, `initSupabaseWorkspaceStateLiveSync`, `loadTableNativeStatePayloadFromSupabase`, `saveTableNativeStatePayloadToSupabase`, `supportsTableNativeState` |
 | `getAcademicCalendarManager` | function `auth.js:8020-8022` | ; external: `window` | `buildDashboardSearchEntries`, `emitHydratedWorkspaceStateEvent`, `getParentChatbotNextExam`, `initAdminSchedulePage`, `initPortalPage`, `initSupabaseWorkspaceStateLiveSync`, `renderAdminEvents` |
 | `initAcademicCalendarControls` | function `auth.js:12755-13016` | `clearFormDraftFor`, `clearPortalCalendarErrors`, `escapeHtml`, `formatCalendarRange`, `getCalendarTypeLabel`, `normalizeCalendarType`, `populatePortalCalendarForm`, `recordAuditEvent`, `renderPortalAcademicCalendarSection`, `resetPortalCalendarForm`, `setPortalCalendarError`, `setStatus`; external: `String`, `document`, `undefined`, `window` | `initAdminSchedulePage` |
@@ -81,18 +81,18 @@ Proposed destination: `js/features/academic-cycles/`. Status for all rows: **inv
 
 | Symbol | Kind / location | Dependencies and external references | Direct consumers |
 | --- | --- | --- | --- |
-| `normalizeAcademicSession` | function `app.js:842-855` | `createStorageId`; external: `Date`, `String` | `normalizeAcademicCycles`, `upsertAcademicSession` |
-| `normalizeAcademicTerm` | function `app.js:857-875` | `createStorageId`; external: `Date`, `String` | `normalizeAcademicCycles`, `upsertAcademicTerm` |
-| `normalizeAcademicCycles` | function `app.js:877-889` | `normalizeAcademicSession`, `normalizeAcademicTerm`; external: `Array`, `Set` | `getAcademicCycles`, `saveAcademicCycles` |
-| `getAcademicCycles` | function `app.js:891-897` | `DEFAULT_ACADEMIC_CYCLES`, `SCHOOL_ACADEMIC_CYCLES_STORAGE_KEY`, `normalizeAcademicCycles`, `readWorkspaceState` | `emitAcademicCyclesUpdate`, `findAcademicTermForDate`, `normalizeAttendanceRecord`, `setAcademicSessionStatus`, `setAcademicTermStatus`, `startup@4216`, `startup@4411`, `summarizeAcademicCycles`, `upsertAcademicSession`, `upsertAcademicTerm` |
-| `emitAcademicCyclesUpdate` | function `app.js:899-905` | `SCHOOL_ACADEMIC_CYCLES_EVENT`, `getAcademicCycles`; external: `CustomEvent`, `window` | `saveAcademicCycles`, `startup@4411` |
-| `saveAcademicCycles` | function `app.js:907-912` | `SCHOOL_ACADEMIC_CYCLES_STORAGE_KEY`, `emitAcademicCyclesUpdate`, `normalizeAcademicCycles`, `writeWorkspaceState` | `setAcademicSessionStatus`, `setAcademicTermStatus`, `startup@4218`, `upsertAcademicSession`, `upsertAcademicTerm` |
-| `upsertAcademicSession` | function `app.js:914-950` | `getAcademicCycles`, `normalizeAcademicSession`, `saveAcademicCycles`; external: `Date` | `startup@4219` |
-| `setAcademicSessionStatus` | function `app.js:952-989` | `getAcademicCycles`, `saveAcademicCycles`; external: `Date` | `startup@4220` |
-| `upsertAcademicTerm` | function `app.js:991-1044` | `getAcademicCycles`, `normalizeAcademicTerm`, `saveAcademicCycles`; external: `Date` | `startup@4221` |
-| `setAcademicTermStatus` | function `app.js:1046-1092` | `getAcademicCycles`, `saveAcademicCycles`; external: `Date` | `startup@4222` |
-| `summarizeAcademicCycles` | function `app.js:1094-1103` | `getAcademicCycles` | `startup@4217` |
-| `findAcademicTermForDate` | function `app.js:3388-3413` | `getAcademicCycles`; external: `String` | `normalizeAttendanceRecord` |
+| `normalizeAcademicSession` | function `app.js:833-846` | `createStorageId`; external: `Date`, `String` | `normalizeAcademicCycles`, `upsertAcademicSession` |
+| `normalizeAcademicTerm` | function `app.js:848-866` | `createStorageId`; external: `Date`, `String` | `normalizeAcademicCycles`, `upsertAcademicTerm` |
+| `normalizeAcademicCycles` | function `app.js:868-880` | `normalizeAcademicSession`, `normalizeAcademicTerm`; external: `Array`, `Set` | `getAcademicCycles`, `saveAcademicCycles` |
+| `getAcademicCycles` | function `app.js:882-888` | `DEFAULT_ACADEMIC_CYCLES`, `SCHOOL_ACADEMIC_CYCLES_STORAGE_KEY`, `normalizeAcademicCycles`, `readWorkspaceState` | `emitAcademicCyclesUpdate`, `findAcademicTermForDate`, `normalizeAttendanceRecord`, `setAcademicSessionStatus`, `setAcademicTermStatus`, `startup@4207`, `startup@4402`, `summarizeAcademicCycles`, `upsertAcademicSession`, `upsertAcademicTerm` |
+| `emitAcademicCyclesUpdate` | function `app.js:890-896` | `SCHOOL_ACADEMIC_CYCLES_EVENT`, `getAcademicCycles`; external: `CustomEvent`, `window` | `saveAcademicCycles`, `startup@4402` |
+| `saveAcademicCycles` | function `app.js:898-903` | `SCHOOL_ACADEMIC_CYCLES_STORAGE_KEY`, `emitAcademicCyclesUpdate`, `normalizeAcademicCycles`, `writeWorkspaceState` | `setAcademicSessionStatus`, `setAcademicTermStatus`, `startup@4209`, `upsertAcademicSession`, `upsertAcademicTerm` |
+| `upsertAcademicSession` | function `app.js:905-941` | `getAcademicCycles`, `normalizeAcademicSession`, `saveAcademicCycles`; external: `Date` | `startup@4210` |
+| `setAcademicSessionStatus` | function `app.js:943-980` | `getAcademicCycles`, `saveAcademicCycles`; external: `Date` | `startup@4211` |
+| `upsertAcademicTerm` | function `app.js:982-1035` | `getAcademicCycles`, `normalizeAcademicTerm`, `saveAcademicCycles`; external: `Date` | `startup@4212` |
+| `setAcademicTermStatus` | function `app.js:1037-1083` | `getAcademicCycles`, `saveAcademicCycles`; external: `Date` | `startup@4213` |
+| `summarizeAcademicCycles` | function `app.js:1085-1094` | `getAcademicCycles` | `startup@4208` |
+| `findAcademicTermForDate` | function `app.js:3379-3404` | `getAcademicCycles`; external: `String` | `normalizeAttendanceRecord` |
 | `SUPABASE_STATE_KEY_ACADEMIC_CYCLES` | const `auth.js:565` | None detected | `SUPABASE_WORKSPACE_HYDRATE_KEYS`, `emitHydratedWorkspaceStateEvent`, `initSupabaseWorkspaceStateLiveSync`, `loadTableNativeStatePayloadFromSupabase`, `saveTableNativeStatePayloadToSupabase`, `supportsTableNativeState` |
 | `getAcademicCycleManager` | function `auth.js:8016-8018` | ; external: `window` | `buildConfiguredParentFeeSnapshot`, `deriveParentAttendanceSummary`, `deriveStudentAttendanceDetails`, `emitHydratedWorkspaceStateEvent`, `getAdminOnboardingChecklistItems`, `getCourseAcademicPeriodLabel`, `getReportCardDisplayContext`, `getStaffActiveTermContext`, `getStudentAcademicHistory`, `initAdminSettingsPage`, `initAttendanceReviewControls`, `initClassManagementControls`, `initCourseManagementControls`, `initFeeManagementControls`, `initReportSchoolCommentControls`, `initSupabaseWorkspaceStateLiveSync`, `initTimetableControls`, `renderEnrollmentReport`, `renderFeeManagementSection`, `renderTeacherAttendanceWorkspace`, `renderTimetableSection` |
 | `initAcademicCycleControls` | function `auth.js:17575-18082` | `clearFormDraftFor`, `clearPortalSessionErrors`, `clearPortalTermErrors`, `escapeHtml`, `getConfiguredSchoolTypes`, `getSchoolSettingsManager`, `getStudentManager`, `recordAuditEvent`, `runAutomaticPromotionForClosedSession`, `setPortalSessionError`, `setPortalTermError`, `setStatus`; external: `Array`, `HTMLElement`, `HTMLSelectElement`, `undefined`, `window` | `initAdminSettingsPage` |
@@ -134,21 +134,21 @@ Proposed destination: `js/features/admissions/`. Status for all rows: **inventor
 
 | Symbol | Kind / location | Dependencies and external references | Direct consumers |
 | --- | --- | --- | --- |
-| `normalizeAdmissionConfigStatus` | function `app.js:1298-1301` | ; external: `String` | `normalizeAdmissionConfigClass`, `normalizeAdmissionConfigStage`, `setAdmissionConfigClassStatus`, `setAdmissionConfigStageStatus` |
-| `normalizeAdmissionConfigSession` | function `app.js:1303-1315` | `createStorageId`; external: `Date`, `String` | `normalizeAdmissionConfiguration`, `upsertAdmissionConfigSession` |
-| `normalizeAdmissionConfigClass` | function `app.js:1317-1326` | `createStorageId`, `normalizeAdmissionConfigStatus`; external: `Date`, `String` | `normalizeAdmissionConfiguration`, `upsertAdmissionConfigClass` |
-| `normalizeAdmissionConfigStage` | function `app.js:1328-1339` | `createStorageId`, `normalizeAdmissionConfigStatus`; external: `Date`, `Number`, `String` | `normalizeAdmissionConfiguration`, `upsertAdmissionConfigStage` |
-| `normalizeAdmissionConfiguration` | function `app.js:1341-1378` | `DEFAULT_ADMISSION_CONFIGURATION`, `normalizeAdmissionConfigClass`, `normalizeAdmissionConfigSession`, `normalizeAdmissionConfigStage`; external: `Array`, `String`, `undefined` | `getAdmissionConfiguration`, `saveAdmissionConfiguration` |
-| `getAdmissionConfiguration` | function `app.js:1380-1386` | `DEFAULT_ADMISSION_CONFIGURATION`, `SCHOOL_ADMISSION_CONFIG_STORAGE_KEY`, `normalizeAdmissionConfiguration`, `readWorkspaceState` | `emitAdmissionConfigurationUpdate`, `setAdmissionConfigClassStatus`, `setAdmissionConfigSessionStatus`, `setAdmissionConfigStageStatus`, `startup@4242`, `startup@4419`, `summarizeAdmissionConfiguration`, `upsertAdmissionConfigClass`, `upsertAdmissionConfigSession`, `upsertAdmissionConfigStage` |
-| `emitAdmissionConfigurationUpdate` | function `app.js:1388-1394` | `SCHOOL_ADMISSION_CONFIG_EVENT`, `getAdmissionConfiguration`; external: `CustomEvent`, `window` | `saveAdmissionConfiguration`, `startup@4419` |
-| `saveAdmissionConfiguration` | function `app.js:1396-1401` | `SCHOOL_ADMISSION_CONFIG_STORAGE_KEY`, `emitAdmissionConfigurationUpdate`, `normalizeAdmissionConfiguration`, `writeWorkspaceState` | `setAdmissionConfigClassStatus`, `setAdmissionConfigSessionStatus`, `setAdmissionConfigStageStatus`, `startup@4244`, `upsertAdmissionConfigClass`, `upsertAdmissionConfigSession`, `upsertAdmissionConfigStage` |
-| `upsertAdmissionConfigSession` | function `app.js:1403-1433` | `getAdmissionConfiguration`, `normalizeAdmissionConfigSession`, `saveAdmissionConfiguration`; external: `Date` | `startup@4245` |
-| `setAdmissionConfigSessionStatus` | function `app.js:1435-1456` | `getAdmissionConfiguration`, `saveAdmissionConfiguration`; external: `Date` | `startup@4246` |
-| `upsertAdmissionConfigClass` | function `app.js:1458-1477` | `getAdmissionConfiguration`, `normalizeAdmissionConfigClass`, `saveAdmissionConfiguration`; external: `Date` | `startup@4247` |
-| `setAdmissionConfigClassStatus` | function `app.js:1479-1492` | `getAdmissionConfiguration`, `normalizeAdmissionConfigStatus`, `saveAdmissionConfiguration`; external: `Date` | `startup@4248` |
-| `upsertAdmissionConfigStage` | function `app.js:1494-1519` | `getAdmissionConfiguration`, `normalizeAdmissionConfigStage`, `saveAdmissionConfiguration`; external: `Date` | `startup@4249` |
-| `setAdmissionConfigStageStatus` | function `app.js:1521-1534` | `getAdmissionConfiguration`, `normalizeAdmissionConfigStatus`, `saveAdmissionConfiguration`; external: `Date` | `startup@4250` |
-| `summarizeAdmissionConfiguration` | function `app.js:1536-1550` | `getAdmissionConfiguration` | `startup@4243` |
+| `normalizeAdmissionConfigStatus` | function `app.js:1289-1292` | ; external: `String` | `normalizeAdmissionConfigClass`, `normalizeAdmissionConfigStage`, `setAdmissionConfigClassStatus`, `setAdmissionConfigStageStatus` |
+| `normalizeAdmissionConfigSession` | function `app.js:1294-1306` | `createStorageId`; external: `Date`, `String` | `normalizeAdmissionConfiguration`, `upsertAdmissionConfigSession` |
+| `normalizeAdmissionConfigClass` | function `app.js:1308-1317` | `createStorageId`, `normalizeAdmissionConfigStatus`; external: `Date`, `String` | `normalizeAdmissionConfiguration`, `upsertAdmissionConfigClass` |
+| `normalizeAdmissionConfigStage` | function `app.js:1319-1330` | `createStorageId`, `normalizeAdmissionConfigStatus`; external: `Date`, `Number`, `String` | `normalizeAdmissionConfiguration`, `upsertAdmissionConfigStage` |
+| `normalizeAdmissionConfiguration` | function `app.js:1332-1369` | `DEFAULT_ADMISSION_CONFIGURATION`, `normalizeAdmissionConfigClass`, `normalizeAdmissionConfigSession`, `normalizeAdmissionConfigStage`; external: `Array`, `String`, `undefined` | `getAdmissionConfiguration`, `saveAdmissionConfiguration` |
+| `getAdmissionConfiguration` | function `app.js:1371-1377` | `DEFAULT_ADMISSION_CONFIGURATION`, `SCHOOL_ADMISSION_CONFIG_STORAGE_KEY`, `normalizeAdmissionConfiguration`, `readWorkspaceState` | `emitAdmissionConfigurationUpdate`, `setAdmissionConfigClassStatus`, `setAdmissionConfigSessionStatus`, `setAdmissionConfigStageStatus`, `startup@4233`, `startup@4410`, `summarizeAdmissionConfiguration`, `upsertAdmissionConfigClass`, `upsertAdmissionConfigSession`, `upsertAdmissionConfigStage` |
+| `emitAdmissionConfigurationUpdate` | function `app.js:1379-1385` | `SCHOOL_ADMISSION_CONFIG_EVENT`, `getAdmissionConfiguration`; external: `CustomEvent`, `window` | `saveAdmissionConfiguration`, `startup@4410` |
+| `saveAdmissionConfiguration` | function `app.js:1387-1392` | `SCHOOL_ADMISSION_CONFIG_STORAGE_KEY`, `emitAdmissionConfigurationUpdate`, `normalizeAdmissionConfiguration`, `writeWorkspaceState` | `setAdmissionConfigClassStatus`, `setAdmissionConfigSessionStatus`, `setAdmissionConfigStageStatus`, `startup@4235`, `upsertAdmissionConfigClass`, `upsertAdmissionConfigSession`, `upsertAdmissionConfigStage` |
+| `upsertAdmissionConfigSession` | function `app.js:1394-1424` | `getAdmissionConfiguration`, `normalizeAdmissionConfigSession`, `saveAdmissionConfiguration`; external: `Date` | `startup@4236` |
+| `setAdmissionConfigSessionStatus` | function `app.js:1426-1447` | `getAdmissionConfiguration`, `saveAdmissionConfiguration`; external: `Date` | `startup@4237` |
+| `upsertAdmissionConfigClass` | function `app.js:1449-1468` | `getAdmissionConfiguration`, `normalizeAdmissionConfigClass`, `saveAdmissionConfiguration`; external: `Date` | `startup@4238` |
+| `setAdmissionConfigClassStatus` | function `app.js:1470-1483` | `getAdmissionConfiguration`, `normalizeAdmissionConfigStatus`, `saveAdmissionConfiguration`; external: `Date` | `startup@4239` |
+| `upsertAdmissionConfigStage` | function `app.js:1485-1510` | `getAdmissionConfiguration`, `normalizeAdmissionConfigStage`, `saveAdmissionConfiguration`; external: `Date` | `startup@4240` |
+| `setAdmissionConfigStageStatus` | function `app.js:1512-1525` | `getAdmissionConfiguration`, `normalizeAdmissionConfigStatus`, `saveAdmissionConfiguration`; external: `Date` | `startup@4241` |
+| `summarizeAdmissionConfiguration` | function `app.js:1527-1541` | `getAdmissionConfiguration` | `startup@4234` |
 | `ADMISSIONS_STORAGE_KEY_BASE` | const `auth.js:72` | None detected | `clearLocalSchoolAccountData`, `collectWorkspaceStatesForMigration`, `getAdmissionsStorageKey`, `getSuperAdminKnownWorkspaceIds`, `getWorkspaceStateStorageKeyForState` |
 | `ADMISSIONS_EVENT_NAME` | const `auth.js:73` | None detected | `emitHydratedWorkspaceStateEvent`, `initAdminReportsPage`, `initAdmissionsControls`, `initSupabaseWorkspaceStateLiveSync`, `saveAdmissions` |
 | `ADMISSION_FILE_SIZE_LIMIT_BYTES` | const `auth.js:74` | None detected | `initAdmissionsApplyPage`, `readAdmissionFormFile` |
@@ -202,15 +202,15 @@ Proposed destination: `js/features/attendance/`. Status for all rows: **inventor
 
 | Symbol | Kind / location | Dependencies and external references | Direct consumers |
 | --- | --- | --- | --- |
-| `normalizeAttendanceEntry` | function `app.js:3375-3386` | ; external: `String` | `normalizeAttendanceRecord` |
-| `normalizeAttendanceRecord` | function `app.js:3415-3457` | `createStorageId`, `findAcademicTermForDate`, `getAcademicCycles`, `getLocalDateValue`, `normalizeAttendanceEntry`; external: `Array`, `Date`, `String` | `getAttendanceRecords`, `saveAttendanceRecords`, `upsertAttendanceRecord` |
-| `compareAttendanceRecords` | function `app.js:3459-3471` | ; external: `String`, `undefined` | `getAttendanceRecords`, `saveAttendanceRecords` |
-| `getAttendanceRecords` | function `app.js:3473-3478` | `DEFAULT_ATTENDANCE_RECORDS`, `SCHOOL_ATTENDANCE_STORAGE_KEY`, `compareAttendanceRecords`, `normalizeAttendanceRecord`, `readWorkspaceState`; external: `Array` | `emitAttendanceUpdate`, `getAttendanceRecordForClassDate`, `startup@4356`, `startup@4443`, `summarizeAttendanceRecords`, `upsertAttendanceRecord` |
-| `emitAttendanceUpdate` | function `app.js:3480-3486` | `SCHOOL_ATTENDANCE_EVENT`, `getAttendanceRecords`; external: `CustomEvent`, `window` | `saveAttendanceRecords`, `startup@4443` |
-| `saveAttendanceRecords` | function `app.js:3488-3493` | `SCHOOL_ATTENDANCE_STORAGE_KEY`, `compareAttendanceRecords`, `emitAttendanceUpdate`, `normalizeAttendanceRecord`, `writeWorkspaceState` | `startup@4358`, `upsertAttendanceRecord` |
-| `upsertAttendanceRecord` | function `app.js:3495-3528` | `getAttendanceRecords`, `normalizeAttendanceRecord`, `saveAttendanceRecords`; external: `Date`, `String` | `startup@4359` |
-| `getAttendanceRecordForClassDate` | function `app.js:3530-3543` | `getAttendanceRecords`; external: `String` | `startup@4360` |
-| `summarizeAttendanceRecords` | function `app.js:3545-3589` | `getAttendanceRecords`, `getLocalDateValue`, `getSchoolStudents`; external: `Map`, `Math`, `String` | `startup@4357` |
+| `normalizeAttendanceEntry` | function `app.js:3366-3377` | ; external: `String` | `normalizeAttendanceRecord` |
+| `normalizeAttendanceRecord` | function `app.js:3406-3448` | `createStorageId`, `findAcademicTermForDate`, `getAcademicCycles`, `getLocalDateValue`, `normalizeAttendanceEntry`; external: `Array`, `Date`, `String` | `getAttendanceRecords`, `saveAttendanceRecords`, `upsertAttendanceRecord` |
+| `compareAttendanceRecords` | function `app.js:3450-3462` | ; external: `String`, `undefined` | `getAttendanceRecords`, `saveAttendanceRecords` |
+| `getAttendanceRecords` | function `app.js:3464-3469` | `DEFAULT_ATTENDANCE_RECORDS`, `SCHOOL_ATTENDANCE_STORAGE_KEY`, `compareAttendanceRecords`, `normalizeAttendanceRecord`, `readWorkspaceState`; external: `Array` | `emitAttendanceUpdate`, `getAttendanceRecordForClassDate`, `startup@4347`, `startup@4434`, `summarizeAttendanceRecords`, `upsertAttendanceRecord` |
+| `emitAttendanceUpdate` | function `app.js:3471-3477` | `SCHOOL_ATTENDANCE_EVENT`, `getAttendanceRecords`; external: `CustomEvent`, `window` | `saveAttendanceRecords`, `startup@4434` |
+| `saveAttendanceRecords` | function `app.js:3479-3484` | `SCHOOL_ATTENDANCE_STORAGE_KEY`, `compareAttendanceRecords`, `emitAttendanceUpdate`, `normalizeAttendanceRecord`, `writeWorkspaceState` | `startup@4349`, `upsertAttendanceRecord` |
+| `upsertAttendanceRecord` | function `app.js:3486-3519` | `getAttendanceRecords`, `normalizeAttendanceRecord`, `saveAttendanceRecords`; external: `Date`, `String` | `startup@4350` |
+| `getAttendanceRecordForClassDate` | function `app.js:3521-3534` | `getAttendanceRecords`; external: `String` | `startup@4351` |
+| `summarizeAttendanceRecords` | function `app.js:3536-3580` | `getAttendanceRecords`, `getLocalDateValue`, `getSchoolStudents`; external: `Map`, `Math`, `String` | `startup@4348` |
 | `ATTENDANCE_STATUSES` | const `auth.js:122` | None detected | `normalizeAttendanceStatus`, `renderTeacherAttendanceWorkspace` |
 | `SUPABASE_STATE_KEY_ATTENDANCE` | const `auth.js:560` | None detected | `SUPABASE_WORKSPACE_HYDRATE_KEYS`, `emitHydratedWorkspaceStateEvent`, `initSupabaseWorkspaceStateLiveSync` |
 | `getAttendanceManager` | function `auth.js:8172-8174` | ; external: `window` | `buildAdminReportSnapshot`, `deriveParentAttendanceSummary`, `deriveStudentAttendanceDetails`, `downloadReportDataset`, `emitHydratedWorkspaceStateEvent`, `getDashboardSnapshot`, `getParentChatbotTodayAttendance`, `getReportCardDisplayContext`, `getReportSummaryAttendanceInsight`, `initAdminAttendancePage`, `initAdminReportsPage`, `initClassManagementControls`, `initPortalPage`, `initStaffPortalPages`, `initSupabaseWorkspaceStateLiveSync`, `renderStaffMetricCards`, `renderStaffPortalWorkspace`, `renderTeacherAttendanceWorkspace`, `syncStoredAttendanceAbsenceNotifications` |
@@ -237,15 +237,15 @@ Proposed destination: `js/features/audit/`. Status for all rows: **inventoried /
 
 | Symbol | Kind / location | Dependencies and external references | Direct consumers |
 | --- | --- | --- | --- |
-| `AUDIT_TRAIL_STORAGE_KEY` | const `app.js:308` | None detected | `clearAuditTrailEntries`, `clearLegacySharedState`, `getAuditTrailEntries`, `saveAuditTrailEntries`, `startup@4470` |
-| `AUDIT_TRAIL_EVENT` | const `app.js:309` | None detected | `emitAuditTrailUpdate`, `startup@4398` |
+| `AUDIT_TRAIL_STORAGE_KEY` | const `app.js:308` | None detected | `clearAuditTrailEntries`, `clearLegacySharedState`, `getAuditTrailEntries`, `saveAuditTrailEntries`, `startup@4461` |
+| `AUDIT_TRAIL_EVENT` | const `app.js:309` | None detected | `emitAuditTrailUpdate`, `startup@4389` |
 | `MAX_AUDIT_TRAIL_ENTRIES` | const `app.js:310` | None detected | `saveAuditTrailEntries` |
-| `normalizeAuditTrailEntry` | function `app.js:3962-3974` | `createStorageId`; external: `Date`, `String` | `getAuditTrailEntries`, `recordAuditTrailEntry`, `saveAuditTrailEntries` |
-| `getAuditTrailEntries` | function `app.js:3976-3982` | `AUDIT_TRAIL_STORAGE_KEY`, `normalizeAuditTrailEntry`, `readWorkspaceState`; external: `Array`, `Date` | `clearAuditTrailEntries`, `emitAuditTrailUpdate`, `recordAuditTrailEntry`, `startup@4394`, `startup@4471` |
-| `emitAuditTrailUpdate` | function `app.js:3984-3990` | `AUDIT_TRAIL_EVENT`, `getAuditTrailEntries`; external: `CustomEvent`, `window` | `clearAuditTrailEntries`, `saveAuditTrailEntries`, `startup@4471` |
-| `saveAuditTrailEntries` | function `app.js:3992-4000` | `AUDIT_TRAIL_STORAGE_KEY`, `MAX_AUDIT_TRAIL_ENTRIES`, `emitAuditTrailUpdate`, `normalizeAuditTrailEntry`, `writeWorkspaceState`; external: `Date` | `recordAuditTrailEntry`, `startup@4395` |
-| `recordAuditTrailEntry` | function `app.js:4002-4008` | `getAuditTrailEntries`, `normalizeAuditTrailEntry`, `saveAuditTrailEntries` | `startup@4396` |
-| `clearAuditTrailEntries` | function `app.js:4010-4015` | `AUDIT_TRAIL_STORAGE_KEY`, `emitAuditTrailUpdate`, `getAuditTrailEntries`, `removeWorkspaceState` | `startup@4397` |
+| `normalizeAuditTrailEntry` | function `app.js:3953-3965` | `createStorageId`; external: `Date`, `String` | `getAuditTrailEntries`, `recordAuditTrailEntry`, `saveAuditTrailEntries` |
+| `getAuditTrailEntries` | function `app.js:3967-3973` | `AUDIT_TRAIL_STORAGE_KEY`, `normalizeAuditTrailEntry`, `readWorkspaceState`; external: `Array`, `Date` | `clearAuditTrailEntries`, `emitAuditTrailUpdate`, `recordAuditTrailEntry`, `startup@4385`, `startup@4462` |
+| `emitAuditTrailUpdate` | function `app.js:3975-3981` | `AUDIT_TRAIL_EVENT`, `getAuditTrailEntries`; external: `CustomEvent`, `window` | `clearAuditTrailEntries`, `saveAuditTrailEntries`, `startup@4462` |
+| `saveAuditTrailEntries` | function `app.js:3983-3991` | `AUDIT_TRAIL_STORAGE_KEY`, `MAX_AUDIT_TRAIL_ENTRIES`, `emitAuditTrailUpdate`, `normalizeAuditTrailEntry`, `writeWorkspaceState`; external: `Date` | `recordAuditTrailEntry`, `startup@4386` |
+| `recordAuditTrailEntry` | function `app.js:3993-3999` | `getAuditTrailEntries`, `normalizeAuditTrailEntry`, `saveAuditTrailEntries` | `startup@4387` |
+| `clearAuditTrailEntries` | function `app.js:4001-4006` | `AUDIT_TRAIL_STORAGE_KEY`, `emitAuditTrailUpdate`, `getAuditTrailEntries`, `removeWorkspaceState` | `startup@4388` |
 | `recordAuditEvent` | function `auth.js:9238-9258` | `getCurrentWorkspaceId`, `getSession`, `getUsers`, `normalizeWorkspaceId`, `nowIso`, `pushNotification`; external: `String` | `handleOwnerAccessLogin`, `handleSuperAdminUserAction`, `initAcademicCalendarControls`, `initAcademicCycleControls`, `initAccessProvisioningControls`, `initAdminAnnouncementComposer`, `initAdminStaffLeaveReviewControls`, `initAdmissionConfigurationControls`, `initAdmissionSetupControls`, `initAdmissionsControls`, `initClassManagementControls`, `initCourseManagementControls`, `initFeeManagementControls`, `initForgotPasswordFlow`, `initReportConfigurationControls`, `initReportSchoolCommentControls`, `initResetPasswordFlow`, `initRolePermissionControls`, `initSchoolSettingsControls`, `initStaffManagementControls`, `initStudentManagementControls`, `initTimetableControls`, `initUserSettingsPage`, `provisionParentAccountsForStudent`, `recordLoginAudit`, `renderPortalFeatureToggleSection`, `renderStaffLeaveWorkspace`, `renderStaffLessonPlansWorkspace`, `renderStaffResultsWorkspace`, `renderTeacherAttendanceWorkspace`, `saveSelfRegistrationLocally` |
 | `recordLoginAudit` | function `auth.js:28620-28639` | `DEFAULT_AUTH_ROLE`, `SUPER_ADMIN_WORKSPACE_ID`, `getCurrentWorkspaceId`, `normalizeRoleLabel`, `normalizeWorkspaceId`, `recordAuditEvent`; external: `String` | `handleGoogleSubmit`, `handleOwnerAccessLogin`, `initLoginFlow` |
 
@@ -333,15 +333,15 @@ Proposed destination: `js/features/classes/`. Status for all rows: **inventoried
 | Symbol | Kind / location | Dependencies and external references | Direct consumers |
 | --- | --- | --- | --- |
 | `LEGACY_MOCK_CLASS_IDS` | const `app.js:302-307` | ; external: `Set` | `getSchoolClasses` |
-| `normalizeSchoolClass` | function `app.js:2320-2354` | `createStorageId`; external: `Array`, `Boolean`, `Date`, `Number`, `String` | `getSchoolClasses`, `saveSchoolClasses`, `upsertSchoolClass` |
-| `compareSchoolClasses` | function `app.js:2356-2368` | ; external: `undefined` | `getSchoolClasses`, `saveSchoolClasses` |
-| `getSchoolClasses` | function `app.js:2370-2382` | `DEFAULT_CLASS_RECORDS`, `LEGACY_MOCK_CLASS_IDS`, `SCHOOL_CLASSES_STORAGE_KEY`, `compareSchoolClasses`, `normalizeSchoolClass`, `readWorkspaceState`, `writeWorkspaceState`; external: `Array`, `String` | `deleteSchoolClass`, `emitSchoolClassesUpdate`, `setSchoolClassArchived`, `startup@4294`, `startup@4431`, `summarizeSchoolClasses`, `upsertSchoolClass` |
-| `emitSchoolClassesUpdate` | function `app.js:2384-2390` | `SCHOOL_CLASSES_EVENT`, `getSchoolClasses`; external: `CustomEvent`, `window` | `saveSchoolClasses`, `startup@4431` |
-| `saveSchoolClasses` | function `app.js:2392-2397` | `SCHOOL_CLASSES_STORAGE_KEY`, `compareSchoolClasses`, `emitSchoolClassesUpdate`, `normalizeSchoolClass`, `writeWorkspaceState` | `deleteSchoolClass`, `setSchoolClassArchived`, `startup@4296`, `upsertSchoolClass` |
-| `upsertSchoolClass` | function `app.js:2399-2424` | `getSchoolClasses`, `normalizeSchoolClass`, `saveSchoolClasses`; external: `Date` | `startup@4297` |
-| `setSchoolClassArchived` | function `app.js:2426-2442` | `getSchoolClasses`, `saveSchoolClasses`; external: `Date` | `startup@4298`, `startup@4299` |
-| `deleteSchoolClass` | function `app.js:2444-2446` | `getSchoolClasses`, `saveSchoolClasses` | `startup@4300` |
-| `summarizeSchoolClasses` | function `app.js:2448-2465` | `getSchoolClasses` | `startup@4295` |
+| `normalizeSchoolClass` | function `app.js:2311-2345` | `createStorageId`; external: `Array`, `Boolean`, `Date`, `Number`, `String` | `getSchoolClasses`, `saveSchoolClasses`, `upsertSchoolClass` |
+| `compareSchoolClasses` | function `app.js:2347-2359` | ; external: `undefined` | `getSchoolClasses`, `saveSchoolClasses` |
+| `getSchoolClasses` | function `app.js:2361-2373` | `DEFAULT_CLASS_RECORDS`, `LEGACY_MOCK_CLASS_IDS`, `SCHOOL_CLASSES_STORAGE_KEY`, `compareSchoolClasses`, `normalizeSchoolClass`, `readWorkspaceState`, `writeWorkspaceState`; external: `Array`, `String` | `deleteSchoolClass`, `emitSchoolClassesUpdate`, `setSchoolClassArchived`, `startup@4285`, `startup@4422`, `summarizeSchoolClasses`, `upsertSchoolClass` |
+| `emitSchoolClassesUpdate` | function `app.js:2375-2381` | `SCHOOL_CLASSES_EVENT`, `getSchoolClasses`; external: `CustomEvent`, `window` | `saveSchoolClasses`, `startup@4422` |
+| `saveSchoolClasses` | function `app.js:2383-2388` | `SCHOOL_CLASSES_STORAGE_KEY`, `compareSchoolClasses`, `emitSchoolClassesUpdate`, `normalizeSchoolClass`, `writeWorkspaceState` | `deleteSchoolClass`, `setSchoolClassArchived`, `startup@4287`, `upsertSchoolClass` |
+| `upsertSchoolClass` | function `app.js:2390-2415` | `getSchoolClasses`, `normalizeSchoolClass`, `saveSchoolClasses`; external: `Date` | `startup@4288` |
+| `setSchoolClassArchived` | function `app.js:2417-2433` | `getSchoolClasses`, `saveSchoolClasses`; external: `Date` | `startup@4289`, `startup@4290` |
+| `deleteSchoolClass` | function `app.js:2435-2437` | `getSchoolClasses`, `saveSchoolClasses` | `startup@4291` |
+| `summarizeSchoolClasses` | function `app.js:2439-2456` | `getSchoolClasses` | `startup@4286` |
 | `SUPABASE_STATE_KEY_CLASSES` | const `auth.js:557` | None detected | `SUPABASE_WORKSPACE_HYDRATE_KEYS`, `buildSelfRegistrationStudentRecord`, `emitHydratedWorkspaceStateEvent`, `getLocalSelfRegistrationConfig`, `initSupabaseWorkspaceStateLiveSync`, `loadTableNativeStatePayloadFromSupabase`, `saveTableNativeStatePayloadToSupabase`, `supportsTableNativeState` |
 | `getClassManager` | function `auth.js:8156-8158` | ; external: `window` | `buildAdminReportSnapshot`, `buildDashboardSearchEntries`, `emitHydratedWorkspaceStateEvent`, `findClassRecordForStudent`, `getActiveClassRecordsForLevel`, `getActiveStudentClassLevels`, `getAdminAnnouncementClassOptions`, `getAdminOnboardingChecklistItems`, `getClassTeacherManagedClassRecords`, `getConfiguredStudentLevelGroups`, `getStaffTeachingAssignments`, `getStudentPortalClassRecords`, `getStudentPortalOtherClassRecords`, `getTeacherAssignedClasses`, `getTeacherResultManagedClasses`, `initAdminAnnouncementComposer`, `initAdminClassesPage`, `initAdminReportsPage`, `initAttendanceReviewControls`, `initCourseManagementControls`, `initFeeManagementControls`, `initPortalPage`, `initReportSchoolCommentControls`, `initStaffPortalPages`, `initStudentManagementControls`, `initSupabaseWorkspaceStateLiveSync`, `initTimetableControls`, `renderStaffClassesWorkspace` |
 | `getActiveClassRecordsForLevel` | function `auth.js:8991-9014` | `getClassDisplayName`, `getClassManager`, `normalizeLevelToken`; external: `Boolean`, `undefined` | `chooseStudentClassRecordForLevel`, `renderStudentClassArmOptions` |
@@ -368,17 +368,17 @@ Proposed destination: `js/features/courses/`. Status for all rows: **inventoried
 
 | Symbol | Kind / location | Dependencies and external references | Direct consumers |
 | --- | --- | --- | --- |
-| `normalizeCourseAssignmentList` | function `app.js:2467-2490` | ; external: `Array`, `Set`, `String` | `normalizeSchoolCourse` |
-| `normalizeSchoolCourse` | function `app.js:2492-2520` | `createStorageId`, `normalizeCourseAssignmentList`; external: `Date`, `String` | `getSchoolCourses`, `saveSchoolCourses`, `upsertSchoolCourse` |
-| `compareSchoolCourses` | function `app.js:2522-2566` | ; external: `String`, `undefined` | `getSchoolCourses`, `saveSchoolCourses` |
-| `getSchoolCourses` | function `app.js:2568-2573` | `DEFAULT_COURSE_RECORDS`, `SCHOOL_COURSES_STORAGE_KEY`, `compareSchoolCourses`, `normalizeSchoolCourse`, `readWorkspaceState`; external: `Array` | `deleteSchoolCourse`, `emitSchoolCoursesUpdate`, `getActiveCourseCatalog`, `setSchoolCourseArchived`, `startup@4306`, `startup@4435`, `summarizeSchoolCourses`, `upsertSchoolCourse` |
-| `emitSchoolCoursesUpdate` | function `app.js:2575-2581` | `SCHOOL_COURSES_EVENT`, `getSchoolCourses`; external: `CustomEvent`, `window` | `saveSchoolCourses`, `startup@4435` |
-| `saveSchoolCourses` | function `app.js:2583-2588` | `SCHOOL_COURSES_STORAGE_KEY`, `compareSchoolCourses`, `emitSchoolCoursesUpdate`, `normalizeSchoolCourse`, `writeWorkspaceState` | `deleteSchoolCourse`, `setSchoolCourseArchived`, `startup@4308`, `upsertSchoolCourse` |
-| `upsertSchoolCourse` | function `app.js:2590-2615` | `getSchoolCourses`, `normalizeSchoolCourse`, `saveSchoolCourses`; external: `Date` | `startup@4309` |
-| `setSchoolCourseArchived` | function `app.js:2617-2633` | `getSchoolCourses`, `saveSchoolCourses`; external: `Date` | `startup@4310`, `startup@4311` |
-| `deleteSchoolCourse` | function `app.js:2635-2637` | `getSchoolCourses`, `saveSchoolCourses` | `startup@4312` |
-| `getActiveCourseCatalog` | function `app.js:2639-2654` | `getSchoolCourses` | `startup@4313`, `summarizeSchoolCourses` |
-| `summarizeSchoolCourses` | function `app.js:2656-2684` | `getActiveCourseCatalog`, `getSchoolCourses`; external: `Boolean`, `Set` | `startup@4307` |
+| `normalizeCourseAssignmentList` | function `app.js:2458-2481` | ; external: `Array`, `Set`, `String` | `normalizeSchoolCourse` |
+| `normalizeSchoolCourse` | function `app.js:2483-2511` | `createStorageId`, `normalizeCourseAssignmentList`; external: `Date`, `String` | `getSchoolCourses`, `saveSchoolCourses`, `upsertSchoolCourse` |
+| `compareSchoolCourses` | function `app.js:2513-2557` | ; external: `String`, `undefined` | `getSchoolCourses`, `saveSchoolCourses` |
+| `getSchoolCourses` | function `app.js:2559-2564` | `DEFAULT_COURSE_RECORDS`, `SCHOOL_COURSES_STORAGE_KEY`, `compareSchoolCourses`, `normalizeSchoolCourse`, `readWorkspaceState`; external: `Array` | `deleteSchoolCourse`, `emitSchoolCoursesUpdate`, `getActiveCourseCatalog`, `setSchoolCourseArchived`, `startup@4297`, `startup@4426`, `summarizeSchoolCourses`, `upsertSchoolCourse` |
+| `emitSchoolCoursesUpdate` | function `app.js:2566-2572` | `SCHOOL_COURSES_EVENT`, `getSchoolCourses`; external: `CustomEvent`, `window` | `saveSchoolCourses`, `startup@4426` |
+| `saveSchoolCourses` | function `app.js:2574-2579` | `SCHOOL_COURSES_STORAGE_KEY`, `compareSchoolCourses`, `emitSchoolCoursesUpdate`, `normalizeSchoolCourse`, `writeWorkspaceState` | `deleteSchoolCourse`, `setSchoolCourseArchived`, `startup@4299`, `upsertSchoolCourse` |
+| `upsertSchoolCourse` | function `app.js:2581-2606` | `getSchoolCourses`, `normalizeSchoolCourse`, `saveSchoolCourses`; external: `Date` | `startup@4300` |
+| `setSchoolCourseArchived` | function `app.js:2608-2624` | `getSchoolCourses`, `saveSchoolCourses`; external: `Date` | `startup@4301`, `startup@4302` |
+| `deleteSchoolCourse` | function `app.js:2626-2628` | `getSchoolCourses`, `saveSchoolCourses` | `startup@4303` |
+| `getActiveCourseCatalog` | function `app.js:2630-2645` | `getSchoolCourses` | `startup@4304`, `summarizeSchoolCourses` |
+| `summarizeSchoolCourses` | function `app.js:2647-2675` | `getActiveCourseCatalog`, `getSchoolCourses`; external: `Boolean`, `Set` | `startup@4298` |
 | `SUPABASE_STATE_KEY_COURSES` | const `auth.js:558` | None detected | `SUPABASE_WORKSPACE_HYDRATE_KEYS`, `emitHydratedWorkspaceStateEvent`, `initSupabaseWorkspaceStateLiveSync`, `loadTableNativeStatePayloadFromSupabase`, `saveTableNativeStatePayloadToSupabase`, `supportsTableNativeState` |
 | `getCourseManager` | function `auth.js:8160-8162` | ; external: `window` | `buildDashboardSearchEntries`, `emitHydratedWorkspaceStateEvent`, `getParentCoursesForStudent`, `getReportCardSubjectOptionsForClass`, `getStaffGradebookAssignments`, `getStaffTeachingAssignments`, `getTeacherAssignedClasses`, `getTeacherPortalAssignments`, `initAdminCoursesPage`, `initClassManagementControls`, `initPortalPage`, `initStaffPortalPages`, `initSupabaseWorkspaceStateLiveSync`, `initTimetableControls` |
 | `syncStaffSubjectCourseField` | function `auth.js:8693-8705` | `getStaffFieldWrapper`, `getStaffFormElements`, `setStaffFieldLabel`; external: `HTMLElement`, `HTMLInputElement`, `String` | `syncStaffDepartmentPicker` |
@@ -423,17 +423,17 @@ Proposed destination: `js/features/fees/`. Status for all rows: **inventoried / 
 
 | Symbol | Kind / location | Dependencies and external references | Direct consumers |
 | --- | --- | --- | --- |
-| `normalizeFeeItemStatus` | function `app.js:2144-2146` | ; external: `String` | `normalizeSchoolFeeItem` |
-| `normalizeSchoolFeeCategory` | function `app.js:2148-2181` | ; external: `String` | `inferSchoolFeeCategory` |
-| `inferSchoolFeeCategory` | function `app.js:2183-2196` | `normalizeSchoolFeeCategory` | `normalizeSchoolFeeItem` |
-| `normalizeSchoolFeeItem` | function `app.js:2198-2217` | `createStorageId`, `inferSchoolFeeCategory`, `normalizeFeeItemStatus`; external: `Date`, `Number`, `String` | `getSchoolFeeItems`, `saveSchoolFeeItems`, `upsertSchoolFeeItem` |
-| `compareSchoolFeeItems` | function `app.js:2219-2236` | ; external: `undefined` | `getSchoolFeeItems`, `saveSchoolFeeItems` |
-| `getSchoolFeeItems` | function `app.js:2238-2245` | `DEFAULT_FEE_ITEMS`, `SCHOOL_FEE_ITEMS_STORAGE_KEY`, `compareSchoolFeeItems`, `normalizeSchoolFeeItem`, `readWorkspaceState`; external: `Array` | `emitSchoolFeeItemsUpdate`, `setSchoolFeeItemArchived`, `startup@4283`, `startup@4427`, `summarizeSchoolFeeItems`, `upsertSchoolFeeItem` |
-| `emitSchoolFeeItemsUpdate` | function `app.js:2247-2253` | `SCHOOL_FEE_ITEMS_EVENT`, `getSchoolFeeItems`; external: `CustomEvent`, `window` | `saveSchoolFeeItems`, `startup@4427` |
-| `saveSchoolFeeItems` | function `app.js:2255-2263` | `SCHOOL_FEE_ITEMS_STORAGE_KEY`, `compareSchoolFeeItems`, `emitSchoolFeeItemsUpdate`, `normalizeSchoolFeeItem`, `writeWorkspaceState` | `setSchoolFeeItemArchived`, `startup@4285`, `upsertSchoolFeeItem` |
-| `upsertSchoolFeeItem` | function `app.js:2265-2284` | `getSchoolFeeItems`, `normalizeSchoolFeeItem`, `saveSchoolFeeItems`; external: `Date` | `startup@4286` |
-| `setSchoolFeeItemArchived` | function `app.js:2286-2301` | `getSchoolFeeItems`, `saveSchoolFeeItems`; external: `Date` | `startup@4287`, `startup@4288` |
-| `summarizeSchoolFeeItems` | function `app.js:2303-2318` | `getSchoolFeeItems`; external: `Set` | `startup@4284` |
+| `normalizeFeeItemStatus` | function `app.js:2135-2137` | ; external: `String` | `normalizeSchoolFeeItem` |
+| `normalizeSchoolFeeCategory` | function `app.js:2139-2172` | ; external: `String` | `inferSchoolFeeCategory` |
+| `inferSchoolFeeCategory` | function `app.js:2174-2187` | `normalizeSchoolFeeCategory` | `normalizeSchoolFeeItem` |
+| `normalizeSchoolFeeItem` | function `app.js:2189-2208` | `createStorageId`, `inferSchoolFeeCategory`, `normalizeFeeItemStatus`; external: `Date`, `Number`, `String` | `getSchoolFeeItems`, `saveSchoolFeeItems`, `upsertSchoolFeeItem` |
+| `compareSchoolFeeItems` | function `app.js:2210-2227` | ; external: `undefined` | `getSchoolFeeItems`, `saveSchoolFeeItems` |
+| `getSchoolFeeItems` | function `app.js:2229-2236` | `DEFAULT_FEE_ITEMS`, `SCHOOL_FEE_ITEMS_STORAGE_KEY`, `compareSchoolFeeItems`, `normalizeSchoolFeeItem`, `readWorkspaceState`; external: `Array` | `emitSchoolFeeItemsUpdate`, `setSchoolFeeItemArchived`, `startup@4274`, `startup@4418`, `summarizeSchoolFeeItems`, `upsertSchoolFeeItem` |
+| `emitSchoolFeeItemsUpdate` | function `app.js:2238-2244` | `SCHOOL_FEE_ITEMS_EVENT`, `getSchoolFeeItems`; external: `CustomEvent`, `window` | `saveSchoolFeeItems`, `startup@4418` |
+| `saveSchoolFeeItems` | function `app.js:2246-2254` | `SCHOOL_FEE_ITEMS_STORAGE_KEY`, `compareSchoolFeeItems`, `emitSchoolFeeItemsUpdate`, `normalizeSchoolFeeItem`, `writeWorkspaceState` | `setSchoolFeeItemArchived`, `startup@4276`, `upsertSchoolFeeItem` |
+| `upsertSchoolFeeItem` | function `app.js:2256-2275` | `getSchoolFeeItems`, `normalizeSchoolFeeItem`, `saveSchoolFeeItems`; external: `Date` | `startup@4277` |
+| `setSchoolFeeItemArchived` | function `app.js:2277-2292` | `getSchoolFeeItems`, `saveSchoolFeeItems`; external: `Date` | `startup@4278`, `startup@4279` |
+| `summarizeSchoolFeeItems` | function `app.js:2294-2309` | `getSchoolFeeItems`; external: `Set` | `startup@4275` |
 | `PARENT_FEES_STORAGE_PREFIX` | const `auth.js:32` | None detected | `clearLocalSchoolAccountData`, `collectWorkspaceStatesForMigration`, `getParentFeesStorageKey`, `getWorkspaceStateStorageKeyForState` |
 | `PARENT_FEES_EVENT_NAME` | const `auth.js:33` | None detected | `emitHydratedWorkspaceStateEvent`, `initAdminReportsPage`, `initFeeManagementControls`, `initPortalPage`, `initSupabaseWorkspaceStateLiveSync`, `saveParentFeesState` |
 | `FEE_CATEGORY_FALLBACK` | const `auth.js:34` | None detected | `buildConfiguredParentFeeSnapshot`, `getFeeCategoryOptionsForItems`, `initFeeManagementControls`, `normalizeFeeCategoryKey`, `populatePortalFeeForm`, `renderFeeManagementSection`, `renderParentFeeInvoiceDocument`, `renderParentFeesPage`, `renderStudentFeesSection`, `resetPortalFeeForm` |
@@ -487,19 +487,19 @@ Proposed destination: `js/features/leave/`. Status for all rows: **inventoried /
 
 | Symbol | Kind / location | Dependencies and external references | Direct consumers |
 | --- | --- | --- | --- |
-| `DEFAULT_LEAVE_REQUEST_RECORDS` | const `app.js:278` | None detected | `getLeaveRequests`, `startup@4329` |
-| `SCHOOL_LEAVE_REQUESTS_STORAGE_KEY` | const `app.js:279` | None detected | `clearLegacySharedState`, `getLeaveRequests`, `saveLeaveRequests`, `startup@4466` |
-| `SCHOOL_LEAVE_REQUESTS_EVENT` | const `app.js:280` | None detected | `emitLeaveRequestsUpdate`, `startup@4336` |
-| `normalizeLeaveAttachment` | function `app.js:2893-2904` | `createStorageId`; external: `Date`, `Math`, `Number`, `String` | `normalizeLeaveRequest` |
-| `calculateLeaveDays` | function `app.js:2906-2915` | ; external: `Date`, `Math`, `Number`, `String` | `normalizeLeaveRequest`, `startup@4335` |
-| `normalizeLeaveRequest` | function `app.js:2917-2957` | `calculateLeaveDays`, `createStorageId`, `normalizeLeaveAttachment`; external: `Date`, `Math`, `Number`, `String` | `getLeaveRequests`, `saveLeaveRequests`, `upsertLeaveRequest` |
-| `compareLeaveRequests` | function `app.js:2959-2964` | ; external: `String` | `getLeaveRequests`, `saveLeaveRequests` |
-| `getLeaveRequests` | function `app.js:2966-2971` | `DEFAULT_LEAVE_REQUEST_RECORDS`, `SCHOOL_LEAVE_REQUESTS_STORAGE_KEY`, `compareLeaveRequests`, `normalizeLeaveRequest`, `readWorkspaceState`; external: `Array` | `emitLeaveRequestsUpdate`, `setLeaveRequestStatus`, `startup@4330`, `startup@4467`, `summarizeLeaveRequests`, `upsertLeaveRequest` |
-| `emitLeaveRequestsUpdate` | function `app.js:2973-2979` | `SCHOOL_LEAVE_REQUESTS_EVENT`, `getLeaveRequests`; external: `CustomEvent`, `window` | `saveLeaveRequests`, `startup@4467` |
-| `saveLeaveRequests` | function `app.js:2981-2989` | `SCHOOL_LEAVE_REQUESTS_STORAGE_KEY`, `compareLeaveRequests`, `emitLeaveRequestsUpdate`, `normalizeLeaveRequest`, `writeWorkspaceState`; external: `Array` | `setLeaveRequestStatus`, `startup@4332`, `upsertLeaveRequest` |
-| `upsertLeaveRequest` | function `app.js:2991-3016` | `getLeaveRequests`, `normalizeLeaveRequest`, `saveLeaveRequests`; external: `Date` | `startup@4333` |
-| `setLeaveRequestStatus` | function `app.js:3018-3040` | `getLeaveRequests`, `saveLeaveRequests`; external: `Date`, `String` | `startup@4334` |
-| `summarizeLeaveRequests` | function `app.js:3042-3051` | `getLeaveRequests` | `startup@4331` |
+| `DEFAULT_LEAVE_REQUEST_RECORDS` | const `app.js:278` | None detected | `getLeaveRequests`, `startup@4320` |
+| `SCHOOL_LEAVE_REQUESTS_STORAGE_KEY` | const `app.js:279` | None detected | `clearLegacySharedState`, `getLeaveRequests`, `saveLeaveRequests`, `startup@4457` |
+| `SCHOOL_LEAVE_REQUESTS_EVENT` | const `app.js:280` | None detected | `emitLeaveRequestsUpdate`, `startup@4327` |
+| `normalizeLeaveAttachment` | function `app.js:2884-2895` | `createStorageId`; external: `Date`, `Math`, `Number`, `String` | `normalizeLeaveRequest` |
+| `calculateLeaveDays` | function `app.js:2897-2906` | ; external: `Date`, `Math`, `Number`, `String` | `normalizeLeaveRequest`, `startup@4326` |
+| `normalizeLeaveRequest` | function `app.js:2908-2948` | `calculateLeaveDays`, `createStorageId`, `normalizeLeaveAttachment`; external: `Date`, `Math`, `Number`, `String` | `getLeaveRequests`, `saveLeaveRequests`, `upsertLeaveRequest` |
+| `compareLeaveRequests` | function `app.js:2950-2955` | ; external: `String` | `getLeaveRequests`, `saveLeaveRequests` |
+| `getLeaveRequests` | function `app.js:2957-2962` | `DEFAULT_LEAVE_REQUEST_RECORDS`, `SCHOOL_LEAVE_REQUESTS_STORAGE_KEY`, `compareLeaveRequests`, `normalizeLeaveRequest`, `readWorkspaceState`; external: `Array` | `emitLeaveRequestsUpdate`, `setLeaveRequestStatus`, `startup@4321`, `startup@4458`, `summarizeLeaveRequests`, `upsertLeaveRequest` |
+| `emitLeaveRequestsUpdate` | function `app.js:2964-2970` | `SCHOOL_LEAVE_REQUESTS_EVENT`, `getLeaveRequests`; external: `CustomEvent`, `window` | `saveLeaveRequests`, `startup@4458` |
+| `saveLeaveRequests` | function `app.js:2972-2980` | `SCHOOL_LEAVE_REQUESTS_STORAGE_KEY`, `compareLeaveRequests`, `emitLeaveRequestsUpdate`, `normalizeLeaveRequest`, `writeWorkspaceState`; external: `Array` | `setLeaveRequestStatus`, `startup@4323`, `upsertLeaveRequest` |
+| `upsertLeaveRequest` | function `app.js:2982-3007` | `getLeaveRequests`, `normalizeLeaveRequest`, `saveLeaveRequests`; external: `Date` | `startup@4324` |
+| `setLeaveRequestStatus` | function `app.js:3009-3031` | `getLeaveRequests`, `saveLeaveRequests`; external: `Date`, `String` | `startup@4325` |
+| `summarizeLeaveRequests` | function `app.js:3033-3042` | `getLeaveRequests` | `startup@4322` |
 | `getLeaveRequestManager` | function `auth.js:8188-8190` | ; external: `window` | `getStaffLeaveDays`, `getStaffLeaveRequestsForUser`, `initAdminStaffLeaveReviewControls`, `renderAdminStaffLeaveReviewSection`, `renderStaffLeaveWorkspace` |
 | `renderAdminStaffLeaveRequestDetails` | function `auth.js:21934-22016` | `escapeHtml`, `formatCalendarRange`, `formatTimestamp`, `getStaffLeaveStatusClass`, `getStaffLeaveStatusLabel`, `getStaffLeaveTypeLabel`, `nowIso`, `renderStaffLeaveAttachment`; external: `Boolean`, `Number`, `String` | `initAdminStaffLeaveReviewControls` |
 | `renderAdminStaffLeaveReviewSection` | function `auth.js:22018-22125` | `escapeHtml`, `formatCalendarRange`, `formatTimestamp`, `getLeaveRequestManager`, `getStaffLeaveStatusClass`, `getStaffLeaveStatusLabel`, `getStaffLeaveTypeLabel`, `nowIso`, `setStatus`; external: `Number`, `String` | `initAdminStaffLeaveReviewControls` |
@@ -520,20 +520,20 @@ Proposed destination: `js/features/lesson-plans/`. Status for all rows: **invent
 
 | Symbol | Kind / location | Dependencies and external references | Direct consumers |
 | --- | --- | --- | --- |
-| `DEFAULT_LESSON_PLAN_RECORDS` | const `app.js:275` | None detected | `getLessonPlans`, `startup@4318` |
+| `DEFAULT_LESSON_PLAN_RECORDS` | const `app.js:275` | None detected | `getLessonPlans`, `startup@4309` |
 | `SCHOOL_LESSON_PLANS_STORAGE_KEY` | const `app.js:276` | None detected | `clearLegacySharedState`, `getLessonPlans`, `saveLessonPlans` |
-| `SCHOOL_LESSON_PLANS_EVENT` | const `app.js:277` | None detected | `emitLessonPlansUpdate`, `startup@4325` |
-| `normalizeLessonPlanTextList` | function `app.js:2686-2697` | ; external: `Array`, `Boolean`, `String` | `normalizeLessonPlanRecord` |
-| `normalizeLessonPlanAttachment` | function `app.js:2699-2710` | `createStorageId`; external: `Date`, `Math`, `Number`, `String` | `normalizeLessonPlanRecord` |
-| `normalizeLessonPlanRecord` | function `app.js:2712-2779` | `createStorageId`, `normalizeLessonPlanAttachment`, `normalizeLessonPlanTextList`; external: `Array`, `Boolean`, `Date`, `Number`, `String` | `duplicateLessonPlan`, `getLessonPlans`, `saveLessonPlans`, `upsertLessonPlan` |
-| `compareLessonPlans` | function `app.js:2781-2793` | ; external: `Number`, `String`, `undefined` | `getLessonPlans`, `saveLessonPlans` |
-| `getLessonPlans` | function `app.js:2795-2799` | `DEFAULT_LESSON_PLAN_RECORDS`, `SCHOOL_LESSON_PLANS_STORAGE_KEY`, `compareLessonPlans`, `normalizeLessonPlanRecord`, `readWorkspaceState`; external: `Array` | `deleteLessonPlan`, `duplicateLessonPlan`, `emitLessonPlansUpdate`, `startup@4319`, `summarizeLessonPlans`, `upsertLessonPlan` |
-| `emitLessonPlansUpdate` | function `app.js:2801-2807` | `SCHOOL_LESSON_PLANS_EVENT`, `getLessonPlans`; external: `CustomEvent`, `window` | `saveLessonPlans` |
-| `saveLessonPlans` | function `app.js:2809-2816` | `SCHOOL_LESSON_PLANS_STORAGE_KEY`, `compareLessonPlans`, `emitLessonPlansUpdate`, `normalizeLessonPlanRecord`, `writeWorkspaceState`; external: `Array` | `deleteLessonPlan`, `duplicateLessonPlan`, `startup@4321`, `upsertLessonPlan` |
-| `upsertLessonPlan` | function `app.js:2818-2842` | `getLessonPlans`, `normalizeLessonPlanRecord`, `saveLessonPlans`; external: `Date` | `startup@4322` |
-| `duplicateLessonPlan` | function `app.js:2844-2872` | `createStorageId`, `getLessonPlans`, `normalizeLessonPlanRecord`, `saveLessonPlans`; external: `Date` | `startup@4323` |
-| `deleteLessonPlan` | function `app.js:2874-2876` | `getLessonPlans`, `saveLessonPlans` | `startup@4324` |
-| `summarizeLessonPlans` | function `app.js:2878-2891` | `getLessonPlans` | `startup@4320` |
+| `SCHOOL_LESSON_PLANS_EVENT` | const `app.js:277` | None detected | `emitLessonPlansUpdate`, `startup@4316` |
+| `normalizeLessonPlanTextList` | function `app.js:2677-2688` | ; external: `Array`, `Boolean`, `String` | `normalizeLessonPlanRecord` |
+| `normalizeLessonPlanAttachment` | function `app.js:2690-2701` | `createStorageId`; external: `Date`, `Math`, `Number`, `String` | `normalizeLessonPlanRecord` |
+| `normalizeLessonPlanRecord` | function `app.js:2703-2770` | `createStorageId`, `normalizeLessonPlanAttachment`, `normalizeLessonPlanTextList`; external: `Array`, `Boolean`, `Date`, `Number`, `String` | `duplicateLessonPlan`, `getLessonPlans`, `saveLessonPlans`, `upsertLessonPlan` |
+| `compareLessonPlans` | function `app.js:2772-2784` | ; external: `Number`, `String`, `undefined` | `getLessonPlans`, `saveLessonPlans` |
+| `getLessonPlans` | function `app.js:2786-2790` | `DEFAULT_LESSON_PLAN_RECORDS`, `SCHOOL_LESSON_PLANS_STORAGE_KEY`, `compareLessonPlans`, `normalizeLessonPlanRecord`, `readWorkspaceState`; external: `Array` | `deleteLessonPlan`, `duplicateLessonPlan`, `emitLessonPlansUpdate`, `startup@4310`, `summarizeLessonPlans`, `upsertLessonPlan` |
+| `emitLessonPlansUpdate` | function `app.js:2792-2798` | `SCHOOL_LESSON_PLANS_EVENT`, `getLessonPlans`; external: `CustomEvent`, `window` | `saveLessonPlans` |
+| `saveLessonPlans` | function `app.js:2800-2807` | `SCHOOL_LESSON_PLANS_STORAGE_KEY`, `compareLessonPlans`, `emitLessonPlansUpdate`, `normalizeLessonPlanRecord`, `writeWorkspaceState`; external: `Array` | `deleteLessonPlan`, `duplicateLessonPlan`, `startup@4312`, `upsertLessonPlan` |
+| `upsertLessonPlan` | function `app.js:2809-2833` | `getLessonPlans`, `normalizeLessonPlanRecord`, `saveLessonPlans`; external: `Date` | `startup@4313` |
+| `duplicateLessonPlan` | function `app.js:2835-2863` | `createStorageId`, `getLessonPlans`, `normalizeLessonPlanRecord`, `saveLessonPlans`; external: `Date` | `startup@4314` |
+| `deleteLessonPlan` | function `app.js:2865-2867` | `getLessonPlans`, `saveLessonPlans` | `startup@4315` |
+| `summarizeLessonPlans` | function `app.js:2869-2882` | `getLessonPlans` | `startup@4311` |
 | `getLessonPlanManager` | function `auth.js:8164-8166` | ; external: `window` | `getTeacherLessonPlans`, `renderStaffLessonPlansWorkspace`, `renderStudentCoursesSection` |
 | `getTeacherLessonPlans` | function `auth.js:36743-36764` | `getLessonPlanManager`, `normalizeEmail`; external: `String` | `renderStaffLessonPlansWorkspace` |
 | `getLessonPlanStatusLabel` | function `auth.js:36766-36771` | ; external: `String` | `renderStaffLessonPlansWorkspace`, `renderStudentCoursesSection` |
@@ -551,7 +551,7 @@ Proposed destination: `js/features/messaging/`. Status for all rows: **inventori
 | Symbol | Kind / location | Dependencies and external references | Direct consumers |
 | --- | --- | --- | --- |
 | `STUDENT_MESSAGES_PERMISSION_MIGRATION_KEY` | const `app.js:313-314` | None detected | `migrateStudentMessagesPermissionDefault` |
-| `migrateStudentMessagesPermissionDefault` | function `app.js:4100-4116` | `ROLE_PERMISSIONS_STORAGE_KEY`, `STUDENT_MESSAGES_PERMISSION_MIGRATION_KEY`, `getActiveWorkspaceStorageId`, `normalizeRolePermissions`, `readWorkspaceState`, `writeWorkspaceState`; external: `localStorage` | `getRolePermissions` |
+| `migrateStudentMessagesPermissionDefault` | function `app.js:4091-4107` | `ROLE_PERMISSIONS_STORAGE_KEY`, `STUDENT_MESSAGES_PERMISSION_MIGRATION_KEY`, `getActiveWorkspaceStorageId`, `normalizeRolePermissions`, `readWorkspaceState`, `writeWorkspaceState`; external: `localStorage` | `getRolePermissions` |
 | `STUDENT_MESSAGES_PERMISSION_MIGRATION_ROW` | const `auth.js:555` | None detected | `initRolePermissionControls` |
 | `isPortalMessageEntry` | function `auth.js:2281-2285` | ; external: `String` | `buildAdminMessageThreads`, `buildStaffMessageThreads`, `getParentMessageNotifications` |
 | `isPortalMessageOutgoingForViewer` | function `auth.js:2287-2296` | `DEFAULT_AUTH_ROLE`, `getNotificationViewer`, `isNotificationAuthoredByViewer`, `normalizeRoleLabel`; external: `String` | `renderPortalMessageInbox` |
@@ -723,27 +723,27 @@ Proposed destination: `js/features/access/permissions.js or js/features/settings
 
 | Symbol | Kind / location | Dependencies and external references | Direct consumers |
 | --- | --- | --- | --- |
-| `ROLE_PERMISSIONS_STORAGE_KEY` | const `app.js:311` | None detected | `clearLegacySharedState`, `getRolePermissions`, `migrateStudentMessagesPermissionDefault`, `resetRolePermissions`, `saveRolePermissions`, `startup@4474` |
-| `ROLE_PERMISSIONS_EVENT` | const `app.js:312` | None detected | `emitRolePermissionsUpdate`, `startup@4199` |
-| `ROLE_PERMISSION_ROLES` | const `app.js:315` | None detected | `normalizeRolePermissions`, `setRolePermission`, `startup@4189`, `summarizeRolePermissions` |
-| `ROLE_PERMISSION_OPTIONS_BY_ROLE` | const `app.js:316-350` | None detected | `DEFAULT_ROLE_PERMISSIONS`, `ROLE_PERMISSION_OPTIONS`, `getRolePermissionOptions`, `normalizeRolePermissions`, `startup@4191`, `summarizeRolePermissions` |
-| `ROLE_PERMISSION_OPTIONS` | const `app.js:351-356` | `ROLE_PERMISSION_OPTIONS_BY_ROLE`; external: `Object` | `DEFAULT_ROLE_PERMISSIONS`, `startup@4190`, `summarizeRolePermissions` |
+| `ROLE_PERMISSIONS_STORAGE_KEY` | const `app.js:311` | None detected | `clearLegacySharedState`, `getRolePermissions`, `migrateStudentMessagesPermissionDefault`, `resetRolePermissions`, `saveRolePermissions`, `startup@4465` |
+| `ROLE_PERMISSIONS_EVENT` | const `app.js:312` | None detected | `emitRolePermissionsUpdate`, `startup@4190` |
+| `ROLE_PERMISSION_ROLES` | const `app.js:315` | None detected | `normalizeRolePermissions`, `setRolePermission`, `startup@4180`, `summarizeRolePermissions` |
+| `ROLE_PERMISSION_OPTIONS_BY_ROLE` | const `app.js:316-350` | None detected | `DEFAULT_ROLE_PERMISSIONS`, `ROLE_PERMISSION_OPTIONS`, `getRolePermissionOptions`, `normalizeRolePermissions`, `startup@4182`, `summarizeRolePermissions` |
+| `ROLE_PERMISSION_OPTIONS` | const `app.js:351-356` | `ROLE_PERMISSION_OPTIONS_BY_ROLE`; external: `Object` | `DEFAULT_ROLE_PERMISSIONS`, `startup@4181`, `summarizeRolePermissions` |
 | `LEGACY_ROLE_PERMISSION_FALLBACKS` | const `app.js:357-389` | None detected | `normalizeRolePermissions` |
-| `DEFAULT_ROLE_PERMISSIONS` | const `app.js:492-509` | `ROLE_PERMISSION_OPTIONS`, `ROLE_PERMISSION_OPTIONS_BY_ROLE` | `normalizeRolePermissions`, `startup@4192` |
-| `getFeatureToggleDefaults` | function `app.js:4017-4019` | `features`; external: `Object` | `getFeatureToggleState` |
-| `getFeatureToggleState` | function `app.js:4021-4029` | `FEATURE_TOGGLE_STORAGE_KEY`, `features`, `getFeatureToggleDefaults`, `readWorkspaceState` | `emitFeatureToggleUpdate`, `getEnabledFeatures`, `setFeatureEnabled`, `startup@4181`, `startup@4403`, `summarizeFeatureToggleState` |
-| `emitFeatureToggleUpdate` | function `app.js:4031-4037` | `FEATURE_TOGGLE_EVENT`, `getFeatureToggleState`; external: `CustomEvent`, `window` | `setFeatureEnabled`, `startup@4403` |
-| `setFeatureEnabled` | function `app.js:4039-4049` | `FEATURE_TOGGLE_STORAGE_KEY`, `emitFeatureToggleUpdate`, `getFeatureToggleState`, `writeWorkspaceState`; external: `Boolean` | `startup@4183` |
-| `getEnabledFeatures` | function `app.js:4051-4054` | `features`, `getFeatureToggleState` | `renderFeatureGrid`, `startup@4182` |
-| `summarizeFeatureToggleState` | function `app.js:4056-4065` | `features`, `getFeatureToggleState` | `startup@4184` |
-| `getRolePermissionOptions` | function `app.js:4067-4069` | `ROLE_PERMISSION_OPTIONS_BY_ROLE` | `setRolePermission`, `startup@4193`, `summarizeRolePermissions` |
-| `normalizeRolePermissions` | function `app.js:4071-4098` | `DEFAULT_ROLE_PERMISSIONS`, `LEGACY_ROLE_PERMISSION_FALLBACKS`, `ROLE_PERMISSION_OPTIONS_BY_ROLE`, `ROLE_PERMISSION_ROLES` | `getRolePermissions`, `migrateStudentMessagesPermissionDefault`, `saveRolePermissions` |
-| `getRolePermissions` | function `app.js:4118-4122` | `ROLE_PERMISSIONS_STORAGE_KEY`, `migrateStudentMessagesPermissionDefault`, `normalizeRolePermissions`, `readWorkspaceState` | `emitRolePermissionsUpdate`, `resetRolePermissions`, `setRolePermission`, `startup@4194`, `startup@4475`, `summarizeRolePermissions` |
-| `emitRolePermissionsUpdate` | function `app.js:4124-4130` | `ROLE_PERMISSIONS_EVENT`, `getRolePermissions`; external: `CustomEvent`, `window` | `resetRolePermissions`, `saveRolePermissions`, `startup@4475` |
-| `saveRolePermissions` | function `app.js:4132-4137` | `ROLE_PERMISSIONS_STORAGE_KEY`, `emitRolePermissionsUpdate`, `normalizeRolePermissions`, `writeWorkspaceState` | `setRolePermission`, `startup@4196` |
-| `setRolePermission` | function `app.js:4139-4151` | `ROLE_PERMISSION_ROLES`, `getRolePermissionOptions`, `getRolePermissions`, `saveRolePermissions`; external: `Boolean` | `startup@4195` |
-| `resetRolePermissions` | function `app.js:4153-4158` | `ROLE_PERMISSIONS_STORAGE_KEY`, `emitRolePermissionsUpdate`, `getRolePermissions`, `removeWorkspaceState` | `startup@4197` |
-| `summarizeRolePermissions` | function `app.js:4160-4177` | `ROLE_PERMISSION_OPTIONS`, `ROLE_PERMISSION_OPTIONS_BY_ROLE`, `ROLE_PERMISSION_ROLES`, `getRolePermissionOptions`, `getRolePermissions` | `startup@4198` |
+| `DEFAULT_ROLE_PERMISSIONS` | const `app.js:492-509` | `ROLE_PERMISSION_OPTIONS`, `ROLE_PERMISSION_OPTIONS_BY_ROLE` | `normalizeRolePermissions`, `startup@4183` |
+| `getFeatureToggleDefaults` | function `app.js:4008-4010` | `features`; external: `Object` | `getFeatureToggleState` |
+| `getFeatureToggleState` | function `app.js:4012-4020` | `FEATURE_TOGGLE_STORAGE_KEY`, `features`, `getFeatureToggleDefaults`, `readWorkspaceState` | `emitFeatureToggleUpdate`, `getEnabledFeatures`, `setFeatureEnabled`, `startup@4172`, `startup@4394`, `summarizeFeatureToggleState` |
+| `emitFeatureToggleUpdate` | function `app.js:4022-4028` | `FEATURE_TOGGLE_EVENT`, `getFeatureToggleState`; external: `CustomEvent`, `window` | `setFeatureEnabled`, `startup@4394` |
+| `setFeatureEnabled` | function `app.js:4030-4040` | `FEATURE_TOGGLE_STORAGE_KEY`, `emitFeatureToggleUpdate`, `getFeatureToggleState`, `writeWorkspaceState`; external: `Boolean` | `startup@4174` |
+| `getEnabledFeatures` | function `app.js:4042-4045` | `features`, `getFeatureToggleState` | `renderFeatureGrid`, `startup@4173` |
+| `summarizeFeatureToggleState` | function `app.js:4047-4056` | `features`, `getFeatureToggleState` | `startup@4175` |
+| `getRolePermissionOptions` | function `app.js:4058-4060` | `ROLE_PERMISSION_OPTIONS_BY_ROLE` | `setRolePermission`, `startup@4184`, `summarizeRolePermissions` |
+| `normalizeRolePermissions` | function `app.js:4062-4089` | `DEFAULT_ROLE_PERMISSIONS`, `LEGACY_ROLE_PERMISSION_FALLBACKS`, `ROLE_PERMISSION_OPTIONS_BY_ROLE`, `ROLE_PERMISSION_ROLES` | `getRolePermissions`, `migrateStudentMessagesPermissionDefault`, `saveRolePermissions` |
+| `getRolePermissions` | function `app.js:4109-4113` | `ROLE_PERMISSIONS_STORAGE_KEY`, `migrateStudentMessagesPermissionDefault`, `normalizeRolePermissions`, `readWorkspaceState` | `emitRolePermissionsUpdate`, `resetRolePermissions`, `setRolePermission`, `startup@4185`, `startup@4466`, `summarizeRolePermissions` |
+| `emitRolePermissionsUpdate` | function `app.js:4115-4121` | `ROLE_PERMISSIONS_EVENT`, `getRolePermissions`; external: `CustomEvent`, `window` | `resetRolePermissions`, `saveRolePermissions`, `startup@4466` |
+| `saveRolePermissions` | function `app.js:4123-4128` | `ROLE_PERMISSIONS_STORAGE_KEY`, `emitRolePermissionsUpdate`, `normalizeRolePermissions`, `writeWorkspaceState` | `setRolePermission`, `startup@4187` |
+| `setRolePermission` | function `app.js:4130-4142` | `ROLE_PERMISSION_ROLES`, `getRolePermissionOptions`, `getRolePermissions`, `saveRolePermissions`; external: `Boolean` | `startup@4186` |
+| `resetRolePermissions` | function `app.js:4144-4149` | `ROLE_PERMISSIONS_STORAGE_KEY`, `emitRolePermissionsUpdate`, `getRolePermissions`, `removeWorkspaceState` | `startup@4188` |
+| `summarizeRolePermissions` | function `app.js:4151-4168` | `ROLE_PERMISSION_OPTIONS`, `ROLE_PERMISSION_OPTIONS_BY_ROLE`, `ROLE_PERMISSION_ROLES`, `getRolePermissionOptions`, `getRolePermissions` | `startup@4189` |
 | `SUPABASE_STATE_KEY_FEATURE_MODULES` | const `auth.js:553` | None detected | `SUPABASE_WORKSPACE_HYDRATE_KEYS`, `emitHydratedWorkspaceStateEvent`, `initFeatureToggleControls`, `initSupabaseWorkspaceStateLiveSync`, `loadTableNativeStatePayloadFromSupabase`, `saveTableNativeStatePayloadToSupabase`, `supportsTableNativeState` |
 | `SUPABASE_STATE_KEY_ROLE_PERMISSIONS` | const `auth.js:554` | None detected | `SUPABASE_WORKSPACE_HYDRATE_KEYS`, `emitHydratedWorkspaceStateEvent`, `initRolePermissionControls`, `initSupabaseWorkspaceStateLiveSync`, `loadTableNativeStatePayloadFromSupabase`, `saveTableNativeStatePayloadToSupabase`, `supportsTableNativeState` |
 | `applyRolePermissionSidebarVisibility` | function `auth.js:7935-7958` | `DEFAULT_AUTH_ROLE`, `canAccessPermission`, `getSidebarPermissionKey`, `normalizeRoleLabel` | `initAdminSidebarUi` |
@@ -805,62 +805,62 @@ Proposed destination: `js/website/ (content, navigation, individual renderers)`.
 | Symbol | Kind / location | Dependencies and external references | Direct consumers |
 | --- | --- | --- | --- |
 | `homeNavLinks` | const `app.js:23-28` | None detected | `renderHeader` |
-| `whyCards` | const `js/website/why-grid.js:1-17` — E03 moved unchanged | Three literal title/copy records; no external dependencies; original global lexical const and mutable array retained | `app.js:initPageContent` at 4796, calls at 4797/4798; no detected mutations |
+| `whyCards` | const `js/website/why-grid.js:1-17` — E03 moved unchanged | Three literal title/copy records; no external dependencies; original global lexical const and mutable array retained | `app.js:initPageContent` at 4787, calls at 4788/4789; no detected mutations |
 | `standoutBullets` | const `app.js:30-35` | None detected | `renderStandoutList` |
 | `offerings` | const `app.js:37-128` | None detected | `activeOfferingId`, `initPageContent`, `renderOfferingTabs`, `renderWorkflowPage` |
-| `features` | const `app.js:130-201` | None detected | `getEnabledFeatures`, `getFeatureToggleDefaults`, `getFeatureToggleState`, `renderFeatureSurfaces`, `startup@4180`, `summarizeFeatureToggleState` |
-| `FEATURE_TOGGLE_STORAGE_KEY` | const `app.js:203` | None detected | `clearLegacySharedState`, `getFeatureToggleState`, `setFeatureEnabled`, `startup@4402` |
-| `FEATURE_TOGGLE_EVENT` | const `app.js:204` | None detected | `emitFeatureToggleUpdate`, `startup@4185`, `startup@4822` |
+| `features` | const `app.js:130-201` | None detected | `getEnabledFeatures`, `getFeatureToggleDefaults`, `getFeatureToggleState`, `renderFeatureSurfaces`, `startup@4171`, `summarizeFeatureToggleState` |
+| `FEATURE_TOGGLE_STORAGE_KEY` | const `app.js:203` | None detected | `clearLegacySharedState`, `getFeatureToggleState`, `setFeatureEnabled`, `startup@4393` |
+| `FEATURE_TOGGLE_EVENT` | const `app.js:204` | None detected | `emitFeatureToggleUpdate`, `startup@4176`, `startup@4813` |
 | `DEFAULT_PLATFORM_NAME` | const `app.js:205` | None detected | `DEFAULT_SCHOOL_SETTINGS`, `getSchoolInitial`, `hasSchoolSettingsContext`, `renderFooter`, `renderHeader` |
-| `DEFAULT_SCHOOL_SETTINGS` | const `app.js:206-222` | `DEFAULT_PLATFORM_NAME` | `hasSchoolSettingsContext`, `normalizeHigherInstitutionType`, `normalizeSchoolSettings`, `startup@4203` |
-| `SCHOOL_SETTINGS_STORAGE_KEY` | const `app.js:223` | None detected | `clearLegacySharedState`, `getSchoolSettings`, `resetSchoolSettings`, `saveSchoolSettings`, `startup@4406` |
-| `SCHOOL_SETTINGS_EVENT` | const `app.js:224` | None detected | `emitSchoolSettingsUpdate`, `startup@4211`, `startup@4816` |
-| `DEFAULT_ACADEMIC_CYCLES` | const `app.js:225-228` | None detected | `getAcademicCycles`, `startup@4215` |
-| `SCHOOL_ACADEMIC_CYCLES_STORAGE_KEY` | const `app.js:229` | None detected | `clearLegacySharedState`, `getAcademicCycles`, `saveAcademicCycles`, `startup@4410` |
-| `SCHOOL_ACADEMIC_CYCLES_EVENT` | const `app.js:230` | None detected | `emitAcademicCyclesUpdate`, `startup@4223` |
-| `DEFAULT_ACADEMIC_CALENDAR_EVENTS` | const `app.js:231` | None detected | `getAcademicCalendarEvents`, `startup@4227` |
-| `SCHOOL_ACADEMIC_CALENDAR_STORAGE_KEY` | const `app.js:232` | None detected | `clearLegacySharedState`, `getAcademicCalendarEvents`, `saveAcademicCalendarEvents`, `startup@4414` |
-| `SCHOOL_ACADEMIC_CALENDAR_EVENT` | const `app.js:233` | None detected | `emitAcademicCalendarUpdate`, `startup@4237` |
-| `DEFAULT_ADMISSION_CONFIGURATION` | const `app.js:234-243` | None detected | `getAdmissionConfiguration`, `normalizeAdmissionConfiguration`, `startup@4241` |
-| `SCHOOL_ADMISSION_CONFIG_STORAGE_KEY` | const `app.js:244` | None detected | `clearLegacySharedState`, `getAdmissionConfiguration`, `saveAdmissionConfiguration`, `startup@4418` |
-| `SCHOOL_ADMISSION_CONFIG_EVENT` | const `app.js:245` | None detected | `emitAdmissionConfigurationUpdate`, `startup@4251` |
-| `DEFAULT_TIMETABLE_ENTRIES` | const `app.js:246` | None detected | `getSchoolTimetableEntries`, `startup@4255` |
-| `SCHOOL_TIMETABLE_STORAGE_KEY` | const `app.js:247` | None detected | `clearLegacySharedState`, `getSchoolTimetableEntries`, `saveSchoolTimetableEntries`, `startup@4422` |
-| `SCHOOL_TIMETABLE_EVENT` | const `app.js:248` | None detected | `emitSchoolTimetableUpdate`, `startup@4278` |
+| `DEFAULT_SCHOOL_SETTINGS` | const `app.js:206-222` | `DEFAULT_PLATFORM_NAME` | `hasSchoolSettingsContext`, `normalizeHigherInstitutionType`, `normalizeSchoolSettings`, `startup@4194` |
+| `SCHOOL_SETTINGS_STORAGE_KEY` | const `app.js:223` | None detected | `clearLegacySharedState`, `getSchoolSettings`, `resetSchoolSettings`, `saveSchoolSettings`, `startup@4397` |
+| `SCHOOL_SETTINGS_EVENT` | const `app.js:224` | None detected | `emitSchoolSettingsUpdate`, `startup@4202`, `startup@4807` |
+| `DEFAULT_ACADEMIC_CYCLES` | const `app.js:225-228` | None detected | `getAcademicCycles`, `startup@4206` |
+| `SCHOOL_ACADEMIC_CYCLES_STORAGE_KEY` | const `app.js:229` | None detected | `clearLegacySharedState`, `getAcademicCycles`, `saveAcademicCycles`, `startup@4401` |
+| `SCHOOL_ACADEMIC_CYCLES_EVENT` | const `app.js:230` | None detected | `emitAcademicCyclesUpdate`, `startup@4214` |
+| `DEFAULT_ACADEMIC_CALENDAR_EVENTS` | const `app.js:231` | None detected | `getAcademicCalendarEvents`, `startup@4218` |
+| `SCHOOL_ACADEMIC_CALENDAR_STORAGE_KEY` | const `app.js:232` | None detected | `clearLegacySharedState`, `getAcademicCalendarEvents`, `saveAcademicCalendarEvents`, `startup@4405` |
+| `SCHOOL_ACADEMIC_CALENDAR_EVENT` | const `app.js:233` | None detected | `emitAcademicCalendarUpdate`, `startup@4228` |
+| `DEFAULT_ADMISSION_CONFIGURATION` | const `app.js:234-243` | None detected | `getAdmissionConfiguration`, `normalizeAdmissionConfiguration`, `startup@4232` |
+| `SCHOOL_ADMISSION_CONFIG_STORAGE_KEY` | const `app.js:244` | None detected | `clearLegacySharedState`, `getAdmissionConfiguration`, `saveAdmissionConfiguration`, `startup@4409` |
+| `SCHOOL_ADMISSION_CONFIG_EVENT` | const `app.js:245` | None detected | `emitAdmissionConfigurationUpdate`, `startup@4242` |
+| `DEFAULT_TIMETABLE_ENTRIES` | const `app.js:246` | None detected | `getSchoolTimetableEntries`, `startup@4246` |
+| `SCHOOL_TIMETABLE_STORAGE_KEY` | const `app.js:247` | None detected | `clearLegacySharedState`, `getSchoolTimetableEntries`, `saveSchoolTimetableEntries`, `startup@4413` |
+| `SCHOOL_TIMETABLE_EVENT` | const `app.js:248` | None detected | `emitSchoolTimetableUpdate`, `startup@4269` |
 | `SCHOOL_TIMETABLE_PERIODS_STORAGE_KEY` | const `app.js:249` | None detected | `getSchoolTimetablePeriods`, `saveSchoolTimetablePeriods` |
 | `SCHOOL_TIMETABLE_ROOMS_STORAGE_KEY` | const `app.js:250` | None detected | `getSchoolTimetableRooms`, `saveSchoolTimetableRooms` |
 | `SCHOOL_TIMETABLE_SUBSTITUTIONS_STORAGE_KEY` | const `app.js:251` | None detected | `getSchoolTimetableSubstitutions`, `saveSchoolTimetableSubstitutions` |
-| `DEFAULT_FEE_ITEMS` | const `app.js:252` | None detected | `getSchoolFeeItems`, `startup@4282` |
-| `SCHOOL_FEE_ITEMS_STORAGE_KEY` | const `app.js:253` | None detected | `clearLegacySharedState`, `getSchoolFeeItems`, `saveSchoolFeeItems`, `startup@4426` |
-| `SCHOOL_FEE_ITEMS_EVENT` | const `app.js:254` | None detected | `emitSchoolFeeItemsUpdate`, `startup@4289` |
-| `DEFAULT_CLASS_RECORDS` | const `app.js:255` | None detected | `getSchoolClasses`, `startup@4293` |
-| `SCHOOL_CLASSES_STORAGE_KEY` | const `app.js:256` | None detected | `clearLegacySharedState`, `getSchoolClasses`, `saveSchoolClasses`, `startup@4430` |
-| `SCHOOL_CLASSES_EVENT` | const `app.js:257` | None detected | `emitSchoolClassesUpdate`, `startup@4301` |
-| `DEFAULT_COURSE_RECORDS` | const `app.js:258` | None detected | `getSchoolCourses`, `startup@4305` |
-| `SCHOOL_COURSES_STORAGE_KEY` | const `app.js:259` | None detected | `clearLegacySharedState`, `getSchoolCourses`, `saveSchoolCourses`, `startup@4434` |
-| `SCHOOL_COURSES_EVENT` | const `app.js:260` | None detected | `emitSchoolCoursesUpdate`, `startup@4314` |
-| `DEFAULT_STUDENT_RECORDS` | const `app.js:261` | None detected | `getSchoolStudents`, `startup@4340` |
-| `SCHOOL_STUDENTS_STORAGE_KEY` | const `app.js:262` | None detected | `clearLegacySharedState`, `getSchoolStudents`, `saveSchoolStudents`, `startup@4438` |
-| `SCHOOL_STUDENTS_EVENT` | const `app.js:263` | None detected | `emitSchoolStudentsUpdate`, `startup@4351` |
-| `DEFAULT_ATTENDANCE_RECORDS` | const `app.js:264` | None detected | `getAttendanceRecords`, `startup@4355` |
-| `SCHOOL_ATTENDANCE_STORAGE_KEY` | const `app.js:265` | None detected | `clearLegacySharedState`, `getAttendanceRecords`, `saveAttendanceRecords`, `startup@4442` |
-| `SCHOOL_ATTENDANCE_EVENT` | const `app.js:266` | None detected | `emitAttendanceUpdate`, `startup@4361` |
-| `currentPage` | function `app.js:4479-4481` | ; external: `document` | No lexical read found; inspect global interface and writes before removal |
-| `hrefMatchesCurrentFile` | function `app.js:4483-4497` | ; external: `String`, `window` | `renderHeader` |
-| `renderHeader` | function `app.js:4499-4553` | `DEFAULT_PLATFORM_NAME`, `buildBrandMarkHtml`, `escapeHtml`, `homeNavLinks`, `hrefMatchesCurrentFile`; external: `document`, `window` | `startup@4811`, `startup@4817`, `startup@4821` |
-| `renderFooter` | function `app.js:4555-4598` | `DEFAULT_PLATFORM_NAME`, `buildBrandMarkHtml`, `escapeHtml`; external: `document` | `startup@4812`, `startup@4818` |
-| `closeMenusOnOutsideClick` | function `app.js:4600-4608` | ; external: `document` | `startup@4813` |
-| `renderWhyGrid` | function `js/website/why-grid.js:19-37` — E01 moved unchanged | Parameters targetId/items; external: `document`; no shared state/constants | `app.js:initPageContent` at 4796, calls at 4797/4798; script loaded once before app.js by all 57 consumer pages |
-| `renderOfferingPreviewGrid` | function `app.js:4610-4628` | ; external: `document` | `initPageContent` |
-| `renderStandoutList` | function `app.js:4630-4638` | `standoutBullets`; external: `document` | `initPageContent` |
-| `renderFeatureGrid` | function `app.js:4640-4671` | `getEnabledFeatures`; external: `document` | `renderFeatureSurfaces` |
-| `renderSchoolGrid` | function `app.js:4673-4694` | ; external: `document` | `initPageContent` |
-| `renderPracticeGrid` | function `js/website/practice-grid.js:1-21` — E02 moved unchanged | Parameters targetId/items; story.title/label/copy; external: `document`; no shared state/constants | `app.js:initPageContent` at 4796, calls at 4807/4808; loaded once before why-grid.js and app.js on all 57 consumers |
-| `activeOfferingId` | let `app.js:4696` | `offerings` | `renderOfferingTabs` |
-| `renderOfferingTabs` | function `app.js:4698-4751` | `activeOfferingId`, `offerings`; external: `document` | `initPageContent`, `renderOfferingTabs` |
-| `renderWorkflowPage` | function `app.js:4753-4789` | `offerings`; external: `document` | `initPageContent` |
-| `renderFeatureSurfaces` | function `app.js:4791-4794` | `features`, `renderFeatureGrid` | `initPageContent`, `startup@4822` |
-| `initPageContent` | function `app.js:4796-4809` | `offerings`, `practiceStories`, `renderFeatureSurfaces`, `renderOfferingPreviewGrid`, `renderOfferingTabs`, `renderPracticeGrid`, `renderSchoolGrid`, `renderStandoutList`, `renderWhyGrid`, `renderWorkflowPage`, `schoolTypes`, `whyCards` | `startup@4814` |
+| `DEFAULT_FEE_ITEMS` | const `app.js:252` | None detected | `getSchoolFeeItems`, `startup@4273` |
+| `SCHOOL_FEE_ITEMS_STORAGE_KEY` | const `app.js:253` | None detected | `clearLegacySharedState`, `getSchoolFeeItems`, `saveSchoolFeeItems`, `startup@4417` |
+| `SCHOOL_FEE_ITEMS_EVENT` | const `app.js:254` | None detected | `emitSchoolFeeItemsUpdate`, `startup@4280` |
+| `DEFAULT_CLASS_RECORDS` | const `app.js:255` | None detected | `getSchoolClasses`, `startup@4284` |
+| `SCHOOL_CLASSES_STORAGE_KEY` | const `app.js:256` | None detected | `clearLegacySharedState`, `getSchoolClasses`, `saveSchoolClasses`, `startup@4421` |
+| `SCHOOL_CLASSES_EVENT` | const `app.js:257` | None detected | `emitSchoolClassesUpdate`, `startup@4292` |
+| `DEFAULT_COURSE_RECORDS` | const `app.js:258` | None detected | `getSchoolCourses`, `startup@4296` |
+| `SCHOOL_COURSES_STORAGE_KEY` | const `app.js:259` | None detected | `clearLegacySharedState`, `getSchoolCourses`, `saveSchoolCourses`, `startup@4425` |
+| `SCHOOL_COURSES_EVENT` | const `app.js:260` | None detected | `emitSchoolCoursesUpdate`, `startup@4305` |
+| `DEFAULT_STUDENT_RECORDS` | const `app.js:261` | None detected | `getSchoolStudents`, `startup@4331` |
+| `SCHOOL_STUDENTS_STORAGE_KEY` | const `app.js:262` | None detected | `clearLegacySharedState`, `getSchoolStudents`, `saveSchoolStudents`, `startup@4429` |
+| `SCHOOL_STUDENTS_EVENT` | const `app.js:263` | None detected | `emitSchoolStudentsUpdate`, `startup@4342` |
+| `DEFAULT_ATTENDANCE_RECORDS` | const `app.js:264` | None detected | `getAttendanceRecords`, `startup@4346` |
+| `SCHOOL_ATTENDANCE_STORAGE_KEY` | const `app.js:265` | None detected | `clearLegacySharedState`, `getAttendanceRecords`, `saveAttendanceRecords`, `startup@4433` |
+| `SCHOOL_ATTENDANCE_EVENT` | const `app.js:266` | None detected | `emitAttendanceUpdate`, `startup@4352` |
+| `currentPage` | function `app.js:4470-4472` | ; external: `document` | No lexical read found; inspect global interface and writes before removal |
+| `hrefMatchesCurrentFile` | function `app.js:4474-4488` | ; external: `String`, `window` | `renderHeader` |
+| `renderHeader` | function `app.js:4490-4544` | `DEFAULT_PLATFORM_NAME`, `buildBrandMarkHtml`, `escapeHtml`, `homeNavLinks`, `hrefMatchesCurrentFile`; external: `document`, `window` | `startup@4802`, `startup@4808`, `startup@4812` |
+| `renderFooter` | function `app.js:4546-4589` | `DEFAULT_PLATFORM_NAME`, `buildBrandMarkHtml`, `escapeHtml`; external: `document` | `startup@4803`, `startup@4809` |
+| `closeMenusOnOutsideClick` | function `app.js:4591-4599` | ; external: `document` | `startup@4804` |
+| `renderWhyGrid` | function `js/website/why-grid.js:19-37` — E01 moved unchanged | Parameters targetId/items; external: `document`; no shared state/constants | `app.js:initPageContent` at 4787, calls at 4788/4789; script loaded once before app.js by all 57 consumer pages |
+| `renderOfferingPreviewGrid` | function `app.js:4601-4619` | ; external: `document` | `initPageContent` |
+| `renderStandoutList` | function `app.js:4621-4629` | `standoutBullets`; external: `document` | `initPageContent` |
+| `renderFeatureGrid` | function `app.js:4631-4662` | `getEnabledFeatures`; external: `document` | `renderFeatureSurfaces` |
+| `renderSchoolGrid` | function `app.js:4664-4685` | ; external: `document` | `initPageContent` |
+| `renderPracticeGrid` | function `js/website/practice-grid.js:1-21` — E02 moved unchanged | Parameters targetId/items; story.title/label/copy; external: `document`; no shared state/constants | `app.js:initPageContent` at 4787, calls at 4798/4799; loaded once before why-grid.js and app.js on all 57 consumers |
+| `activeOfferingId` | let `app.js:4687` | `offerings` | `renderOfferingTabs` |
+| `renderOfferingTabs` | function `app.js:4689-4742` | `activeOfferingId`, `offerings`; external: `document` | `initPageContent`, `renderOfferingTabs` |
+| `renderWorkflowPage` | function `app.js:4744-4780` | `offerings`; external: `document` | `initPageContent` |
+| `renderFeatureSurfaces` | function `app.js:4782-4785` | `features`, `renderFeatureGrid` | `initPageContent`, `startup@4813` |
+| `initPageContent` | function `app.js:4787-4800` | `offerings`, `practiceStories`, `renderFeatureSurfaces`, `renderOfferingPreviewGrid`, `renderOfferingTabs`, `renderPracticeGrid`, `renderSchoolGrid`, `renderStandoutList`, `renderWhyGrid`, `renderWorkflowPage`, `schoolTypes`, `whyCards` | `startup@4805` |
 
 ## Reports and gradebook
 
@@ -868,37 +868,37 @@ Proposed destination: `js/features/reports/ or js/features/gradebook/ (choose by
 
 | Symbol | Kind / location | Dependencies and external references | Direct consumers |
 | --- | --- | --- | --- |
-| `DEFAULT_REPORT_CARD_RECORDS` | const `app.js:267` | None detected | `getReportCardRecords`, `startup@4365` |
-| `SCHOOL_REPORT_CARDS_STORAGE_KEY` | const `app.js:268` | None detected | `clearLegacySharedState`, `getReportCardRecords`, `saveReportCardRecords`, `startup@4446` |
-| `SCHOOL_REPORT_CARDS_EVENT` | const `app.js:269` | None detected | `emitReportCardsUpdate`, `startup@4372` |
-| `SCHOOL_REPORT_CONFIGURATION_STORAGE_KEY` | const `app.js:270` | None detected | `clearLegacySharedState`, `getReportConfiguration`, `saveReportConfiguration`, `startup@4450` |
-| `SCHOOL_REPORT_CONFIGURATION_EVENT` | const `app.js:271` | None detected | `saveReportConfiguration`, `startup@4380`, `startup@4452` |
-| `DEFAULT_GRADEBOOK_RECORDS` | const `app.js:272` | None detected | `getGradebookRecords`, `startup@4384` |
-| `SCHOOL_GRADEBOOK_STORAGE_KEY` | const `app.js:273` | None detected | `clearLegacySharedState`, `getGradebookRecords`, `saveGradebookRecords`, `startup@4458` |
-| `SCHOOL_GRADEBOOK_EVENT` | const `app.js:274` | None detected | `saveGradebookRecords`, `startup@4390`, `startup@4460` |
-| `DEFAULT_REPORT_CONFIGURATION` | const `app.js:281-301` | None detected | `getReportConfiguration`, `normalizeReportConfiguration`, `startup@4376` |
-| `normalizeReportCardScore` | function `app.js:3591-3599` | ; external: `Math`, `Number` | `getReportCardGrade`, `normalizeReportCardSubject` |
-| `normalizeReportConfiguration` | function `app.js:3601-3644` | `DEFAULT_REPORT_CONFIGURATION`; external: `Array`, `Boolean`, `Math`, `Number`, `String` | `getReportConfiguration`, `saveReportConfiguration` |
-| `normalizeGradebookComponent` | function `app.js:3646-3652` | `createStorageId`; external: `Math`, `Number`, `String` | `normalizeGradebookRecord` |
-| `normalizeGradebookRecord` | function `app.js:3654-3694` | `createStorageId`, `normalizeGradebookComponent`; external: `Array`, `Date`, `Math`, `Number`, `Object`, `Set`, `String` | `getGradebookRecords`, `saveGradebookRecords`, `upsertGradebookRecord` |
-| `getGradebookRecords` | function `app.js:3696-3700` | `DEFAULT_GRADEBOOK_RECORDS`, `SCHOOL_GRADEBOOK_STORAGE_KEY`, `normalizeGradebookRecord`, `readWorkspaceState`; external: `Array` | `getGradebookRecordForContext`, `startup@4385`, `startup@4461`, `upsertGradebookRecord` |
-| `saveGradebookRecords` | function `app.js:3702-3709` | `SCHOOL_GRADEBOOK_EVENT`, `SCHOOL_GRADEBOOK_STORAGE_KEY`, `normalizeGradebookRecord`, `writeWorkspaceState`; external: `Array`, `CustomEvent`, `window` | `startup@4386`, `upsertGradebookRecord` |
-| `upsertGradebookRecord` | function `app.js:3711-3734` | `getGradebookRecords`, `normalizeGradebookRecord`, `saveGradebookRecords`; external: `Date` | `startup@4387` |
-| `getGradebookRecordForContext` | function `app.js:3736-3747` | `getGradebookRecords`; external: `String` | `getGradebookStudentTotal`, `startup@4388` |
-| `getGradebookStudentTotal` | function `app.js:3749-3761` | `getGradebookRecordForContext`; external: `Math`, `Number`, `String` | `startup@4389` |
-| `getReportConfiguration` | function `app.js:3763-3767` | `DEFAULT_REPORT_CONFIGURATION`, `SCHOOL_REPORT_CONFIGURATION_STORAGE_KEY`, `normalizeReportConfiguration`, `readWorkspaceState` | `getReportCardGrade`, `startup@4377`, `startup@4453` |
-| `saveReportConfiguration` | function `app.js:3769-3778` | `SCHOOL_REPORT_CONFIGURATION_EVENT`, `SCHOOL_REPORT_CONFIGURATION_STORAGE_KEY`, `normalizeReportConfiguration`, `writeWorkspaceState`; external: `CustomEvent`, `window` | `startup@4378` |
-| `getReportCardGrade` | function `app.js:3780-3784` | `getReportConfiguration`, `normalizeReportCardScore` | `normalizeReportCardSubject`, `startup@4379`, `summarizeReportCardSubjects` |
-| `normalizeReportCardSubject` | function `app.js:3786-3802` | `createStorageId`, `getReportCardGrade`, `normalizeReportCardScore`; external: `Math`, `String` | `summarizeReportCardSubjects` |
-| `summarizeReportCardSubjects` | function `app.js:3804-3822` | `getReportCardGrade`, `normalizeReportCardSubject`; external: `Array`, `Math` | `normalizeReportCardRecord`, `startup@4367` |
-| `normalizeReportCardRecord` | function `app.js:3824-3852` | `createStorageId`, `summarizeReportCardSubjects`; external: `Date`, `String` | `getReportCardRecords`, `saveReportCardRecords`, `upsertReportCardRecord` |
-| `compareReportCardRecords` | function `app.js:3854-3866` | ; external: `String`, `undefined` | `getReportCardRecords`, `saveReportCardRecords` |
-| `getReportCardRecords` | function `app.js:3868-3873` | `DEFAULT_REPORT_CARD_RECORDS`, `SCHOOL_REPORT_CARDS_STORAGE_KEY`, `compareReportCardRecords`, `normalizeReportCardRecord`, `readWorkspaceState`; external: `Array` | `emitReportCardsUpdate`, `getReportCardForStudentPeriod`, `setReportCardReleased`, `startup@4366`, `startup@4447`, `upsertReportCardRecord` |
-| `emitReportCardsUpdate` | function `app.js:3875-3881` | `SCHOOL_REPORT_CARDS_EVENT`, `getReportCardRecords`; external: `CustomEvent`, `window` | `saveReportCardRecords`, `startup@4447` |
-| `saveReportCardRecords` | function `app.js:3883-3891` | `SCHOOL_REPORT_CARDS_STORAGE_KEY`, `compareReportCardRecords`, `emitReportCardsUpdate`, `normalizeReportCardRecord`, `writeWorkspaceState` | `setReportCardReleased`, `startup@4368`, `upsertReportCardRecord` |
-| `upsertReportCardRecord` | function `app.js:3893-3924` | `getReportCardRecords`, `normalizeReportCardRecord`, `saveReportCardRecords`; external: `Date` | `startup@4369` |
-| `setReportCardReleased` | function `app.js:3926-3945` | `getReportCardRecords`, `saveReportCardRecords`; external: `Date`, `String` | `startup@4370` |
-| `getReportCardForStudentPeriod` | function `app.js:3947-3960` | `getReportCardRecords`; external: `String` | `startup@4371` |
+| `DEFAULT_REPORT_CARD_RECORDS` | const `app.js:267` | None detected | `getReportCardRecords`, `startup@4356` |
+| `SCHOOL_REPORT_CARDS_STORAGE_KEY` | const `app.js:268` | None detected | `clearLegacySharedState`, `getReportCardRecords`, `saveReportCardRecords`, `startup@4437` |
+| `SCHOOL_REPORT_CARDS_EVENT` | const `app.js:269` | None detected | `emitReportCardsUpdate`, `startup@4363` |
+| `SCHOOL_REPORT_CONFIGURATION_STORAGE_KEY` | const `app.js:270` | None detected | `clearLegacySharedState`, `getReportConfiguration`, `saveReportConfiguration`, `startup@4441` |
+| `SCHOOL_REPORT_CONFIGURATION_EVENT` | const `app.js:271` | None detected | `saveReportConfiguration`, `startup@4371`, `startup@4443` |
+| `DEFAULT_GRADEBOOK_RECORDS` | const `app.js:272` | None detected | `getGradebookRecords`, `startup@4375` |
+| `SCHOOL_GRADEBOOK_STORAGE_KEY` | const `app.js:273` | None detected | `clearLegacySharedState`, `getGradebookRecords`, `saveGradebookRecords`, `startup@4449` |
+| `SCHOOL_GRADEBOOK_EVENT` | const `app.js:274` | None detected | `saveGradebookRecords`, `startup@4381`, `startup@4451` |
+| `DEFAULT_REPORT_CONFIGURATION` | const `app.js:281-301` | None detected | `getReportConfiguration`, `normalizeReportConfiguration`, `startup@4367` |
+| `normalizeReportCardScore` | function `app.js:3582-3590` | ; external: `Math`, `Number` | `getReportCardGrade`, `normalizeReportCardSubject` |
+| `normalizeReportConfiguration` | function `app.js:3592-3635` | `DEFAULT_REPORT_CONFIGURATION`; external: `Array`, `Boolean`, `Math`, `Number`, `String` | `getReportConfiguration`, `saveReportConfiguration` |
+| `normalizeGradebookComponent` | function `app.js:3637-3643` | `createStorageId`; external: `Math`, `Number`, `String` | `normalizeGradebookRecord` |
+| `normalizeGradebookRecord` | function `app.js:3645-3685` | `createStorageId`, `normalizeGradebookComponent`; external: `Array`, `Date`, `Math`, `Number`, `Object`, `Set`, `String` | `getGradebookRecords`, `saveGradebookRecords`, `upsertGradebookRecord` |
+| `getGradebookRecords` | function `app.js:3687-3691` | `DEFAULT_GRADEBOOK_RECORDS`, `SCHOOL_GRADEBOOK_STORAGE_KEY`, `normalizeGradebookRecord`, `readWorkspaceState`; external: `Array` | `getGradebookRecordForContext`, `startup@4376`, `startup@4452`, `upsertGradebookRecord` |
+| `saveGradebookRecords` | function `app.js:3693-3700` | `SCHOOL_GRADEBOOK_EVENT`, `SCHOOL_GRADEBOOK_STORAGE_KEY`, `normalizeGradebookRecord`, `writeWorkspaceState`; external: `Array`, `CustomEvent`, `window` | `startup@4377`, `upsertGradebookRecord` |
+| `upsertGradebookRecord` | function `app.js:3702-3725` | `getGradebookRecords`, `normalizeGradebookRecord`, `saveGradebookRecords`; external: `Date` | `startup@4378` |
+| `getGradebookRecordForContext` | function `app.js:3727-3738` | `getGradebookRecords`; external: `String` | `getGradebookStudentTotal`, `startup@4379` |
+| `getGradebookStudentTotal` | function `app.js:3740-3752` | `getGradebookRecordForContext`; external: `Math`, `Number`, `String` | `startup@4380` |
+| `getReportConfiguration` | function `app.js:3754-3758` | `DEFAULT_REPORT_CONFIGURATION`, `SCHOOL_REPORT_CONFIGURATION_STORAGE_KEY`, `normalizeReportConfiguration`, `readWorkspaceState` | `getReportCardGrade`, `startup@4368`, `startup@4444` |
+| `saveReportConfiguration` | function `app.js:3760-3769` | `SCHOOL_REPORT_CONFIGURATION_EVENT`, `SCHOOL_REPORT_CONFIGURATION_STORAGE_KEY`, `normalizeReportConfiguration`, `writeWorkspaceState`; external: `CustomEvent`, `window` | `startup@4369` |
+| `getReportCardGrade` | function `app.js:3771-3775` | `getReportConfiguration`, `normalizeReportCardScore` | `normalizeReportCardSubject`, `startup@4370`, `summarizeReportCardSubjects` |
+| `normalizeReportCardSubject` | function `app.js:3777-3793` | `createStorageId`, `getReportCardGrade`, `normalizeReportCardScore`; external: `Math`, `String` | `summarizeReportCardSubjects` |
+| `summarizeReportCardSubjects` | function `app.js:3795-3813` | `getReportCardGrade`, `normalizeReportCardSubject`; external: `Array`, `Math` | `normalizeReportCardRecord`, `startup@4358` |
+| `normalizeReportCardRecord` | function `app.js:3815-3843` | `createStorageId`, `summarizeReportCardSubjects`; external: `Date`, `String` | `getReportCardRecords`, `saveReportCardRecords`, `upsertReportCardRecord` |
+| `compareReportCardRecords` | function `app.js:3845-3857` | ; external: `String`, `undefined` | `getReportCardRecords`, `saveReportCardRecords` |
+| `getReportCardRecords` | function `app.js:3859-3864` | `DEFAULT_REPORT_CARD_RECORDS`, `SCHOOL_REPORT_CARDS_STORAGE_KEY`, `compareReportCardRecords`, `normalizeReportCardRecord`, `readWorkspaceState`; external: `Array` | `emitReportCardsUpdate`, `getReportCardForStudentPeriod`, `setReportCardReleased`, `startup@4357`, `startup@4438`, `upsertReportCardRecord` |
+| `emitReportCardsUpdate` | function `app.js:3866-3872` | `SCHOOL_REPORT_CARDS_EVENT`, `getReportCardRecords`; external: `CustomEvent`, `window` | `saveReportCardRecords`, `startup@4438` |
+| `saveReportCardRecords` | function `app.js:3874-3882` | `SCHOOL_REPORT_CARDS_STORAGE_KEY`, `compareReportCardRecords`, `emitReportCardsUpdate`, `normalizeReportCardRecord`, `writeWorkspaceState` | `setReportCardReleased`, `startup@4359`, `upsertReportCardRecord` |
+| `upsertReportCardRecord` | function `app.js:3884-3915` | `getReportCardRecords`, `normalizeReportCardRecord`, `saveReportCardRecords`; external: `Date` | `startup@4360` |
+| `setReportCardReleased` | function `app.js:3917-3936` | `getReportCardRecords`, `saveReportCardRecords`; external: `Date`, `String` | `startup@4361` |
+| `getReportCardForStudentPeriod` | function `app.js:3938-3951` | `getReportCardRecords`; external: `String` | `startup@4362` |
 | `SUPABASE_STATE_KEY_REPORT_CARDS` | const `auth.js:561` | None detected | `SUPABASE_WORKSPACE_HYDRATE_KEYS`, `emitHydratedWorkspaceStateEvent`, `initSupabaseWorkspaceStateLiveSync`, `loadTableNativeStatePayloadFromSupabase`, `saveTableNativeStatePayloadToSupabase`, `supportsTableNativeState` |
 | `SUPABASE_STATE_KEY_REPORT_CONFIGURATION` | const `auth.js:562` | None detected | `SUPABASE_WORKSPACE_HYDRATE_KEYS`, `emitHydratedWorkspaceStateEvent`, `initSupabaseWorkspaceStateLiveSync` |
 | `SUPABASE_STATE_KEY_GRADEBOOK` | const `auth.js:563` | None detected | `SUPABASE_WORKSPACE_HYDRATE_KEYS`, `emitHydratedWorkspaceStateEvent`, `initSupabaseWorkspaceStateLiveSync`, `loadTableNativeStatePayloadFromSupabase`, `saveTableNativeStatePayloadToSupabase`, `supportsTableNativeState` |
@@ -967,20 +967,20 @@ Proposed destination: `js/features/settings/`. Status for all rows: **inventorie
 
 | Symbol | Kind / location | Dependencies and external references | Direct consumers |
 | --- | --- | --- | --- |
-| `SCHOOL_TYPE_OPTIONS` | const `app.js:622-627` | None detected | `normalizeSchoolTypeList`, `startup@4204` |
-| `HIGHER_INSTITUTION_TYPE_OPTIONS` | const `app.js:628-633` | None detected | `normalizeSchoolSettings` |
-| `normalizeSchoolTypeList` | function `app.js:635-643` | `SCHOOL_TYPE_OPTIONS`; external: `Array`, `Set`, `String` | `normalizeSchoolSettings` |
-| `normalizeHigherInstitutionType` | function `app.js:645-676` | `DEFAULT_SCHOOL_SETTINGS`; external: `String` | `normalizeSchoolSettings` |
-| `deriveSchoolTypesFromLegacyFlags` | function `app.js:678-702` | ; external: `Boolean` | `normalizeSchoolSettings` |
-| `normalizeSchoolSettings` | function `app.js:704-729` | `DEFAULT_SCHOOL_SETTINGS`, `HIGHER_INSTITUTION_TYPE_OPTIONS`, `deriveSchoolTypesFromLegacyFlags`, `normalizeHigherInstitutionType`, `normalizeSchoolTypeList`; external: `String` | `getSchoolSettings`, `saveSchoolSettings` |
-| `getSchoolSettings` | function `app.js:731-733` | `SCHOOL_SETTINGS_STORAGE_KEY`, `normalizeSchoolSettings`, `readWorkspaceState` | `applySchoolSettingsBranding`, `emitSchoolSettingsUpdate`, `formatAcademicYearLabel`, `hasSchoolSettingsContext`, `resetSchoolSettings`, `startup@4205`, `startup@4206`, `startup@4407` |
-| `getSchoolInitial` | function `app.js:764-766` | `DEFAULT_PLATFORM_NAME`; external: `String` | `buildBrandMarkHtml` |
-| `hasSchoolSettingsContext` | function `app.js:768-782` | `DEFAULT_PLATFORM_NAME`, `DEFAULT_SCHOOL_SETTINGS`, `getSchoolSettings`; external: `Boolean`, `JSON` | `startup@4210` |
-| `buildBrandMarkHtml` | function `app.js:784-794` | `escapeHtml`, `getSchoolInitial` | `renderFooter`, `renderHeader` |
-| `applySchoolSettingsBranding` | function `app.js:796-810` | `formatAcademicYearLabel`, `getSchoolSettings`; external: `Boolean`, `document` | `startup@4815`, `startup@4819` |
-| `emitSchoolSettingsUpdate` | function `app.js:812-818` | `SCHOOL_SETTINGS_EVENT`, `getSchoolSettings`; external: `CustomEvent`, `window` | `resetSchoolSettings`, `saveSchoolSettings`, `startup@4407` |
-| `saveSchoolSettings` | function `app.js:820-825` | `SCHOOL_SETTINGS_STORAGE_KEY`, `emitSchoolSettingsUpdate`, `normalizeSchoolSettings`, `writeWorkspaceState` | `startup@4207` |
-| `resetSchoolSettings` | function `app.js:827-832` | `SCHOOL_SETTINGS_STORAGE_KEY`, `emitSchoolSettingsUpdate`, `getSchoolSettings`, `removeWorkspaceState` | `startup@4208` |
+| `SCHOOL_TYPE_OPTIONS` | const `app.js:613-618` | None detected | `normalizeSchoolTypeList`, `startup@4195` |
+| `HIGHER_INSTITUTION_TYPE_OPTIONS` | const `app.js:619-624` | None detected | `normalizeSchoolSettings` |
+| `normalizeSchoolTypeList` | function `app.js:626-634` | `SCHOOL_TYPE_OPTIONS`; external: `Array`, `Set`, `String` | `normalizeSchoolSettings` |
+| `normalizeHigherInstitutionType` | function `app.js:636-667` | `DEFAULT_SCHOOL_SETTINGS`; external: `String` | `normalizeSchoolSettings` |
+| `deriveSchoolTypesFromLegacyFlags` | function `app.js:669-693` | ; external: `Boolean` | `normalizeSchoolSettings` |
+| `normalizeSchoolSettings` | function `app.js:695-720` | `DEFAULT_SCHOOL_SETTINGS`, `HIGHER_INSTITUTION_TYPE_OPTIONS`, `deriveSchoolTypesFromLegacyFlags`, `normalizeHigherInstitutionType`, `normalizeSchoolTypeList`; external: `String` | `getSchoolSettings`, `saveSchoolSettings` |
+| `getSchoolSettings` | function `app.js:722-724` | `SCHOOL_SETTINGS_STORAGE_KEY`, `normalizeSchoolSettings`, `readWorkspaceState` | `applySchoolSettingsBranding`, `emitSchoolSettingsUpdate`, `formatAcademicYearLabel`, `hasSchoolSettingsContext`, `resetSchoolSettings`, `startup@4196`, `startup@4197`, `startup@4398` |
+| `getSchoolInitial` | function `app.js:755-757` | `DEFAULT_PLATFORM_NAME`; external: `String` | `buildBrandMarkHtml` |
+| `hasSchoolSettingsContext` | function `app.js:759-773` | `DEFAULT_PLATFORM_NAME`, `DEFAULT_SCHOOL_SETTINGS`, `getSchoolSettings`; external: `Boolean`, `JSON` | `startup@4201` |
+| `buildBrandMarkHtml` | function `app.js:775-785` | `escapeHtml`, `getSchoolInitial` | `renderFooter`, `renderHeader` |
+| `applySchoolSettingsBranding` | function `app.js:787-801` | `formatAcademicYearLabel`, `getSchoolSettings`; external: `Boolean`, `document` | `startup@4806`, `startup@4810` |
+| `emitSchoolSettingsUpdate` | function `app.js:803-809` | `SCHOOL_SETTINGS_EVENT`, `getSchoolSettings`; external: `CustomEvent`, `window` | `resetSchoolSettings`, `saveSchoolSettings`, `startup@4398` |
+| `saveSchoolSettings` | function `app.js:811-816` | `SCHOOL_SETTINGS_STORAGE_KEY`, `emitSchoolSettingsUpdate`, `normalizeSchoolSettings`, `writeWorkspaceState` | `startup@4198` |
+| `resetSchoolSettings` | function `app.js:818-823` | `SCHOOL_SETTINGS_STORAGE_KEY`, `emitSchoolSettingsUpdate`, `getSchoolSettings`, `removeWorkspaceState` | `startup@4199` |
 | `SUPABASE_STATE_KEY_SCHOOL_SETTINGS` | const `auth.js:556` | None detected | `SUPABASE_WORKSPACE_HYDRATE_KEYS`, `emitHydratedWorkspaceStateEvent`, `getLocalSelfRegistrationConfig`, `getSuperAdminWorkspaceSettings`, `hydrateSchoolSettingsFromSupabase`, `initAdmissionsApplyPage`, `initSupabaseWorkspaceStateLiveSync`, `persistSchoolSettingsToSupabase` |
 | `mapSchoolSettingsToInstitutionPayload` | function `auth.js:3744-3763` | `createUuidV4`, `normalizeConfiguredSchoolTypes`; external: `String` | `ensureSupabaseInstitutionId` |
 | `mapInstitutionToSchoolSettings` | function `auth.js:3854-3885` | `getDefaultAdminSchoolSettings`, `getSchoolSettingsManager`, `normalizeConfiguredSchoolTypes`; external: `Boolean`, `String` | `hydrateSchoolSettingsFromSupabase`, `initAdmissionsApplyPage` |
@@ -1075,18 +1075,18 @@ Proposed destination: `js/shared-ui/feedback.js or dialog.js`. Status for all ro
 
 ## Shared helpers — boundary review
 
-Proposed destination: `js/core/ only if truly shared; otherwise retain with owning feature`. Status for all rows: **inventoried / unmoved**. Dependencies in this table are outer lexical bindings; external/browser identifiers follow after “external”. Consumers are direct lexical reference owners, including startup registration; mutation locations are tracked separately.
+Proposed destination: `js/core/ only if truly shared; otherwise retain with owning feature`. Status: **app escapeHtml moved in E04; other rows, including auth escapeHtml, inventoried / unmoved**. Dependencies in this table are outer lexical bindings; external/browser identifiers follow after “external”. Consumers are direct lexical reference owners, including startup registration; mutation locations are tracked separately.
 
 | Symbol | Kind / location | Dependencies and external references | Direct consumers |
 | --- | --- | --- | --- |
 | `schoolTypes` | const `app.js:511-572` | None detected | `initPageContent` |
 | `practiceStories` | const `app.js:574-599` | None detected | `initPageContent` |
-| `escapeHtml` | function `app.js:613-620` | ; external: `String` | `buildBrandMarkHtml`, `renderFooter`, `renderHeader` |
-| `formatSchoolDate` | function `app.js:735-751` | ; external: `Date`, `Intl`, `Number` | `formatAcademicYearLabel` |
-| `formatAcademicYearLabel` | function `app.js:753-762` | `formatSchoolDate`, `getSchoolSettings` | `applySchoolSettingsBranding`, `startup@4209` |
-| `timetableWeekTypesOverlap` | function `app.js:1840-1844` | `normalizeTimetableWeekType` | `checkSchoolTimetableConflicts`, `copyTimetableTerm`, `getTeacherTimetableLoad` |
-| `valuesMatchByIdOrLabel` | function `app.js:1846-1856` | ; external: `String` | `checkSchoolTimetableConflicts`, `getTeacherTimetableLoad` |
-| `getLocalDateValue` | function `app.js:3170-3175` | ; external: `Date`, `String` | `normalizeAttendanceRecord`, `summarizeAttendanceRecords` |
+| `escapeHtml` | function `js/core/escape-html.js:1-8` — E04 moved unchanged | Parameter value; built-in String and String.prototype.replaceAll; no state or initialization | `buildBrandMarkHtml` (3 calls), `renderHeader` (3 calls), `renderFooter` (2 calls); auth.js private helper remains separate |
+| `formatSchoolDate` | function `app.js:726-742` | ; external: `Date`, `Intl`, `Number` | `formatAcademicYearLabel` |
+| `formatAcademicYearLabel` | function `app.js:744-753` | `formatSchoolDate`, `getSchoolSettings` | `applySchoolSettingsBranding`, `startup@4200` |
+| `timetableWeekTypesOverlap` | function `app.js:1831-1835` | `normalizeTimetableWeekType` | `checkSchoolTimetableConflicts`, `copyTimetableTerm`, `getTeacherTimetableLoad` |
+| `valuesMatchByIdOrLabel` | function `app.js:1837-1847` | ; external: `String` | `checkSchoolTimetableConflicts`, `getTeacherTimetableLoad` |
+| `getLocalDateValue` | function `app.js:3161-3166` | ; external: `Date`, `String` | `normalizeAttendanceRecord`, `summarizeAttendanceRecords` |
 | `SUPABASE_SCRIPT_SRC` | const `auth.js:9` | None detected | `loadSupabaseLibrary` |
 | `ADMIN_SIDEBAR_STATE_KEY` | const `auth.js:11` | None detected | `initAdminSidebarUi` |
 | `SCHOOL_ACCOUNT_DELETE_CONFIRMATION` | const `auth.js:30` | None detected | `initSchoolAccountDeletionControls` |
@@ -1234,22 +1234,22 @@ Proposed destination: `js/features/students/`. Status for all rows: **inventorie
 
 | Symbol | Kind / location | Dependencies and external references | Direct consumers |
 | --- | --- | --- | --- |
-| `normalizeGuardianContact` | function `app.js:3053-3061` | `createStorageId`; external: `String` | `normalizeStudentRecord` |
-| `normalizeStudentProgressionEntry` | function `app.js:3063-3072` | `createStorageId`; external: `Date`, `String` | `normalizeStudentRecord` |
-| `normalizeStudentDocumentRecord` | function `app.js:3074-3086` | `createStorageId`; external: `Date`, `Number`, `String` | `normalizeStudentRecord` |
-| `normalizeStudentRecord` | function `app.js:3088-3168` | `createStorageId`, `normalizeGuardianContact`, `normalizeStudentDocumentRecord`, `normalizeStudentProgressionEntry`; external: `Array`, `Boolean`, `Date`, `Math`, `Number`, `String` | `getSchoolStudents`, `saveSchoolStudents`, `updateSchoolStudentProgression`, `upsertSchoolStudent` |
-| `compareSchoolStudents` | function `app.js:3177-3189` | ; external: `undefined` | `getSchoolStudents`, `saveSchoolStudents` |
-| `getSchoolStudents` | function `app.js:3191-3196` | `DEFAULT_STUDENT_RECORDS`, `SCHOOL_STUDENTS_STORAGE_KEY`, `compareSchoolStudents`, `normalizeStudentRecord`, `readWorkspaceState`; external: `Array` | `deleteSchoolStudent`, `deleteSchoolStudentsByLevel`, `emitSchoolStudentsUpdate`, `setSchoolStudentArchived`, `setSchoolStudentTransferred`, `startup@4341`, `startup@4439`, `summarizeAttendanceRecords`, `summarizeSchoolStudents`, `updateSchoolStudentProgression`, `upsertSchoolStudent` |
-| `emitSchoolStudentsUpdate` | function `app.js:3198-3204` | `SCHOOL_STUDENTS_EVENT`, `getSchoolStudents`; external: `CustomEvent`, `window` | `saveSchoolStudents`, `startup@4439` |
-| `saveSchoolStudents` | function `app.js:3206-3211` | `SCHOOL_STUDENTS_STORAGE_KEY`, `compareSchoolStudents`, `emitSchoolStudentsUpdate`, `normalizeStudentRecord`, `writeWorkspaceState` | `deleteSchoolStudent`, `deleteSchoolStudentsByLevel`, `setSchoolStudentArchived`, `setSchoolStudentTransferred`, `startup@4343`, `updateSchoolStudentProgression`, `upsertSchoolStudent` |
-| `upsertSchoolStudent` | function `app.js:3213-3238` | `getSchoolStudents`, `normalizeStudentRecord`, `saveSchoolStudents`; external: `Date` | `startup@4344` |
-| `setSchoolStudentArchived` | function `app.js:3240-3258` | `getSchoolStudents`, `saveSchoolStudents`; external: `Date` | `startup@4347`, `startup@4348` |
-| `setSchoolStudentTransferred` | function `app.js:3260-3279` | `getSchoolStudents`, `saveSchoolStudents`; external: `Date`, `String` | `startup@4346` |
-| `normalizeStudentLevelKey` | function `app.js:3281-3298` | ; external: `String` | `deleteSchoolStudentsByLevel` |
-| `deleteSchoolStudent` | function `app.js:3300-3314` | `getSchoolStudents`, `saveSchoolStudents`; external: `String` | `startup@4349` |
-| `deleteSchoolStudentsByLevel` | function `app.js:3316-3330` | `getSchoolStudents`, `normalizeStudentLevelKey`, `saveSchoolStudents` | `startup@4350` |
-| `updateSchoolStudentProgression` | function `app.js:3332-3355` | `getSchoolStudents`, `normalizeStudentRecord`, `saveSchoolStudents`; external: `Date` | `startup@4345` |
-| `summarizeSchoolStudents` | function `app.js:3357-3373` | `getSchoolStudents` | `startup@4342` |
+| `normalizeGuardianContact` | function `app.js:3044-3052` | `createStorageId`; external: `String` | `normalizeStudentRecord` |
+| `normalizeStudentProgressionEntry` | function `app.js:3054-3063` | `createStorageId`; external: `Date`, `String` | `normalizeStudentRecord` |
+| `normalizeStudentDocumentRecord` | function `app.js:3065-3077` | `createStorageId`; external: `Date`, `Number`, `String` | `normalizeStudentRecord` |
+| `normalizeStudentRecord` | function `app.js:3079-3159` | `createStorageId`, `normalizeGuardianContact`, `normalizeStudentDocumentRecord`, `normalizeStudentProgressionEntry`; external: `Array`, `Boolean`, `Date`, `Math`, `Number`, `String` | `getSchoolStudents`, `saveSchoolStudents`, `updateSchoolStudentProgression`, `upsertSchoolStudent` |
+| `compareSchoolStudents` | function `app.js:3168-3180` | ; external: `undefined` | `getSchoolStudents`, `saveSchoolStudents` |
+| `getSchoolStudents` | function `app.js:3182-3187` | `DEFAULT_STUDENT_RECORDS`, `SCHOOL_STUDENTS_STORAGE_KEY`, `compareSchoolStudents`, `normalizeStudentRecord`, `readWorkspaceState`; external: `Array` | `deleteSchoolStudent`, `deleteSchoolStudentsByLevel`, `emitSchoolStudentsUpdate`, `setSchoolStudentArchived`, `setSchoolStudentTransferred`, `startup@4332`, `startup@4430`, `summarizeAttendanceRecords`, `summarizeSchoolStudents`, `updateSchoolStudentProgression`, `upsertSchoolStudent` |
+| `emitSchoolStudentsUpdate` | function `app.js:3189-3195` | `SCHOOL_STUDENTS_EVENT`, `getSchoolStudents`; external: `CustomEvent`, `window` | `saveSchoolStudents`, `startup@4430` |
+| `saveSchoolStudents` | function `app.js:3197-3202` | `SCHOOL_STUDENTS_STORAGE_KEY`, `compareSchoolStudents`, `emitSchoolStudentsUpdate`, `normalizeStudentRecord`, `writeWorkspaceState` | `deleteSchoolStudent`, `deleteSchoolStudentsByLevel`, `setSchoolStudentArchived`, `setSchoolStudentTransferred`, `startup@4334`, `updateSchoolStudentProgression`, `upsertSchoolStudent` |
+| `upsertSchoolStudent` | function `app.js:3204-3229` | `getSchoolStudents`, `normalizeStudentRecord`, `saveSchoolStudents`; external: `Date` | `startup@4335` |
+| `setSchoolStudentArchived` | function `app.js:3231-3249` | `getSchoolStudents`, `saveSchoolStudents`; external: `Date` | `startup@4338`, `startup@4339` |
+| `setSchoolStudentTransferred` | function `app.js:3251-3270` | `getSchoolStudents`, `saveSchoolStudents`; external: `Date`, `String` | `startup@4337` |
+| `normalizeStudentLevelKey` | function `app.js:3272-3289` | ; external: `String` | `deleteSchoolStudentsByLevel` |
+| `deleteSchoolStudent` | function `app.js:3291-3305` | `getSchoolStudents`, `saveSchoolStudents`; external: `String` | `startup@4340` |
+| `deleteSchoolStudentsByLevel` | function `app.js:3307-3321` | `getSchoolStudents`, `normalizeStudentLevelKey`, `saveSchoolStudents` | `startup@4341` |
+| `updateSchoolStudentProgression` | function `app.js:3323-3346` | `getSchoolStudents`, `normalizeStudentRecord`, `saveSchoolStudents`; external: `Date` | `startup@4336` |
+| `summarizeSchoolStudents` | function `app.js:3348-3364` | `getSchoolStudents` | `startup@4333` |
 | `STUDENT_STORAGE_KEY_BASE` | const `auth.js:26` | None detected | `discoverParentWorkspaceByGuardianEmail`, `discoverStudentLoginByAdmissionNumber` |
 | `STUDENT_PORTAL_LINKS` | const `auth.js:378-442` | None detected | `getActiveStudentPortalKey`, `initPortalPage`, `renderStudentPermissionRestrictedPage`, `renderStudentPortalSidebar`, `renderStudentPortalWorkspace` |
 | `GUARDIAN_RELATIONSHIP_TYPES` | const `auth.js:517-527` | None detected | `appendGuardianRow` |
@@ -1412,47 +1412,47 @@ Proposed destination: `js/features/timetable/`. Status for all rows: **inventori
 
 | Symbol | Kind / location | Dependencies and external references | Direct consumers |
 | --- | --- | --- | --- |
-| `TIMETABLE_DAYS` | const `app.js:1552` | None detected | `compareSchoolTimetableEntries`, `compareTimetablePeriods`, `normalizeTimetableDay`, `startup@4256` |
-| `TIMETABLE_SCHOOL_DAYS` | const `app.js:1553` | None detected | `DEFAULT_TIMETABLE_PERIODS`, `startup@4257` |
-| `TIMETABLE_WEEK_TYPES` | const `app.js:1554` | None detected | `startup@4258` |
-| `DEFAULT_TIMETABLE_SLOT_TEMPLATES` | const `app.js:1555-1564` | None detected | `DEFAULT_TIMETABLE_PERIODS` |
-| `DEFAULT_TIMETABLE_PERIODS` | const `app.js:1565-1575` | `DEFAULT_TIMETABLE_SLOT_TEMPLATES`, `TIMETABLE_SCHOOL_DAYS` | `getSchoolTimetablePeriods` |
-| `DEFAULT_TIMETABLE_ROOMS` | const `app.js:1576` | None detected | `getSchoolTimetableRooms` |
-| `DEFAULT_TIMETABLE_SUBSTITUTIONS` | const `app.js:1577` | None detected | `getSchoolTimetableSubstitutions` |
-| `normalizeTimetableStatus` | function `app.js:1579-1588` | ; external: `String` | `normalizeSchoolTimetableEntry`, `setSchoolTimetableEntryStatus` |
-| `normalizeTimetableDay` | function `app.js:1590-1594` | `TIMETABLE_DAYS`; external: `String` | `createLegacyTimetablePeriodId`, `getTimetablePeriodForRecord`, `normalizeSchoolTimetableEntry`, `normalizeTimetablePeriod` |
-| `normalizeTimetableWeekType` | function `app.js:1596-1605` | ; external: `String` | `copyTimetableTerm`, `getTeacherTimetableLoad`, `normalizeSchoolTimetableEntry`, `timetableWeekTypesOverlap` |
-| `getTimetableSlotKey` | function `app.js:1607-1613` | ; external: `String` | No lexical read found; inspect global interface and writes before removal |
-| `normalizeTimetablePeriod` | function `app.js:1615-1630` | `createStorageId`, `normalizeTimetableDay`; external: `Number`, `String` | `getSchoolTimetablePeriods`, `saveSchoolTimetablePeriods`, `upsertSchoolTimetablePeriod` |
-| `compareTimetablePeriods` | function `app.js:1632-1643` | `TIMETABLE_DAYS` | `getSchoolTimetablePeriods`, `saveSchoolTimetablePeriods` |
-| `getSchoolTimetablePeriods` | function `app.js:1645-1652` | `DEFAULT_TIMETABLE_PERIODS`, `SCHOOL_TIMETABLE_PERIODS_STORAGE_KEY`, `compareTimetablePeriods`, `normalizeTimetablePeriod`, `readWorkspaceState`; external: `Array` | `getTimetablePeriodForRecord`, `startup@4260`, `summarizeSchoolTimetableEntries`, `upsertSchoolTimetablePeriod` |
-| `saveSchoolTimetablePeriods` | function `app.js:1654-1662` | `SCHOOL_TIMETABLE_PERIODS_STORAGE_KEY`, `compareTimetablePeriods`, `emitSchoolTimetableUpdate`, `normalizeTimetablePeriod`, `writeWorkspaceState` | `startup@4261`, `upsertSchoolTimetablePeriod` |
-| `upsertSchoolTimetablePeriod` | function `app.js:1664-1677` | `getSchoolTimetablePeriods`, `normalizeTimetablePeriod`, `saveSchoolTimetablePeriods` | `startup@4262` |
-| `normalizeTimetableRoom` | function `app.js:1679-1687` | `createStorageId`; external: `Number`, `String` | `getSchoolTimetableRooms`, `saveSchoolTimetableRooms`, `upsertSchoolTimetableRoom` |
-| `compareTimetableRooms` | function `app.js:1689-1694` | ; external: `undefined` | `getSchoolTimetableRooms`, `saveSchoolTimetableRooms` |
-| `getSchoolTimetableRooms` | function `app.js:1696-1703` | `DEFAULT_TIMETABLE_ROOMS`, `SCHOOL_TIMETABLE_ROOMS_STORAGE_KEY`, `compareTimetableRooms`, `normalizeTimetableRoom`, `readWorkspaceState`; external: `Array` | `startup@4263`, `summarizeSchoolTimetableEntries`, `upsertSchoolTimetableRoom` |
-| `saveSchoolTimetableRooms` | function `app.js:1705-1713` | `SCHOOL_TIMETABLE_ROOMS_STORAGE_KEY`, `compareTimetableRooms`, `emitSchoolTimetableUpdate`, `normalizeTimetableRoom`, `writeWorkspaceState` | `startup@4264`, `upsertSchoolTimetableRoom` |
-| `upsertSchoolTimetableRoom` | function `app.js:1715-1728` | `getSchoolTimetableRooms`, `normalizeTimetableRoom`, `saveSchoolTimetableRooms` | `startup@4265` |
-| `getTimetablePeriodForRecord` | function `app.js:1730-1744` | `getSchoolTimetablePeriods`, `normalizeTimetableDay`; external: `String` | `normalizeSchoolTimetableEntry` |
-| `createLegacyTimetablePeriodId` | function `app.js:1746-1751` | `normalizeTimetableDay`; external: `String` | `normalizeSchoolTimetableEntry` |
-| `normalizeSchoolTimetableEntry` | function `app.js:1753-1784` | `createLegacyTimetablePeriodId`, `createStorageId`, `getTimetablePeriodForRecord`, `normalizeTimetableDay`, `normalizeTimetableStatus`, `normalizeTimetableWeekType`; external: `Date`, `String` | `checkSchoolTimetableConflicts`, `copyTimetableTerm`, `getSchoolTimetableEntries`, `saveSchoolTimetableEntries`, `upsertSchoolTimetableEntry` |
-| `compareSchoolTimetableEntries` | function `app.js:1786-1806` | `TIMETABLE_DAYS`; external: `undefined` | `getSchoolTimetableEntries`, `saveSchoolTimetableEntries`, `summarizeSchoolTimetableEntries` |
-| `getTimetableClassIdentity` | function `app.js:1808-1811` | ; external: `String` | `buildTimetableGroupKey`, `summarizeSchoolTimetableEntries` |
-| `getSchoolTimetableEntries` | function `app.js:1813-1820` | `DEFAULT_TIMETABLE_ENTRIES`, `SCHOOL_TIMETABLE_STORAGE_KEY`, `compareSchoolTimetableEntries`, `normalizeSchoolTimetableEntry`, `readWorkspaceState`; external: `Array` | `checkSchoolTimetableConflicts`, `copyTimetableTerm`, `emitSchoolTimetableUpdate`, `getTeacherTimetableLoad`, `setSchoolTimetableEntryStatus`, `setTimetableGroupPublished`, `startup@4259`, `startup@4423`, `summarizeSchoolTimetableEntries`, `upsertSchoolTimetableEntry` |
-| `emitSchoolTimetableUpdate` | function `app.js:1822-1828` | `SCHOOL_TIMETABLE_EVENT`, `getSchoolTimetableEntries`; external: `CustomEvent`, `window` | `saveSchoolTimetableEntries`, `saveSchoolTimetablePeriods`, `saveSchoolTimetableRooms`, `saveSchoolTimetableSubstitutions`, `startup@4423` |
-| `saveSchoolTimetableEntries` | function `app.js:1830-1838` | `SCHOOL_TIMETABLE_STORAGE_KEY`, `compareSchoolTimetableEntries`, `emitSchoolTimetableUpdate`, `normalizeSchoolTimetableEntry`, `writeWorkspaceState` | `copyTimetableTerm`, `setSchoolTimetableEntryStatus`, `setTimetableGroupPublished`, `startup@4269`, `upsertSchoolTimetableEntry` |
-| `checkSchoolTimetableConflicts` | function `app.js:1858-1887` | `getSchoolTimetableEntries`, `normalizeSchoolTimetableEntry`, `timetableWeekTypesOverlap`, `valuesMatchByIdOrLabel` | `copyTimetableTerm`, `startup@4271` |
-| `getTeacherTimetableLoad` | function `app.js:1889-1905` | `getSchoolTimetableEntries`, `normalizeTimetableWeekType`, `timetableWeekTypesOverlap`, `valuesMatchByIdOrLabel`; external: `String` | `startup@4272` |
-| `upsertSchoolTimetableEntry` | function `app.js:1907-1926` | `getSchoolTimetableEntries`, `normalizeSchoolTimetableEntry`, `saveSchoolTimetableEntries`; external: `Date` | `startup@4270` |
-| `setSchoolTimetableEntryStatus` | function `app.js:1928-1945` | `getSchoolTimetableEntries`, `normalizeTimetableStatus`, `saveSchoolTimetableEntries`; external: `Date` | `startup@4274`, `startup@4275` |
-| `buildTimetableGroupKey` | function `app.js:1947-1953` | `getTimetableClassIdentity`; external: `String` | `summarizeSchoolTimetableEntries` |
-| `setTimetableGroupPublished` | function `app.js:1955-1982` | `getSchoolTimetableEntries`, `saveSchoolTimetableEntries`; external: `Date`, `String` | `startup@4276`, `startup@4277` |
-| `copyTimetableTerm` | function `app.js:1984-2041` | `checkSchoolTimetableConflicts`, `createStorageId`, `getSchoolTimetableEntries`, `normalizeSchoolTimetableEntry`, `normalizeTimetableWeekType`, `saveSchoolTimetableEntries`, `timetableWeekTypesOverlap`; external: `Date`, `String` | `startup@4273` |
-| `normalizeTimetableSubstitution` | function `app.js:2043-2060` | `createStorageId`; external: `Date`, `String` | `getSchoolTimetableSubstitutions`, `logSchoolTimetableSubstitution`, `saveSchoolTimetableSubstitutions` |
-| `getSchoolTimetableSubstitutions` | function `app.js:2062-2069` | `DEFAULT_TIMETABLE_SUBSTITUTIONS`, `SCHOOL_TIMETABLE_SUBSTITUTIONS_STORAGE_KEY`, `normalizeTimetableSubstitution`, `readWorkspaceState`; external: `Array`, `String` | `logSchoolTimetableSubstitution`, `startup@4266`, `summarizeSchoolTimetableEntries` |
-| `saveSchoolTimetableSubstitutions` | function `app.js:2071-2078` | `SCHOOL_TIMETABLE_SUBSTITUTIONS_STORAGE_KEY`, `emitSchoolTimetableUpdate`, `normalizeTimetableSubstitution`, `writeWorkspaceState` | `logSchoolTimetableSubstitution` |
-| `logSchoolTimetableSubstitution` | function `app.js:2080-2085` | `getSchoolTimetableSubstitutions`, `normalizeTimetableSubstitution`, `saveSchoolTimetableSubstitutions` | `startup@4267` |
-| `summarizeSchoolTimetableEntries` | function `app.js:2087-2142` | `buildTimetableGroupKey`, `compareSchoolTimetableEntries`, `getSchoolTimetableEntries`, `getSchoolTimetablePeriods`, `getSchoolTimetableRooms`, `getSchoolTimetableSubstitutions`, `getTimetableClassIdentity`; external: `Array`, `Boolean`, `Map`, `Set` | `startup@4268` |
+| `TIMETABLE_DAYS` | const `app.js:1543` | None detected | `compareSchoolTimetableEntries`, `compareTimetablePeriods`, `normalizeTimetableDay`, `startup@4247` |
+| `TIMETABLE_SCHOOL_DAYS` | const `app.js:1544` | None detected | `DEFAULT_TIMETABLE_PERIODS`, `startup@4248` |
+| `TIMETABLE_WEEK_TYPES` | const `app.js:1545` | None detected | `startup@4249` |
+| `DEFAULT_TIMETABLE_SLOT_TEMPLATES` | const `app.js:1546-1555` | None detected | `DEFAULT_TIMETABLE_PERIODS` |
+| `DEFAULT_TIMETABLE_PERIODS` | const `app.js:1556-1566` | `DEFAULT_TIMETABLE_SLOT_TEMPLATES`, `TIMETABLE_SCHOOL_DAYS` | `getSchoolTimetablePeriods` |
+| `DEFAULT_TIMETABLE_ROOMS` | const `app.js:1567` | None detected | `getSchoolTimetableRooms` |
+| `DEFAULT_TIMETABLE_SUBSTITUTIONS` | const `app.js:1568` | None detected | `getSchoolTimetableSubstitutions` |
+| `normalizeTimetableStatus` | function `app.js:1570-1579` | ; external: `String` | `normalizeSchoolTimetableEntry`, `setSchoolTimetableEntryStatus` |
+| `normalizeTimetableDay` | function `app.js:1581-1585` | `TIMETABLE_DAYS`; external: `String` | `createLegacyTimetablePeriodId`, `getTimetablePeriodForRecord`, `normalizeSchoolTimetableEntry`, `normalizeTimetablePeriod` |
+| `normalizeTimetableWeekType` | function `app.js:1587-1596` | ; external: `String` | `copyTimetableTerm`, `getTeacherTimetableLoad`, `normalizeSchoolTimetableEntry`, `timetableWeekTypesOverlap` |
+| `getTimetableSlotKey` | function `app.js:1598-1604` | ; external: `String` | No lexical read found; inspect global interface and writes before removal |
+| `normalizeTimetablePeriod` | function `app.js:1606-1621` | `createStorageId`, `normalizeTimetableDay`; external: `Number`, `String` | `getSchoolTimetablePeriods`, `saveSchoolTimetablePeriods`, `upsertSchoolTimetablePeriod` |
+| `compareTimetablePeriods` | function `app.js:1623-1634` | `TIMETABLE_DAYS` | `getSchoolTimetablePeriods`, `saveSchoolTimetablePeriods` |
+| `getSchoolTimetablePeriods` | function `app.js:1636-1643` | `DEFAULT_TIMETABLE_PERIODS`, `SCHOOL_TIMETABLE_PERIODS_STORAGE_KEY`, `compareTimetablePeriods`, `normalizeTimetablePeriod`, `readWorkspaceState`; external: `Array` | `getTimetablePeriodForRecord`, `startup@4251`, `summarizeSchoolTimetableEntries`, `upsertSchoolTimetablePeriod` |
+| `saveSchoolTimetablePeriods` | function `app.js:1645-1653` | `SCHOOL_TIMETABLE_PERIODS_STORAGE_KEY`, `compareTimetablePeriods`, `emitSchoolTimetableUpdate`, `normalizeTimetablePeriod`, `writeWorkspaceState` | `startup@4252`, `upsertSchoolTimetablePeriod` |
+| `upsertSchoolTimetablePeriod` | function `app.js:1655-1668` | `getSchoolTimetablePeriods`, `normalizeTimetablePeriod`, `saveSchoolTimetablePeriods` | `startup@4253` |
+| `normalizeTimetableRoom` | function `app.js:1670-1678` | `createStorageId`; external: `Number`, `String` | `getSchoolTimetableRooms`, `saveSchoolTimetableRooms`, `upsertSchoolTimetableRoom` |
+| `compareTimetableRooms` | function `app.js:1680-1685` | ; external: `undefined` | `getSchoolTimetableRooms`, `saveSchoolTimetableRooms` |
+| `getSchoolTimetableRooms` | function `app.js:1687-1694` | `DEFAULT_TIMETABLE_ROOMS`, `SCHOOL_TIMETABLE_ROOMS_STORAGE_KEY`, `compareTimetableRooms`, `normalizeTimetableRoom`, `readWorkspaceState`; external: `Array` | `startup@4254`, `summarizeSchoolTimetableEntries`, `upsertSchoolTimetableRoom` |
+| `saveSchoolTimetableRooms` | function `app.js:1696-1704` | `SCHOOL_TIMETABLE_ROOMS_STORAGE_KEY`, `compareTimetableRooms`, `emitSchoolTimetableUpdate`, `normalizeTimetableRoom`, `writeWorkspaceState` | `startup@4255`, `upsertSchoolTimetableRoom` |
+| `upsertSchoolTimetableRoom` | function `app.js:1706-1719` | `getSchoolTimetableRooms`, `normalizeTimetableRoom`, `saveSchoolTimetableRooms` | `startup@4256` |
+| `getTimetablePeriodForRecord` | function `app.js:1721-1735` | `getSchoolTimetablePeriods`, `normalizeTimetableDay`; external: `String` | `normalizeSchoolTimetableEntry` |
+| `createLegacyTimetablePeriodId` | function `app.js:1737-1742` | `normalizeTimetableDay`; external: `String` | `normalizeSchoolTimetableEntry` |
+| `normalizeSchoolTimetableEntry` | function `app.js:1744-1775` | `createLegacyTimetablePeriodId`, `createStorageId`, `getTimetablePeriodForRecord`, `normalizeTimetableDay`, `normalizeTimetableStatus`, `normalizeTimetableWeekType`; external: `Date`, `String` | `checkSchoolTimetableConflicts`, `copyTimetableTerm`, `getSchoolTimetableEntries`, `saveSchoolTimetableEntries`, `upsertSchoolTimetableEntry` |
+| `compareSchoolTimetableEntries` | function `app.js:1777-1797` | `TIMETABLE_DAYS`; external: `undefined` | `getSchoolTimetableEntries`, `saveSchoolTimetableEntries`, `summarizeSchoolTimetableEntries` |
+| `getTimetableClassIdentity` | function `app.js:1799-1802` | ; external: `String` | `buildTimetableGroupKey`, `summarizeSchoolTimetableEntries` |
+| `getSchoolTimetableEntries` | function `app.js:1804-1811` | `DEFAULT_TIMETABLE_ENTRIES`, `SCHOOL_TIMETABLE_STORAGE_KEY`, `compareSchoolTimetableEntries`, `normalizeSchoolTimetableEntry`, `readWorkspaceState`; external: `Array` | `checkSchoolTimetableConflicts`, `copyTimetableTerm`, `emitSchoolTimetableUpdate`, `getTeacherTimetableLoad`, `setSchoolTimetableEntryStatus`, `setTimetableGroupPublished`, `startup@4250`, `startup@4414`, `summarizeSchoolTimetableEntries`, `upsertSchoolTimetableEntry` |
+| `emitSchoolTimetableUpdate` | function `app.js:1813-1819` | `SCHOOL_TIMETABLE_EVENT`, `getSchoolTimetableEntries`; external: `CustomEvent`, `window` | `saveSchoolTimetableEntries`, `saveSchoolTimetablePeriods`, `saveSchoolTimetableRooms`, `saveSchoolTimetableSubstitutions`, `startup@4414` |
+| `saveSchoolTimetableEntries` | function `app.js:1821-1829` | `SCHOOL_TIMETABLE_STORAGE_KEY`, `compareSchoolTimetableEntries`, `emitSchoolTimetableUpdate`, `normalizeSchoolTimetableEntry`, `writeWorkspaceState` | `copyTimetableTerm`, `setSchoolTimetableEntryStatus`, `setTimetableGroupPublished`, `startup@4260`, `upsertSchoolTimetableEntry` |
+| `checkSchoolTimetableConflicts` | function `app.js:1849-1878` | `getSchoolTimetableEntries`, `normalizeSchoolTimetableEntry`, `timetableWeekTypesOverlap`, `valuesMatchByIdOrLabel` | `copyTimetableTerm`, `startup@4262` |
+| `getTeacherTimetableLoad` | function `app.js:1880-1896` | `getSchoolTimetableEntries`, `normalizeTimetableWeekType`, `timetableWeekTypesOverlap`, `valuesMatchByIdOrLabel`; external: `String` | `startup@4263` |
+| `upsertSchoolTimetableEntry` | function `app.js:1898-1917` | `getSchoolTimetableEntries`, `normalizeSchoolTimetableEntry`, `saveSchoolTimetableEntries`; external: `Date` | `startup@4261` |
+| `setSchoolTimetableEntryStatus` | function `app.js:1919-1936` | `getSchoolTimetableEntries`, `normalizeTimetableStatus`, `saveSchoolTimetableEntries`; external: `Date` | `startup@4265`, `startup@4266` |
+| `buildTimetableGroupKey` | function `app.js:1938-1944` | `getTimetableClassIdentity`; external: `String` | `summarizeSchoolTimetableEntries` |
+| `setTimetableGroupPublished` | function `app.js:1946-1973` | `getSchoolTimetableEntries`, `saveSchoolTimetableEntries`; external: `Date`, `String` | `startup@4267`, `startup@4268` |
+| `copyTimetableTerm` | function `app.js:1975-2032` | `checkSchoolTimetableConflicts`, `createStorageId`, `getSchoolTimetableEntries`, `normalizeSchoolTimetableEntry`, `normalizeTimetableWeekType`, `saveSchoolTimetableEntries`, `timetableWeekTypesOverlap`; external: `Date`, `String` | `startup@4264` |
+| `normalizeTimetableSubstitution` | function `app.js:2034-2051` | `createStorageId`; external: `Date`, `String` | `getSchoolTimetableSubstitutions`, `logSchoolTimetableSubstitution`, `saveSchoolTimetableSubstitutions` |
+| `getSchoolTimetableSubstitutions` | function `app.js:2053-2060` | `DEFAULT_TIMETABLE_SUBSTITUTIONS`, `SCHOOL_TIMETABLE_SUBSTITUTIONS_STORAGE_KEY`, `normalizeTimetableSubstitution`, `readWorkspaceState`; external: `Array`, `String` | `logSchoolTimetableSubstitution`, `startup@4257`, `summarizeSchoolTimetableEntries` |
+| `saveSchoolTimetableSubstitutions` | function `app.js:2062-2069` | `SCHOOL_TIMETABLE_SUBSTITUTIONS_STORAGE_KEY`, `emitSchoolTimetableUpdate`, `normalizeTimetableSubstitution`, `writeWorkspaceState` | `logSchoolTimetableSubstitution` |
+| `logSchoolTimetableSubstitution` | function `app.js:2071-2076` | `getSchoolTimetableSubstitutions`, `normalizeTimetableSubstitution`, `saveSchoolTimetableSubstitutions` | `startup@4258` |
+| `summarizeSchoolTimetableEntries` | function `app.js:2078-2133` | `buildTimetableGroupKey`, `compareSchoolTimetableEntries`, `getSchoolTimetableEntries`, `getSchoolTimetablePeriods`, `getSchoolTimetableRooms`, `getSchoolTimetableSubstitutions`, `getTimetableClassIdentity`; external: `Array`, `Boolean`, `Map`, `Set` | `startup@4259` |
 | `SUPABASE_STATE_KEY_TIMETABLE` | const `auth.js:568` | None detected | `SUPABASE_WORKSPACE_HYDRATE_KEYS`, `emitHydratedWorkspaceStateEvent`, `initSupabaseWorkspaceStateLiveSync`, `loadTableNativeStatePayloadFromSupabase`, `saveTableNativeStatePayloadToSupabase`, `supportsTableNativeState` |
 | `SUPABASE_STATE_KEY_TIMETABLE_PERIODS` | const `auth.js:569` | None detected | `SUPABASE_WORKSPACE_HYDRATE_KEYS`, `emitHydratedWorkspaceStateEvent`, `initSupabaseWorkspaceStateLiveSync`, `loadTableNativeStatePayloadFromSupabase`, `saveTableNativeStatePayloadToSupabase`, `supportsTableNativeState` |
 | `SUPABASE_STATE_KEY_TIMETABLE_ROOMS` | const `auth.js:570` | None detected | `SUPABASE_WORKSPACE_HYDRATE_KEYS`, `emitHydratedWorkspaceStateEvent`, `initSupabaseWorkspaceStateLiveSync`, `loadTableNativeStatePayloadFromSupabase`, `saveTableNativeStatePayloadToSupabase`, `supportsTableNativeState` |
@@ -1490,9 +1490,9 @@ Proposed destination: `js/core/workspace.js or storage.js`. Status for all rows:
 | `writeWorkspaceState` | function `app.js:454-456` | `resolveWorkspaceStorageKey`; external: `JSON`, `localStorage` | `getSchoolClasses`, `migrateStudentMessagesPermissionDefault`, `saveAcademicCalendarEvents`, `saveAcademicCycles`, `saveAdmissionConfiguration`, `saveAttendanceRecords`, `saveAuditTrailEntries`, `saveGradebookRecords`, `saveLeaveRequests`, `saveLessonPlans`, `saveReportCardRecords`, `saveReportConfiguration`, `saveRolePermissions`, `saveSchoolClasses`, `saveSchoolCourses`, `saveSchoolFeeItems`, `saveSchoolSettings`, `saveSchoolStudents`, `saveSchoolTimetableEntries`, `saveSchoolTimetablePeriods`, `saveSchoolTimetableRooms`, `saveSchoolTimetableSubstitutions`, `setFeatureEnabled` |
 | `removeWorkspaceState` | function `app.js:458-460` | `resolveWorkspaceStorageKey`; external: `localStorage` | `clearAuditTrailEntries`, `resetRolePermissions`, `resetSchoolSettings` |
 | `clearLegacySharedState` | function `app.js:462-485` | `AUDIT_TRAIL_STORAGE_KEY`, `FEATURE_TOGGLE_STORAGE_KEY`, `ROLE_PERMISSIONS_STORAGE_KEY`, `SCHOOL_ACADEMIC_CALENDAR_STORAGE_KEY`, `SCHOOL_ACADEMIC_CYCLES_STORAGE_KEY`, `SCHOOL_ADMISSION_CONFIG_STORAGE_KEY`, `SCHOOL_ATTENDANCE_STORAGE_KEY`, `SCHOOL_CLASSES_STORAGE_KEY`, `SCHOOL_COURSES_STORAGE_KEY`, `SCHOOL_FEE_ITEMS_STORAGE_KEY`, `SCHOOL_GRADEBOOK_STORAGE_KEY`, `SCHOOL_LEAVE_REQUESTS_STORAGE_KEY`, `SCHOOL_LESSON_PLANS_STORAGE_KEY`, `SCHOOL_REPORT_CARDS_STORAGE_KEY`, `SCHOOL_REPORT_CONFIGURATION_STORAGE_KEY`, `SCHOOL_SETTINGS_STORAGE_KEY`, `SCHOOL_STUDENTS_STORAGE_KEY`, `SCHOOL_TIMETABLE_STORAGE_KEY`; external: `localStorage` | `startup@487` |
-| `isWorkspaceScopedStorageEventKey` | function `app.js:489-491` | `resolveWorkspaceStorageKey` | `startup@4402`, `startup@4406`, `startup@4410`, `startup@4414`, `startup@4418`, `startup@4422`, `startup@4426`, `startup@4430`, `startup@4434`, `startup@4438`, `startup@4442`, `startup@4446`, `startup@4450`, `startup@4458`, `startup@4466`, `startup@4470`, `startup@4474` |
+| `isWorkspaceScopedStorageEventKey` | function `app.js:489-491` | `resolveWorkspaceStorageKey` | `startup@4393`, `startup@4397`, `startup@4401`, `startup@4405`, `startup@4409`, `startup@4413`, `startup@4417`, `startup@4421`, `startup@4425`, `startup@4429`, `startup@4433`, `startup@4437`, `startup@4441`, `startup@4449`, `startup@4457`, `startup@4461`, `startup@4465` |
 | `parseStoredJSON` | function `app.js:601-611` | ; external: `JSON` | `getWorkspaceSessionSnapshot`, `readWorkspaceState` |
-| `createStorageId` | function `app.js:834-840` | ; external: `Date`, `Math`, `window` | `copyTimetableTerm`, `duplicateLessonPlan`, `normalizeAcademicCalendarEvent`, `normalizeAcademicSession`, `normalizeAcademicTerm`, `normalizeAdmissionConfigClass`, `normalizeAdmissionConfigSession`, `normalizeAdmissionConfigStage`, `normalizeAttendanceRecord`, `normalizeAuditTrailEntry`, `normalizeGradebookComponent`, `normalizeGradebookRecord`, `normalizeGuardianContact`, `normalizeLeaveAttachment`, `normalizeLeaveRequest`, `normalizeLessonPlanAttachment`, `normalizeLessonPlanRecord`, `normalizeReportCardRecord`, `normalizeReportCardSubject`, `normalizeSchoolClass`, `normalizeSchoolCourse`, `normalizeSchoolFeeItem`, `normalizeSchoolTimetableEntry`, `normalizeStudentDocumentRecord`, `normalizeStudentProgressionEntry`, `normalizeStudentRecord`, `normalizeTimetablePeriod`, `normalizeTimetableRoom`, `normalizeTimetableSubstitution` |
+| `createStorageId` | function `app.js:825-831` | ; external: `Date`, `Math`, `window` | `copyTimetableTerm`, `duplicateLessonPlan`, `normalizeAcademicCalendarEvent`, `normalizeAcademicSession`, `normalizeAcademicTerm`, `normalizeAdmissionConfigClass`, `normalizeAdmissionConfigSession`, `normalizeAdmissionConfigStage`, `normalizeAttendanceRecord`, `normalizeAuditTrailEntry`, `normalizeGradebookComponent`, `normalizeGradebookRecord`, `normalizeGuardianContact`, `normalizeLeaveAttachment`, `normalizeLeaveRequest`, `normalizeLessonPlanAttachment`, `normalizeLessonPlanRecord`, `normalizeReportCardRecord`, `normalizeReportCardSubject`, `normalizeSchoolClass`, `normalizeSchoolCourse`, `normalizeSchoolFeeItem`, `normalizeSchoolTimetableEntry`, `normalizeStudentDocumentRecord`, `normalizeStudentProgressionEntry`, `normalizeStudentRecord`, `normalizeTimetablePeriod`, `normalizeTimetableRoom`, `normalizeTimetableSubstitution` |
 | `STORAGE_KEYS` | const `auth.js:2-8` | None detected | `clearSession`, `getMailLog`, `getPasswordRecoveryRequests`, `getSession`, `getUsers`, `initAccessProvisioningControls`, `initClassManagementControls`, `initCourseManagementControls`, `saveMailLog`, `savePasswordRecoveryRequests`, `saveUsers`, `setSession` |
 | `SUPABASE_STORAGE_KEY` | const `auth.js:10` | None detected | `clearSupabaseBrowserSession`, `getSupabaseClient` |
 | `PORTAL_ONBOARDING_STORAGE_KEY` | const `auth.js:576` | None detected | `clearLocalSchoolAccountData`, `getPortalOnboardingStorageKey` |
@@ -1518,7 +1518,7 @@ Do not duplicate these bindings across files. Getter/setter or service methods m
 
 | Binding | Declaration | Read consumers | Assignment/update lines |
 | --- | --- | --- | --- |
-| `activeOfferingId` | `app.js:4696` | renderOfferingTabs | 4747 |
+| `activeOfferingId` | `app.js:4687` | renderOfferingTabs | 4738 |
 | `supabaseClientPromise` | `auth.js:158` | getSupabaseClient | 3500 |
 | `isSignOutInProgress` | `auth.js:159` | syncSupabaseSessionToLocal, wireSignOutButton | 9296 |
 | `lastActionFeedbackContext` | `auth.js:160` | setStatus, showInlineActionFeedback | 28219 |
@@ -1539,33 +1539,33 @@ These execute when their current script/wrapper executes or register later work.
 | --- | --- | --- |
 | `app.js:1-21` | `(() => { const theme = (() => { try { return localStorage.getItem("schoolsphere.theme.v1") === "dark" ? "dark" : "light"; } catch { return "light"; } })();` | Existing bootstrap/manager adapter; unmoved |
 | `app.js:487` | `clearLegacySharedState();` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4179-4186` | `window.SchoolSphereFeatureModules = { modules: features, getState: getFeatureToggleState, getEnabledFeatures, setFeatureEnabled, summarize: summarizeFeatur` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4188-4200` | `window.SchoolSphereRolePermissions = { roles: ROLE_PERMISSION_ROLES, permissions: ROLE_PERMISSION_OPTIONS, permissionsByRole: ROLE_PERMISSION_OPTIONS_BY_RO` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4202-4212` | `window.SchoolSphereSiteSettings = { defaults: DEFAULT_SCHOOL_SETTINGS, schoolTypeOptions: SCHOOL_TYPE_OPTIONS, getSettings: getSchoolSettings, getEnabledSc` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4214-4224` | `window.SchoolSphereAcademicCycles = { defaults: DEFAULT_ACADEMIC_CYCLES, getState: getAcademicCycles, summarize: summarizeAcademicCycles, saveState: saveAc` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4226-4238` | `window.SchoolSphereAcademicCalendar = { defaults: DEFAULT_ACADEMIC_CALENDAR_EVENTS, types: ["term", "holiday", "exam"], getEvents: getAcademicCalendarEvent` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4240-4252` | `window.SchoolSphereAdmissionConfig = { defaults: DEFAULT_ADMISSION_CONFIGURATION, getState: getAdmissionConfiguration, summarize: summarizeAdmissionConfigu` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4254-4279` | `window.SchoolSphereTimetable = { defaults: DEFAULT_TIMETABLE_ENTRIES, days: TIMETABLE_DAYS, schoolDays: TIMETABLE_SCHOOL_DAYS, weekTypes: TIMETABLE_WEEK_TY` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4281-4290` | `window.SchoolSphereFeeItems = { defaults: DEFAULT_FEE_ITEMS, getItems: getSchoolFeeItems, summarize: summarizeSchoolFeeItems, saveItems: saveSchoolFeeItems` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4292-4302` | `window.SchoolSphereClasses = { defaults: DEFAULT_CLASS_RECORDS, getClasses: getSchoolClasses, summarize: summarizeSchoolClasses, saveClasses: saveSchoolCla` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4304-4315` | `window.SchoolSphereCourses = { defaults: DEFAULT_COURSE_RECORDS, getCourses: getSchoolCourses, summarize: summarizeSchoolCourses, saveCourses: saveSchoolCo` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4317-4326` | `window.SchoolSphereLessonPlans = { defaults: DEFAULT_LESSON_PLAN_RECORDS, getPlans: getLessonPlans, summarize: summarizeLessonPlans, savePlans: saveLessonP` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4328-4337` | `window.SchoolSphereLeaveRequests = { defaults: DEFAULT_LEAVE_REQUEST_RECORDS, getRequests: getLeaveRequests, summarize: summarizeLeaveRequests, saveRequest` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4339-4352` | `window.SchoolSphereStudents = { defaults: DEFAULT_STUDENT_RECORDS, getStudents: getSchoolStudents, summarize: summarizeSchoolStudents, saveStudents: saveSc` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4354-4362` | `window.SchoolSphereAttendance = { defaults: DEFAULT_ATTENDANCE_RECORDS, getRecords: getAttendanceRecords, summarize: summarizeAttendanceRecords, saveRecord` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4364-4373` | `window.SchoolSphereReportCards = { defaults: DEFAULT_REPORT_CARD_RECORDS, getRecords: getReportCardRecords, summarizeSubjects: summarizeReportCardSubjects,` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4375-4381` | `window.SchoolSphereReportConfiguration = { defaults: DEFAULT_REPORT_CONFIGURATION, getConfiguration: getReportConfiguration, saveConfiguration: saveReportC` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4383-4391` | `window.SchoolSphereGradebook = { defaults: DEFAULT_GRADEBOOK_RECORDS, getRecords: getGradebookRecords, saveRecords: saveGradebookRecords, upsertRecord: ups` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4393-4399` | `window.SchoolSphereAuditTrail = { getEntries: getAuditTrailEntries, saveEntries: saveAuditTrailEntries, record: recordAuditTrailEntry, clear: clearAuditTra` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4401-4477` | `window.addEventListener("storage", (event) => { if (isWorkspaceScopedStorageEventKey(event.key, FEATURE_TOGGLE_STORAGE_KEY)) { emitFeatureToggleUpdate(getF` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4811` | `renderHeader();` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4812` | `renderFooter();` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4813` | `closeMenusOnOutsideClick();` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4814` | `initPageContent();` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4815` | `applySchoolSettingsBranding();` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4816-4820` | `window.addEventListener(SCHOOL_SETTINGS_EVENT, () => { renderHeader(); renderFooter(); applySchoolSettingsBranding(); });` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4821` | `window.addEventListener("hashchange", renderHeader);` | Existing bootstrap/manager adapter; unmoved |
-| `app.js:4822` | `window.addEventListener(FEATURE_TOGGLE_EVENT, renderFeatureSurfaces);` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4170-4177` | `window.SchoolSphereFeatureModules = { modules: features, getState: getFeatureToggleState, getEnabledFeatures, setFeatureEnabled, summarize: summarizeFeatur` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4179-4191` | `window.SchoolSphereRolePermissions = { roles: ROLE_PERMISSION_ROLES, permissions: ROLE_PERMISSION_OPTIONS, permissionsByRole: ROLE_PERMISSION_OPTIONS_BY_RO` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4193-4203` | `window.SchoolSphereSiteSettings = { defaults: DEFAULT_SCHOOL_SETTINGS, schoolTypeOptions: SCHOOL_TYPE_OPTIONS, getSettings: getSchoolSettings, getEnabledSc` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4205-4215` | `window.SchoolSphereAcademicCycles = { defaults: DEFAULT_ACADEMIC_CYCLES, getState: getAcademicCycles, summarize: summarizeAcademicCycles, saveState: saveAc` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4217-4229` | `window.SchoolSphereAcademicCalendar = { defaults: DEFAULT_ACADEMIC_CALENDAR_EVENTS, types: ["term", "holiday", "exam"], getEvents: getAcademicCalendarEvent` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4231-4243` | `window.SchoolSphereAdmissionConfig = { defaults: DEFAULT_ADMISSION_CONFIGURATION, getState: getAdmissionConfiguration, summarize: summarizeAdmissionConfigu` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4245-4270` | `window.SchoolSphereTimetable = { defaults: DEFAULT_TIMETABLE_ENTRIES, days: TIMETABLE_DAYS, schoolDays: TIMETABLE_SCHOOL_DAYS, weekTypes: TIMETABLE_WEEK_TY` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4272-4281` | `window.SchoolSphereFeeItems = { defaults: DEFAULT_FEE_ITEMS, getItems: getSchoolFeeItems, summarize: summarizeSchoolFeeItems, saveItems: saveSchoolFeeItems` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4283-4293` | `window.SchoolSphereClasses = { defaults: DEFAULT_CLASS_RECORDS, getClasses: getSchoolClasses, summarize: summarizeSchoolClasses, saveClasses: saveSchoolCla` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4295-4306` | `window.SchoolSphereCourses = { defaults: DEFAULT_COURSE_RECORDS, getCourses: getSchoolCourses, summarize: summarizeSchoolCourses, saveCourses: saveSchoolCo` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4308-4317` | `window.SchoolSphereLessonPlans = { defaults: DEFAULT_LESSON_PLAN_RECORDS, getPlans: getLessonPlans, summarize: summarizeLessonPlans, savePlans: saveLessonP` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4319-4328` | `window.SchoolSphereLeaveRequests = { defaults: DEFAULT_LEAVE_REQUEST_RECORDS, getRequests: getLeaveRequests, summarize: summarizeLeaveRequests, saveRequest` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4330-4343` | `window.SchoolSphereStudents = { defaults: DEFAULT_STUDENT_RECORDS, getStudents: getSchoolStudents, summarize: summarizeSchoolStudents, saveStudents: saveSc` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4345-4353` | `window.SchoolSphereAttendance = { defaults: DEFAULT_ATTENDANCE_RECORDS, getRecords: getAttendanceRecords, summarize: summarizeAttendanceRecords, saveRecord` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4355-4364` | `window.SchoolSphereReportCards = { defaults: DEFAULT_REPORT_CARD_RECORDS, getRecords: getReportCardRecords, summarizeSubjects: summarizeReportCardSubjects,` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4366-4372` | `window.SchoolSphereReportConfiguration = { defaults: DEFAULT_REPORT_CONFIGURATION, getConfiguration: getReportConfiguration, saveConfiguration: saveReportC` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4374-4382` | `window.SchoolSphereGradebook = { defaults: DEFAULT_GRADEBOOK_RECORDS, getRecords: getGradebookRecords, saveRecords: saveGradebookRecords, upsertRecord: ups` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4384-4390` | `window.SchoolSphereAuditTrail = { getEntries: getAuditTrailEntries, saveEntries: saveAuditTrailEntries, record: recordAuditTrailEntry, clear: clearAuditTra` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4392-4468` | `window.addEventListener("storage", (event) => { if (isWorkspaceScopedStorageEventKey(event.key, FEATURE_TOGGLE_STORAGE_KEY)) { emitFeatureToggleUpdate(getF` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4802` | `renderHeader();` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4803` | `renderFooter();` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4804` | `closeMenusOnOutsideClick();` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4805` | `initPageContent();` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4806` | `applySchoolSettingsBranding();` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4807-4811` | `window.addEventListener(SCHOOL_SETTINGS_EVENT, () => { renderHeader(); renderFooter(); applySchoolSettingsBranding(); });` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4812` | `window.addEventListener("hashchange", renderHeader);` | Existing bootstrap/manager adapter; unmoved |
+| `app.js:4813` | `window.addEventListener(FEATURE_TOGGLE_EVENT, renderFeatureSurfaces);` | Existing bootstrap/manager adapter; unmoved |
 | `auth.js:603` | `applyThemePreference(getThemePreference());` | Auth bootstrap; unmoved |
 | `auth.js:605-657` | `document.addEventListener("DOMContentLoaded", async () => { applyThemePreference(getThemePreference()); initThemeControls(); wireSignOutButton(document); t` | Auth bootstrap; unmoved |
 | `self-registration-links.js:170-174` | `if (document.readyState === "loading") { document.addEventListener("DOMContentLoaded", init, { once: true }); } else { init(); }` | Existing entry point; retained |
@@ -1580,7 +1580,7 @@ Static catalog includes calls nested in initializer expressions, including callb
 | `LEGACY_MOCK_CLASS_IDS` | `app.js:302-307` | `Set` |
 | `ROLE_PERMISSION_OPTIONS` | `app.js:351-356` | `Object.values(ROLE_PERMISSION_OPTIONS_BY_ROLE) .flat() .filter`, `Object.values(ROLE_PERMISSION_OPTIONS_BY_ROLE) .flat`, `Object.values`, `options.findIndex` |
 | `DEFAULT_ROLE_PERMISSIONS` | `app.js:492-509` | `ROLE_PERMISSION_OPTIONS.reduce`, `ROLE_PERMISSION_OPTIONS_BY_ROLE.Teacher.reduce`, `ROLE_PERMISSION_OPTIONS_BY_ROLE.Parent.reduce`, `ROLE_PERMISSION_OPTIONS_BY_ROLE.Student.reduce` |
-| `DEFAULT_TIMETABLE_PERIODS` | `app.js:1565-1575` | `TIMETABLE_SCHOOL_DAYS.flatMap`, `DEFAULT_TIMETABLE_SLOT_TEMPLATES.map`, `day.toLowerCase` |
+| `DEFAULT_TIMETABLE_PERIODS` | `app.js:1556-1566` | `TIMETABLE_SCHOOL_DAYS.flatMap`, `DEFAULT_TIMETABLE_SLOT_TEMPLATES.map`, `day.toLowerCase` |
 | `FEE_CATEGORY_OPTIONS` | `auth.js:35-71` | `Object.freeze` |
 | `ADMISSION_FILE_FIELDS` | `auth.js:76-113` | `Object.freeze` |
 | `ADMISSION_LEGACY_FILE_FIELDS` | `auth.js:114-121` | `Object.freeze` |
@@ -1647,24 +1647,24 @@ Exact public members are in contracts.md. Keep adapters during migration; these 
 
 | Global interface | Definition | Direct window-reading owners |
 | --- | --- | --- |
-| `window.SchoolSphereFeatureModules` | `app.js:4179` | `auth.js:getFeatureModuleManager` |
-| `window.SchoolSphereRolePermissions` | `app.js:4188` | `auth.js:getRolePermissionManager` |
-| `window.SchoolSphereSiteSettings` | `app.js:4202` | `auth.js:getSchoolSettingsManager` |
-| `window.SchoolSphereAcademicCycles` | `app.js:4214` | `auth.js:getAcademicCycleManager` |
-| `window.SchoolSphereAcademicCalendar` | `app.js:4226` | `auth.js:getAcademicCalendarManager` |
-| `window.SchoolSphereAdmissionConfig` | `app.js:4240` | `auth.js:getAdmissionConfigManager` |
-| `window.SchoolSphereTimetable` | `app.js:4254` | `auth.js:getTimetableManager` |
-| `window.SchoolSphereFeeItems` | `app.js:4281` | `auth.js:getFeeItemManager` |
-| `window.SchoolSphereClasses` | `app.js:4292` | `auth.js:getClassManager`, `auth.js:getActiveClassLevelTokenSet` |
-| `window.SchoolSphereCourses` | `app.js:4304` | `auth.js:getCourseManager` |
-| `window.SchoolSphereLessonPlans` | `app.js:4317` | `auth.js:getLessonPlanManager` |
-| `window.SchoolSphereLeaveRequests` | `app.js:4328` | `auth.js:getLeaveRequestManager` |
-| `window.SchoolSphereStudents` | `app.js:4339` | `auth.js:getStudentManager` |
-| `window.SchoolSphereAttendance` | `app.js:4354` | `auth.js:getAttendanceManager` |
-| `window.SchoolSphereReportCards` | `app.js:4364` | `auth.js:getReportCardManager` |
-| `window.SchoolSphereReportConfiguration` | `app.js:4375` | `auth.js:getReportConfigurationManager` |
-| `window.SchoolSphereGradebook` | `app.js:4383` | `auth.js:getGradebookManager` |
-| `window.SchoolSphereAuditTrail` | `app.js:4393` | No direct function-owned read; inspect startup/inline access |
+| `window.SchoolSphereFeatureModules` | `app.js:4170` | `auth.js:getFeatureModuleManager` |
+| `window.SchoolSphereRolePermissions` | `app.js:4179` | `auth.js:getRolePermissionManager` |
+| `window.SchoolSphereSiteSettings` | `app.js:4193` | `auth.js:getSchoolSettingsManager` |
+| `window.SchoolSphereAcademicCycles` | `app.js:4205` | `auth.js:getAcademicCycleManager` |
+| `window.SchoolSphereAcademicCalendar` | `app.js:4217` | `auth.js:getAcademicCalendarManager` |
+| `window.SchoolSphereAdmissionConfig` | `app.js:4231` | `auth.js:getAdmissionConfigManager` |
+| `window.SchoolSphereTimetable` | `app.js:4245` | `auth.js:getTimetableManager` |
+| `window.SchoolSphereFeeItems` | `app.js:4272` | `auth.js:getFeeItemManager` |
+| `window.SchoolSphereClasses` | `app.js:4283` | `auth.js:getClassManager`, `auth.js:getActiveClassLevelTokenSet` |
+| `window.SchoolSphereCourses` | `app.js:4295` | `auth.js:getCourseManager` |
+| `window.SchoolSphereLessonPlans` | `app.js:4308` | `auth.js:getLessonPlanManager` |
+| `window.SchoolSphereLeaveRequests` | `app.js:4319` | `auth.js:getLeaveRequestManager` |
+| `window.SchoolSphereStudents` | `app.js:4330` | `auth.js:getStudentManager` |
+| `window.SchoolSphereAttendance` | `app.js:4345` | `auth.js:getAttendanceManager` |
+| `window.SchoolSphereReportCards` | `app.js:4355` | `auth.js:getReportCardManager` |
+| `window.SchoolSphereReportConfiguration` | `app.js:4366` | `auth.js:getReportConfigurationManager` |
+| `window.SchoolSphereGradebook` | `app.js:4374` | `auth.js:getGradebookManager` |
+| `window.SchoolSphereAuditTrail` | `app.js:4384` | No direct function-owned read; inspect startup/inline access |
 | `window.SchoolSphereSupabaseConfig` | `supabase-config.js:3` | `auth.js:getSupabaseConfig`, `auth.js:getPaystackPublicKey` |
 
 ## Listeners, timers and subscriptions
@@ -1674,12 +1674,12 @@ All 423 AST call sites found in parsable browser/inline scripts are listed. This
 | Location | Owner | Operation/target | Event or callback | Delay expression |
 | --- | --- | --- | --- | --- |
 | `app.js:19` | `startup/inline` | `document.addEventListener` | `DOMContentLoaded` | `—` |
-| `app.js:4401` | `startup/inline` | `window.addEventListener` | `storage` | `—` |
-| `app.js:4601` | `closeMenusOnOutsideClick` | `document.addEventListener` | `click` | `—` |
-| `app.js:4746` | `renderOfferingTabs` | `button.addEventListener` | `click` | `—` |
-| `app.js:4816` | `startup/inline` | `window.addEventListener` | `SCHOOL_SETTINGS_EVENT` | `—` |
-| `app.js:4821` | `startup/inline` | `window.addEventListener` | `hashchange` | `—` |
-| `app.js:4822` | `startup/inline` | `window.addEventListener` | `FEATURE_TOGGLE_EVENT` | `—` |
+| `app.js:4392` | `startup/inline` | `window.addEventListener` | `storage` | `—` |
+| `app.js:4592` | `closeMenusOnOutsideClick` | `document.addEventListener` | `click` | `—` |
+| `app.js:4737` | `renderOfferingTabs` | `button.addEventListener` | `click` | `—` |
+| `app.js:4807` | `startup/inline` | `window.addEventListener` | `SCHOOL_SETTINGS_EVENT` | `—` |
+| `app.js:4812` | `startup/inline` | `window.addEventListener` | `hashchange` | `—` |
+| `app.js:4813` | `startup/inline` | `window.addEventListener` | `FEATURE_TOGGLE_EVENT` | `—` |
 | `auth.js:605` | `startup/inline` | `document.addEventListener` | `DOMContentLoaded` | `—` |
 | `auth.js:727` | `createThemeToggleButton` | `button.addEventListener` | `click` | `—` |
 | `auth.js:894` | `withNetworkTimeout` | `window.setTimeout` | `callback/expression` | `timeoutMs` |
@@ -2154,3 +2154,11 @@ Seven isolated renderer cases and two initPageContent composition cases match ba
 Pre-extraction checkpoint: 1dd813e; working tree clean. Moved only the unchanged 17-line whyCards declaration from app.js:30–46 to js/website/why-grid.js:1–17, above the unchanged renderer now at lines 19–37. The declaration plus blank separator removes 18 lines from app.js. All remaining app.js bytes and the original renderer are unchanged. No HTML or script references changed. whyCards has one owner, remains a global lexical const (not window.whyCards), and still holds an unfrozen array of three title/copy records. Initialization occurs earlier during the existing synchronous why-grid.js load; literal allocation has no DOM, storage or network effects. No listener or extra startup invocation is introduced.
 
 Current initPageContent is at app.js:4796, with Why calls at 4797–4798 and its single immediate invocation at 4814. Original and extracted data serialize identically; isolated rendering and composition traces match for present and absent targets. Classic-script access, const reassignment rejection, array mutability and shared identity across later scripts are preserved. All six JS files parse; all 58 HTML files and 271 external references are unchanged. E02 browser checks passed according to the user, not independent observation. E03 browser acceptance remains NOT TESTED. Stop before E04; no commit, push, deployment or database operation performed.
+
+## E04 execution record
+
+Pre-extraction checkpoint: 28bf6cf; working tree clean. Moved only the unchanged eight-line app.js escapeHtml function from pre-E04 lines 613–620 into js/core/escape-html.js:1–8. Removed its declaration and following blank separator (nine lines); remaining app.js bytes are unchanged. Added one synchronous classic helper tag before practice-grid.js in all 57 app.js consumers. No initializer, listener, state, storage or network behavior is added. Existing global callable name remains escapeHtml.
+
+Dependencies are value, built-in String and String.prototype.replaceAll. Eight direct calls remain: buildBrandMarkHtml at app.js:775 (calls twice at 779 and once at 784), renderHeader at 4490 (calls at 4522/4529/4531), and renderFooter at 4546 (calls at 4558/4560). The private auth.js helper at 6303–6310 and its 1,371 scoped references remain unchanged; its non-string behavior differs and must not be merged in this extraction.
+
+Sixteen input fixtures plus a throwing conversion match baseline. Three isolated header/footer composition fixtures include repeated renders and present/absent targets; image, initial and fallback branding branches match exactly. All seven browser JS files parse; all 328 external script references resolve locally. E04 HTTP/visual/navigation/login/portal checks remain NOT TESTED. E03 was checkpointed by the user; its browser pass was not separately confirmed. No commit, push, deployment, database operation or E05 work performed.

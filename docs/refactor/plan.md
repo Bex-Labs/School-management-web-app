@@ -1,6 +1,6 @@
 # Safe staged extraction plan
 
-Original plan: 2026-10-02 at e1eb094. E01 and E02 are implemented, with browser completion reported by the user rather than independently observed. E03 was explicitly approved and implemented from clean refactor/javascript-structure at 1dd813e. E03 static/isolated checks pass; E03 browser acceptance remains outstanding. Stop after E03; no subsequent stage has started.
+Original plan: 2026-10-02 at e1eb094; updated 2026-10-03. E01–E03 are implemented and checkpointed by the user. E01/E02 browser completion was user-reported; E03 browser acceptance remains unverified in this record. E04 was explicitly approved and implemented from clean refactor/javascript-structure at 28bf6cf. E04 static/isolated checks pass; browser acceptance remains outstanding. Stop after E04; no subsequent stage has started.
 
 ## Non-negotiable boundaries
 
@@ -85,7 +85,9 @@ The source anchors and results in this section describe E02 at implementation ti
 
 **Rollback boundary:** the new practice-grid.js file, the removed function and blank line, all 57 practice script additions, and E02 documentation hunks form one unit against 7b1e613. Preserve E01 and unrelated subsequent changes; do not reset the repository or clear storage. Stop after E02 and await user review. No commit, push, deployment, database work or E03 extraction is authorized.
 
-## E03 — implemented: whyCards (browser acceptance pending)
+## E03 — implemented: whyCards (historical execution record; browser acceptance unverified)
+
+These anchors describe E03 at implementation time. E03 is included in checkpoint 28bf6cf; a separate browser-pass confirmation was not supplied. Current locations and script order are maintained in inventory.md and contracts.md.
 
 **Approved scope:** moved only the unchanged 17-line const whyCards declaration from pre-E03 app.js:30–46 to js/website/why-grid.js:1–17, above the unchanged renderWhyGrid function now at lines 19–37. Removed the original declaration and blank separator (18 lines) from app.js. All remaining app.js bytes are unchanged. No new file, HTML tag, URL, CSS or content change.
 
@@ -99,6 +101,22 @@ The source anchors and results in this section describe E02 at implementation ti
 
 **Rollback boundary:** only app.js, js/website/why-grid.js and E03 documentation hunks against 1dd813e. Restore the dataset to its original location and remove its new copy as one operation; preserve E01/E02 and unrelated changes. No storage rollback is involved. Stop before E04; no commit, push, deployment or database changes.
 
+## E04 — implemented: app escapeHtml (browser acceptance pending)
+
+**Approved scope:** moved only the unchanged eight-line escapeHtml(value) function from pre-E04 app.js:613–620 into js/core/escape-html.js:1–8. Removed the original declaration and following blank line (nine lines). All other app.js bytes remain identical. The separate auth.js helper stays private and unchanged; no deduplication or semantic fix.
+
+**Dependencies and consumers:** only value, String and String.prototype.replaceAll. Eight calls across buildBrandMarkHtml (now app.js:775; twice at 779 and once at 784), renderHeader (4490; calls at 4522/4529/4531) and renderFooter (4546; calls at 4558/4560). Header/footer rendering still runs at 4802–4803 and through the original settings/hash handlers. No state, constants, listeners, storage, permissions or Supabase behavior moves.
+
+**Loading:** exactly one synchronous classic escape-html.js tag before practice-grid.js on all 57 app.js consumers. Current order: escape-html.js → practice-grid.js → why-grid.js → app.js → unchanged subsequent scripts. The new file only declares the existing global function. No initializer, async/defer/module conversion, wrapper or new global adapter. Preserve all prior tags/query strings/inline bodies. Verification HTML remains unchanged.
+
+**Semantics:** retain String(value ?? "") and the exact replacement order, including double-escaping already encoded entities. Keep the private auth.js:6303–6310 version separate: it does not coerce and throws for null/numeric inputs. Its 1,371 scoped references remain bound to that private declaration.
+
+**Checks performed:** exact helper and remaining-app equality; 16 explicit input/output fixtures plus a throwing conversion; three isolated header/footer composition cases covering normal/special-character names, selected/hash navigation, absent targets and repeated rendering; image/initial/fallback branding branches; unchanged private auth source and binding; seven classic scripts parse; 58 HTML files audited and all 328 external paths resolve locally. Existing contact inline parse failure is unchanged (now contact.html:961). Browser HTTP/cache/visual/navigation and login/portal startup checks are NOT TESTED.
+
+**Remaining acceptance:** using the usual local HTTP preview, compare header/footer, logo/initial branding, navigation and representative login/portal startup; also check Why It Works and In Practice. Inspect console/network for missing files, reference errors and exactly-once script loading. Do not edit real records or settings; use disposable/local fixtures if branding scenarios need exercising. Preserve the known contact failure separately.
+
+**Rollback boundary:** new js/core/escape-html.js, the removed app helper, 57 helper tag additions and E04 documentation hunks against 28bf6cf, as one unit. Preserve E01–E03 and unrelated subsequent changes. No storage/database rollback. Stop before E05; no commit, push, deployment or database operation is authorized.
+
 ## Extraction queue (provisional; never execute as a batch)
 
 Each row is a planning group. Rows containing several features MUST be expanded into one exact extraction before implementation. Dependency analysis and runtime evidence may change ordering.
@@ -107,7 +125,7 @@ Each row is a planning group. Rows containing several features MUST be expanded 
 | --- | --- | --- | --- | --- |
 | E02 | Implemented: renderPracticeGrid only | Parameter/document-only dependency audit complete; classic loader pattern retained | Static/isolated checks pass; browser checks passed according to user | practice-grid.js, function removal, 57 script additions and E02 docs |
 | E03 | Implemented: whyCards dataset only | Literal-only const; two callers retained; existing classic loading order | Static/isolated checks pass; E03 browser checks outstanding | Dataset relocation between app.js/why-grid.js and E03 docs |
-| E04 | One pure shared helper | Prove matching semantics at every caller; app/auth escaping/JSON helpers may differ | Representative null/invalid/legacy input and escaping cases | Helper plus explicit caller changes |
+| E04 | Implemented: app escapeHtml only | Eight calls retained; auth private helper remains separate | Static/isolated checks pass; HTTP/visual/startup checks outstanding | New helper, app declaration removal, 57 script tags and E04 docs |
 | E05 | Workspace/storage primitives as individually reviewed boundaries | Workspace fallback/key contracts captured; synthetic A/B fixtures ready | Key equality, transient precedence, legacy behavior and isolation | Helper/interface and consumers; never clear storage |
 | E06 | One app.js manager, e.g. classes only after dependency review | Storage API stable; constants/normalizers/event methods accounted for; global adapter retained | CRUD/reload/event payload and dependent view refresh | One manager implementation + adapter |
 | E07 | Other managers one at a time | Respect actual dependencies: attendance on cycles/students, report/gradebook and timetable/class/course relationships | Target-feature checks plus linked roles/screens | Each manager is its own checkpoint |
@@ -138,6 +156,6 @@ Run the full checklist on representative roles and two synthetic school workspac
 
 ## Current completion boundary
 
-E01–E03 are implemented. E03 moves only whyCards from app.js into the existing why-grid.js and updates the four refactoring documents. No HTML, other declaration or runtime logic changed during E03. No commit, push, deployment, database change or subsequent extraction occurred during this implementation.
+E01–E04 are implemented. E04 moves only app escapeHtml into a new classic helper file, adds one tag to each of 57 HTML consumers and updates the four refactoring documents. No other function or state moved. No commit, push, deployment, database change or subsequent extraction occurred during E04 implementation.
 
-Next action is browser acceptance for E03 in an environment permitted to serve/open localhost, especially why-it-works.html, In Practice, a missing-target page, and login/portal startup. Preserve the known contact failure separately. Do not treat static checks as proof of those workflows or proceed automatically to E04. The E03 rollback baseline is 1dd813e; retain E01/E02 and later unrelated user changes.
+Next action is browser acceptance for E04 and resolution of the still-unverified E03 checks. Use an environment permitted to serve/open localhost; inspect public header/footer/branding, navigation, Why It Works, In Practice and login/portal startup. Do not infer browser acceptance from source checks or proceed automatically to E05. E04 rollback baseline: 28bf6cf. Retain earlier extractions and unrelated user changes.

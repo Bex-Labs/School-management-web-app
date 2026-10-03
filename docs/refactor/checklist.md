@@ -218,3 +218,26 @@ Scope: whyCards dataset only, from clean refactor/javascript-structure at 1dd813
 Changes are limited to app.js, js/website/why-grid.js and these four documentation files. No new files or script references. References in the current inventory/contracts are adjusted for the 18-line move; prior execution logs retain explicitly historical source anchors. The HTML ID catalog and script manifest must remain unchanged.
 
 Manual acceptance: use local HTTP preview to check Why It Works has the same three cards on desktop/mobile; check In Practice, Home, navigation and representative login/portal startup without submitting forms or records. Inspect console/network for new errors. Record the pre-existing contact error separately. Stop before E04. Rollback only E03 hunks against 1dd813e, preserving E01/E02 and unrelated work.
+
+## E04 result log — 2026-10-03
+
+Scope: app.js escapeHtml only, from clean refactor/javascript-structure at 28bf6cf. E03 is checkpointed but its browser acceptance was not separately confirmed. Approval to implement E04 is not recorded as a browser test result. No commit, push, deployment, database operation or later extraction performed.
+
+| Check | Result | Evidence / limitation |
+| --- | --- | --- |
+| Dependency/consumer audit | PASS — source/scope | String and replaceAll only. Eight calls in buildBrandMarkHtml, renderHeader and renderFooter; no other direct binding references. No state, initializer or external integration dependency. |
+| Exact function move | PASS | Eight-line helper matches pre-E04 bytes. Remaining app.js equals baseline after removing only that declaration and blank separator (nine lines). |
+| Escaping semantics | PASS — isolated | Sixteen explicit expected-output cases cover undefined/null, empty/plain/Unicode strings, numbers/booleans/bigint/symbol, all five escaped characters, existing entities, arrays, custom conversion and URL-like strings. Throwing conversion still propagates. |
+| Caller markup | PASS — isolated | Three header/footer composition fixtures compare exact HTML/traces for normal and special-character platform names, navigation paths/hash, absent targets and repeated render calls. Each also covers logo image, initial and empty-name fallback branding branches. This is not visual or full-app verification. |
+| Private auth helper | PASS — source/scope | auth.js is byte-identical; its FunctionExpression/IIFE-local binding retains 1,371 references. Null/numeric inputs still throw there. No auth helper deduplication or caller changes. |
+| Initialization and state | PASS — source/isolated | New file contains one declaration and no initialization work. App bootstrap, listeners, manager objects and all remaining function bodies are byte-identical. No constants or mutable state moved. |
+| HTML entry points | PASS — source | All 58 HTML files compared. Each of 57 app consumers gains exactly one escape-html.js tag before practice-grid.js/why-grid.js/app.js. Removing that line reconstructs the baseline HTML exactly. Verification HTML unchanged. |
+| Script paths and syntax | PASS — local/source | All 328 local external references resolve; all seven browser JS files parse as classic scripts. All 271 prior tags, inline bodies, attributes/query strings and relative ordering remain unchanged. No HTTP/MIME/cache claim. |
+| Inline syntax | PASS for unchanged status | Contact retains its existing inline parse failure at relative line 53, now contact.html:961. Other inline scripts parse. Contact functionality remains a known failure, not an E04 regression. |
+| Documentation integrity | PASS — source | All 318 app/extracted declaration locations and 248 app startup references match current source. All 58 manifest rows match current tags/lines. The HTML ID catalog is byte-identical to baseline, with all 1,009 IDs checked against 58 current pages. |
+| Scope and whitespace | PASS | Only app.js, 57 HTML consumers, four refactoring documents and the new core helper changed. All 34 other tracked files match 28bf6cf. No other new files; git diff --check passes. |
+| E04 browser acceptance | NOT TESTED | Desktop/mobile header/footer, navigation, branding and representative login/portal startup require manual HTTP preview checks. Previous browser-policy restrictions were not bypassed. No account/settings/record/database writes performed. |
+
+Touched scope: app.js, new js/core/escape-html.js, 57 HTML consumers, and the four refactoring documents. Historical logs retain their prior source anchors; current inventory/contracts locations and the script manifest reflect E04. Preserve the HTML IDs catalog exactly.
+
+Manual checks: open local HTTP preview, compare header/footer/branding and navigation on desktop/mobile, check Why It Works and In Practice, then representative login/portal startup without submitting forms or records. In console/network confirm one successful escape-html.js load before practice-grid.js → why-grid.js → app.js and no new errors. Keep the contact exception separate. Report outcomes before another stage. Stop before E05; rollback only E04 hunks against 28bf6cf and preserve earlier extractions.

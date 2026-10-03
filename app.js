@@ -610,15 +610,6 @@ function parseStoredJSON(raw, fallback) {
   }
 }
 
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
-
 const SCHOOL_TYPE_OPTIONS = [
   { value: "nursery", label: "Nursery" },
   { value: "primary", label: "Primary" },
