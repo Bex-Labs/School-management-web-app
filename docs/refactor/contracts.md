@@ -1,18 +1,18 @@
 # Contracts to preserve during JavaScript extraction
 
-Original snapshot: 2026-10-02 at e1eb094; current update 2026-10-03 for the approved E05 offerings feature, based on E04 checkpoint a06b420. Source locations and the HTML script manifest are current; separate historical acceptance logs retain stage-specific anchors. Other HTML/inline references keep original snapshot locations, shifting by four after the added tags. Configuration, schema, data formats and deployment remain unchanged.
+Original snapshot: 2026-10-02 at e1eb094; current update 2026-10-03 for approved E06 timetable store, based on clean checkpoint 87158ca. Current source locations and HTML script manifest reflect E06; historical acceptance logs retain stage-specific anchors. Other HTML/inline references retain original snapshot locations (five added tags). Configuration, schema, data formats and deployment remain unchanged.
 
 ## Loading and startup
 
-All external HTML scripts inspected are classic scripts, without async/defer/type=module attributes. 57 of 58 HTML documents load app.js; the Google verification document has no script. The full ordered manifest below includes cache-busting query strings, which must remain valid. Most portal/auth pages load app.js, then supabase-config.js, then auth.js. Students and teachers administration additionally load self-registration-links.js after auth.js. After E05 the synchronous classic order is js/website/offerings.js, js/core/escape-html.js, js/website/practice-grid.js, js/website/why-grid.js, app.js, then unchanged subsequent scripts. Each extracted script is included once on all 57 consumers. There are 385 external tags: 157 original plus 57 each from E01, E02, E04 and E05.
+All external HTML scripts inspected are classic scripts, without async/defer/type=module attributes. 57 of 58 HTML documents load app.js; the Google verification document has no script. The full ordered manifest below includes cache-busting query strings, which must remain valid. Most portal/auth pages load app.js, then supabase-config.js, then auth.js. Students and teachers administration additionally load self-registration-links.js after auth.js. After E06 the synchronous classic order is js/website/offerings.js, js/core/escape-html.js, js/website/practice-grid.js, js/website/why-grid.js, js/features/timetable/store.js, app.js, then unchanged subsequent scripts. Each extracted script is included once on all 57 consumers. There are 442 external tags: 157 original plus 57 each from E01, E02, E04, E05 and E06.
 
 ### app.js
 
 1. Immediate theme IIFE reads schoolsphere.theme.v1, updates the root and body, and registers a one-time DOMContentLoaded callback when loading.
 2. Top-level lexical declarations and functions establish shared models and helpers. clearLegacySharedState() executes at line 394 and removes legacy unscoped keys. Do not accidentally re-run this cleanup per feature.
-3. window.SchoolSphere* manager objects are assigned at lines 4077–4297. Their object identity and public members are compatibility boundaries.
-4. A storage listener at line 4299 re-emits feature events for scoped keys.
-5. Immediate calls at lines 4594–4598 render header/footer, bind outside-click behavior, render page content, and apply branding. Subsequent listeners handle school settings, hash navigation and feature toggles.
+3. window.SchoolSphere* manager objects are assigned at lines 3485–3705. Their object identity and public members are compatibility boundaries.
+4. A storage listener at line 3707 re-emits feature events for scoped keys.
+5. Immediate calls at lines 4002–4006 render header/footer, bind outside-click behavior, render page content, and apply branding. Subsequent listeners handle school settings, hash navigation and feature toggles.
 
 ### auth.js
 
@@ -74,76 +74,76 @@ initSupabaseAuthBridge registers onAuthStateChange and defers callback processin
 
 ## HTML entry-point manifest
 
-Each row lists current tags after E05: offerings.js, escape-html.js, practice-grid.js, why-grid.js, then app.js. All prior tag attributes/order are retained; inline locations in this manifest are current. Paths remain document-relative.
+Each row lists current tags after E06: offerings.js, escape-html.js, practice-grid.js, why-grid.js, timetable/store.js, then app.js. All prior tag attributes/order are retained; inline locations in this manifest are current. Paths remain document-relative.
 
 | HTML file | data-page | Ordered scripts |
 | --- | --- | --- |
-| `admin-admissions.html` | `admin-admissions` | `./js/website/offerings.js` @359 → `./js/core/escape-html.js` @360 → `./js/website/practice-grid.js` @361 → `./js/website/why-grid.js` @362 → `./app.js` @363 → `./supabase-config.js` @364 → `./auth.js?v=upload-remove-x` @365 |
-| `admin-attendance.html` | `admin-attendance` | `./js/website/offerings.js` @208 → `./js/core/escape-html.js` @209 → `./js/website/practice-grid.js` @210 → `./js/website/why-grid.js` @211 → `./app.js` @212 → `./supabase-config.js` @213 → `./auth.js` @214 |
-| `admin-classes.html` | `admin-classes` | `./js/website/offerings.js` @289 → `./js/core/escape-html.js` @290 → `./js/website/practice-grid.js` @291 → `./js/website/why-grid.js` @292 → `./app.js` @293 → `./supabase-config.js` @294 → `./auth.js` @295 |
-| `admin-courses.html` | `admin-courses` | `./js/website/offerings.js` @283 → `./js/core/escape-html.js` @284 → `./js/website/practice-grid.js` @285 → `./js/website/why-grid.js` @286 → `./app.js` @287 → `./supabase-config.js` @288 → `./auth.js` @289 |
-| `admin-feature-modules.html` | `admin-feature-modules` | `./js/website/offerings.js` @166 → `./js/core/escape-html.js` @167 → `./js/website/practice-grid.js` @168 → `./js/website/why-grid.js` @169 → `./app.js` @170 → `./supabase-config.js` @171 → `./auth.js` @172 |
-| `admin-fees.html` | `admin-fees` | `./js/website/offerings.js` @316 → `./js/core/escape-html.js` @317 → `./js/website/practice-grid.js` @318 → `./js/website/why-grid.js` @319 → `./app.js` @320 → `./supabase-config.js` @321 → `./auth.js` @322 |
-| `admin-messages.html` | `admin-messages` | `./js/website/offerings.js` @590 → `./js/core/escape-html.js` @591 → `./js/website/practice-grid.js` @592 → `./js/website/why-grid.js` @593 → `./app.js` @594 → `./supabase-config.js` @595 → `./auth.js` @596 → `inline` @597 |
-| `admin-reports.html` | `admin-reports` | `./js/website/offerings.js` @236 → `./js/core/escape-html.js` @237 → `./js/website/practice-grid.js` @238 → `./js/website/why-grid.js` @239 → `./app.js` @240 → `./supabase-config.js` @241 → `./auth.js` @242 |
-| `admin-schedule.html` | `admin-schedule` | `./js/website/offerings.js` @349 → `./js/core/escape-html.js` @350 → `./js/website/practice-grid.js` @351 → `./js/website/why-grid.js` @352 → `./app.js` @353 → `./supabase-config.js` @354 → `./auth.js` @355 |
-| `admin-settings-academic.html` | `admin-settings-academic` | `./js/website/offerings.js` @258 → `./js/core/escape-html.js` @259 → `./js/website/practice-grid.js` @260 → `./js/website/why-grid.js` @261 → `./app.js` @262 → `./supabase-config.js` @263 → `./auth.js` @264 |
-| `admin-settings-access.html` | `admin-settings-access` | `./js/website/offerings.js` @211 → `./js/core/escape-html.js` @212 → `./js/website/practice-grid.js` @213 → `./js/website/why-grid.js` @214 → `./app.js` @215 → `./supabase-config.js` @216 → `./auth.js` @217 |
-| `admin-settings-grading.html` | `admin-settings-grading` | `./js/website/offerings.js` @280 → `./js/core/escape-html.js` @281 → `./js/website/practice-grid.js` @282 → `./js/website/why-grid.js` @283 → `./app.js` @284 → `./supabase-config.js` @285 → `./auth.js` @286 |
-| `admin-settings-roles.html` | `admin-settings-roles` | `./js/website/offerings.js` @174 → `./js/core/escape-html.js` @175 → `./js/website/practice-grid.js` @176 → `./js/website/why-grid.js` @177 → `./app.js?v=20260611-student-messages` @178 → `./supabase-config.js` @179 → `./auth.js?v=20260611-student-messages` @180 |
-| `admin-settings-school.html` | `admin-settings-school` | `./js/website/offerings.js` @341 → `./js/core/escape-html.js` @342 → `./js/website/practice-grid.js` @343 → `./js/website/why-grid.js` @344 → `./app.js` @345 → `./supabase-config.js` @346 → `./auth.js` @347 |
-| `admin-settings.html` | `admin-settings` | `inline` @10 → `./js/website/offerings.js` @182 → `./js/core/escape-html.js` @183 → `./js/website/practice-grid.js` @184 → `./js/website/why-grid.js` @185 → `./app.js` @186 → `./supabase-config.js` @187 → `./auth.js` @188 |
-| `admin-students.html` | `admin-students` | `./js/website/offerings.js` @382 → `./js/core/escape-html.js` @383 → `./js/website/practice-grid.js` @384 → `./js/website/why-grid.js` @385 → `./app.js` @386 → `./supabase-config.js` @387 → `./auth.js?v=self-registration-links` @388 → `./self-registration-links.js?v=copy-open-fix` @389 |
-| `admin-teachers.html` | `admin-teachers` | `./js/website/offerings.js` @300 → `./js/core/escape-html.js` @301 → `./js/website/practice-grid.js` @302 → `./js/website/why-grid.js` @303 → `./app.js` @304 → `./supabase-config.js` @305 → `./auth.js?v=self-registration-links` @306 → `./self-registration-links.js?v=copy-open-fix` @307 |
-| `admissions-apply.html` | `admissions-apply` | `./js/website/offerings.js` @294 → `./js/core/escape-html.js` @295 → `./js/website/practice-grid.js` @296 → `./js/website/why-grid.js` @297 → `./app.js` @298 → `./supabase-config.js` @299 → `./auth.js?v=upload-remove-x` @300 |
-| `confirm-email.html` | `confirm-email` | `./js/website/offerings.js` @36 → `./js/core/escape-html.js` @37 → `./js/website/practice-grid.js` @38 → `./js/website/why-grid.js` @39 → `./app.js` @40 → `./supabase-config.js` @41 → `./auth.js` @42 |
-| `contact.html` | `contact` | `./js/website/offerings.js` @905 → `./js/core/escape-html.js` @906 → `./js/website/practice-grid.js` @907 → `./js/website/why-grid.js` @908 → `./app.js` @909 → `inline` @910 |
-| `forgot-password.html` | `forgot-password` | `./js/website/offerings.js` @101 → `./js/core/escape-html.js` @102 → `./js/website/practice-grid.js` @103 → `./js/website/why-grid.js` @104 → `./app.js` @105 → `./supabase-config.js` @106 → `./auth.js` @107 |
-| `google20c973feb5773234.html` | `none` | None |
-| `in-practice.html` | `practice` | `./js/website/offerings.js` @34 → `./js/core/escape-html.js` @35 → `./js/website/practice-grid.js` @36 → `./js/website/why-grid.js` @37 → `./app.js` @38 |
-| `index.html` | `home` | `./js/website/offerings.js` @190 → `./js/core/escape-html.js` @191 → `./js/website/practice-grid.js` @192 → `./js/website/why-grid.js` @193 → `./app.js?v=index-ui-20260603` @194 |
-| `login.html` | `login` | `./js/website/offerings.js` @214 → `./js/core/escape-html.js` @215 → `./js/website/practice-grid.js` @216 → `./js/website/why-grid.js` @217 → `./app.js` @218 → `./supabase-config.js` @219 → `./auth.js` @220 |
-| `modules.html` | `modules` | `./js/website/offerings.js` @33 → `./js/core/escape-html.js` @34 → `./js/website/practice-grid.js` @35 → `./js/website/why-grid.js` @36 → `./app.js` @37 |
-| `owner-access.html` | `owner-access` | `./js/website/offerings.js` @121 → `./js/core/escape-html.js` @122 → `./js/website/practice-grid.js` @123 → `./js/website/why-grid.js` @124 → `./app.js?v=20260611-student-messages` @125 → `./supabase-config.js` @126 → `./auth.js?v=20260611-student-messages` @127 |
-| `parent-attendance.html` | `parent-attendance` | `./js/website/offerings.js` @52 → `./js/core/escape-html.js` @53 → `./js/website/practice-grid.js` @54 → `./js/website/why-grid.js` @55 → `./app.js` @56 → `./supabase-config.js` @57 → `./auth.js` @58 |
-| `parent-courses.html` | `parent-courses` | `./js/website/offerings.js` @52 → `./js/core/escape-html.js` @53 → `./js/website/practice-grid.js` @54 → `./js/website/why-grid.js` @55 → `./app.js` @56 → `./supabase-config.js` @57 → `./auth.js` @58 |
-| `parent-fees.html` | `parent-fees` | `./js/website/offerings.js` @52 → `./js/core/escape-html.js` @53 → `./js/website/practice-grid.js` @54 → `./js/website/why-grid.js` @55 → `./app.js` @56 → `./supabase-config.js` @57 → `./auth.js` @58 |
-| `parent-messages.html` | `parent-messages` | `./js/website/offerings.js` @54 → `./js/core/escape-html.js` @55 → `./js/website/practice-grid.js` @56 → `./js/website/why-grid.js` @57 → `./app.js` @58 → `./supabase-config.js` @59 → `./auth.js` @60 |
-| `parent-portal.html` | `parent-portal` | `./js/website/offerings.js` @54 → `./js/core/escape-html.js` @55 → `./js/website/practice-grid.js` @56 → `./js/website/why-grid.js` @57 → `./app.js` @58 → `./supabase-config.js` @59 → `./auth.js` @60 |
-| `parent-reports.html` | `parent-reports` | `./js/website/offerings.js` @52 → `./js/core/escape-html.js` @53 → `./js/website/practice-grid.js` @54 → `./js/website/why-grid.js` @55 → `./app.js` @56 → `./supabase-config.js` @57 → `./auth.js` @58 |
-| `parent-settings.html` | `parent-settings` | `./js/website/offerings.js` @198 → `./js/core/escape-html.js` @199 → `./js/website/practice-grid.js` @200 → `./js/website/why-grid.js` @201 → `./app.js` @202 → `./supabase-config.js` @203 → `./auth.js` @204 |
-| `parent-teachers.html` | `parent-teachers` | `./js/website/offerings.js` @52 → `./js/core/escape-html.js` @53 → `./js/website/practice-grid.js` @54 → `./js/website/why-grid.js` @55 → `./app.js` @56 → `./supabase-config.js` @57 → `./auth.js` @58 |
-| `portal.html` | `portal` | `./js/website/offerings.js` @185 → `./js/core/escape-html.js` @186 → `./js/website/practice-grid.js` @187 → `./js/website/why-grid.js` @188 → `./app.js?v=20260611-student-messages` @189 → `./supabase-config.js` @190 → `./auth.js?v=20260611-student-messages` @191 |
-| `products.html` | `products` | `./js/website/offerings.js` @84 → `./js/core/escape-html.js` @85 → `./js/website/practice-grid.js` @86 → `./js/website/why-grid.js` @87 → `./app.js` @88 |
-| `reset-password.html` | `reset-password` | `./js/website/offerings.js` @118 → `./js/core/escape-html.js` @119 → `./js/website/practice-grid.js` @120 → `./js/website/why-grid.js` @121 → `./app.js` @122 → `./supabase-config.js` @123 → `./auth.js` @124 |
-| `school-types.html` | `types` | `./js/website/offerings.js` @34 → `./js/core/escape-html.js` @35 → `./js/website/practice-grid.js` @36 → `./js/website/why-grid.js` @37 → `./app.js` @38 |
-| `self-register.html` | `self-register` | `./js/website/offerings.js` @234 → `./js/core/escape-html.js` @235 → `./js/website/practice-grid.js` @236 → `./js/website/why-grid.js` @237 → `./app.js` @238 → `./supabase-config.js` @239 → `./auth.js?v=self-registration-links` @240 |
-| `signup.html` | `signup` | `./js/website/offerings.js` @218 → `./js/core/escape-html.js` @219 → `./js/website/practice-grid.js` @220 → `./js/website/why-grid.js` @221 → `./app.js` @222 → `./supabase-config.js` @223 → `./auth.js` @224 |
-| `staff-attendance.html` | `staff-attendance` | `./js/website/offerings.js` @45 → `./js/core/escape-html.js` @46 → `./js/website/practice-grid.js` @47 → `./js/website/why-grid.js` @48 → `./app.js` @49 → `./supabase-config.js` @50 → `./auth.js` @51 |
-| `staff-classes.html` | `staff-classes` | `./js/website/offerings.js` @25 → `./js/core/escape-html.js` @26 → `./js/website/practice-grid.js` @27 → `./js/website/why-grid.js` @28 → `./app.js` @29 → `./supabase-config.js` @29 → `./auth.js` @29 |
-| `staff-dashboard.html` | `staff-dashboard` | `./js/website/offerings.js` @82 → `./js/core/escape-html.js` @83 → `./js/website/practice-grid.js` @84 → `./js/website/why-grid.js` @85 → `./app.js` @86 → `./supabase-config.js` @87 → `./auth.js` @88 |
-| `staff-gradebook.html` | `staff-gradebook` | `./js/website/offerings.js` @25 → `./js/core/escape-html.js` @26 → `./js/website/practice-grid.js` @27 → `./js/website/why-grid.js` @28 → `./app.js` @29 → `./supabase-config.js` @29 → `./auth.js` @29 |
-| `staff-leave.html` | `staff-leave` | `./js/website/offerings.js` @25 → `./js/core/escape-html.js` @26 → `./js/website/practice-grid.js` @27 → `./js/website/why-grid.js` @28 → `./app.js` @29 → `./supabase-config.js` @29 → `./auth.js` @29 |
-| `staff-lesson-plans.html` | `staff-lesson-plans` | `./js/website/offerings.js` @25 → `./js/core/escape-html.js` @26 → `./js/website/practice-grid.js` @27 → `./js/website/why-grid.js` @28 → `./app.js` @29 → `./supabase-config.js` @29 → `./auth.js` @29 |
-| `staff-messages.html` | `staff-messages` | `./js/website/offerings.js` @25 → `./js/core/escape-html.js` @26 → `./js/website/practice-grid.js` @27 → `./js/website/why-grid.js` @28 → `./app.js` @29 → `./supabase-config.js` @29 → `./auth.js` @29 |
-| `staff-results.html` | `staff-results` | `./js/website/offerings.js` @25 → `./js/core/escape-html.js` @26 → `./js/website/practice-grid.js` @27 → `./js/website/why-grid.js` @28 → `./app.js` @29 → `./supabase-config.js` @29 → `./auth.js` @29 |
-| `staff-settings.html` | `staff-settings` | `./js/website/offerings.js` @143 → `./js/core/escape-html.js` @144 → `./js/website/practice-grid.js` @145 → `./js/website/why-grid.js` @146 → `./app.js` @147 → `./supabase-config.js` @148 → `./auth.js` @149 |
-| `staff-timetable.html` | `staff-timetable` | `./js/website/offerings.js` @53 → `./js/core/escape-html.js` @54 → `./js/website/practice-grid.js` @55 → `./js/website/why-grid.js` @56 → `./app.js` @57 → `./supabase-config.js` @58 → `./auth.js` @59 |
-| `super-admin-accounts.html` | `super-admin-accounts` | `./js/website/offerings.js` @128 → `./js/core/escape-html.js` @129 → `./js/website/practice-grid.js` @130 → `./js/website/why-grid.js` @131 → `./app.js?v=20260611-student-messages` @132 → `./supabase-config.js` @133 → `./auth.js?v=20260611-student-messages` @134 |
-| `super-admin-activity.html` | `super-admin-activity` | `./js/website/offerings.js` @102 → `./js/core/escape-html.js` @103 → `./js/website/practice-grid.js` @104 → `./js/website/why-grid.js` @105 → `./app.js?v=20260611-student-messages` @106 → `./supabase-config.js` @107 → `./auth.js?v=20260611-student-messages` @108 |
-| `super-admin-schools.html` | `super-admin-schools` | `./js/website/offerings.js` @102 → `./js/core/escape-html.js` @103 → `./js/website/practice-grid.js` @104 → `./js/website/why-grid.js` @105 → `./app.js?v=20260611-student-messages` @106 → `./supabase-config.js` @107 → `./auth.js?v=20260611-student-messages` @108 |
-| `super-admin.html` | `super-admin` | `./js/website/offerings.js` @105 → `./js/core/escape-html.js` @106 → `./js/website/practice-grid.js` @107 → `./js/website/why-grid.js` @108 → `./app.js?v=20260611-student-messages` @109 → `./supabase-config.js` @110 → `./auth.js?v=20260611-student-messages` @111 |
-| `user-settings.html` | `user-settings` | `./js/website/offerings.js` @143 → `./js/core/escape-html.js` @144 → `./js/website/practice-grid.js` @145 → `./js/website/why-grid.js` @146 → `./app.js` @147 → `./supabase-config.js` @148 → `./auth.js` @149 |
-| `why-it-works.html` | `why` | `./js/website/offerings.js` @41 → `./js/core/escape-html.js` @42 → `./js/website/practice-grid.js` @43 → `./js/website/why-grid.js` @44 → `./app.js` @45 |
-| `workflows.html` | `workflows` | `./js/website/offerings.js` @33 → `./js/core/escape-html.js` @34 → `./js/website/practice-grid.js` @35 → `./js/website/why-grid.js` @36 → `./app.js` @37 |
+| `admin-admissions.html` | `admin-admissions` | `./js/website/offerings.js` @359 → `./js/core/escape-html.js` @360 → `./js/website/practice-grid.js` @361 → `./js/website/why-grid.js` @362 → `./js/features/timetable/store.js` @363 → `./app.js` @364 → `./supabase-config.js` @365 → `./auth.js?v=upload-remove-x` @366 |
+| `admin-attendance.html` | `admin-attendance` | `./js/website/offerings.js` @208 → `./js/core/escape-html.js` @209 → `./js/website/practice-grid.js` @210 → `./js/website/why-grid.js` @211 → `./js/features/timetable/store.js` @212 → `./app.js` @213 → `./supabase-config.js` @214 → `./auth.js` @215 |
+| `admin-classes.html` | `admin-classes` | `./js/website/offerings.js` @289 → `./js/core/escape-html.js` @290 → `./js/website/practice-grid.js` @291 → `./js/website/why-grid.js` @292 → `./js/features/timetable/store.js` @293 → `./app.js` @294 → `./supabase-config.js` @295 → `./auth.js` @296 |
+| `admin-courses.html` | `admin-courses` | `./js/website/offerings.js` @283 → `./js/core/escape-html.js` @284 → `./js/website/practice-grid.js` @285 → `./js/website/why-grid.js` @286 → `./js/features/timetable/store.js` @287 → `./app.js` @288 → `./supabase-config.js` @289 → `./auth.js` @290 |
+| `admin-feature-modules.html` | `admin-feature-modules` | `./js/website/offerings.js` @166 → `./js/core/escape-html.js` @167 → `./js/website/practice-grid.js` @168 → `./js/website/why-grid.js` @169 → `./js/features/timetable/store.js` @170 → `./app.js` @171 → `./supabase-config.js` @172 → `./auth.js` @173 |
+| `admin-fees.html` | `admin-fees` | `./js/website/offerings.js` @316 → `./js/core/escape-html.js` @317 → `./js/website/practice-grid.js` @318 → `./js/website/why-grid.js` @319 → `./js/features/timetable/store.js` @320 → `./app.js` @321 → `./supabase-config.js` @322 → `./auth.js` @323 |
+| `admin-messages.html` | `admin-messages` | `./js/website/offerings.js` @590 → `./js/core/escape-html.js` @591 → `./js/website/practice-grid.js` @592 → `./js/website/why-grid.js` @593 → `./js/features/timetable/store.js` @594 → `./app.js` @595 → `./supabase-config.js` @596 → `./auth.js` @597 → `inline` @598 |
+| `admin-reports.html` | `admin-reports` | `./js/website/offerings.js` @236 → `./js/core/escape-html.js` @237 → `./js/website/practice-grid.js` @238 → `./js/website/why-grid.js` @239 → `./js/features/timetable/store.js` @240 → `./app.js` @241 → `./supabase-config.js` @242 → `./auth.js` @243 |
+| `admin-schedule.html` | `admin-schedule` | `./js/website/offerings.js` @349 → `./js/core/escape-html.js` @350 → `./js/website/practice-grid.js` @351 → `./js/website/why-grid.js` @352 → `./js/features/timetable/store.js` @353 → `./app.js` @354 → `./supabase-config.js` @355 → `./auth.js` @356 |
+| `admin-settings-academic.html` | `admin-settings-academic` | `./js/website/offerings.js` @258 → `./js/core/escape-html.js` @259 → `./js/website/practice-grid.js` @260 → `./js/website/why-grid.js` @261 → `./js/features/timetable/store.js` @262 → `./app.js` @263 → `./supabase-config.js` @264 → `./auth.js` @265 |
+| `admin-settings-access.html` | `admin-settings-access` | `./js/website/offerings.js` @211 → `./js/core/escape-html.js` @212 → `./js/website/practice-grid.js` @213 → `./js/website/why-grid.js` @214 → `./js/features/timetable/store.js` @215 → `./app.js` @216 → `./supabase-config.js` @217 → `./auth.js` @218 |
+| `admin-settings-grading.html` | `admin-settings-grading` | `./js/website/offerings.js` @280 → `./js/core/escape-html.js` @281 → `./js/website/practice-grid.js` @282 → `./js/website/why-grid.js` @283 → `./js/features/timetable/store.js` @284 → `./app.js` @285 → `./supabase-config.js` @286 → `./auth.js` @287 |
+| `admin-settings-roles.html` | `admin-settings-roles` | `./js/website/offerings.js` @174 → `./js/core/escape-html.js` @175 → `./js/website/practice-grid.js` @176 → `./js/website/why-grid.js` @177 → `./js/features/timetable/store.js` @178 → `./app.js?v=20260611-student-messages` @179 → `./supabase-config.js` @180 → `./auth.js?v=20260611-student-messages` @181 |
+| `admin-settings-school.html` | `admin-settings-school` | `./js/website/offerings.js` @341 → `./js/core/escape-html.js` @342 → `./js/website/practice-grid.js` @343 → `./js/website/why-grid.js` @344 → `./js/features/timetable/store.js` @345 → `./app.js` @346 → `./supabase-config.js` @347 → `./auth.js` @348 |
+| `admin-settings.html` | `admin-settings` | `inline` @10 → `./js/website/offerings.js` @182 → `./js/core/escape-html.js` @183 → `./js/website/practice-grid.js` @184 → `./js/website/why-grid.js` @185 → `./js/features/timetable/store.js` @186 → `./app.js` @187 → `./supabase-config.js` @188 → `./auth.js` @189 |
+| `admin-students.html` | `admin-students` | `./js/website/offerings.js` @382 → `./js/core/escape-html.js` @383 → `./js/website/practice-grid.js` @384 → `./js/website/why-grid.js` @385 → `./js/features/timetable/store.js` @386 → `./app.js` @387 → `./supabase-config.js` @388 → `./auth.js?v=self-registration-links` @389 → `./self-registration-links.js?v=copy-open-fix` @390 |
+| `admin-teachers.html` | `admin-teachers` | `./js/website/offerings.js` @300 → `./js/core/escape-html.js` @301 → `./js/website/practice-grid.js` @302 → `./js/website/why-grid.js` @303 → `./js/features/timetable/store.js` @304 → `./app.js` @305 → `./supabase-config.js` @306 → `./auth.js?v=self-registration-links` @307 → `./self-registration-links.js?v=copy-open-fix` @308 |
+| `admissions-apply.html` | `admissions-apply` | `./js/website/offerings.js` @294 → `./js/core/escape-html.js` @295 → `./js/website/practice-grid.js` @296 → `./js/website/why-grid.js` @297 → `./js/features/timetable/store.js` @298 → `./app.js` @299 → `./supabase-config.js` @300 → `./auth.js?v=upload-remove-x` @301 |
+| `confirm-email.html` | `confirm-email` | `./js/website/offerings.js` @36 → `./js/core/escape-html.js` @37 → `./js/website/practice-grid.js` @38 → `./js/website/why-grid.js` @39 → `./js/features/timetable/store.js` @40 → `./app.js` @41 → `./supabase-config.js` @42 → `./auth.js` @43 |
+| `contact.html` | `contact` | `./js/website/offerings.js` @905 → `./js/core/escape-html.js` @906 → `./js/website/practice-grid.js` @907 → `./js/website/why-grid.js` @908 → `./js/features/timetable/store.js` @909 → `./app.js` @910 → `inline` @911 |
+| `forgot-password.html` | `forgot-password` | `./js/website/offerings.js` @101 → `./js/core/escape-html.js` @102 → `./js/website/practice-grid.js` @103 → `./js/website/why-grid.js` @104 → `./js/features/timetable/store.js` @105 → `./app.js` @106 → `./supabase-config.js` @107 → `./auth.js` @108 |
+| `google20c973feb5773234.html` | — | None |
+| `in-practice.html` | `practice` | `./js/website/offerings.js` @34 → `./js/core/escape-html.js` @35 → `./js/website/practice-grid.js` @36 → `./js/website/why-grid.js` @37 → `./js/features/timetable/store.js` @38 → `./app.js` @39 |
+| `index.html` | `home` | `./js/website/offerings.js` @190 → `./js/core/escape-html.js` @191 → `./js/website/practice-grid.js` @192 → `./js/website/why-grid.js` @193 → `./js/features/timetable/store.js` @194 → `./app.js?v=index-ui-20260603` @195 |
+| `login.html` | `login` | `./js/website/offerings.js` @214 → `./js/core/escape-html.js` @215 → `./js/website/practice-grid.js` @216 → `./js/website/why-grid.js` @217 → `./js/features/timetable/store.js` @218 → `./app.js` @219 → `./supabase-config.js` @220 → `./auth.js` @221 |
+| `modules.html` | `modules` | `./js/website/offerings.js` @33 → `./js/core/escape-html.js` @34 → `./js/website/practice-grid.js` @35 → `./js/website/why-grid.js` @36 → `./js/features/timetable/store.js` @37 → `./app.js` @38 |
+| `owner-access.html` | `owner-access` | `./js/website/offerings.js` @121 → `./js/core/escape-html.js` @122 → `./js/website/practice-grid.js` @123 → `./js/website/why-grid.js` @124 → `./js/features/timetable/store.js` @125 → `./app.js?v=20260611-student-messages` @126 → `./supabase-config.js` @127 → `./auth.js?v=20260611-student-messages` @128 |
+| `parent-attendance.html` | `parent-attendance` | `./js/website/offerings.js` @52 → `./js/core/escape-html.js` @53 → `./js/website/practice-grid.js` @54 → `./js/website/why-grid.js` @55 → `./js/features/timetable/store.js` @56 → `./app.js` @57 → `./supabase-config.js` @58 → `./auth.js` @59 |
+| `parent-courses.html` | `parent-courses` | `./js/website/offerings.js` @52 → `./js/core/escape-html.js` @53 → `./js/website/practice-grid.js` @54 → `./js/website/why-grid.js` @55 → `./js/features/timetable/store.js` @56 → `./app.js` @57 → `./supabase-config.js` @58 → `./auth.js` @59 |
+| `parent-fees.html` | `parent-fees` | `./js/website/offerings.js` @52 → `./js/core/escape-html.js` @53 → `./js/website/practice-grid.js` @54 → `./js/website/why-grid.js` @55 → `./js/features/timetable/store.js` @56 → `./app.js` @57 → `./supabase-config.js` @58 → `./auth.js` @59 |
+| `parent-messages.html` | `parent-messages` | `./js/website/offerings.js` @54 → `./js/core/escape-html.js` @55 → `./js/website/practice-grid.js` @56 → `./js/website/why-grid.js` @57 → `./js/features/timetable/store.js` @58 → `./app.js` @59 → `./supabase-config.js` @60 → `./auth.js` @61 |
+| `parent-portal.html` | `parent-portal` | `./js/website/offerings.js` @54 → `./js/core/escape-html.js` @55 → `./js/website/practice-grid.js` @56 → `./js/website/why-grid.js` @57 → `./js/features/timetable/store.js` @58 → `./app.js` @59 → `./supabase-config.js` @60 → `./auth.js` @61 |
+| `parent-reports.html` | `parent-reports` | `./js/website/offerings.js` @52 → `./js/core/escape-html.js` @53 → `./js/website/practice-grid.js` @54 → `./js/website/why-grid.js` @55 → `./js/features/timetable/store.js` @56 → `./app.js` @57 → `./supabase-config.js` @58 → `./auth.js` @59 |
+| `parent-settings.html` | `parent-settings` | `./js/website/offerings.js` @198 → `./js/core/escape-html.js` @199 → `./js/website/practice-grid.js` @200 → `./js/website/why-grid.js` @201 → `./js/features/timetable/store.js` @202 → `./app.js` @203 → `./supabase-config.js` @204 → `./auth.js` @205 |
+| `parent-teachers.html` | `parent-teachers` | `./js/website/offerings.js` @52 → `./js/core/escape-html.js` @53 → `./js/website/practice-grid.js` @54 → `./js/website/why-grid.js` @55 → `./js/features/timetable/store.js` @56 → `./app.js` @57 → `./supabase-config.js` @58 → `./auth.js` @59 |
+| `portal.html` | `portal` | `./js/website/offerings.js` @185 → `./js/core/escape-html.js` @186 → `./js/website/practice-grid.js` @187 → `./js/website/why-grid.js` @188 → `./js/features/timetable/store.js` @189 → `./app.js?v=20260611-student-messages` @190 → `./supabase-config.js` @191 → `./auth.js?v=20260611-student-messages` @192 |
+| `products.html` | `products` | `./js/website/offerings.js` @84 → `./js/core/escape-html.js` @85 → `./js/website/practice-grid.js` @86 → `./js/website/why-grid.js` @87 → `./js/features/timetable/store.js` @88 → `./app.js` @89 |
+| `reset-password.html` | `reset-password` | `./js/website/offerings.js` @118 → `./js/core/escape-html.js` @119 → `./js/website/practice-grid.js` @120 → `./js/website/why-grid.js` @121 → `./js/features/timetable/store.js` @122 → `./app.js` @123 → `./supabase-config.js` @124 → `./auth.js` @125 |
+| `school-types.html` | `types` | `./js/website/offerings.js` @34 → `./js/core/escape-html.js` @35 → `./js/website/practice-grid.js` @36 → `./js/website/why-grid.js` @37 → `./js/features/timetable/store.js` @38 → `./app.js` @39 |
+| `self-register.html` | `self-register` | `./js/website/offerings.js` @234 → `./js/core/escape-html.js` @235 → `./js/website/practice-grid.js` @236 → `./js/website/why-grid.js` @237 → `./js/features/timetable/store.js` @238 → `./app.js` @239 → `./supabase-config.js` @240 → `./auth.js?v=self-registration-links` @241 |
+| `signup.html` | `signup` | `./js/website/offerings.js` @218 → `./js/core/escape-html.js` @219 → `./js/website/practice-grid.js` @220 → `./js/website/why-grid.js` @221 → `./js/features/timetable/store.js` @222 → `./app.js` @223 → `./supabase-config.js` @224 → `./auth.js` @225 |
+| `staff-attendance.html` | `staff-attendance` | `./js/website/offerings.js` @45 → `./js/core/escape-html.js` @46 → `./js/website/practice-grid.js` @47 → `./js/website/why-grid.js` @48 → `./js/features/timetable/store.js` @49 → `./app.js` @50 → `./supabase-config.js` @51 → `./auth.js` @52 |
+| `staff-classes.html` | `staff-classes` | `./js/website/offerings.js` @25 → `./js/core/escape-html.js` @26 → `./js/website/practice-grid.js` @27 → `./js/website/why-grid.js` @28 → `./js/features/timetable/store.js` @29 → `./app.js` @30 → `./supabase-config.js` @30 → `./auth.js` @30 |
+| `staff-dashboard.html` | `staff-dashboard` | `./js/website/offerings.js` @82 → `./js/core/escape-html.js` @83 → `./js/website/practice-grid.js` @84 → `./js/website/why-grid.js` @85 → `./js/features/timetable/store.js` @86 → `./app.js` @87 → `./supabase-config.js` @88 → `./auth.js` @89 |
+| `staff-gradebook.html` | `staff-gradebook` | `./js/website/offerings.js` @25 → `./js/core/escape-html.js` @26 → `./js/website/practice-grid.js` @27 → `./js/website/why-grid.js` @28 → `./js/features/timetable/store.js` @29 → `./app.js` @30 → `./supabase-config.js` @30 → `./auth.js` @30 |
+| `staff-leave.html` | `staff-leave` | `./js/website/offerings.js` @25 → `./js/core/escape-html.js` @26 → `./js/website/practice-grid.js` @27 → `./js/website/why-grid.js` @28 → `./js/features/timetable/store.js` @29 → `./app.js` @30 → `./supabase-config.js` @30 → `./auth.js` @30 |
+| `staff-lesson-plans.html` | `staff-lesson-plans` | `./js/website/offerings.js` @25 → `./js/core/escape-html.js` @26 → `./js/website/practice-grid.js` @27 → `./js/website/why-grid.js` @28 → `./js/features/timetable/store.js` @29 → `./app.js` @30 → `./supabase-config.js` @30 → `./auth.js` @30 |
+| `staff-messages.html` | `staff-messages` | `./js/website/offerings.js` @25 → `./js/core/escape-html.js` @26 → `./js/website/practice-grid.js` @27 → `./js/website/why-grid.js` @28 → `./js/features/timetable/store.js` @29 → `./app.js` @30 → `./supabase-config.js` @30 → `./auth.js` @30 |
+| `staff-results.html` | `staff-results` | `./js/website/offerings.js` @25 → `./js/core/escape-html.js` @26 → `./js/website/practice-grid.js` @27 → `./js/website/why-grid.js` @28 → `./js/features/timetable/store.js` @29 → `./app.js` @30 → `./supabase-config.js` @30 → `./auth.js` @30 |
+| `staff-settings.html` | `staff-settings` | `./js/website/offerings.js` @143 → `./js/core/escape-html.js` @144 → `./js/website/practice-grid.js` @145 → `./js/website/why-grid.js` @146 → `./js/features/timetable/store.js` @147 → `./app.js` @148 → `./supabase-config.js` @149 → `./auth.js` @150 |
+| `staff-timetable.html` | `staff-timetable` | `./js/website/offerings.js` @53 → `./js/core/escape-html.js` @54 → `./js/website/practice-grid.js` @55 → `./js/website/why-grid.js` @56 → `./js/features/timetable/store.js` @57 → `./app.js` @58 → `./supabase-config.js` @59 → `./auth.js` @60 |
+| `super-admin-accounts.html` | `super-admin-accounts` | `./js/website/offerings.js` @128 → `./js/core/escape-html.js` @129 → `./js/website/practice-grid.js` @130 → `./js/website/why-grid.js` @131 → `./js/features/timetable/store.js` @132 → `./app.js?v=20260611-student-messages` @133 → `./supabase-config.js` @134 → `./auth.js?v=20260611-student-messages` @135 |
+| `super-admin-activity.html` | `super-admin-activity` | `./js/website/offerings.js` @102 → `./js/core/escape-html.js` @103 → `./js/website/practice-grid.js` @104 → `./js/website/why-grid.js` @105 → `./js/features/timetable/store.js` @106 → `./app.js?v=20260611-student-messages` @107 → `./supabase-config.js` @108 → `./auth.js?v=20260611-student-messages` @109 |
+| `super-admin-schools.html` | `super-admin-schools` | `./js/website/offerings.js` @102 → `./js/core/escape-html.js` @103 → `./js/website/practice-grid.js` @104 → `./js/website/why-grid.js` @105 → `./js/features/timetable/store.js` @106 → `./app.js?v=20260611-student-messages` @107 → `./supabase-config.js` @108 → `./auth.js?v=20260611-student-messages` @109 |
+| `super-admin.html` | `super-admin` | `./js/website/offerings.js` @105 → `./js/core/escape-html.js` @106 → `./js/website/practice-grid.js` @107 → `./js/website/why-grid.js` @108 → `./js/features/timetable/store.js` @109 → `./app.js?v=20260611-student-messages` @110 → `./supabase-config.js` @111 → `./auth.js?v=20260611-student-messages` @112 |
+| `user-settings.html` | `user-settings` | `./js/website/offerings.js` @143 → `./js/core/escape-html.js` @144 → `./js/website/practice-grid.js` @145 → `./js/website/why-grid.js` @146 → `./js/features/timetable/store.js` @147 → `./app.js` @148 → `./supabase-config.js` @149 → `./auth.js` @150 |
+| `why-it-works.html` | `why` | `./js/website/offerings.js` @41 → `./js/core/escape-html.js` @42 → `./js/website/practice-grid.js` @43 → `./js/website/why-grid.js` @44 → `./js/features/timetable/store.js` @45 → `./app.js` @46 |
+| `workflows.html` | `workflows` | `./js/website/offerings.js` @33 → `./js/core/escape-html.js` @34 → `./js/website/practice-grid.js` @35 → `./js/website/why-grid.js` @36 → `./js/features/timetable/store.js` @37 → `./app.js` @38 |
 
 ## Public global interfaces
 
-Classic top-level function declarations in app.js are also potential window properties; top-level const/let bindings are global lexical bindings, not equivalent window properties. Explicit objects below are consumed by auth manager wrappers. Preserve method names, argument defaults, return shapes, eventName values and synchronous vs asynchronous behavior. Unknown members shown as AST types need their source body retained unchanged.
+Classic top-level function declarations in app.js and extracted scripts are also potential window properties; top-level const/let bindings are global lexical bindings, not equivalent window properties. Explicit objects below are consumed by auth manager wrappers. Preserve method names, argument defaults, return shapes, eventName values and synchronous vs asynchronous behavior. Unknown members shown as AST types need their source body retained unchanged.
 
 ### window.SchoolSphereFeatureModules
 
-`app.js:4077`
+`app.js:3485`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -156,7 +156,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereRolePermissions
 
-`app.js:4086`
+`app.js:3494`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -174,7 +174,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereSiteSettings
 
-`app.js:4100`
+`app.js:3508`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -190,7 +190,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereAcademicCycles
 
-`app.js:4112`
+`app.js:3520`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -206,7 +206,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereAcademicCalendar
 
-`app.js:4124`
+`app.js:3532`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -224,7 +224,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereAdmissionConfig
 
-`app.js:4138`
+`app.js:3546`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -242,7 +242,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereTimetable
 
-`app.js:4152`
+`app.js:3560`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -273,7 +273,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereFeeItems
 
-`app.js:4179`
+`app.js:3587`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -288,7 +288,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereClasses
 
-`app.js:4190`
+`app.js:3598`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -304,7 +304,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereCourses
 
-`app.js:4202`
+`app.js:3610`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -321,7 +321,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereLessonPlans
 
-`app.js:4215`
+`app.js:3623`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -336,7 +336,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereLeaveRequests
 
-`app.js:4226`
+`app.js:3634`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -351,7 +351,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereStudents
 
-`app.js:4237`
+`app.js:3645`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -370,7 +370,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereAttendance
 
-`app.js:4252`
+`app.js:3660`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -384,7 +384,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereReportCards
 
-`app.js:4262`
+`app.js:3670`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -399,7 +399,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereReportConfiguration
 
-`app.js:4273`
+`app.js:3681`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -411,7 +411,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereGradebook
 
-`app.js:4281`
+`app.js:3689`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -425,7 +425,7 @@ Classic top-level function declarations in app.js are also potential window prop
 
 ### window.SchoolSphereAuditTrail
 
-`app.js:4291`
+`app.js:3699`
 
 | Public member | Implementation binding / expression kind |
 | --- | --- |
@@ -577,22 +577,22 @@ Local data mutations generally write storage then emit an event. Native storage 
 | `app.js:799` | `emitAcademicCyclesUpdate` | `SCHOOL_ACADEMIC_CYCLES_EVENT` | `{ state }` |
 | `app.js:1080` | `emitAcademicCalendarUpdate` | `SCHOOL_ACADEMIC_CALENDAR_EVENT` | `{ events }` |
 | `app.js:1288` | `emitAdmissionConfigurationUpdate` | `SCHOOL_ADMISSION_CONFIG_EVENT` | `{ state }` |
-| `app.js:1722` | `emitSchoolTimetableUpdate` | `SCHOOL_TIMETABLE_EVENT` | `{ entries }` |
-| `app.js:2147` | `emitSchoolFeeItemsUpdate` | `SCHOOL_FEE_ITEMS_EVENT` | `{ items }` |
-| `app.js:2284` | `emitSchoolClassesUpdate` | `SCHOOL_CLASSES_EVENT` | `{ classes }` |
-| `app.js:2475` | `emitSchoolCoursesUpdate` | `SCHOOL_COURSES_EVENT` | `{ courses }` |
-| `app.js:2701` | `emitLessonPlansUpdate` | `SCHOOL_LESSON_PLANS_EVENT` | `{ records }` |
-| `app.js:2873` | `emitLeaveRequestsUpdate` | `SCHOOL_LEAVE_REQUESTS_EVENT` | `{ records }` |
-| `app.js:3098` | `emitSchoolStudentsUpdate` | `SCHOOL_STUDENTS_EVENT` | `{ students }` |
-| `app.js:3380` | `emitAttendanceUpdate` | `SCHOOL_ATTENDANCE_EVENT` | `{ records }` |
-| `app.js:3605` | `saveGradebookRecords` | `SCHOOL_GRADEBOOK_EVENT` | `{ records: normalized }` |
-| `app.js:3671` | `saveReportConfiguration` | `SCHOOL_REPORT_CONFIGURATION_EVENT` | `{ configuration: normalized }` |
-| `app.js:3775` | `emitReportCardsUpdate` | `SCHOOL_REPORT_CARDS_EVENT` | `{ records }` |
-| `app.js:3884` | `emitAuditTrailUpdate` | `AUDIT_TRAIL_EVENT` | `{ entries }` |
-| `app.js:3931` | `emitFeatureToggleUpdate` | `FEATURE_TOGGLE_EVENT` | `{ state }` |
-| `app.js:4024` | `emitRolePermissionsUpdate` | `ROLE_PERMISSIONS_EVENT` | `{ rolePermissions }` |
-| `app.js:4350` | `startup/inline` | `SCHOOL_REPORT_CONFIGURATION_EVENT` | `{ configuration: getReportConfiguration() }` |
-| `app.js:4358` | `startup/inline` | `SCHOOL_GRADEBOOK_EVENT` | `{ records: getGradebookRecords() }` |
+| `js/features/timetable/store.js:273` | `emitSchoolTimetableUpdate` | `SCHOOL_TIMETABLE_EVENT` | `{ entries }` |
+| `app.js:1555` | `emitSchoolFeeItemsUpdate` | `SCHOOL_FEE_ITEMS_EVENT` | `{ items }` |
+| `app.js:1692` | `emitSchoolClassesUpdate` | `SCHOOL_CLASSES_EVENT` | `{ classes }` |
+| `app.js:1883` | `emitSchoolCoursesUpdate` | `SCHOOL_COURSES_EVENT` | `{ courses }` |
+| `app.js:2109` | `emitLessonPlansUpdate` | `SCHOOL_LESSON_PLANS_EVENT` | `{ records }` |
+| `app.js:2281` | `emitLeaveRequestsUpdate` | `SCHOOL_LEAVE_REQUESTS_EVENT` | `{ records }` |
+| `app.js:2506` | `emitSchoolStudentsUpdate` | `SCHOOL_STUDENTS_EVENT` | `{ students }` |
+| `app.js:2788` | `emitAttendanceUpdate` | `SCHOOL_ATTENDANCE_EVENT` | `{ records }` |
+| `app.js:3013` | `saveGradebookRecords` | `SCHOOL_GRADEBOOK_EVENT` | `{ records: normalized }` |
+| `app.js:3079` | `saveReportConfiguration` | `SCHOOL_REPORT_CONFIGURATION_EVENT` | `{ configuration: normalized }` |
+| `app.js:3183` | `emitReportCardsUpdate` | `SCHOOL_REPORT_CARDS_EVENT` | `{ records }` |
+| `app.js:3292` | `emitAuditTrailUpdate` | `AUDIT_TRAIL_EVENT` | `{ entries }` |
+| `app.js:3339` | `emitFeatureToggleUpdate` | `FEATURE_TOGGLE_EVENT` | `{ state }` |
+| `app.js:3432` | `emitRolePermissionsUpdate` | `ROLE_PERMISSIONS_EVENT` | `{ rolePermissions }` |
+| `app.js:3758` | `startup/inline` | `SCHOOL_REPORT_CONFIGURATION_EVENT` | `{ configuration: getReportConfiguration() }` |
+| `app.js:3766` | `startup/inline` | `SCHOOL_GRADEBOOK_EVENT` | `{ records: getGradebookRecords() }` |
 | `auth.js:1246` | `saveUsers` | `STORAGE_KEYS.users` | `{ users: normalizedUsers }` |
 | `auth.js:2143` | `pushNotification` | `NOTIFICATION_EVENT_NAME` | `{ workspaceId: normalizedWorkspaceId, }` |
 | `auth.js:2264` | `updateNotificationsForViewer` | `NOTIFICATION_EVENT_NAME` | `{ workspaceId: normalizedWorkspaceId, }` |
@@ -682,14 +682,14 @@ All 1095 AST lookup sites from parsable scripts, including template/dynamic expr
 | Location | Owner | Lookup | Argument |
 | --- | --- | --- | --- |
 | `app.js:704` | `applySchoolSettingsBranding` | `querySelectorAll` | `"[data-school-context]"` |
-| `app.js:4398` | `renderHeader` | `getElementById` | `"site-header"` |
-| `app.js:4454` | `renderFooter` | `getElementById` | `"site-footer"` |
-| `app.js:4500` | `closeMenusOnOutsideClick` | `querySelectorAll` | `".nav-menu[open]"` |
+| `app.js:3806` | `renderHeader` | `getElementById` | `"site-header"` |
+| `app.js:3862` | `renderFooter` | `getElementById` | `"site-footer"` |
+| `app.js:3908` | `closeMenusOnOutsideClick` | `querySelectorAll` | `".nav-menu[open]"` |
 | `js/website/why-grid.js:20` | `renderWhyGrid` | `getElementById` | `targetId` |
 | `js/website/offerings.js:95` | `renderOfferingPreviewGrid` | `getElementById` | `targetId` |
-| `app.js:4509` | `renderStandoutList` | `getElementById` | `targetId` |
-| `app.js:4519` | `renderFeatureGrid` | `getElementById` | `targetId` |
-| `app.js:4552` | `renderSchoolGrid` | `getElementById` | `targetId` |
+| `app.js:3917` | `renderStandoutList` | `getElementById` | `targetId` |
+| `app.js:3927` | `renderFeatureGrid` | `getElementById` | `targetId` |
+| `app.js:3960` | `renderSchoolGrid` | `getElementById` | `targetId` |
 | `js/website/practice-grid.js:2` | `renderPracticeGrid` | `getElementById` | `targetId` |
 | `js/website/offerings.js:117` | `renderOfferingTabs` | `getElementById` | `"home-offering-tabs"` |
 | `js/website/offerings.js:118` | `renderOfferingTabs` | `getElementById` | `"home-offering-panel"` |
@@ -2028,21 +2028,21 @@ Top-level object fields returned from named record normalizers are indexed below
 | `normalizeAdmissionConfigSession` | `app.js:1201-1213` | `id`, `name`, `startDate`, `endDate`, `status`, `createdAt`, `updatedAt` |
 | `normalizeAdmissionConfigClass` | `app.js:1215-1224` | `id`, `name`, `status`, `createdAt`, `updatedAt` |
 | `normalizeAdmissionConfiguration` | `app.js:1239-1276` | `...spread`, `status`, `sessions`, `classes`, `stages` |
-| `normalizeSchoolTimetableEntry` | `app.js:1651-1682` | `id`, `periodId`, `classId`, `classLevel`, `subjectId`, `teacherId`, `roomId`, `sessionId`, `termId`, `day`, `startTime`, `endTime`, `subject`, `teacher`, `room`, `weekType`, `status`, `publishedAt`, `createdAt`, `updatedAt`, `archivedAt` |
-| `normalizeSchoolClass` | `app.js:2218-2252` | `id`, `name`, `level`, `capacity`, `classTeacher`, `arms`, `subjects`, `teacherAssignments`, `status`, `createdAt`, `updatedAt`, `archivedAt` |
-| `normalizeSchoolCourse` | `app.js:2390-2418` | `id`, `name`, `code`, `category`, `creditUnit`, `description`, `level`, `sessionId`, `sessionName`, `termId`, `termName`, `classId`, `classRecordId`, `classLabel`, `classArm`, `classScope`, `teacherAssignments`, `studentAssignments`, `status`, `createdAt`, `updatedAt`, `archivedAt` |
-| `normalizeLessonPlanAttachment` | `app.js:2597-2608` | `id`, `name`, `type`, `size`, `dataUrl`, `uploadedAt` |
-| `normalizeLessonPlanRecord` | `app.js:2610-2677` | `id`, `teacherId`, `teacherName`, `teacherEmail`, `subject`, `subjectCode`, `classId`, `classLevel`, `sessionId`, `sessionName`, `termId`, `termName`, `weekNumber`, `planDate`, `planView`, `topic`, `subTopic`, `curriculumTopic`, `syllabusOrder`, `coverageStatus`, `objectives`, `materials`, `teachingMethods`, `classActivities`, `assessment`, `homework`, `remarks`, `reflection`, `delivery`, `attachments`, `status`, `submittedAt`, `deliveredAt`, `createdAt`, `updatedAt` |
-| `normalizeLeaveAttachment` | `app.js:2791-2802` | `id`, `name`, `type`, `size`, `dataUrl`, `uploadedAt` |
-| `normalizeStudentProgressionEntry` | `app.js:2961-2970` | `id`, `type`, `fromLevel`, `toLevel`, `note`, `timestamp` |
-| `normalizeStudentDocumentRecord` | `app.js:2972-2984` | `id`, `name`, `documentType`, `mimeType`, `sizeBytes`, `dataUrl`, `uploadedBy`, `uploadedAt` |
-| `normalizeStudentRecord` | `app.js:2986-3066` | `id`, `firstName`, `lastName`, `fullName`, `admissionNo`, `studentEmail`, `profilePhotoUrl`, `profilePhotoName`, `profilePhotoMimeType`, `profilePhotoSizeBytes`, `profilePhotoRemoved`, `level`, `classId`, `classRecordId`, `classLevel`, `baseLevel`, `classArm`, `dateOfBirth`, `gender`, `guardians`, `progressionHistory`, `documents`, `status`, `promotionDecision`, `examOutcome`, `lastPromotionSessionId`, `lastPromotionOutcome`, `createdAt`, `updatedAt`, `archivedAt`, `transferredAt`, `transferReason` |
-| `normalizeAttendanceEntry` | `app.js:3273-3284` | `studentId`, `studentName`, `admissionNo`, `status`, `note` |
-| `normalizeAttendanceRecord` | `app.js:3313-3355` | `id`, `date`, `classId`, `lessonId`, `timetableEntryId`, `subject`, `periodId`, `day`, `startTime`, `endTime`, `weekType`, `sessionId`, `termId`, `className`, `level`, `submittedById`, `submittedByEmail`, `submittedByName`, `status`, `entries`, `takenAt`, `createdAt`, `updatedAt` |
-| `normalizeReportConfiguration` | `app.js:3499-3542` | `scoreStructure`, `gradingScale`, `template` |
-| `normalizeGradebookRecord` | `app.js:3552-3592` | `studentId`, `studentName`, `admissionNo`, `componentScores`, `id`, `classId`, `classLevel`, `subject`, `subjectCode`, `sessionId`, `sessionName`, `termId`, `termName`, `teacherId`, `teacherName`, `components`, `scores`, `createdAt`, `updatedAt` |
-| `normalizeReportCardRecord` | `app.js:3722-3750` | `id`, `studentId`, `studentName`, `admissionNo`, `classId`, `classLevel`, `sessionId`, `sessionName`, `termId`, `termName`, `subjects`, `teacherComment`, `schoolComment`, `status`, `createdById`, `createdByName`, `releasedById`, `releasedByName`, `releasedAt`, `createdAt`, `updatedAt` |
-| `normalizeAuditTrailEntry` | `app.js:3860-3872` | `id`, `timestamp`, `actorName`, `actorRole`, `action`, `entityType`, `entityId`, `summary`, `details` |
+| `normalizeSchoolTimetableEntry` | `js/features/timetable/store.js:202-233` | `id`, `periodId`, `classId`, `classLevel`, `subjectId`, `teacherId`, `roomId`, `sessionId`, `termId`, `day`, `startTime`, `endTime`, `subject`, `teacher`, `room`, `weekType`, `status`, `publishedAt`, `createdAt`, `updatedAt`, `archivedAt` |
+| `normalizeSchoolClass` | `app.js:1626-1660` | `id`, `name`, `level`, `capacity`, `classTeacher`, `arms`, `subjects`, `teacherAssignments`, `status`, `createdAt`, `updatedAt`, `archivedAt` |
+| `normalizeSchoolCourse` | `app.js:1798-1826` | `id`, `name`, `code`, `category`, `creditUnit`, `description`, `level`, `sessionId`, `sessionName`, `termId`, `termName`, `classId`, `classRecordId`, `classLabel`, `classArm`, `classScope`, `teacherAssignments`, `studentAssignments`, `status`, `createdAt`, `updatedAt`, `archivedAt` |
+| `normalizeLessonPlanAttachment` | `app.js:2005-2016` | `id`, `name`, `type`, `size`, `dataUrl`, `uploadedAt` |
+| `normalizeLessonPlanRecord` | `app.js:2018-2085` | `id`, `teacherId`, `teacherName`, `teacherEmail`, `subject`, `subjectCode`, `classId`, `classLevel`, `sessionId`, `sessionName`, `termId`, `termName`, `weekNumber`, `planDate`, `planView`, `topic`, `subTopic`, `curriculumTopic`, `syllabusOrder`, `coverageStatus`, `objectives`, `materials`, `teachingMethods`, `classActivities`, `assessment`, `homework`, `remarks`, `reflection`, `delivery`, `attachments`, `status`, `submittedAt`, `deliveredAt`, `createdAt`, `updatedAt` |
+| `normalizeLeaveAttachment` | `app.js:2199-2210` | `id`, `name`, `type`, `size`, `dataUrl`, `uploadedAt` |
+| `normalizeStudentProgressionEntry` | `app.js:2369-2378` | `id`, `type`, `fromLevel`, `toLevel`, `note`, `timestamp` |
+| `normalizeStudentDocumentRecord` | `app.js:2380-2392` | `id`, `name`, `documentType`, `mimeType`, `sizeBytes`, `dataUrl`, `uploadedBy`, `uploadedAt` |
+| `normalizeStudentRecord` | `app.js:2394-2474` | `id`, `firstName`, `lastName`, `fullName`, `admissionNo`, `studentEmail`, `profilePhotoUrl`, `profilePhotoName`, `profilePhotoMimeType`, `profilePhotoSizeBytes`, `profilePhotoRemoved`, `level`, `classId`, `classRecordId`, `classLevel`, `baseLevel`, `classArm`, `dateOfBirth`, `gender`, `guardians`, `progressionHistory`, `documents`, `status`, `promotionDecision`, `examOutcome`, `lastPromotionSessionId`, `lastPromotionOutcome`, `createdAt`, `updatedAt`, `archivedAt`, `transferredAt`, `transferReason` |
+| `normalizeAttendanceEntry` | `app.js:2681-2692` | `studentId`, `studentName`, `admissionNo`, `status`, `note` |
+| `normalizeAttendanceRecord` | `app.js:2721-2763` | `id`, `date`, `classId`, `lessonId`, `timetableEntryId`, `subject`, `periodId`, `day`, `startTime`, `endTime`, `weekType`, `sessionId`, `termId`, `className`, `level`, `submittedById`, `submittedByEmail`, `submittedByName`, `status`, `entries`, `takenAt`, `createdAt`, `updatedAt` |
+| `normalizeReportConfiguration` | `app.js:2907-2950` | `scoreStructure`, `gradingScale`, `template` |
+| `normalizeGradebookRecord` | `app.js:2960-3000` | `studentId`, `studentName`, `admissionNo`, `componentScores`, `id`, `classId`, `classLevel`, `subject`, `subjectCode`, `sessionId`, `sessionName`, `termId`, `termName`, `teacherId`, `teacherName`, `components`, `scores`, `createdAt`, `updatedAt` |
+| `normalizeReportCardRecord` | `app.js:3130-3158` | `id`, `studentId`, `studentName`, `admissionNo`, `classId`, `classLevel`, `sessionId`, `sessionName`, `termId`, `termName`, `subjects`, `teacherComment`, `schoolComment`, `status`, `createdById`, `createdByName`, `releasedById`, `releasedByName`, `releasedAt`, `createdAt`, `updatedAt` |
+| `normalizeAuditTrailEntry` | `app.js:3268-3280` | `id`, `timestamp`, `actorName`, `actorRole`, `action`, `entityType`, `entityId`, `summary`, `details` |
 | `normalizeUserRecord` | `auth.js:1427-1437` | `...spread`, `displayName`, `profilePhotoUrl`, `role`, `status`, `mustChangePassword`, `workspaceId` |
 | `normalizeNotificationEntry` | `auth.js:2092-2111` | `id`, `title`, `message`, `entityType`, `entityId`, `action`, `actorName`, `createdAt`, `readAt`, `workspaceId`, `visibleToRoles`, `metadata` |
 | `normalizeAdmissionFileRecord` | `auth.js:2873-2907` | `id`, `label`, `name`, `type`, `size`, `dataUrl`, `uploadedAt` |
@@ -2384,25 +2384,25 @@ function getParentFeesStorageKey(workspaceId = null) {
 
 ## E01 renderer boundary
 
-js/website/why-grid.js now contains whyCards at lines 1–17 (E03) and the unchanged renderWhyGrid declaration at lines 19–37 (E01). The renderer still depends only on document and its arguments, writes identical innerHTML and returns early for absent targets. Current initPageContent is at app.js:4579, its Why calls at 4580–4581, and its sole immediate invocation at app.js:4597. All 57 consumers still load why-grid.js once immediately before app.js. E01 browser completion was user-reported, not independently verified.
+js/website/why-grid.js now contains whyCards at lines 1–17 (E03) and the unchanged renderWhyGrid declaration at lines 19–37 (E01). The renderer still depends only on document and its arguments, writes identical innerHTML and returns early for absent targets. Current initPageContent is at app.js:3987, its Why calls at 3988–3989, and its sole immediate invocation at app.js:4005. All 57 consumers still load why-grid.js once before timetable/store.js and app.js. E01 browser completion was user-reported, not independently verified.
 
 ## E02 renderer boundary
 
 js/website/practice-grid.js declares renderPracticeGrid(targetId, items) only. Dependencies: document.getElementById and supplied array records with title, label and copy. Its unchanged template emits quote-card and quote-meta classes; styles.css is untouched. No storage, permissions, SchoolSphere manager, Supabase call, private shared state or initialization is added. Missing targets return before accessing items.
 
-The sole caller of renderPracticeGrid is initPageContent (app.js:4579); calls at 4590 and 4591 pass practiceStories.slice(0, 3) for home-practice-grid and practice-page-grid. Only practice-page-grid exists in current HTML (in-practice.html:29). practiceStories remains in app.js:481–506 with four records. Synchronous classic loading and helper behavior are unchanged by E03. E02 browser checks passed according to the user; no independent browser evidence was captured.
+The sole caller of renderPracticeGrid is initPageContent (app.js:3987); calls at 3998 and 3999 pass practiceStories.slice(0, 3) for home-practice-grid and practice-page-grid. Only practice-page-grid exists in current HTML (in-practice.html:29). practiceStories remains in app.js:481–506 with four records. Synchronous classic loading and helper behavior are unchanged by E03. E02 browser checks passed according to the user; no independent browser evidence was captured.
 
 ## E03 content boundary
 
 whyCards is initialized once by the existing classic js/website/why-grid.js script, above renderWhyGrid. Preserve the top-level const name, array order, three records, title/copy field names and exact string contents. The binding remains accessible to later classic scripts but is not a window property; const prevents reassignment, not mutation of its array or records. Do not add exports, wrappers, freezing or a window adapter.
 
-The only detected consumers are app.js:initPageContent calls at 4580–4581, passing the same whyCards array to renderWhyGrid for why-preview-grid and why-page-grid. Only why-page-grid exists in current HTML (why-it-works.html:36). No content, renderer or caller logic changed. Loading is now offerings.js → escape-html.js → practice-grid.js → why-grid.js → app.js → existing subsequent scripts on all 57 consumers. E05 prepends only offerings.js; E03 data and prior tag order remain unchanged. Moving literal allocation before the app.js theme bootstrap introduces no external side effects. No listener, storage key, permission, data format or Supabase behavior changes. E03 HTTP/visual/startup checks remain unverified.
+The only detected consumers are app.js:initPageContent calls at 3988–3989, passing the same whyCards array to renderWhyGrid for why-preview-grid and why-page-grid. Only why-page-grid exists in current HTML (why-it-works.html:36). No content, renderer or caller logic changed. Loading is now offerings.js → escape-html.js → practice-grid.js → why-grid.js → timetable/store.js → app.js → existing subsequent scripts on all 57 consumers. E05 prepended offerings.js; E06 inserts timetable/store.js before app.js. E03 data and the prior tags retain their relative order. Moving literal allocation before the app.js theme bootstrap introduces no external side effects. No listener, storage key, permission, data format or Supabase behavior changes. E03 HTTP/visual/startup checks remain unverified.
 
 ## E04 escaping boundary
 
 js/core/escape-html.js defines only the unchanged app-level escapeHtml(value). Preserve String(value ?? "") coercion, then replacement order ampersand, less-than, greater-than, double quote and apostrophe. Existing entities are escaped again; null/undefined become an empty string; numbers and booleans are converted. Conversion exceptions still propagate. This is HTML escaping, not a new URL validator or sanitizer.
 
-The original callable global interface is retained with one definition in the classic helper script and no app.js duplicate. Its eight callers remain in buildBrandMarkHtml (app.js:682), renderHeader (4397) and renderFooter (4453). Current header/footer startup remains at app.js:4594–4595, with existing settings/hash refresh callbacks unchanged. The function has no DOM, state, listener, storage or network dependency and performs no work at script load.
+The original callable global interface is retained with one definition in the classic helper script and no app.js duplicate. Its eight callers remain in buildBrandMarkHtml (app.js:682), renderHeader (3805) and renderFooter (3861). Current header/footer startup remains at app.js:4002–4003, with existing settings/hash refresh callbacks unchanged. The function has no DOM, state, listener, storage or network dependency and performs no work at script load.
 
 Do not merge the separate private auth.js:6303–6310 escapeHtml helper. That helper does not coerce through String and throws for null/numeric arguments; its 1,371 scoped references and enclosing IIFE stay unchanged. All 57 HTML app consumers load the new helper synchronously once, before the two existing website scripts and app.js. HTTP/MIME/cache delivery, appearance and full browser startup remain unverified; source and isolated parity checks do not replace those checks.
 
@@ -2410,6 +2410,19 @@ Do not merge the separate private auth.js:6303–6310 escapeHtml helper. That he
 
 The approved unit is js/website/offerings.js: offerings at 1–92, renderOfferingPreviewGrid at 94–112, activeOfferingId at 114, renderOfferingTabs at 116–169 and renderWorkflowPage at 171–207. All five declarations are unchanged. Preserve every ID/title/tag/description, bullet/metric record, record order, the initial offerings[0].id selection and the existing invalid-ID fallback. offerings remains a mutable array behind a const; activeOfferingId remains a single let with its click-handler assignment at line 165. Neither binding is a window property. No wrapper/export/factory or duplicate state was introduced.
 
-Only document is external to this unit. The three functions retain their callable globals. initPageContent stays in app.js:4579 and calls preview at 4582 with offerings.slice(0, 3), tabs at 4585, and workflows at 4586. The workflow renderer also selects the first three records. The initial call remains at app.js:4597; no render occurs during offerings.js loading. Earlier literal dataset/state initialization adds no DOM, storage or network side effects.
+Only document is external to this unit. The three functions retain their callable globals. initPageContent stays in app.js:3987 and calls preview at 3990 with offerings.slice(0, 3), tabs at 3993, and workflows at 3994. The workflow renderer also selects the first three records. The initial call remains at app.js:4005; no render occurs during offerings.js loading. Earlier literal dataset/state initialization adds no DOM, storage or network side effects.
 
 DOM contracts: products-lane-grid is in products.html:79 and workflow-page-grid in workflows.html:28. home-offering-tabs and home-offering-panel are absent from all current HTML; their existing both-present guard and [data-offering] click behavior are retained and tested with synthetic nodes, not new UI. Re-render still replaces tab markup and binds one listener on each new live button. No events, permission checks, storage formats or Supabase interfaces change. All 57 app consumers load this script exactly once before the prior scripts. HTTP/MIME/cache, actual browser listener behavior and visual/full-startup acceptance remain unverified.
+
+
+## E06 timetable store boundary
+
+js/features/timetable/store.js owns the original seven default/day/week const declarations and 36 timetable functions, unchanged. Its top-level array construction references only declarations inside that file; it performs no DOM/storage/network/event/listener/timer work. Functions remain classic global callable bindings, constants remain global lexical bindings (not window properties), and arrays remain unfrozen. Do not duplicate them in app.js or create a second manager.
+
+Load once immediately before app.js on all 57 current consumers, without async/defer/type=module. Retain the original window.SchoolSphereTimetable assignment at app.js:3560–3585 after app constants/storage helpers have initialized. Its complete method/property map above is unchanged. The new functions resolve dependencies at invocation; no workspace/session is cached at import. Existing app boot sequence, legacy cleanup and all event listeners remain in their original relative execution order.
+
+Retain readWorkspaceState, writeWorkspaceState and createStorageId in app.js, plus the six timetable key/default/event constants at app.js:153–158. All four base keys retain the existing ::workspaceId suffix, transient session precedence and no legacy fallback for these reads. Do not rename fields, aliases, IDs, default values, sort rules, timestamps or enum/status behavior. Keep existing behavior even where a later independent bug fix may be desirable.
+
+Event contract: local saves dispatch schoolsphere:timetable-updated with detail { entries }; period/room/substitution saves still read current entries when emitting. The original storage handler responds to the active workspace entry key only, not all four timetable keys. auth.js hydration independently dispatches { workspaceId, source: "supabase-hydration" }; do not unify these shapes. Existing admin live sync binds the same event four times for the four distinct state collections, with one 260 ms debounce per key and hydration echo suppression. Preserve that fan-out; four handlers are intentional here, not a new duplicate. Teacher eligibility still filters synchronization to report-card/gradebook state, and other roles do not acquire timetable writes.
+
+No auth.js controller/view, route, selector, permission check, inline code, Supabase configuration/function/table adapter or backend file changed. Browser role restrictions and actual remote behavior remain subject to manual/authorized environment acceptance; isolated tests are not live backend evidence. E05 browser completion was user-reported before E06; E06 browser acceptance is outstanding.

@@ -1,10 +1,10 @@
 # Safe staged extraction plan
 
-Original plan: 2026-10-02 at e1eb094; updated 2026-10-03. At the explicit user request, E04 was committed locally as a06b420 without pushing. The user approved accelerating the next extraction to a complete offerings feature; this is now E05. The previously queued workspace/storage step is deferred as E05-storage, not implemented. E05 static/isolated checks pass; browser acceptance remains outstanding. Stop after this feature; no subsequent stage has started.
+Original plan: 2026-10-02 at e1eb094; updated 2026-10-03 for approved E06 timetable store. E05 is present in clean checkpoint 87158ca and its browser checks passed according to the user, not independent observation. E06 implements one cohesive manager/store extraction; workspace/storage extraction remains deferred. No commit, push, deployment or database operation is authorized or performed. Stop after E06.
 
 ## Non-negotiable boundaries
 
-Preserve functionality, UI, URLs, selectors, data formats, storage keys, role permissions and Supabase behavior. Preserve unrelated edits. Do not push, deploy, modify database state or run migrations. Commit only on an explicit request: the current authorization covered E04 only, not the new offerings work. Future work is one agreed cohesive extraction per turn, then a report and stop. Check the current repository again before each step; line numbers here are snapshot anchors.
+Preserve functionality, UI, URLs, selectors, data formats, storage keys, role permissions and Supabase behavior. Preserve unrelated edits. Do not push, deploy, modify database state or run migrations. Commit only on an explicit request: the earlier commit authorization covered E04 only; E06 approval does not authorize a commit. Future work is one agreed cohesive extraction per turn, then a report and stop. Check the current repository again before each step; line numbers here are snapshot anchors.
 
 The documentation itself is not a blanket green baseline: contact.html has an existing parse failure and browser/backend workflows have not been run. Keep fixes in separate changes. No framework conversion, database redesign, key renaming, password policy change, mass formatting or speculative dead-code deletion belongs in a move-only extraction.
 
@@ -119,7 +119,9 @@ E04 was committed locally as a06b420 at the user's explicit request on 2026-10-0
 
 **Rollback boundary:** new js/core/escape-html.js, the removed app helper, 57 helper tag additions and E04 documentation hunks against 28bf6cf, as one unit. Preserve E01–E03 and unrelated subsequent changes. No storage/database rollback. Stop before E05; no commit, push, deployment or database operation is authorized.
 
-## E05 — implemented: complete offerings feature (approved acceleration)
+## E05 — implemented: complete offerings feature (historical execution record)
+
+Follow-up: E05 is now checkpointed in 87158ca and the user reported its browser checks passed before approving E06. The checks below describe E05 execution-time observations; they are not E06 browser evidence.
 
 **Reason and scope:** the user requested faster progress and explicitly approved a cohesive 203-line offerings extraction instead of another tiny unit. Moved five declarations together from a06b420 into js/website/offerings.js: offerings (92 lines), renderOfferingPreviewGrid (19), activeOfferingId (1), renderOfferingTabs (54) and renderWorkflowPage (37). The new file is 207 lines with separators; app.js loses 208 lines including original separators. Every declaration and all remaining app.js bytes are unchanged. No consolidation of previous extracted files or new UI.
 
@@ -135,7 +137,7 @@ E04 was committed locally as a06b420 at the user's explicit request on 2026-10-0
 
 **Remaining acceptance:** manually check Products and Workflows content on desktop/mobile, public navigation and earlier Why/In Practice pages, then representative login/portal startup; inspect console/network for missing scripts or new errors. No actual tab UI exists to click. Do not add it for testing or mutate database/account records. Keep E03/E04 outstanding checks and the existing contact failure visible.
 
-**Rollback boundary:** the five original declarations plus separators, new offerings.js, 57 loader additions and this stage's documentation against a06b420. Restore/remove them as one unit, preserving E01–E04 and unrelated edits. Do not reset the whole repository or clear storage. These feature changes remain uncommitted; no push, deploy or database action. Stop for user review.
+**Rollback boundary:** the five original declarations plus separators, new offerings.js, 57 loader additions and this stage's documentation against a06b420. Restore/remove them as one unit, preserving E01–E04 and unrelated edits. Do not reset the whole repository or clear storage. E05 was uncommitted at implementation handoff; it is now present in checkpoint 87158ca. No agent push, deploy or database action.
 
 ## Extraction queue (provisional; never execute as a batch)
 
@@ -146,9 +148,9 @@ Each row is a planning group. Rows containing several features MUST be expanded 
 | E02 | Implemented: renderPracticeGrid only | Parameter/document-only dependency audit complete; classic loader pattern retained | Static/isolated checks pass; browser checks passed according to user | practice-grid.js, function removal, 57 script additions and E02 docs |
 | E03 | Implemented: whyCards dataset only | Literal-only const; two callers retained; existing classic loading order | Static/isolated checks pass; E03 browser checks outstanding | Dataset relocation between app.js/why-grid.js and E03 docs |
 | E04 | Implemented: app escapeHtml only | Eight calls retained; auth private helper remains separate | Static/isolated checks pass; HTTP/visual/startup checks outstanding | New helper, app declaration removal, 57 script tags and E04 docs |
-| E05 | Implemented: cohesive offerings data/state/renderers (approved acceleration) | Five-declaration boundary audited; earlier extraction interfaces preserved | Static/synthetic behavior passes; browser acceptance outstanding | offerings.js, five declarations, 57 script tags and E05 docs |
+| E05 | Implemented: cohesive offerings data/state/renderers (approved acceleration) | Five-declaration boundary audited; earlier extraction interfaces preserved | Static/synthetic behavior passes; browser acceptance passed according to user | offerings.js, five declarations, 57 script tags and E05 docs |
 | E05-storage | Deferred original workspace/storage step; requires separate review/approval | Workspace fallback/key contracts captured; synthetic A/B fixtures ready | Key equality, transient precedence, legacy behavior and isolation | Helper/interface and consumers; never clear storage |
-| E06 | One app.js manager, e.g. classes only after dependency review | Storage API stable; constants/normalizers/event methods accounted for; global adapter retained | CRUD/reload/event payload and dependent view refresh | One manager implementation + adapter |
+| E06 | Implemented: complete timetable store (43 declarations, 591 lines) | Original storage API/keys and SchoolSphereTimetable adapter retained; seven local const defaults moved together | 14 fixture groups and four synthetic app-startup comparisons pass; browser acceptance outstanding | New store.js, original block removal, 57 script additions and E06 docs |
 | E07 | Other managers one at a time | Respect actual dependencies: attendance on cycles/students, report/gradebook and timetable/class/course relationships | Target-feature checks plus linked roles/screens | Each manager is its own checkpoint |
 | E08 | One small shared UI boundary | Preserve singleton modal/feedback state, handler lifetime and initialization conditions | Open/close, keyboard, status, theme/drafts as applicable | One UI owner + call wiring |
 | E09 | One auth.js feature controller/view unit | Explicit dependency factory and retained closure state; corresponding managers stable | Feature actions, permissions, no duplicate listeners/writes | Whole controller/factory with original initializer |
@@ -180,3 +182,18 @@ Run the full checklist on representative roles and two synthetic school workspac
 E01–E05 are implemented. E04 is committed locally as a06b420 by explicit request, with no push. The newly approved E05 offerings feature is implemented but uncommitted: five declarations, one new file, 57 loader additions and four documentation updates. No other code or state moved, and no database/deployment/later-stage work occurred.
 
 Next action is browser acceptance and review of the offerings feature, alongside still-unverified E03/E04 checks. Use a permitted local HTTP preview; inspect Products, Workflows, public header/footer/navigation, Why It Works, In Practice and login/portal startup. Do not infer browser acceptance from static/synthetic checks. E05 rollback baseline: a06b420. Stop before deferred storage work or any further extraction.
+
+
+## E06 — implemented: complete timetable store (approved cohesive extraction)
+
+Baseline: clean 87158ca. The user approved the reviewed timetable manager boundary instead of another small helper. Moved pre-E06 app.js:1450–2040 unchanged into js/features/timetable/store.js:1–591: seven default/day/week const declarations plus 36 functions (including timetableWeekTypesOverlap and valuesMatchByIdOrLabel). Removing the block plus separator reduces app.js by 592 lines to 4,013. No other app bytes change. This is the data/store feature only, not a claim that auth.js timetable UI has been extracted.
+
+Dependencies remain explicit in the inventory: readWorkspaceState, writeWorkspaceState, createStorageId, the six app timetable constants, standard JavaScript APIs and CustomEvent/window.dispatchEvent. No additional prerequisite storage refactor is needed: existing live workspace resolution stays intact. Preserve the global adapter at app.js:3560 and storage-event branch at app.js:3728. auth.js consumers, UI/controllers, permissions, Supabase adapters and private state all stay in place. No hidden cache or factory is introduced.
+
+Loading: exactly one new classic synchronous script tag immediately before app.js in all 57 consumers. Default arrays initialize in their original internal order using no app dependency; methods resolve existing dependencies only when called after app initializes. Keep the original adapter assignment and startup calls as the only initialization owners. Preserve existing script attributes, query strings, inline bodies and relative order; no framework/modules/lazy loading.
+
+Acceptance completed: byte-identical move and unchanged remaining app; all 43 declarations have one owner; original interface preserved; 14 before/after fixture groups for defaults/aliases/malformed state, period/room/entry CRUD, conflict/week/load behavior, statuses/publication, term copy, substitutions, live school isolation, storage events, four-key sync/debounce/hydration/error handling and role eligibility; four full app.js startup comparisons using synthetic DOM (ready/loading, present/absent public targets); nine scripts parse, 442 local paths resolve, 57 exact tag insertions, all existing inline bodies unchanged and non-target tracked files unchanged. Tests use in-memory fake storage and mocked saves only. See checklist E06 log for limitations and manual checks.
+
+Acceptance remaining: actual HTTP/MIME/cache and browser startup, admin timetable/class preview/printing, Teacher/Student views, parent timetable answers, dashboard/report refresh and real role guards. Actual backend/network synchronization and browser two-tab behavior are NOT TESTED. Do not mutate production records to check this extraction; exercise write workflows only in an explicitly isolated no-backend fixture environment. Contact's pre-existing inline syntax error remains separate. Prior E03/E04 browser acceptance remains unverified unless separately confirmed.
+
+Rollback boundary: reverse only this new file, the removed original block/separator, the 57 inserted script lines and E06 documentation hunks against 87158ca together. Preserve E01–E05 and unrelated changes. No stored formats were changed, so no migration/database rollback or clearing storage is required. No commit, push, deploy or database change. Stop here; E07 and E05-storage require fresh approval.

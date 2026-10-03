@@ -271,3 +271,39 @@ Current HTML has products-lane-grid and workflow-page-grid but neither home-offe
 Touched scope: app.js, new js/website/offerings.js, 57 HTML consumers and the four refactoring documents. Current source locations/manifest must be updated while preserving the HTML ID catalog. Earlier stage result logs retain historical anchors.
 
 Manual acceptance: open Products and Workflows in permitted local HTTP preview, confirm unchanged first-three cards/content on desktop/mobile, then check navigation, Why It Works, In Practice, header/footer and representative login/portal startup without account or record changes. Confirm offerings.js loads successfully once before the prior scripts and no new console errors appear. Record the contact exception separately. Resolve still-unverified E03/E04 checks too. Stop after this feature; do not commit E05, push, deploy or start deferred storage work without new authorization.
+
+
+## E05 user-reported acceptance follow-up
+
+Before E06 review, the user explicitly reported: E05 browser checks passed. Record this as user-reported PASS only, not an independently observed browser run. E05 is present in clean local checkpoint 87158ca. Prior execution logs retain their historical results and original commit state; this follow-up does not retroactively certify E03/E04 or live backend workflows.
+
+## E06 result log — complete timetable store, 2026-10-03
+
+Baseline: clean refactor/javascript-structure at 87158ca. Approval covers one extraction only, no commit/push/deployment/database changes. Verification uses synthetic values only, never account or school data. Temporary Node VM fixtures compare baseline source from Git with the extracted source and original dependencies; all storage, events, timers and remote saves are in-memory mocks.
+
+| Check | Result | Evidence / limitation |
+| --- | --- | --- |
+| Exact scope and dependency audit | PASS — source | 43 declarations (seven const, 36 functions); exact original app.js:1450–2040 becomes store.js:1–591. Only nine application bindings remain external, recorded in inventory; all other app.js bytes unchanged after the 592-line removal. |
+| Initialization and state ownership (S11) | PASS — isolated/source | New script evaluation performs no storage/DOM/event/listener/timer work and does not assign the adapter. Global lexical constants and shared array identity preserved; original manager assignment/callers/listeners remain unchanged. No session snapshot/cache introduced. |
+| Defaults and compatibility (S01/S08) | PASS — isolated | Defaults, snake/camel aliases, generated IDs/timestamps, malformed/non-array/empty storage, unscoped fallback exclusion, normalized field shapes and sorting compare exactly to baseline. No migration or cleanup added. |
+| Timetable operations (F06) | PASS — isolated | Period/room/entry create/edit/filter/reload; archive/activate; publish/unpublish with group scoping; teacher/room/class conflict matrix and week types; workload; term copy success/conflicts/no-op; substitutions and summaries. Entire return/state/event traces match. This does not test browser form/print actions. |
+| School isolation (S02/S03) | PASS — isolated | Real retained workspace helpers tested against fake storage: A → B → A, double-colon keys, transient precedence, persistent fallback and public fallback. No cross-school entries or rooms; no real browser storage touched. |
+| Event contract (S04) | PASS — isolated | Entry save payload is { entries }; other saves retain current-entry emission. Original timetable storage branch ignores other-school and room keys, responds once to active entry key. Real browser two-tab delivery remains NOT TESTED. |
+| Sync behavior (S05/S06/S09) | PASS — simulated | Original auth sync/hydration functions with real extracted manager and mocked backend: four state bindings, per-key 260 ms debounce under rapid saves, distinct hydration payload, suppression during hydration, failure caught and timer state released. No actual Supabase request or outage/reconnect tested. |
+| Sync eligibility | PASS — simulated/source | Admin retains four timetable bindings; Teacher remains restricted to other eligible collections; Student/Parent gain no timetable sync listener. All auth source including UI permission guards remains byte-identical. Authenticated browser restrictions remain NOT TESTED. |
+| App startup/public regression (P01/S11) | PASS — synthetic | Four executions of full app.js (document ready/loading, absent/present public targets) match original storage/DOM/listener traces, markup and all global manager member maps. No browser or complete authenticated auth bootstrap executed. |
+| HTML entry points | PASS — source | All 58 HTML files compared; 57 gain exactly one synchronous store.js tag directly before app.js. Removing each insertion reconstructs baseline bytes. Original tag attributes/query strings/bodies/order unchanged; verification HTML untouched. |
+| Syntax and delivery prerequisites | PASS — local/source | Nine classic JS scripts parse; 442 external script references resolve locally. Actual HTTP status/MIME/cache remains NOT TESTED. |
+| Existing Contact issue | FAIL — pre-existing | Unchanged inline script fails at relative line 53, current contact.html:963. Other inline scripts parse. This is not an E06 regression. |
+| Source/docs integrity | PASS — source | Current declaration/consumer anchors and script manifest regenerated from source; HTML ID catalog preserved. Unrelated tracked files unchanged; index empty, HEAD 87158ca unchanged; git diff --check clean. |
+| Browser/role/remote acceptance | NOT TESTED | Actual Admin/class print, Teacher/Student, parent answers, dashboards/reports, role guards, HTTP/network and two-tab/live sync require manual/authorized environment evidence. Previous browser-policy restriction was not bypassed. |
+
+Summary: 14 behavioral fixture groups plus four synthetic full-app startup comparisons passed. The baseline-equivalence checks preserve existing behavior; they do not claim to fix pre-existing bugs or prove every edge case. No production/local user storage, account, deployment or database was changed.
+
+### Focused E06 manual browser acceptance
+
+1. In a permitted local preview, confirm timetable/store.js loads once before app.js; no new console/reference/network errors. Spot-check public navigation and login/portal startup. Keep the known Contact error separate.
+2. With existing read-only test data, open Admin Schedule and Classes timetable preview/print preview; verify periods, rooms, entries, group/status counts and output match the checkpoint. Do not submit real record changes.
+3. Check Teacher timetable (grid/list), Student timetable and parent timetable answers remain scoped as before; dashboard/search/report totals and role-restricted controls are unchanged.
+4. Reload and, with authorized test sessions, switch school A → B → A; confirm no cross-school entries. Check refresh in another tab. Browser mutation workflows (publish/copy/substitute/save) require an explicitly isolated fixture with backend synchronization disabled, not a production-connected preview.
+5. Report PASS/FAIL/NOT TESTED for the checks actually exercised. Do not infer live Supabase acceptance from simulated sync tests. Stop before E07; no automatic commit or next extraction.
