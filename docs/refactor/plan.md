@@ -1,10 +1,10 @@
 # Safe staged extraction plan
 
-Original plan: 2026-10-02 at e1eb094; updated 2026-10-03. E01–E03 are implemented and checkpointed by the user. E01/E02 browser completion was user-reported; E03 browser acceptance remains unverified in this record. E04 was explicitly approved and implemented from clean refactor/javascript-structure at 28bf6cf. E04 static/isolated checks pass; browser acceptance remains outstanding. Stop after E04; no subsequent stage has started.
+Original plan: 2026-10-02 at e1eb094; updated 2026-10-03. At the explicit user request, E04 was committed locally as a06b420 without pushing. The user approved accelerating the next extraction to a complete offerings feature; this is now E05. The previously queued workspace/storage step is deferred as E05-storage, not implemented. E05 static/isolated checks pass; browser acceptance remains outstanding. Stop after this feature; no subsequent stage has started.
 
 ## Non-negotiable boundaries
 
-Preserve functionality, UI, URLs, selectors, data formats, storage keys, role permissions and Supabase behavior. Preserve unrelated edits. Do not commit, push, deploy, modify database state or run migrations. Future work is one agreed extraction per turn, then a report and stop. Check the current repository again before each step; line numbers here are snapshot anchors.
+Preserve functionality, UI, URLs, selectors, data formats, storage keys, role permissions and Supabase behavior. Preserve unrelated edits. Do not push, deploy, modify database state or run migrations. Commit only on an explicit request: the current authorization covered E04 only, not the new offerings work. Future work is one agreed cohesive extraction per turn, then a report and stop. Check the current repository again before each step; line numbers here are snapshot anchors.
 
 The documentation itself is not a blanket green baseline: contact.html has an existing parse failure and browser/backend workflows have not been run. Keep fixes in separate changes. No framework conversion, database redesign, key renaming, password policy change, mass formatting or speculative dead-code deletion belongs in a move-only extraction.
 
@@ -101,7 +101,9 @@ These anchors describe E03 at implementation time. E03 is included in checkpoint
 
 **Rollback boundary:** only app.js, js/website/why-grid.js and E03 documentation hunks against 1dd813e. Restore the dataset to its original location and remove its new copy as one operation; preserve E01/E02 and unrelated changes. No storage rollback is involved. Stop before E04; no commit, push, deployment or database changes.
 
-## E04 — implemented: app escapeHtml (browser acceptance pending)
+## E04 — committed: app escapeHtml (historical execution record; browser acceptance pending)
+
+E04 was committed locally as a06b420 at the user's explicit request on 2026-10-03. No push occurred. This section retains E04-time source locations and evidence; current locations are in inventory.md and contracts.md. A commit is not evidence of browser acceptance.
 
 **Approved scope:** moved only the unchanged eight-line escapeHtml(value) function from pre-E04 app.js:613–620 into js/core/escape-html.js:1–8. Removed the original declaration and following blank line (nine lines). All other app.js bytes remain identical. The separate auth.js helper stays private and unchanged; no deduplication or semantic fix.
 
@@ -117,6 +119,24 @@ These anchors describe E03 at implementation time. E03 is included in checkpoint
 
 **Rollback boundary:** new js/core/escape-html.js, the removed app helper, 57 helper tag additions and E04 documentation hunks against 28bf6cf, as one unit. Preserve E01–E03 and unrelated subsequent changes. No storage/database rollback. Stop before E05; no commit, push, deployment or database operation is authorized.
 
+## E05 — implemented: complete offerings feature (approved acceleration)
+
+**Reason and scope:** the user requested faster progress and explicitly approved a cohesive 203-line offerings extraction instead of another tiny unit. Moved five declarations together from a06b420 into js/website/offerings.js: offerings (92 lines), renderOfferingPreviewGrid (19), activeOfferingId (1), renderOfferingTabs (54) and renderWorkflowPage (37). The new file is 207 lines with separators; app.js loses 208 lines including original separators. Every declaration and all remaining app.js bytes are unchanged. No consolidation of previous extracted files or new UI.
+
+**Dependency boundary:** only document is external. offerings retains its five literal records and global lexical const binding; activeOfferingId retains one global lexical let initialized from offerings[0].id and updated by the existing click callback. Both initialize in source order before app.js now, without DOM/network/storage work. No duplicated state or event initialization. All callable function names remain unchanged.
+
+**Consumers:** initPageContent remains in app.js:4579. Its calls at 4582, 4585 and 4586 still render the product preview with the first three records, then tabs and workflows; its sole immediate invocation remains at 4597. The workflow renderer still selects the first three records. renderOfferingTabs still re-renders itself after selection. Keep the invalid-selection fallback and existing event binding behavior.
+
+**Loading:** one synchronous classic offerings.js tag is added before escape-html.js on all 57 app.js consumers. Existing tag attributes, query strings, inline bodies and relative order are preserved. No module/framework conversion, new initializer or lazy loader. Current order: offerings → escape-html → practice-grid → why-grid → app → existing scripts. All 385 external references resolve locally; Google verification HTML is unchanged.
+
+**DOM contracts:** products-lane-grid exists in products.html:79; workflow-page-grid in workflows.html:28. Neither home-offering-tabs nor home-offering-panel exists in current HTML. Preserve those no-op paths and verify tab behavior with synthetic fixtures; do not reintroduce or redesign UI.
+
+**Checks performed:** exact five-declaration and remaining-app equality; product/workflow first-three markup; all five tab selections and persistent state; one listener per current rendered button after clicks and repeated renders; invalid-ID fallback; missing both/either tab container; preview empty/single/markup-containing inputs; four isolated initPageContent compositions; eight scripts parse; all HTML tag additions and paths checked. Existing contact inline syntax failure remains unchanged (now contact.html:962). Browser DOM/listener behavior, visual/layout/navigation and login/portal startup remain NOT TESTED.
+
+**Remaining acceptance:** manually check Products and Workflows content on desktop/mobile, public navigation and earlier Why/In Practice pages, then representative login/portal startup; inspect console/network for missing scripts or new errors. No actual tab UI exists to click. Do not add it for testing or mutate database/account records. Keep E03/E04 outstanding checks and the existing contact failure visible.
+
+**Rollback boundary:** the five original declarations plus separators, new offerings.js, 57 loader additions and this stage's documentation against a06b420. Restore/remove them as one unit, preserving E01–E04 and unrelated edits. Do not reset the whole repository or clear storage. These feature changes remain uncommitted; no push, deploy or database action. Stop for user review.
+
 ## Extraction queue (provisional; never execute as a batch)
 
 Each row is a planning group. Rows containing several features MUST be expanded into one exact extraction before implementation. Dependency analysis and runtime evidence may change ordering.
@@ -126,7 +146,8 @@ Each row is a planning group. Rows containing several features MUST be expanded 
 | E02 | Implemented: renderPracticeGrid only | Parameter/document-only dependency audit complete; classic loader pattern retained | Static/isolated checks pass; browser checks passed according to user | practice-grid.js, function removal, 57 script additions and E02 docs |
 | E03 | Implemented: whyCards dataset only | Literal-only const; two callers retained; existing classic loading order | Static/isolated checks pass; E03 browser checks outstanding | Dataset relocation between app.js/why-grid.js and E03 docs |
 | E04 | Implemented: app escapeHtml only | Eight calls retained; auth private helper remains separate | Static/isolated checks pass; HTTP/visual/startup checks outstanding | New helper, app declaration removal, 57 script tags and E04 docs |
-| E05 | Workspace/storage primitives as individually reviewed boundaries | Workspace fallback/key contracts captured; synthetic A/B fixtures ready | Key equality, transient precedence, legacy behavior and isolation | Helper/interface and consumers; never clear storage |
+| E05 | Implemented: cohesive offerings data/state/renderers (approved acceleration) | Five-declaration boundary audited; earlier extraction interfaces preserved | Static/synthetic behavior passes; browser acceptance outstanding | offerings.js, five declarations, 57 script tags and E05 docs |
+| E05-storage | Deferred original workspace/storage step; requires separate review/approval | Workspace fallback/key contracts captured; synthetic A/B fixtures ready | Key equality, transient precedence, legacy behavior and isolation | Helper/interface and consumers; never clear storage |
 | E06 | One app.js manager, e.g. classes only after dependency review | Storage API stable; constants/normalizers/event methods accounted for; global adapter retained | CRUD/reload/event payload and dependent view refresh | One manager implementation + adapter |
 | E07 | Other managers one at a time | Respect actual dependencies: attendance on cycles/students, report/gradebook and timetable/class/course relationships | Target-feature checks plus linked roles/screens | Each manager is its own checkpoint |
 | E08 | One small shared UI boundary | Preserve singleton modal/feedback state, handler lifetime and initialization conditions | Open/close, keyboard, status, theme/drafts as applicable | One UI owner + call wiring |
@@ -146,7 +167,7 @@ Before an extraction: refresh source locations; record working-tree state; captu
 
 After an extraction: review diff; run relevant syntax/script-path checks and workflow checks; compare behavior; update inventory statuses and locations; report exact changes, tests performed, existing failures, untested areas and risks. Stop.
 
-The user controls local commits and all pushes through GitHub Desktop. No automatic checkpoint command is authorized. Recommend a local checkpoint only when that extraction's checks justify it; a syntax-only pass is not full behavioral acceptance.
+The user controls checkpoints and all pushes. The user explicitly authorized the agent's E04 local commit; that does not authorize committing E05 or any push. Recommend an accepted checkpoint only when checks justify it, distinguishing a requested local snapshot from full browser acceptance. A syntax-only pass is not full behavioral acceptance. Prefer complete dependency-reviewed features over one-function stages where safe; do not batch unrelated features or skip verification.
 
 ## Final reconciliation (later stage)
 
@@ -156,6 +177,6 @@ Run the full checklist on representative roles and two synthetic school workspac
 
 ## Current completion boundary
 
-E01–E04 are implemented. E04 moves only app escapeHtml into a new classic helper file, adds one tag to each of 57 HTML consumers and updates the four refactoring documents. No other function or state moved. No commit, push, deployment, database change or subsequent extraction occurred during E04 implementation.
+E01–E05 are implemented. E04 is committed locally as a06b420 by explicit request, with no push. The newly approved E05 offerings feature is implemented but uncommitted: five declarations, one new file, 57 loader additions and four documentation updates. No other code or state moved, and no database/deployment/later-stage work occurred.
 
-Next action is browser acceptance for E04 and resolution of the still-unverified E03 checks. Use an environment permitted to serve/open localhost; inspect public header/footer/branding, navigation, Why It Works, In Practice and login/portal startup. Do not infer browser acceptance from source checks or proceed automatically to E05. E04 rollback baseline: 28bf6cf. Retain earlier extractions and unrelated user changes.
+Next action is browser acceptance and review of the offerings feature, alongside still-unverified E03/E04 checks. Use a permitted local HTTP preview; inspect Products, Workflows, public header/footer/navigation, Why It Works, In Practice and login/portal startup. Do not infer browser acceptance from static/synthetic checks. E05 rollback baseline: a06b420. Stop before deferred storage work or any further extraction.

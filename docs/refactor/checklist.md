@@ -241,3 +241,33 @@ Scope: app.js escapeHtml only, from clean refactor/javascript-structure at 28bf6
 Touched scope: app.js, new js/core/escape-html.js, 57 HTML consumers, and the four refactoring documents. Historical logs retain their prior source anchors; current inventory/contracts locations and the script manifest reflect E04. Preserve the HTML IDs catalog exactly.
 
 Manual checks: open local HTTP preview, compare header/footer/branding and navigation on desktop/mobile, check Why It Works and In Practice, then representative login/portal startup without submitting forms or records. In console/network confirm one successful escape-html.js load before practice-grid.js → why-grid.js → app.js and no new errors. Keep the contact exception separate. Report outcomes before another stage. Stop before E05; rollback only E04 hunks against 28bf6cf and preserve earlier extractions.
+
+## E04 requested checkpoint
+
+On 2026-10-03 the user explicitly requested committing E04. The agent rechecked the scope, staged exactly the 63 E04 files and created local commit a06b420 (refactor: extract app HTML escaping helper (E04)). The working tree was clean afterward; no push occurred. This is a requested local checkpoint, not a newly observed browser pass. E03/E04 browser checks remain unverified in this record.
+
+## E05 result log — approved cohesive offerings feature
+
+Baseline: clean a06b420 after the E04 commit. The user explicitly approved moving the 203-line offerings feature together. The original storage step is deferred as E05-storage. Only E04 was authorized for a commit; E05 remains uncommitted. No push, deployment or database operations.
+
+| Check | Result | Evidence / limitation |
+| --- | --- | --- |
+| Scope/dependencies | PASS — source/scope | Five declarations: offerings, activeOfferingId, renderOfferingPreviewGrid, renderOfferingTabs, renderWorkflowPage. Only document is external; no storage/auth/permissions/Supabase dependency. initPageContent is the only outside callable consumer; it also reads offerings. |
+| Exact code preservation | PASS | All five declarations are byte-identical to baseline (203 code lines). New file is 207 lines with separators; app.js removes 208 original lines including separators. The rest of app.js is byte-identical, including startup/listeners/interfaces. |
+| State and initialization | PASS — isolated/source | One dataset const and one selected-ID let; neither is a window property. Initial ID equals the first offering. Script evaluation performs no DOM lookup, writes or listener registration. Dataset initializes before selected state. Existing initPageContent body and invocation are retained. |
+| Product/workflow output | PASS — isolated | Exact baseline HTML/traces match; both existing pages still display first three records in the original order. Empty, single and markup-containing preview fixtures also match. No escaping/content redesign included. |
+| Tab interaction | PASS — synthetic | All five selection clicks update the same state/panel as baseline. Preview/workflow rendering does not reset the selection. Repeated tab renders leave one handler per current synthetic button. Invalid selection keeps original first-offering panel fallback without marking a tab active. |
+| Absent-target guards | PASS — synthetic | Missing both tabs/panel, tabs-only and panel-only each produce no DOM writes or listeners. Missing preview accepts null items without reading it. Missing workflow target remains a no-op. |
+| Startup composition | PASS — isolated | Four initPageContent fixtures (all absent, product target, workflow target, all synthetic targets) produce identical call/HTML traces with other renderers stubbed. Not a full browser/app run. |
+| HTML/loading | PASS — source | All 58 HTML files compared. Each of 57 app consumers gains exactly one offerings.js tag before escape-html.js and existing renderers. Removing this line reconstructs each baseline HTML. Verification HTML and all prior tag bodies/attributes/order are unchanged. |
+| Paths and syntax | PASS — source/local | All eight browser JS files parse and all 385 external script paths resolve locally. Actual HTTP/MIME/cache behavior remains unverified. |
+| Existing inline issue | FAIL — pre-existing | Contact's unchanged inline script still fails at relative line 53, now contact.html:962. Other inline scripts parse. This is not introduced by the feature extraction. |
+| Documentation/source audit | PASS | All 318 app/extracted declaration locations, 248 startup references and the moved state-assignment location match current source. All 58 manifest rows match current HTML. The unchanged ID catalog matches all 1,009 IDs across 58 pages. |
+| Scope/checkpoint/whitespace | PASS | Exactly app.js, 57 HTML files, four docs and new offerings.js changed against a06b420. All 35 other tracked files are unchanged; git diff --check passes. The index is empty and HEAD remains a06b420: E05 is not staged or committed. |
+| Browser visual/startup | NOT TESTED | Desktop/mobile Products/Workflows, navigation, other public pages and login/portal startup need manual checks. Previous localhost policy restrictions were not bypassed. Synthetic tab tests do not prove browser DOM/listener behavior. |
+
+Current HTML has products-lane-grid and workflow-page-grid but neither home-offering-tabs nor home-offering-panel. Do not add tab UI or call dormant functionality as a cleanup. Keep UI identical and retain its missing-container no-op paths.
+
+Touched scope: app.js, new js/website/offerings.js, 57 HTML consumers and the four refactoring documents. Current source locations/manifest must be updated while preserving the HTML ID catalog. Earlier stage result logs retain historical anchors.
+
+Manual acceptance: open Products and Workflows in permitted local HTTP preview, confirm unchanged first-three cards/content on desktop/mobile, then check navigation, Why It Works, In Practice, header/footer and representative login/portal startup without account or record changes. Confirm offerings.js loads successfully once before the prior scripts and no new console errors appear. Record the contact exception separately. Resolve still-unverified E03/E04 checks too. Stop after this feature; do not commit E05, push, deploy or start deferred storage work without new authorization.
