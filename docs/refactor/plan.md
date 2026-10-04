@@ -1,10 +1,10 @@
 # Safe staged extraction plan
 
-Original plan: 2026-10-02 at e1eb094; updated 2026-10-03 for approved E06 timetable store. E05 is present in clean checkpoint 87158ca and its browser checks passed according to the user, not independent observation. E06 implements one cohesive manager/store extraction; workspace/storage extraction remains deferred. No commit, push, deployment or database operation is authorized or performed. Stop after E06.
+Original plan: 2026-10-02 at e1eb094; updated 2026-10-03 for approved E07 student store. E06 is present in clean checkpoint 94c3181 and its browser checks passed according to the user, not independent observation. E07 implements one cohesive student-store extraction. Deferred storage and later features are not included. No commit, push, deployment or database operation is authorized or performed. Stop after E07.
 
 ## Non-negotiable boundaries
 
-Preserve functionality, UI, URLs, selectors, data formats, storage keys, role permissions and Supabase behavior. Preserve unrelated edits. Do not push, deploy, modify database state or run migrations. Commit only on an explicit request: the earlier commit authorization covered E04 only; E06 approval does not authorize a commit. Future work is one agreed cohesive extraction per turn, then a report and stop. Check the current repository again before each step; line numbers here are snapshot anchors.
+Preserve functionality, UI, URLs, selectors, data formats, storage keys, role permissions and Supabase behavior. Preserve unrelated edits. Do not push, deploy, modify database state or run migrations. Commit only on an explicit request: the earlier commit authorization covered E04 only; E07 approval does not authorize a commit. Future work is one agreed cohesive extraction per turn, then a report and stop. Check the current repository again before each step; line numbers here are snapshot anchors.
 
 The documentation itself is not a blanket green baseline: contact.html has an existing parse failure and browser/backend workflows have not been run. Keep fixes in separate changes. No framework conversion, database redesign, key renaming, password policy change, mass formatting or speculative dead-code deletion belongs in a move-only extraction.
 
@@ -150,8 +150,8 @@ Each row is a planning group. Rows containing several features MUST be expanded 
 | E04 | Implemented: app escapeHtml only | Eight calls retained; auth private helper remains separate | Static/isolated checks pass; HTTP/visual/startup checks outstanding | New helper, app declaration removal, 57 script tags and E04 docs |
 | E05 | Implemented: cohesive offerings data/state/renderers (approved acceleration) | Five-declaration boundary audited; earlier extraction interfaces preserved | Static/synthetic behavior passes; browser acceptance passed according to user | offerings.js, five declarations, 57 script tags and E05 docs |
 | E05-storage | Deferred original workspace/storage step; requires separate review/approval | Workspace fallback/key contracts captured; synthetic A/B fixtures ready | Key equality, transient precedence, legacy behavior and isolation | Helper/interface and consumers; never clear storage |
-| E06 | Implemented: complete timetable store (43 declarations, 591 lines) | Original storage API/keys and SchoolSphereTimetable adapter retained; seven local const defaults moved together | 14 fixture groups and four synthetic app-startup comparisons pass; browser acceptance outstanding | New store.js, original block removal, 57 script additions and E06 docs |
-| E07 | Other managers one at a time | Respect actual dependencies: attendance on cycles/students, report/gradebook and timetable/class/course relationships | Target-feature checks plus linked roles/screens | Each manager is its own checkpoint |
+| E06 | Implemented: complete timetable store (43 declarations, 591 lines) | Original storage API/keys and SchoolSphereTimetable adapter retained; seven local const defaults moved together | 14 fixture groups and four synthetic app-startup comparisons pass; browser acceptance passed according to user | New store.js, original block removal, 57 script additions and E06 docs |
+| E07 | Implemented: student store (16 functions, 314 lines) | Existing storage API/constants, student adapter, attendance/date helper and auth consumers retained | 15 fixture groups and four synthetic startups pass; browser acceptance outstanding | New students/store.js, original function removals, 57 script additions and E07 docs |
 | E08 | One small shared UI boundary | Preserve singleton modal/feedback state, handler lifetime and initialization conditions | Open/close, keyboard, status, theme/drafts as applicable | One UI owner + call wiring |
 | E09 | One auth.js feature controller/view unit | Explicit dependency factory and retained closure state; corresponding managers stable | Feature actions, permissions, no duplicate listeners/writes | Whole controller/factory with original initializer |
 | E10 | Additional feature units one at a time | Review interleaved helpers in full inventory; include registration companion and page-specific inline consumers | Relevant F/R/S checklist rows for each feature | Per-feature implementation + wiring |
@@ -184,7 +184,9 @@ E01–E05 are implemented. E04 is committed locally as a06b420 by explicit reque
 Next action is browser acceptance and review of the offerings feature, alongside still-unverified E03/E04 checks. Use a permitted local HTTP preview; inspect Products, Workflows, public header/footer/navigation, Why It Works, In Practice and login/portal startup. Do not infer browser acceptance from static/synthetic checks. E05 rollback baseline: a06b420. Stop before deferred storage work or any further extraction.
 
 
-## E06 — implemented: complete timetable store (approved cohesive extraction)
+## E06 — implemented: complete timetable store (historical execution record)
+
+Follow-up: E06 is now in checkpoint 94c3181; the user reported its browser checks passed before approving E07. The execution-time observations below remain historical and do not certify E07.
 
 Baseline: clean 87158ca. The user approved the reviewed timetable manager boundary instead of another small helper. Moved pre-E06 app.js:1450–2040 unchanged into js/features/timetable/store.js:1–591: seven default/day/week const declarations plus 36 functions (including timetableWeekTypesOverlap and valuesMatchByIdOrLabel). Removing the block plus separator reduces app.js by 592 lines to 4,013. No other app bytes change. This is the data/store feature only, not a claim that auth.js timetable UI has been extracted.
 
@@ -197,3 +199,20 @@ Acceptance completed: byte-identical move and unchanged remaining app; all 43 de
 Acceptance remaining: actual HTTP/MIME/cache and browser startup, admin timetable/class preview/printing, Teacher/Student views, parent timetable answers, dashboard/report refresh and real role guards. Actual backend/network synchronization and browser two-tab behavior are NOT TESTED. Do not mutate production records to check this extraction; exercise write workflows only in an explicitly isolated no-backend fixture environment. Contact's pre-existing inline syntax error remains separate. Prior E03/E04 browser acceptance remains unverified unless separately confirmed.
 
 Rollback boundary: reverse only this new file, the removed original block/separator, the 57 inserted script lines and E06 documentation hunks against 87158ca together. Preserve E01–E05 and unrelated changes. No stored formats were changed, so no migration/database rollback or clearing storage is required. No commit, push, deploy or database change. Stop here; E07 and E05-storage require fresh approval.
+
+
+## E07 — implemented: complete student store (approved cohesive extraction)
+
+Baseline: clean 94c3181. Moved 16 original functions from pre-E07 app.js:2359–2474 and 2483–2679 unchanged into js/features/students/store.js:1–314 (299 code lines plus separators). app.js loses 315 lines and now has 3,698; all remaining bytes are identical. getLocalDateValue stays in app.js. This is the student data layer only; auth.js student management remains private and unchanged.
+
+Scope includes guardian/document/progression/student normalization, reads/saves/events, ordering, upsert, archive/activate, transfer, individual/level deletion, progression callbacks and summaries. Keep the nested normalizers inside normalizeStudentRecord. Retain createStorageId, readWorkspaceState/writeWorkspaceState and the three student default/key/event constants in app.js; no prerequisite storage refactor is needed. All data formats, IDs, keys, event payloads, ordering and existing behaviors remain unchanged.
+
+Consumers remain the original SchoolSphereStudents adapter at app.js:3330, attendance summary at app.js:2536, storage-event branch at app.js:3429 and auth.js:8168 getStudentManager with its existing UI/portal/fees/admissions/report/access/messaging/sync consumers. No new permissions or account deletion/cascade behavior. Deletion verification uses only synthetic records, never user data.
+
+Loading: one classic synchronous students/store.js tag after timetable/store.js and immediately before app.js on all 57 consumers. It only declares functions; no store creation, state capture, DOM/storage work or listeners at evaluation. The original app adapter and auth startup remain the sole initialization owners. Existing tag attributes, inline bodies and relative order are preserved; no framework or modules introduced.
+
+Acceptance completed: exact source/remainder equality; unchanged date helper and adapter; 15 before/after behavioral groups covering default/malformed state, aliases/nested data/photos/documents, CRUD/status/progression, deletion and level matching, summaries, workspace isolation, event/storage branch, attendance summary, admin sync debounce/hydration/mock failure and other-role eligibility; four full app.js executions with synthetic DOM compare startup/storage/listeners/public markup and manager maps; ten classic scripts parse and 499 local paths resolve; 57 exact insertions and unrelated tracked files unchanged. Current docs/manifest and preserved HTML IDs are checked against source. No real browser/backend claim.
+
+Remaining acceptance: local HTTP delivery, authenticated Admin Students/class/attendance views, student/parent linkage, actual role guards, import/export/print and browser cross-tab refresh. Mutating UI workflows require an explicitly isolated no-backend fixture environment; do not submit production-connected saves/deletes. Live Supabase behavior is NOT TESTED. Keep the existing Contact inline syntax error and older unverified E03/E04 acceptance separate.
+
+Rollback boundary: reverse only the 16 function moves, new student-store file, 57 inserted tags and E07 documentation hunks together against 94c3181; preserve getLocalDateValue, E01–E06 and unrelated changes. No format migration, database rollback or storage clearing is required. No commit, push, deploy or database action. Stop after E07 and await user review; no next extraction automatically.

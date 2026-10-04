@@ -307,3 +307,40 @@ Summary: 14 behavioral fixture groups plus four synthetic full-app startup compa
 3. Check Teacher timetable (grid/list), Student timetable and parent timetable answers remain scoped as before; dashboard/search/report totals and role-restricted controls are unchanged.
 4. Reload and, with authorized test sessions, switch school A → B → A; confirm no cross-school entries. Check refresh in another tab. Browser mutation workflows (publish/copy/substitute/save) require an explicitly isolated fixture with backend synchronization disabled, not a production-connected preview.
 5. Report PASS/FAIL/NOT TESTED for the checks actually exercised. Do not infer live Supabase acceptance from simulated sync tests. Stop before E07; no automatic commit or next extraction.
+
+
+## E06 user-reported acceptance follow-up
+
+The user explicitly reported E06 browser checks passed before reviewing/approving E07. Record user-reported PASS, not an independently observed run. E06 is present in clean checkpoint 94c3181. Its prior result log remains historical and does not establish E07 or live backend acceptance.
+
+## E07 result log — complete student store, 2026-10-03
+
+Baseline: clean refactor/javascript-structure at 94c3181. No commit, push, deployment or database changes. Node VM comparisons use synthetic values, fake in-memory storage/events/timers and mocked remote saves; no real student, account or school records are read or written by the tests.
+
+| Check | Result | Evidence / limitation |
+| --- | --- | --- |
+| Exact scope/dependencies | PASS — source | 16 functions, 299 code lines / 314 with separators. app.js loses 315 lines; all remaining bytes unchanged, including getLocalDateValue, student adapter, storage helpers, constants, permissions and all startup/listener code. Six retained application dependencies are recorded in inventory. |
+| Initialization/state (S11) | PASS — isolated/source | Function-only script evaluates with zero storage/DOM/event/listener/timer effects and does not assign the manager. No cache/session capture. Existing adapter and auth controller ownership remain intact. |
+| Record compatibility (F01/S01) | PASS — isolated | Defaults/malformed/non-array storage, no unscoped fallback, aliases, nested guardians/documents/progression, photo formats, generated IDs/timestamps, status/promotion/exam normalization and sorting match full baseline outputs/traces. |
+| CRUD/status/progression (F01) | PASS — isolated | Create/update/reload, createdAt preservation, archive/reactivate/transfer, unknown IDs, callback invocation, protected ID/createdAt, invalid updater and thrown callback without save. All summary/status/guardian counts match. Actual forms/import/export/print remain NOT TESTED. |
+| Deletion (F01) | PASS — synthetic only | Individual matching/missing/blank IDs and level aliases/case/punctuation/blank/unmatched criteria compare return data and save/event counts exactly. No real deletion or new cascade/account behavior. |
+| Isolation/persistence (S02/S03) | PASS — isolated | Real retained workspace helpers against fake storage verify A → B → A, transient precedence, persistent/public fallback, exact key suffixes and other-school preservation during a synthetic deletion attempt. |
+| Events (S04) | PASS — isolated | Save payload { students } and existing storage-event branch match; foreign/unscoped/null keys ignored, active key emits once. Actual browser two-tab delivery NOT TESTED. |
+| Attendance compatibility (F08/S10) | PASS — isolated | Original summarizeAttendanceRecords calls the moved student getter with unchanged date helper; active roster, present/unmarked counts and rate match using fake attendance data. No attendance code moved. |
+| Synchronization (S05/S06/S09) | PASS — simulated | Original auth sync/hydration functions with real store and mocked backend retain one Admin student listener, 260 ms debounce, latest payload, distinct hydration payload, echo suppression and caught save failure/timer cleanup. Live backend/outage/reconnect NOT TESTED. |
+| Role eligibility | PASS — simulated/source | Teacher/Student/Parent gain no student-state sync listener. auth.js and all its UI permission/account-provisioning code are byte-identical. Actual authenticated authorization checks NOT TESTED. |
+| App startup/public regression (P01/S11) | PASS — synthetic | Four full app.js comparisons (ready/loading, public targets absent/present) match markup, storage, listener registration and every manager member map. This does not execute a full authenticated browser bootstrap. |
+| HTML/loading/syntax | PASS — source/local | All 58 HTML files compared; exactly one new synchronous tag on 57 consumers after timetable/store.js and directly before app.js. Removing it reconstructs baseline bytes. Ten JS scripts parse; all 499 local paths resolve. No actual HTTP/MIME/cache verification. |
+| Existing Contact defect | FAIL — pre-existing | Same inline parse error at relative line 53, current contact.html:964; other inline scripts parse. Not introduced by E07. |
+| Docs and scope | PASS — source | Current declaration/consumer anchors and manifest verified; HTML ID catalog preserved. Only app.js, new store, 57 HTML files and four docs changed. Unrelated tracked files unchanged; index empty, HEAD 94c3181 unchanged, git diff --check clean. |
+| Browser/remote acceptance | NOT TESTED | Actual Admin/student/parent screens, permission guards, import/export/print, HTTP/cache, browser cross-tab events and live synchronization require manual/authorized environment checks. Earlier browser-policy restrictions were not bypassed. |
+
+Summary: 15 behavioral fixture groups plus four synthetic full-app startup comparisons passed. Baseline parity preserves existing behavior, including quirks, without claiming every edge case or live workflow has been checked.
+
+### Focused E07 manual browser acceptance
+
+1. In permitted local preview, confirm students/store.js loads once after timetable/store.js and before app.js; no new console/reference/network errors. Spot-check public pages and login/portal startup, retaining the known Contact exception.
+2. Using existing records read-only, inspect Admin Students list/details, guardians, photos/documents and counts; inspect class roster and attendance totals for consistency. Preview export/print only where it does not mutate data.
+3. Check Student own-record view and Parent linked-child view remain correctly scoped; restricted actions and visible controls must match the checkpoint.
+4. Reload and use authorized test sessions for school A → B → A; verify no cross-school records. Check another-tab refresh. Mutating create/edit/promote/archive/transfer/delete/import flows require an explicitly isolated fixture with backend sync disabled, not a production-connected preview.
+5. Report PASS/FAIL/NOT TESTED only for what was exercised. Simulated sync is not live Supabase evidence. Stop after E07; no automatic commit or next extraction.
