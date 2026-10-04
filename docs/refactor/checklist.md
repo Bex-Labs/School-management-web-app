@@ -377,3 +377,39 @@ Summary: 16 synthetic DOM/Promise fixture groups plus one exact compatibility-br
 3. Open a class-arm or student-transfer prompt and inspect default text/selection; cancel it. Required-empty validation and submit/result tests belong in an isolated fixture where completing the dialog cannot mutate production records.
 4. Repeat open/cancel several times; verify one visible dialog and one response per action. Spot-check login and portal navigation. Keep the known Contact error separate.
 5. Report PASS/FAIL/NOT TESTED. Stop after E08; no automatic commit, push or E09 extraction.
+
+
+## E08 checkpoint follow-up
+
+E08 browser checks passed according to the user and were committed locally as f06543b. The clean checkpoint was verified before E09. This is user-reported browser acceptance, not independently observed. No agent commit or push.
+
+## E09 result log — timetable controller, 2026-10-04
+
+Baseline: clean f06543b. No real account, browser, network or database action. Synthetic fixtures contain no user records.
+
+| Check | Result | Evidence / limitation |
+| --- | --- | --- |
+| Source/dependency/consumer boundary | PASS — source | Complete 1,446-line function; identical AST/template raw/cooked values; auth remainder byte-identical after 35-line bridge replacement. 29 private functions plus four browser objects; one unchanged page caller. |
+| Startup/private state | PASS — source/isolated | Exact bridge creates factory once; load/construction has zero DOM/storage/listener effects. Original bootstrap and page guard retained; state allocated only when original initializer runs. Full authenticated startup not executed. |
+| F06/F07 schedule selection and fallbacks | PASS — synthetic | Original render/form helpers; empty/missing required and optional elements/managers; session/term/class/teacher/week changes; class/course/cycle events and repeated refreshes. |
+| F06/F16 lesson actions and side effects | PASS — synthetic | Create/edit/status preservation, validation/conflicts/workload, subject/class-teacher selection, classTeacher write, audit and draft clearing; identical full DOM/effect traces and mutation counts. |
+| F06 periods/copy/group actions | PASS — synthetic | Period validation, per-school-day creation, grouped edits/close, previous-term/no-previous path, save/publish/unpublish and archive/reactivate. No live writes. |
+| F06/E08 substitutions and print | PASS — synthetic | Both prompt cancellations, known/custom replacement and payloads; modal reuse/close/edit-scroll, exact print HTML, missing selection and blocked popup. Real browser print/layout untested. |
+| A07/R02 management denial | PASS — source/synthetic | Page/access calculation byte-identical. isAdmin=false controller guards and disabled toolbar controls match; no mutation through exercised handlers. Not a hosted permission/security audit. |
+| S01/S02/S04 storage integration | PASS — in-memory only | Two fixtures use actual E06 store/app adapter: keys and ::workspace isolation, save/publish/conflicts/substitution/archive, event { entries } and A/B/A readback match baseline. Native cross-tab storage and live remote persistence untested. |
+| S11 listener/timer lifetime | PASS — synthetic/source | Repeated refreshes retain listener counts; modal created once. 19 source listener sites, two timer sites and clearTimeout retained; print-window load callback unchanged. No extra initializer added. |
+| P06 script references/syntax | PASS — source/filesystem | 49 exact tag additions; other nine HTML files unchanged; prior tag attributes/query strings and inline bodies unchanged. 12 classic scripts parse; all 597 local script paths exist. HTTP/cache/MIME untested. |
+| Existing Contact issue | FAIL — pre-existing | Unchanged inline parse failure at relative line 53 / contact.html:964. Contact does not load auth and is untouched. Other inline scripts parse. |
+| Scope and documentation | PASS — source | Current declaration/nested responsibility/state/listener anchors and ordered manifest refreshed; HTML ID catalog preserved. Unrelated app/store/styles/config/backend files unchanged; no staged files or HEAD change. |
+| Browser/backend acceptance | NOT TESTED | Real DOM/keyboard/layout/printing, authenticated roles, HTTP/cache, cross-tab transport, remote hydration/debounce and Supabase workflows not executed. Backend source untouched; no database changes. |
+
+Summary: 24 original-versus-extracted fixture groups plus the exact compatibility bridge passed. Temporary validation scripts are outside the repo; no test framework/dependency was added. This is tested behavioral parity, not a whole-application pass.
+
+### Focused E09 manual browser acceptance
+
+1. On the usual local HTTP preview, confirm controller.js loads once between action-dialog.js and auth.js. Check schedule plus login/another portal page for new console/network errors.
+2. On Schedule, compare session/term/class/teacher/week selections, class/teacher views, summary and saved timetable display on desktop/mobile. Check empty states where available.
+3. Open existing lesson/period editors, inspect values and cancel using the existing controls/backdrops. Open/close class previews repeatedly; no duplicate dialogs or actions. Open print preview and cancel printing.
+4. Check a permission-restricted test session without altering production permissions. Create/edit/save/copy/publish/archive/substitution flows must only run in an explicitly isolated fixture with backend synchronization disabled. A localhost page can still connect to production; localhost alone is not isolation.
+5. In that isolated environment verify one intended mutation/audit sequence per action, reload persistence and school A/B separation. Otherwise mark these browser mutation checks NOT TESTED rather than using real records.
+6. Report PASS/FAIL/NOT TESTED with any errors. Keep the known Contact defect separate. After acceptance, the user may checkpoint locally in GitHub Desktop; no automatic commit/push or E10 work.

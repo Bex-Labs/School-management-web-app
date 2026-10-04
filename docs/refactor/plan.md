@@ -1,17 +1,17 @@
 # Safe staged extraction plan
 
-Original plan: 2026-10-02 at e1eb094; updated 2026-10-04 for approved E08 action-dialog extraction from clean faefa57. E07 is checkpointed and browser checks passed according to the user, not independent observation. E08 moves one private shared UI feature, with a narrow factory and retained private auth API names. No commit, push, deploy or database operation. Stop after E08.
+Original plan: 2026-10-02 at e1eb094; updated 2026-10-04 for approved E09 timetable-controller extraction from clean f06543b. E08 is checkpointed and browser checks passed according to the user, not independent observation. E09 moves one complete controller with explicit dependencies. No commit, push, deploy or database operation. Stop after E09.
 
 ## Non-negotiable boundaries
 
-Preserve functionality, UI, URLs, selectors, data formats, storage keys, role permissions and Supabase behavior. Preserve unrelated edits. Do not push, deploy, modify database state or run migrations. Commit only on an explicit request: the earlier commit authorization covered E04 only; E08 approval does not authorize a commit. Future work is one agreed cohesive extraction per turn, then a report and stop. Check the current repository again before each step; line numbers here are snapshot anchors.
+Preserve functionality, UI, URLs, selectors, data formats, storage keys, role permissions and Supabase behavior. Preserve unrelated edits. Do not push, deploy, modify database state or run migrations. Commit only on an explicit request: the earlier commit authorization covered E04 only; E09 approval does not authorize a commit. Future work is one agreed cohesive extraction per turn, then a report and stop. Check the current repository again before each step; line numbers here are snapshot anchors.
 
 The documentation itself is not a blanket green baseline: contact.html has an existing parse failure and browser/backend workflows have not been run. Keep fixes in separate changes. No framework conversion, database redesign, key renaming, password policy change, mass formatting or speculative dead-code deletion belongs in a move-only extraction.
 
 ## Evidence and why a gradual approach is necessary
 
 - app.js defines shared models and 18 explicit manager interfaces used by auth.js, not just public-site rendering.
-- auth.js is now a 47,336-line IIFE; private feature extractions require explicit closure boundaries, as used for the E08 dialog factory. Moving arbitrary private functions directly to a classic script or ES module breaks implicit closure access.
+- auth.js is now a 45,925-line IIFE; private feature extractions require explicit closure boundaries, as used for the E08 dialog factory. Moving arbitrary private functions directly to a classic script or ES module breaks implicit closure access.
 - Eight functions exceed 650 lines; the largest class controller closes over templates, assignments, several modals, calculations and print flows. Inventory nested responsibilities before splitting their state.
 - Startup awaits the auth bridge but not every async initializer, and later launches background hydration. Script type/timing changes are a separate migration.
 - Browser storage and remote synchronization intentionally use different representations and workspace mappings.
@@ -152,8 +152,8 @@ Each row is a planning group. Rows containing several features MUST be expanded 
 | E05-storage | Deferred original workspace/storage step; requires separate review/approval | Workspace fallback/key contracts captured; synthetic A/B fixtures ready | Key equality, transient precedence, legacy behavior and isolation | Helper/interface and consumers; never clear storage |
 | E06 | Implemented: complete timetable store (43 declarations, 591 lines) | Original storage API/keys and SchoolSphereTimetable adapter retained; seven local const defaults moved together | 14 fixture groups and four synthetic app-startup comparisons pass; browser acceptance passed according to user | New store.js, original block removal, 57 script additions and E06 docs |
 | E07 | Implemented: student store (16 functions, 314 lines) | Existing storage API/constants, student adapter, attendance/date helper and auth consumers retained | 15 fixture groups and four synthetic startups pass; browser acceptance passed according to user | New students/store.js, original function removals, 57 script additions and E07 docs |
-| E08 | Implemented: action-dialog controller (one state binding, six functions) | Private factory with one instance; injected browser objects; 20 callers and lazy listeners retained | 16 synthetic DOM/Promise fixtures and bridge check pass; browser acceptance outstanding | New action-dialog.js, private auth bridge/block replacement, 49 tags and E08 docs |
-| E09 | One auth.js feature controller/view unit | Explicit dependency factory and retained closure state; corresponding managers stable | Feature actions, permissions, no duplicate listeners/writes | Whole controller/factory with original initializer |
+| E08 | Implemented: action-dialog controller (one state binding, six functions) | Private factory with one instance; injected browser objects; 20 callers and lazy listeners retained | 16 synthetic DOM/Promise fixtures and bridge check pass; browser acceptance user-reported; checkpoint f06543b | New action-dialog.js, private auth bridge/block replacement, 49 tags and E08 docs |
+| E09 | Implemented: complete timetable controller, 1,446 original lines | Private dependency factory; retained page caller/state and unchanged E06 store | 24 parity fixture groups plus exact bridge pass; browser acceptance pending | controller.js, auth block/bridge, 49 tags and E09 docs against f06543b |
 | E10 | Additional feature units one at a time | Review interleaved helpers in full inventory; include registration companion and page-specific inline consumers | Relevant F/R/S checklist rows for each feature | Per-feature implementation + wiring |
 | E11 | Authentication/session/client units one at a time | Explicit live session/workspace access; SDK promise and auth callback singletons preserved | All A checks and cross-role isolation | Single lifecycle owner + consumers |
 | E12 | Workspace synchronization and individual table adapters | Shared client/institution context stable; hydrate/echo suppression and local mappings preserved | S05–S09, role-specific writes and partial failures | One adapter or sync lifecycle unit |
@@ -179,7 +179,7 @@ Run the full checklist on representative roles and two synthetic school workspac
 
 ## Current completion boundary
 
-E01–E08 are implemented. E07 is checkpointed at faefa57 and its browser checks passed according to the user. E08 remains uncommitted and needs manual browser acceptance; no later stage started. E03/E04 browser evidence remains separately unverified. Next: focused dialog keyboard/focus/layout and auth-startup checks, using cancellation or isolated fixtures rather than real destructive operations. Stop after E08.
+E01–E09 are implemented. E08 is checkpointed at f06543b and its browser checks passed according to the user. E09 is uncommitted and needs manual browser acceptance; no later stage started. E03/E04 browser evidence remains separately unverified. Next: focused schedule filters/edit-cancel/preview/print and auth startup checks, with all mutating workflows confined to isolated no-backend fixtures. Stop after E09.
 
 
 ## E06 — implemented: complete timetable store (historical execution record)
@@ -220,6 +220,8 @@ Rollback boundary: reverse only the 16 function moves, new student-store file, 5
 
 ## E08 — implemented: shared action-dialog controller
 
+Follow-up: E08 was checkpointed locally by the user as f06543b; its browser checks passed according to the user before E09. The checks/anchors below are historical execution-time evidence.
+
 Baseline: clean faefa57; E07 checkpoint verified before editing. Move the original auth.js:6312–6505 block (one private let and six functions) into js/shared-ui/action-dialog.js createController. New file has 202 lines; nine-line private wiring replaces 194 lines, reducing auth.js to 47,336 (185 fewer). Original declaration ASTs and exact raw/cooked template strings match; the auth remainder is byte-identical. No unrelated dialog fixes, framework or module conversion.
 
 Mechanism: the new script publishes only SchoolSphereActionDialogs.createController. The unchanged auth IIFE creates one controller at the former state initialization point, injecting document/window/HTMLElement and destructuring openAppActionDialog/showAppConfirm/showAppPrompt as local const aliases. The returned methods are the actual original functions, not extra Promise/async wrappers. All 20 external call sites occur later and keep their source unchanged. Original ready/bootstrap code remains byte-identical. One classic synchronous tag directly before auth.js on its 49 consumers; other pages need no tag.
@@ -231,3 +233,18 @@ Completed checks: seven-declaration structural equality plus template byte equal
 Remaining: real browser keyboard/focus/selection/layout, HTTP/cache and login/portal startup. Use safe cancel paths on representative class/student/timetable dialogs, not confirmed production deletion. Destructive school-account/staff/student/admission/Super Admin calls remain mocked. Known Contact inline failure remains unchanged. No real browser or backend pass is claimed.
 
 Rollback: reverse only the new factory file, the auth block/bridge, 49 script insertions and E08 documentation hunks together against faefa57, preserving E01–E07 and unrelated changes. No storage clearing/database rollback. No commit, push, deploy or database change. Stop before E09 and obtain separate approval for future extractions.
+
+
+## E09 — implemented: complete timetable controller
+
+Approved boundary: move initTimetableControls from pre-E09 auth.js:13697–15142 (1,446 lines) as one complete unit. New js/features/timetable/controller.js has 1,488 lines; the function is at 37–1482 inside createController. A 35-line private bridge at auth.js:13697–13731 replaces it, reducing auth.js by 1,411 lines to 45,925. The function AST and template raw/cooked values match; the auth remainder is byte-identical. No framework, module conversion, deduplication, redesign or unrelated fix.
+
+Dependencies/ownership: four browser objects and 29 private functions are explicitly injected, exhaustively listed in inventory.md and the signature. Keep private helper closures and live identity/workspace/settings getters. All selection, modal, toast and print state remains inside the original initializer, not factory scope or window. Managers, renderers, form helpers, audit/draft services, permission logic, synchronization and database interfaces remain unchanged. The one caller is initAdminSchedulePage at auth.js:42717, after its original page/access checks.
+
+Loading: add one synchronous classic controller.js tag directly after action-dialog.js and before auth.js on all 49 consumers; other nine HTML files unchanged. Factory load/construction adds no DOM, listener, timer or storage work. One auth construction exposes only a private initTimetableControls alias. Original ready callback and startup order stay unchanged; no new initializer call.
+
+Completed acceptance: source/template/remainder parity; exhaustive dependency/caller audit; 49 exact tag insertions, 12 parsable scripts and 597 resolving local paths. 24 VM/synthetic-DOM before/after fixture groups cover missing required/optional targets/managers, selections and workspace switching, actual render/form helpers, lessons/validation/conflicts/workload, teacher assignment and class side effects, periods, copy-term, publishing, archive/reactivation, substitution cancellation/data, modal reuse/edit/printing/blocked popup, denied-management paths and listener stability. Two groups execute the actual E06 store and app adapter with synthetic in-memory workspace storage, checking payloads/keys/events and conflicts. Exact auth bridge is separately exercised with one construction and no side effects.
+
+Remaining acceptance: actual browser HTTP/cache/MIME, desktop/mobile schedule layout, selector changes, modal close/preview/print and login/portal startup. Create/update/archive/substitution/publish/copy tests require a verified no-backend fixture environment; do not mutate production-connected records. Browser permissions, real cross-tab transport and hosted Supabase behavior are NOT TESTED. Existing Contact inline parse failure remains separate and unchanged; older E03/E04 browser evidence remains unverified.
+
+Rollback boundary: reverse only new controller.js, the auth function-to-bridge replacement, 49 script additions and E09 documentation hunks together against f06543b. Preserve prior extractions and unrelated work. No data migration, clearing or database rollback. No commit/push/deploy/database operation. Stop after E09; E10 requires separate review and approval.

@@ -1,10 +1,10 @@
 # Contracts to preserve during JavaScript extraction
 
-Original snapshot: 2026-10-02 at e1eb094; current update 2026-10-04 for E08 from clean faefa57. Current source anchors and HTML manifest reflect the dialog factory; historical logs retain stage-specific anchors. Other HTML/inline references retain original snapshot locations (six shared additions and the additional dialog tag on 49 auth pages). Configuration/schema/data/deployment unchanged.
+Original snapshot: 2026-10-02 at e1eb094; current update 2026-10-04 for E09 from clean f06543b. Current auth anchors and HTML manifest reflect the timetable factory. Original HTML ID catalog is preserved; other historical HTML/inline coordinates remain snapshot references. E08 browser acceptance is user-reported; E09 browser/backend acceptance is not tested. Configuration/schema/data/deployment unchanged.
 
 ## Loading and startup
 
-All external HTML scripts inspected are classic scripts, without async/defer/type=module attributes. 57 of 58 HTML documents load app.js; the Google verification document has no script. The full ordered manifest below includes cache-busting query strings, which must remain valid. Most portal/auth pages load app.js, then supabase-config.js, then action-dialog.js, then auth.js. Students and teachers administration additionally load self-registration-links.js after auth.js. After E08 the shared synchronous classic order is js/website/offerings.js, js/core/escape-html.js, js/website/practice-grid.js, js/website/why-grid.js, js/features/timetable/store.js, js/features/students/store.js, app.js, then unchanged subsequent scripts. Those shared extracted scripts remain once on all 57 app consumers. E08 additionally loads js/shared-ui/action-dialog.js once directly before auth.js on its 49 consumers, not on public-only pages. There are 548 external tags: 499 through E07 plus 49 dialog tags.
+All external HTML scripts inspected are classic scripts, without async/defer/type=module attributes. 57 of 58 HTML documents load app.js; the Google verification document has no script. The full ordered manifest below includes cache-busting query strings, which must remain valid. Most portal/auth pages load app.js, then supabase-config.js, then action-dialog.js, then timetable/controller.js, then auth.js. Students and teachers administration additionally load self-registration-links.js after auth.js. After E09 the shared synchronous classic order is js/website/offerings.js, js/core/escape-html.js, js/website/practice-grid.js, js/website/why-grid.js, js/features/timetable/store.js, js/features/students/store.js, app.js, then unchanged subsequent scripts. Those shared extracted scripts remain once on all 57 app consumers. E08 loads js/shared-ui/action-dialog.js; E09 adds js/features/timetable/controller.js once directly after it and before auth.js on all 49 auth consumers, not on public-only pages. There are 597 external tags: 499 through E07, 49 dialog tags and 49 controller tags.
 
 ### app.js
 
@@ -16,7 +16,7 @@ All external HTML scripts inspected are classic scripts, without async/defer/typ
 
 ### auth.js
 
-The file remains an IIFE. Its local APIs/state remain private; E08 moves dialog implementation/state into a factory-private closure and binds its three methods once at auth.js:6312–6320. At line 603 it applies the theme. The DOMContentLoaded callback at 605 does the following in source order:
+The file remains an IIFE. Its local APIs/state remain private; E08 moves dialog implementation/state into a factory-private closure and binds its three methods once at auth.js:6312–6320. E09 retains a private initTimetableControls alias at auth.js:13697–13731. At line 603 it applies the theme. The DOMContentLoaded callback at 605 does the following in source order:
 
 ```text
 applyThemePreference(getThemePreference());
@@ -74,66 +74,66 @@ initSupabaseAuthBridge registers onAuthStateChange and defers callback processin
 
 ## HTML entry-point manifest
 
-Each row lists current tags after E08. Shared app scripts keep their order; action-dialog.js now immediately precedes auth.js wherever auth.js is loaded. All prior tag attributes/order are retained; inline locations in this manifest are current. Paths remain document-relative.
+Each row lists current tags after E09. Shared app scripts keep their order; action-dialog.js, timetable/controller.js and auth.js load in that order on all auth pages. All prior tag attributes/order are retained; inline locations in this manifest are current. Paths remain document-relative.
 
 | HTML file | data-page | Ordered scripts |
 | --- | --- | --- |
-| `admin-admissions.html` | `admin-admissions` | `./js/website/offerings.js` @359 → `./js/core/escape-html.js` @360 → `./js/website/practice-grid.js` @361 → `./js/website/why-grid.js` @362 → `./js/features/timetable/store.js` @363 → `./js/features/students/store.js` @364 → `./app.js` @365 → `./supabase-config.js` @366 → `./js/shared-ui/action-dialog.js` @367 → `./auth.js?v=upload-remove-x` @368 |
-| `admin-attendance.html` | `admin-attendance` | `./js/website/offerings.js` @208 → `./js/core/escape-html.js` @209 → `./js/website/practice-grid.js` @210 → `./js/website/why-grid.js` @211 → `./js/features/timetable/store.js` @212 → `./js/features/students/store.js` @213 → `./app.js` @214 → `./supabase-config.js` @215 → `./js/shared-ui/action-dialog.js` @216 → `./auth.js` @217 |
-| `admin-classes.html` | `admin-classes` | `./js/website/offerings.js` @289 → `./js/core/escape-html.js` @290 → `./js/website/practice-grid.js` @291 → `./js/website/why-grid.js` @292 → `./js/features/timetable/store.js` @293 → `./js/features/students/store.js` @294 → `./app.js` @295 → `./supabase-config.js` @296 → `./js/shared-ui/action-dialog.js` @297 → `./auth.js` @298 |
-| `admin-courses.html` | `admin-courses` | `./js/website/offerings.js` @283 → `./js/core/escape-html.js` @284 → `./js/website/practice-grid.js` @285 → `./js/website/why-grid.js` @286 → `./js/features/timetable/store.js` @287 → `./js/features/students/store.js` @288 → `./app.js` @289 → `./supabase-config.js` @290 → `./js/shared-ui/action-dialog.js` @291 → `./auth.js` @292 |
-| `admin-feature-modules.html` | `admin-feature-modules` | `./js/website/offerings.js` @166 → `./js/core/escape-html.js` @167 → `./js/website/practice-grid.js` @168 → `./js/website/why-grid.js` @169 → `./js/features/timetable/store.js` @170 → `./js/features/students/store.js` @171 → `./app.js` @172 → `./supabase-config.js` @173 → `./js/shared-ui/action-dialog.js` @174 → `./auth.js` @175 |
-| `admin-fees.html` | `admin-fees` | `./js/website/offerings.js` @316 → `./js/core/escape-html.js` @317 → `./js/website/practice-grid.js` @318 → `./js/website/why-grid.js` @319 → `./js/features/timetable/store.js` @320 → `./js/features/students/store.js` @321 → `./app.js` @322 → `./supabase-config.js` @323 → `./js/shared-ui/action-dialog.js` @324 → `./auth.js` @325 |
-| `admin-messages.html` | `admin-messages` | `./js/website/offerings.js` @590 → `./js/core/escape-html.js` @591 → `./js/website/practice-grid.js` @592 → `./js/website/why-grid.js` @593 → `./js/features/timetable/store.js` @594 → `./js/features/students/store.js` @595 → `./app.js` @596 → `./supabase-config.js` @597 → `./js/shared-ui/action-dialog.js` @598 → `./auth.js` @599 → `inline` @600 |
-| `admin-reports.html` | `admin-reports` | `./js/website/offerings.js` @236 → `./js/core/escape-html.js` @237 → `./js/website/practice-grid.js` @238 → `./js/website/why-grid.js` @239 → `./js/features/timetable/store.js` @240 → `./js/features/students/store.js` @241 → `./app.js` @242 → `./supabase-config.js` @243 → `./js/shared-ui/action-dialog.js` @244 → `./auth.js` @245 |
-| `admin-schedule.html` | `admin-schedule` | `./js/website/offerings.js` @349 → `./js/core/escape-html.js` @350 → `./js/website/practice-grid.js` @351 → `./js/website/why-grid.js` @352 → `./js/features/timetable/store.js` @353 → `./js/features/students/store.js` @354 → `./app.js` @355 → `./supabase-config.js` @356 → `./js/shared-ui/action-dialog.js` @357 → `./auth.js` @358 |
-| `admin-settings-academic.html` | `admin-settings-academic` | `./js/website/offerings.js` @258 → `./js/core/escape-html.js` @259 → `./js/website/practice-grid.js` @260 → `./js/website/why-grid.js` @261 → `./js/features/timetable/store.js` @262 → `./js/features/students/store.js` @263 → `./app.js` @264 → `./supabase-config.js` @265 → `./js/shared-ui/action-dialog.js` @266 → `./auth.js` @267 |
-| `admin-settings-access.html` | `admin-settings-access` | `./js/website/offerings.js` @211 → `./js/core/escape-html.js` @212 → `./js/website/practice-grid.js` @213 → `./js/website/why-grid.js` @214 → `./js/features/timetable/store.js` @215 → `./js/features/students/store.js` @216 → `./app.js` @217 → `./supabase-config.js` @218 → `./js/shared-ui/action-dialog.js` @219 → `./auth.js` @220 |
-| `admin-settings-grading.html` | `admin-settings-grading` | `./js/website/offerings.js` @280 → `./js/core/escape-html.js` @281 → `./js/website/practice-grid.js` @282 → `./js/website/why-grid.js` @283 → `./js/features/timetable/store.js` @284 → `./js/features/students/store.js` @285 → `./app.js` @286 → `./supabase-config.js` @287 → `./js/shared-ui/action-dialog.js` @288 → `./auth.js` @289 |
-| `admin-settings-roles.html` | `admin-settings-roles` | `./js/website/offerings.js` @174 → `./js/core/escape-html.js` @175 → `./js/website/practice-grid.js` @176 → `./js/website/why-grid.js` @177 → `./js/features/timetable/store.js` @178 → `./js/features/students/store.js` @179 → `./app.js?v=20260611-student-messages` @180 → `./supabase-config.js` @181 → `./js/shared-ui/action-dialog.js` @182 → `./auth.js?v=20260611-student-messages` @183 |
-| `admin-settings-school.html` | `admin-settings-school` | `./js/website/offerings.js` @341 → `./js/core/escape-html.js` @342 → `./js/website/practice-grid.js` @343 → `./js/website/why-grid.js` @344 → `./js/features/timetable/store.js` @345 → `./js/features/students/store.js` @346 → `./app.js` @347 → `./supabase-config.js` @348 → `./js/shared-ui/action-dialog.js` @349 → `./auth.js` @350 |
-| `admin-settings.html` | `admin-settings` | `inline` @10 → `./js/website/offerings.js` @182 → `./js/core/escape-html.js` @183 → `./js/website/practice-grid.js` @184 → `./js/website/why-grid.js` @185 → `./js/features/timetable/store.js` @186 → `./js/features/students/store.js` @187 → `./app.js` @188 → `./supabase-config.js` @189 → `./js/shared-ui/action-dialog.js` @190 → `./auth.js` @191 |
-| `admin-students.html` | `admin-students` | `./js/website/offerings.js` @382 → `./js/core/escape-html.js` @383 → `./js/website/practice-grid.js` @384 → `./js/website/why-grid.js` @385 → `./js/features/timetable/store.js` @386 → `./js/features/students/store.js` @387 → `./app.js` @388 → `./supabase-config.js` @389 → `./js/shared-ui/action-dialog.js` @390 → `./auth.js?v=self-registration-links` @391 → `./self-registration-links.js?v=copy-open-fix` @392 |
-| `admin-teachers.html` | `admin-teachers` | `./js/website/offerings.js` @300 → `./js/core/escape-html.js` @301 → `./js/website/practice-grid.js` @302 → `./js/website/why-grid.js` @303 → `./js/features/timetable/store.js` @304 → `./js/features/students/store.js` @305 → `./app.js` @306 → `./supabase-config.js` @307 → `./js/shared-ui/action-dialog.js` @308 → `./auth.js?v=self-registration-links` @309 → `./self-registration-links.js?v=copy-open-fix` @310 |
-| `admissions-apply.html` | `admissions-apply` | `./js/website/offerings.js` @294 → `./js/core/escape-html.js` @295 → `./js/website/practice-grid.js` @296 → `./js/website/why-grid.js` @297 → `./js/features/timetable/store.js` @298 → `./js/features/students/store.js` @299 → `./app.js` @300 → `./supabase-config.js` @301 → `./js/shared-ui/action-dialog.js` @302 → `./auth.js?v=upload-remove-x` @303 |
-| `confirm-email.html` | `confirm-email` | `./js/website/offerings.js` @36 → `./js/core/escape-html.js` @37 → `./js/website/practice-grid.js` @38 → `./js/website/why-grid.js` @39 → `./js/features/timetable/store.js` @40 → `./js/features/students/store.js` @41 → `./app.js` @42 → `./supabase-config.js` @43 → `./js/shared-ui/action-dialog.js` @44 → `./auth.js` @45 |
+| `admin-admissions.html` | `admin-admissions` | `./js/website/offerings.js` @359 → `./js/core/escape-html.js` @360 → `./js/website/practice-grid.js` @361 → `./js/website/why-grid.js` @362 → `./js/features/timetable/store.js` @363 → `./js/features/students/store.js` @364 → `./app.js` @365 → `./supabase-config.js` @366 → `./js/shared-ui/action-dialog.js` @367 → `./js/features/timetable/controller.js` @368 → `./auth.js?v=upload-remove-x` @369 |
+| `admin-attendance.html` | `admin-attendance` | `./js/website/offerings.js` @208 → `./js/core/escape-html.js` @209 → `./js/website/practice-grid.js` @210 → `./js/website/why-grid.js` @211 → `./js/features/timetable/store.js` @212 → `./js/features/students/store.js` @213 → `./app.js` @214 → `./supabase-config.js` @215 → `./js/shared-ui/action-dialog.js` @216 → `./js/features/timetable/controller.js` @217 → `./auth.js` @218 |
+| `admin-classes.html` | `admin-classes` | `./js/website/offerings.js` @289 → `./js/core/escape-html.js` @290 → `./js/website/practice-grid.js` @291 → `./js/website/why-grid.js` @292 → `./js/features/timetable/store.js` @293 → `./js/features/students/store.js` @294 → `./app.js` @295 → `./supabase-config.js` @296 → `./js/shared-ui/action-dialog.js` @297 → `./js/features/timetable/controller.js` @298 → `./auth.js` @299 |
+| `admin-courses.html` | `admin-courses` | `./js/website/offerings.js` @283 → `./js/core/escape-html.js` @284 → `./js/website/practice-grid.js` @285 → `./js/website/why-grid.js` @286 → `./js/features/timetable/store.js` @287 → `./js/features/students/store.js` @288 → `./app.js` @289 → `./supabase-config.js` @290 → `./js/shared-ui/action-dialog.js` @291 → `./js/features/timetable/controller.js` @292 → `./auth.js` @293 |
+| `admin-feature-modules.html` | `admin-feature-modules` | `./js/website/offerings.js` @166 → `./js/core/escape-html.js` @167 → `./js/website/practice-grid.js` @168 → `./js/website/why-grid.js` @169 → `./js/features/timetable/store.js` @170 → `./js/features/students/store.js` @171 → `./app.js` @172 → `./supabase-config.js` @173 → `./js/shared-ui/action-dialog.js` @174 → `./js/features/timetable/controller.js` @175 → `./auth.js` @176 |
+| `admin-fees.html` | `admin-fees` | `./js/website/offerings.js` @316 → `./js/core/escape-html.js` @317 → `./js/website/practice-grid.js` @318 → `./js/website/why-grid.js` @319 → `./js/features/timetable/store.js` @320 → `./js/features/students/store.js` @321 → `./app.js` @322 → `./supabase-config.js` @323 → `./js/shared-ui/action-dialog.js` @324 → `./js/features/timetable/controller.js` @325 → `./auth.js` @326 |
+| `admin-messages.html` | `admin-messages` | `./js/website/offerings.js` @590 → `./js/core/escape-html.js` @591 → `./js/website/practice-grid.js` @592 → `./js/website/why-grid.js` @593 → `./js/features/timetable/store.js` @594 → `./js/features/students/store.js` @595 → `./app.js` @596 → `./supabase-config.js` @597 → `./js/shared-ui/action-dialog.js` @598 → `./js/features/timetable/controller.js` @599 → `./auth.js` @600 → `inline` @601 |
+| `admin-reports.html` | `admin-reports` | `./js/website/offerings.js` @236 → `./js/core/escape-html.js` @237 → `./js/website/practice-grid.js` @238 → `./js/website/why-grid.js` @239 → `./js/features/timetable/store.js` @240 → `./js/features/students/store.js` @241 → `./app.js` @242 → `./supabase-config.js` @243 → `./js/shared-ui/action-dialog.js` @244 → `./js/features/timetable/controller.js` @245 → `./auth.js` @246 |
+| `admin-schedule.html` | `admin-schedule` | `./js/website/offerings.js` @349 → `./js/core/escape-html.js` @350 → `./js/website/practice-grid.js` @351 → `./js/website/why-grid.js` @352 → `./js/features/timetable/store.js` @353 → `./js/features/students/store.js` @354 → `./app.js` @355 → `./supabase-config.js` @356 → `./js/shared-ui/action-dialog.js` @357 → `./js/features/timetable/controller.js` @358 → `./auth.js` @359 |
+| `admin-settings-academic.html` | `admin-settings-academic` | `./js/website/offerings.js` @258 → `./js/core/escape-html.js` @259 → `./js/website/practice-grid.js` @260 → `./js/website/why-grid.js` @261 → `./js/features/timetable/store.js` @262 → `./js/features/students/store.js` @263 → `./app.js` @264 → `./supabase-config.js` @265 → `./js/shared-ui/action-dialog.js` @266 → `./js/features/timetable/controller.js` @267 → `./auth.js` @268 |
+| `admin-settings-access.html` | `admin-settings-access` | `./js/website/offerings.js` @211 → `./js/core/escape-html.js` @212 → `./js/website/practice-grid.js` @213 → `./js/website/why-grid.js` @214 → `./js/features/timetable/store.js` @215 → `./js/features/students/store.js` @216 → `./app.js` @217 → `./supabase-config.js` @218 → `./js/shared-ui/action-dialog.js` @219 → `./js/features/timetable/controller.js` @220 → `./auth.js` @221 |
+| `admin-settings-grading.html` | `admin-settings-grading` | `./js/website/offerings.js` @280 → `./js/core/escape-html.js` @281 → `./js/website/practice-grid.js` @282 → `./js/website/why-grid.js` @283 → `./js/features/timetable/store.js` @284 → `./js/features/students/store.js` @285 → `./app.js` @286 → `./supabase-config.js` @287 → `./js/shared-ui/action-dialog.js` @288 → `./js/features/timetable/controller.js` @289 → `./auth.js` @290 |
+| `admin-settings-roles.html` | `admin-settings-roles` | `./js/website/offerings.js` @174 → `./js/core/escape-html.js` @175 → `./js/website/practice-grid.js` @176 → `./js/website/why-grid.js` @177 → `./js/features/timetable/store.js` @178 → `./js/features/students/store.js` @179 → `./app.js?v=20260611-student-messages` @180 → `./supabase-config.js` @181 → `./js/shared-ui/action-dialog.js` @182 → `./js/features/timetable/controller.js` @183 → `./auth.js?v=20260611-student-messages` @184 |
+| `admin-settings-school.html` | `admin-settings-school` | `./js/website/offerings.js` @341 → `./js/core/escape-html.js` @342 → `./js/website/practice-grid.js` @343 → `./js/website/why-grid.js` @344 → `./js/features/timetable/store.js` @345 → `./js/features/students/store.js` @346 → `./app.js` @347 → `./supabase-config.js` @348 → `./js/shared-ui/action-dialog.js` @349 → `./js/features/timetable/controller.js` @350 → `./auth.js` @351 |
+| `admin-settings.html` | `admin-settings` | `inline` @10 → `./js/website/offerings.js` @182 → `./js/core/escape-html.js` @183 → `./js/website/practice-grid.js` @184 → `./js/website/why-grid.js` @185 → `./js/features/timetable/store.js` @186 → `./js/features/students/store.js` @187 → `./app.js` @188 → `./supabase-config.js` @189 → `./js/shared-ui/action-dialog.js` @190 → `./js/features/timetable/controller.js` @191 → `./auth.js` @192 |
+| `admin-students.html` | `admin-students` | `./js/website/offerings.js` @382 → `./js/core/escape-html.js` @383 → `./js/website/practice-grid.js` @384 → `./js/website/why-grid.js` @385 → `./js/features/timetable/store.js` @386 → `./js/features/students/store.js` @387 → `./app.js` @388 → `./supabase-config.js` @389 → `./js/shared-ui/action-dialog.js` @390 → `./js/features/timetable/controller.js` @391 → `./auth.js?v=self-registration-links` @392 → `./self-registration-links.js?v=copy-open-fix` @393 |
+| `admin-teachers.html` | `admin-teachers` | `./js/website/offerings.js` @300 → `./js/core/escape-html.js` @301 → `./js/website/practice-grid.js` @302 → `./js/website/why-grid.js` @303 → `./js/features/timetable/store.js` @304 → `./js/features/students/store.js` @305 → `./app.js` @306 → `./supabase-config.js` @307 → `./js/shared-ui/action-dialog.js` @308 → `./js/features/timetable/controller.js` @309 → `./auth.js?v=self-registration-links` @310 → `./self-registration-links.js?v=copy-open-fix` @311 |
+| `admissions-apply.html` | `admissions-apply` | `./js/website/offerings.js` @294 → `./js/core/escape-html.js` @295 → `./js/website/practice-grid.js` @296 → `./js/website/why-grid.js` @297 → `./js/features/timetable/store.js` @298 → `./js/features/students/store.js` @299 → `./app.js` @300 → `./supabase-config.js` @301 → `./js/shared-ui/action-dialog.js` @302 → `./js/features/timetable/controller.js` @303 → `./auth.js?v=upload-remove-x` @304 |
+| `confirm-email.html` | `confirm-email` | `./js/website/offerings.js` @36 → `./js/core/escape-html.js` @37 → `./js/website/practice-grid.js` @38 → `./js/website/why-grid.js` @39 → `./js/features/timetable/store.js` @40 → `./js/features/students/store.js` @41 → `./app.js` @42 → `./supabase-config.js` @43 → `./js/shared-ui/action-dialog.js` @44 → `./js/features/timetable/controller.js` @45 → `./auth.js` @46 |
 | `contact.html` | `contact` | `./js/website/offerings.js` @905 → `./js/core/escape-html.js` @906 → `./js/website/practice-grid.js` @907 → `./js/website/why-grid.js` @908 → `./js/features/timetable/store.js` @909 → `./js/features/students/store.js` @910 → `./app.js` @911 → `inline` @912 |
-| `forgot-password.html` | `forgot-password` | `./js/website/offerings.js` @101 → `./js/core/escape-html.js` @102 → `./js/website/practice-grid.js` @103 → `./js/website/why-grid.js` @104 → `./js/features/timetable/store.js` @105 → `./js/features/students/store.js` @106 → `./app.js` @107 → `./supabase-config.js` @108 → `./js/shared-ui/action-dialog.js` @109 → `./auth.js` @110 |
+| `forgot-password.html` | `forgot-password` | `./js/website/offerings.js` @101 → `./js/core/escape-html.js` @102 → `./js/website/practice-grid.js` @103 → `./js/website/why-grid.js` @104 → `./js/features/timetable/store.js` @105 → `./js/features/students/store.js` @106 → `./app.js` @107 → `./supabase-config.js` @108 → `./js/shared-ui/action-dialog.js` @109 → `./js/features/timetable/controller.js` @110 → `./auth.js` @111 |
 | `google20c973feb5773234.html` | — | None |
 | `in-practice.html` | `practice` | `./js/website/offerings.js` @34 → `./js/core/escape-html.js` @35 → `./js/website/practice-grid.js` @36 → `./js/website/why-grid.js` @37 → `./js/features/timetable/store.js` @38 → `./js/features/students/store.js` @39 → `./app.js` @40 |
 | `index.html` | `home` | `./js/website/offerings.js` @190 → `./js/core/escape-html.js` @191 → `./js/website/practice-grid.js` @192 → `./js/website/why-grid.js` @193 → `./js/features/timetable/store.js` @194 → `./js/features/students/store.js` @195 → `./app.js?v=index-ui-20260603` @196 |
-| `login.html` | `login` | `./js/website/offerings.js` @214 → `./js/core/escape-html.js` @215 → `./js/website/practice-grid.js` @216 → `./js/website/why-grid.js` @217 → `./js/features/timetable/store.js` @218 → `./js/features/students/store.js` @219 → `./app.js` @220 → `./supabase-config.js` @221 → `./js/shared-ui/action-dialog.js` @222 → `./auth.js` @223 |
+| `login.html` | `login` | `./js/website/offerings.js` @214 → `./js/core/escape-html.js` @215 → `./js/website/practice-grid.js` @216 → `./js/website/why-grid.js` @217 → `./js/features/timetable/store.js` @218 → `./js/features/students/store.js` @219 → `./app.js` @220 → `./supabase-config.js` @221 → `./js/shared-ui/action-dialog.js` @222 → `./js/features/timetable/controller.js` @223 → `./auth.js` @224 |
 | `modules.html` | `modules` | `./js/website/offerings.js` @33 → `./js/core/escape-html.js` @34 → `./js/website/practice-grid.js` @35 → `./js/website/why-grid.js` @36 → `./js/features/timetable/store.js` @37 → `./js/features/students/store.js` @38 → `./app.js` @39 |
-| `owner-access.html` | `owner-access` | `./js/website/offerings.js` @121 → `./js/core/escape-html.js` @122 → `./js/website/practice-grid.js` @123 → `./js/website/why-grid.js` @124 → `./js/features/timetable/store.js` @125 → `./js/features/students/store.js` @126 → `./app.js?v=20260611-student-messages` @127 → `./supabase-config.js` @128 → `./js/shared-ui/action-dialog.js` @129 → `./auth.js?v=20260611-student-messages` @130 |
-| `parent-attendance.html` | `parent-attendance` | `./js/website/offerings.js` @52 → `./js/core/escape-html.js` @53 → `./js/website/practice-grid.js` @54 → `./js/website/why-grid.js` @55 → `./js/features/timetable/store.js` @56 → `./js/features/students/store.js` @57 → `./app.js` @58 → `./supabase-config.js` @59 → `./js/shared-ui/action-dialog.js` @60 → `./auth.js` @61 |
-| `parent-courses.html` | `parent-courses` | `./js/website/offerings.js` @52 → `./js/core/escape-html.js` @53 → `./js/website/practice-grid.js` @54 → `./js/website/why-grid.js` @55 → `./js/features/timetable/store.js` @56 → `./js/features/students/store.js` @57 → `./app.js` @58 → `./supabase-config.js` @59 → `./js/shared-ui/action-dialog.js` @60 → `./auth.js` @61 |
-| `parent-fees.html` | `parent-fees` | `./js/website/offerings.js` @52 → `./js/core/escape-html.js` @53 → `./js/website/practice-grid.js` @54 → `./js/website/why-grid.js` @55 → `./js/features/timetable/store.js` @56 → `./js/features/students/store.js` @57 → `./app.js` @58 → `./supabase-config.js` @59 → `./js/shared-ui/action-dialog.js` @60 → `./auth.js` @61 |
-| `parent-messages.html` | `parent-messages` | `./js/website/offerings.js` @54 → `./js/core/escape-html.js` @55 → `./js/website/practice-grid.js` @56 → `./js/website/why-grid.js` @57 → `./js/features/timetable/store.js` @58 → `./js/features/students/store.js` @59 → `./app.js` @60 → `./supabase-config.js` @61 → `./js/shared-ui/action-dialog.js` @62 → `./auth.js` @63 |
-| `parent-portal.html` | `parent-portal` | `./js/website/offerings.js` @54 → `./js/core/escape-html.js` @55 → `./js/website/practice-grid.js` @56 → `./js/website/why-grid.js` @57 → `./js/features/timetable/store.js` @58 → `./js/features/students/store.js` @59 → `./app.js` @60 → `./supabase-config.js` @61 → `./js/shared-ui/action-dialog.js` @62 → `./auth.js` @63 |
-| `parent-reports.html` | `parent-reports` | `./js/website/offerings.js` @52 → `./js/core/escape-html.js` @53 → `./js/website/practice-grid.js` @54 → `./js/website/why-grid.js` @55 → `./js/features/timetable/store.js` @56 → `./js/features/students/store.js` @57 → `./app.js` @58 → `./supabase-config.js` @59 → `./js/shared-ui/action-dialog.js` @60 → `./auth.js` @61 |
-| `parent-settings.html` | `parent-settings` | `./js/website/offerings.js` @198 → `./js/core/escape-html.js` @199 → `./js/website/practice-grid.js` @200 → `./js/website/why-grid.js` @201 → `./js/features/timetable/store.js` @202 → `./js/features/students/store.js` @203 → `./app.js` @204 → `./supabase-config.js` @205 → `./js/shared-ui/action-dialog.js` @206 → `./auth.js` @207 |
-| `parent-teachers.html` | `parent-teachers` | `./js/website/offerings.js` @52 → `./js/core/escape-html.js` @53 → `./js/website/practice-grid.js` @54 → `./js/website/why-grid.js` @55 → `./js/features/timetable/store.js` @56 → `./js/features/students/store.js` @57 → `./app.js` @58 → `./supabase-config.js` @59 → `./js/shared-ui/action-dialog.js` @60 → `./auth.js` @61 |
-| `portal.html` | `portal` | `./js/website/offerings.js` @185 → `./js/core/escape-html.js` @186 → `./js/website/practice-grid.js` @187 → `./js/website/why-grid.js` @188 → `./js/features/timetable/store.js` @189 → `./js/features/students/store.js` @190 → `./app.js?v=20260611-student-messages` @191 → `./supabase-config.js` @192 → `./js/shared-ui/action-dialog.js` @193 → `./auth.js?v=20260611-student-messages` @194 |
+| `owner-access.html` | `owner-access` | `./js/website/offerings.js` @121 → `./js/core/escape-html.js` @122 → `./js/website/practice-grid.js` @123 → `./js/website/why-grid.js` @124 → `./js/features/timetable/store.js` @125 → `./js/features/students/store.js` @126 → `./app.js?v=20260611-student-messages` @127 → `./supabase-config.js` @128 → `./js/shared-ui/action-dialog.js` @129 → `./js/features/timetable/controller.js` @130 → `./auth.js?v=20260611-student-messages` @131 |
+| `parent-attendance.html` | `parent-attendance` | `./js/website/offerings.js` @52 → `./js/core/escape-html.js` @53 → `./js/website/practice-grid.js` @54 → `./js/website/why-grid.js` @55 → `./js/features/timetable/store.js` @56 → `./js/features/students/store.js` @57 → `./app.js` @58 → `./supabase-config.js` @59 → `./js/shared-ui/action-dialog.js` @60 → `./js/features/timetable/controller.js` @61 → `./auth.js` @62 |
+| `parent-courses.html` | `parent-courses` | `./js/website/offerings.js` @52 → `./js/core/escape-html.js` @53 → `./js/website/practice-grid.js` @54 → `./js/website/why-grid.js` @55 → `./js/features/timetable/store.js` @56 → `./js/features/students/store.js` @57 → `./app.js` @58 → `./supabase-config.js` @59 → `./js/shared-ui/action-dialog.js` @60 → `./js/features/timetable/controller.js` @61 → `./auth.js` @62 |
+| `parent-fees.html` | `parent-fees` | `./js/website/offerings.js` @52 → `./js/core/escape-html.js` @53 → `./js/website/practice-grid.js` @54 → `./js/website/why-grid.js` @55 → `./js/features/timetable/store.js` @56 → `./js/features/students/store.js` @57 → `./app.js` @58 → `./supabase-config.js` @59 → `./js/shared-ui/action-dialog.js` @60 → `./js/features/timetable/controller.js` @61 → `./auth.js` @62 |
+| `parent-messages.html` | `parent-messages` | `./js/website/offerings.js` @54 → `./js/core/escape-html.js` @55 → `./js/website/practice-grid.js` @56 → `./js/website/why-grid.js` @57 → `./js/features/timetable/store.js` @58 → `./js/features/students/store.js` @59 → `./app.js` @60 → `./supabase-config.js` @61 → `./js/shared-ui/action-dialog.js` @62 → `./js/features/timetable/controller.js` @63 → `./auth.js` @64 |
+| `parent-portal.html` | `parent-portal` | `./js/website/offerings.js` @54 → `./js/core/escape-html.js` @55 → `./js/website/practice-grid.js` @56 → `./js/website/why-grid.js` @57 → `./js/features/timetable/store.js` @58 → `./js/features/students/store.js` @59 → `./app.js` @60 → `./supabase-config.js` @61 → `./js/shared-ui/action-dialog.js` @62 → `./js/features/timetable/controller.js` @63 → `./auth.js` @64 |
+| `parent-reports.html` | `parent-reports` | `./js/website/offerings.js` @52 → `./js/core/escape-html.js` @53 → `./js/website/practice-grid.js` @54 → `./js/website/why-grid.js` @55 → `./js/features/timetable/store.js` @56 → `./js/features/students/store.js` @57 → `./app.js` @58 → `./supabase-config.js` @59 → `./js/shared-ui/action-dialog.js` @60 → `./js/features/timetable/controller.js` @61 → `./auth.js` @62 |
+| `parent-settings.html` | `parent-settings` | `./js/website/offerings.js` @198 → `./js/core/escape-html.js` @199 → `./js/website/practice-grid.js` @200 → `./js/website/why-grid.js` @201 → `./js/features/timetable/store.js` @202 → `./js/features/students/store.js` @203 → `./app.js` @204 → `./supabase-config.js` @205 → `./js/shared-ui/action-dialog.js` @206 → `./js/features/timetable/controller.js` @207 → `./auth.js` @208 |
+| `parent-teachers.html` | `parent-teachers` | `./js/website/offerings.js` @52 → `./js/core/escape-html.js` @53 → `./js/website/practice-grid.js` @54 → `./js/website/why-grid.js` @55 → `./js/features/timetable/store.js` @56 → `./js/features/students/store.js` @57 → `./app.js` @58 → `./supabase-config.js` @59 → `./js/shared-ui/action-dialog.js` @60 → `./js/features/timetable/controller.js` @61 → `./auth.js` @62 |
+| `portal.html` | `portal` | `./js/website/offerings.js` @185 → `./js/core/escape-html.js` @186 → `./js/website/practice-grid.js` @187 → `./js/website/why-grid.js` @188 → `./js/features/timetable/store.js` @189 → `./js/features/students/store.js` @190 → `./app.js?v=20260611-student-messages` @191 → `./supabase-config.js` @192 → `./js/shared-ui/action-dialog.js` @193 → `./js/features/timetable/controller.js` @194 → `./auth.js?v=20260611-student-messages` @195 |
 | `products.html` | `products` | `./js/website/offerings.js` @84 → `./js/core/escape-html.js` @85 → `./js/website/practice-grid.js` @86 → `./js/website/why-grid.js` @87 → `./js/features/timetable/store.js` @88 → `./js/features/students/store.js` @89 → `./app.js` @90 |
-| `reset-password.html` | `reset-password` | `./js/website/offerings.js` @118 → `./js/core/escape-html.js` @119 → `./js/website/practice-grid.js` @120 → `./js/website/why-grid.js` @121 → `./js/features/timetable/store.js` @122 → `./js/features/students/store.js` @123 → `./app.js` @124 → `./supabase-config.js` @125 → `./js/shared-ui/action-dialog.js` @126 → `./auth.js` @127 |
+| `reset-password.html` | `reset-password` | `./js/website/offerings.js` @118 → `./js/core/escape-html.js` @119 → `./js/website/practice-grid.js` @120 → `./js/website/why-grid.js` @121 → `./js/features/timetable/store.js` @122 → `./js/features/students/store.js` @123 → `./app.js` @124 → `./supabase-config.js` @125 → `./js/shared-ui/action-dialog.js` @126 → `./js/features/timetable/controller.js` @127 → `./auth.js` @128 |
 | `school-types.html` | `types` | `./js/website/offerings.js` @34 → `./js/core/escape-html.js` @35 → `./js/website/practice-grid.js` @36 → `./js/website/why-grid.js` @37 → `./js/features/timetable/store.js` @38 → `./js/features/students/store.js` @39 → `./app.js` @40 |
-| `self-register.html` | `self-register` | `./js/website/offerings.js` @234 → `./js/core/escape-html.js` @235 → `./js/website/practice-grid.js` @236 → `./js/website/why-grid.js` @237 → `./js/features/timetable/store.js` @238 → `./js/features/students/store.js` @239 → `./app.js` @240 → `./supabase-config.js` @241 → `./js/shared-ui/action-dialog.js` @242 → `./auth.js?v=self-registration-links` @243 |
-| `signup.html` | `signup` | `./js/website/offerings.js` @218 → `./js/core/escape-html.js` @219 → `./js/website/practice-grid.js` @220 → `./js/website/why-grid.js` @221 → `./js/features/timetable/store.js` @222 → `./js/features/students/store.js` @223 → `./app.js` @224 → `./supabase-config.js` @225 → `./js/shared-ui/action-dialog.js` @226 → `./auth.js` @227 |
-| `staff-attendance.html` | `staff-attendance` | `./js/website/offerings.js` @45 → `./js/core/escape-html.js` @46 → `./js/website/practice-grid.js` @47 → `./js/website/why-grid.js` @48 → `./js/features/timetable/store.js` @49 → `./js/features/students/store.js` @50 → `./app.js` @51 → `./supabase-config.js` @52 → `./js/shared-ui/action-dialog.js` @53 → `./auth.js` @54 |
-| `staff-classes.html` | `staff-classes` | `./js/website/offerings.js` @25 → `./js/core/escape-html.js` @26 → `./js/website/practice-grid.js` @27 → `./js/website/why-grid.js` @28 → `./js/features/timetable/store.js` @29 → `./js/features/students/store.js` @30 → `./app.js` @31 → `./supabase-config.js` @31 → `./js/shared-ui/action-dialog.js` @31 → `./auth.js` @32 |
-| `staff-dashboard.html` | `staff-dashboard` | `./js/website/offerings.js` @82 → `./js/core/escape-html.js` @83 → `./js/website/practice-grid.js` @84 → `./js/website/why-grid.js` @85 → `./js/features/timetable/store.js` @86 → `./js/features/students/store.js` @87 → `./app.js` @88 → `./supabase-config.js` @89 → `./js/shared-ui/action-dialog.js` @90 → `./auth.js` @91 |
-| `staff-gradebook.html` | `staff-gradebook` | `./js/website/offerings.js` @25 → `./js/core/escape-html.js` @26 → `./js/website/practice-grid.js` @27 → `./js/website/why-grid.js` @28 → `./js/features/timetable/store.js` @29 → `./js/features/students/store.js` @30 → `./app.js` @31 → `./supabase-config.js` @31 → `./js/shared-ui/action-dialog.js` @31 → `./auth.js` @32 |
-| `staff-leave.html` | `staff-leave` | `./js/website/offerings.js` @25 → `./js/core/escape-html.js` @26 → `./js/website/practice-grid.js` @27 → `./js/website/why-grid.js` @28 → `./js/features/timetable/store.js` @29 → `./js/features/students/store.js` @30 → `./app.js` @31 → `./supabase-config.js` @31 → `./js/shared-ui/action-dialog.js` @31 → `./auth.js` @32 |
-| `staff-lesson-plans.html` | `staff-lesson-plans` | `./js/website/offerings.js` @25 → `./js/core/escape-html.js` @26 → `./js/website/practice-grid.js` @27 → `./js/website/why-grid.js` @28 → `./js/features/timetable/store.js` @29 → `./js/features/students/store.js` @30 → `./app.js` @31 → `./supabase-config.js` @31 → `./js/shared-ui/action-dialog.js` @31 → `./auth.js` @32 |
-| `staff-messages.html` | `staff-messages` | `./js/website/offerings.js` @25 → `./js/core/escape-html.js` @26 → `./js/website/practice-grid.js` @27 → `./js/website/why-grid.js` @28 → `./js/features/timetable/store.js` @29 → `./js/features/students/store.js` @30 → `./app.js` @31 → `./supabase-config.js` @31 → `./js/shared-ui/action-dialog.js` @31 → `./auth.js` @32 |
-| `staff-results.html` | `staff-results` | `./js/website/offerings.js` @25 → `./js/core/escape-html.js` @26 → `./js/website/practice-grid.js` @27 → `./js/website/why-grid.js` @28 → `./js/features/timetable/store.js` @29 → `./js/features/students/store.js` @30 → `./app.js` @31 → `./supabase-config.js` @31 → `./js/shared-ui/action-dialog.js` @31 → `./auth.js` @32 |
-| `staff-settings.html` | `staff-settings` | `./js/website/offerings.js` @143 → `./js/core/escape-html.js` @144 → `./js/website/practice-grid.js` @145 → `./js/website/why-grid.js` @146 → `./js/features/timetable/store.js` @147 → `./js/features/students/store.js` @148 → `./app.js` @149 → `./supabase-config.js` @150 → `./js/shared-ui/action-dialog.js` @151 → `./auth.js` @152 |
-| `staff-timetable.html` | `staff-timetable` | `./js/website/offerings.js` @53 → `./js/core/escape-html.js` @54 → `./js/website/practice-grid.js` @55 → `./js/website/why-grid.js` @56 → `./js/features/timetable/store.js` @57 → `./js/features/students/store.js` @58 → `./app.js` @59 → `./supabase-config.js` @60 → `./js/shared-ui/action-dialog.js` @61 → `./auth.js` @62 |
-| `super-admin-accounts.html` | `super-admin-accounts` | `./js/website/offerings.js` @128 → `./js/core/escape-html.js` @129 → `./js/website/practice-grid.js` @130 → `./js/website/why-grid.js` @131 → `./js/features/timetable/store.js` @132 → `./js/features/students/store.js` @133 → `./app.js?v=20260611-student-messages` @134 → `./supabase-config.js` @135 → `./js/shared-ui/action-dialog.js` @136 → `./auth.js?v=20260611-student-messages` @137 |
-| `super-admin-activity.html` | `super-admin-activity` | `./js/website/offerings.js` @102 → `./js/core/escape-html.js` @103 → `./js/website/practice-grid.js` @104 → `./js/website/why-grid.js` @105 → `./js/features/timetable/store.js` @106 → `./js/features/students/store.js` @107 → `./app.js?v=20260611-student-messages` @108 → `./supabase-config.js` @109 → `./js/shared-ui/action-dialog.js` @110 → `./auth.js?v=20260611-student-messages` @111 |
-| `super-admin-schools.html` | `super-admin-schools` | `./js/website/offerings.js` @102 → `./js/core/escape-html.js` @103 → `./js/website/practice-grid.js` @104 → `./js/website/why-grid.js` @105 → `./js/features/timetable/store.js` @106 → `./js/features/students/store.js` @107 → `./app.js?v=20260611-student-messages` @108 → `./supabase-config.js` @109 → `./js/shared-ui/action-dialog.js` @110 → `./auth.js?v=20260611-student-messages` @111 |
-| `super-admin.html` | `super-admin` | `./js/website/offerings.js` @105 → `./js/core/escape-html.js` @106 → `./js/website/practice-grid.js` @107 → `./js/website/why-grid.js` @108 → `./js/features/timetable/store.js` @109 → `./js/features/students/store.js` @110 → `./app.js?v=20260611-student-messages` @111 → `./supabase-config.js` @112 → `./js/shared-ui/action-dialog.js` @113 → `./auth.js?v=20260611-student-messages` @114 |
-| `user-settings.html` | `user-settings` | `./js/website/offerings.js` @143 → `./js/core/escape-html.js` @144 → `./js/website/practice-grid.js` @145 → `./js/website/why-grid.js` @146 → `./js/features/timetable/store.js` @147 → `./js/features/students/store.js` @148 → `./app.js` @149 → `./supabase-config.js` @150 → `./js/shared-ui/action-dialog.js` @151 → `./auth.js` @152 |
+| `self-register.html` | `self-register` | `./js/website/offerings.js` @234 → `./js/core/escape-html.js` @235 → `./js/website/practice-grid.js` @236 → `./js/website/why-grid.js` @237 → `./js/features/timetable/store.js` @238 → `./js/features/students/store.js` @239 → `./app.js` @240 → `./supabase-config.js` @241 → `./js/shared-ui/action-dialog.js` @242 → `./js/features/timetable/controller.js` @243 → `./auth.js?v=self-registration-links` @244 |
+| `signup.html` | `signup` | `./js/website/offerings.js` @218 → `./js/core/escape-html.js` @219 → `./js/website/practice-grid.js` @220 → `./js/website/why-grid.js` @221 → `./js/features/timetable/store.js` @222 → `./js/features/students/store.js` @223 → `./app.js` @224 → `./supabase-config.js` @225 → `./js/shared-ui/action-dialog.js` @226 → `./js/features/timetable/controller.js` @227 → `./auth.js` @228 |
+| `staff-attendance.html` | `staff-attendance` | `./js/website/offerings.js` @45 → `./js/core/escape-html.js` @46 → `./js/website/practice-grid.js` @47 → `./js/website/why-grid.js` @48 → `./js/features/timetable/store.js` @49 → `./js/features/students/store.js` @50 → `./app.js` @51 → `./supabase-config.js` @52 → `./js/shared-ui/action-dialog.js` @53 → `./js/features/timetable/controller.js` @54 → `./auth.js` @55 |
+| `staff-classes.html` | `staff-classes` | `./js/website/offerings.js` @25 → `./js/core/escape-html.js` @26 → `./js/website/practice-grid.js` @27 → `./js/website/why-grid.js` @28 → `./js/features/timetable/store.js` @29 → `./js/features/students/store.js` @30 → `./app.js` @31 → `./supabase-config.js` @31 → `./js/shared-ui/action-dialog.js` @31 → `./js/features/timetable/controller.js` @32 → `./auth.js` @33 |
+| `staff-dashboard.html` | `staff-dashboard` | `./js/website/offerings.js` @82 → `./js/core/escape-html.js` @83 → `./js/website/practice-grid.js` @84 → `./js/website/why-grid.js` @85 → `./js/features/timetable/store.js` @86 → `./js/features/students/store.js` @87 → `./app.js` @88 → `./supabase-config.js` @89 → `./js/shared-ui/action-dialog.js` @90 → `./js/features/timetable/controller.js` @91 → `./auth.js` @92 |
+| `staff-gradebook.html` | `staff-gradebook` | `./js/website/offerings.js` @25 → `./js/core/escape-html.js` @26 → `./js/website/practice-grid.js` @27 → `./js/website/why-grid.js` @28 → `./js/features/timetable/store.js` @29 → `./js/features/students/store.js` @30 → `./app.js` @31 → `./supabase-config.js` @31 → `./js/shared-ui/action-dialog.js` @31 → `./js/features/timetable/controller.js` @32 → `./auth.js` @33 |
+| `staff-leave.html` | `staff-leave` | `./js/website/offerings.js` @25 → `./js/core/escape-html.js` @26 → `./js/website/practice-grid.js` @27 → `./js/website/why-grid.js` @28 → `./js/features/timetable/store.js` @29 → `./js/features/students/store.js` @30 → `./app.js` @31 → `./supabase-config.js` @31 → `./js/shared-ui/action-dialog.js` @31 → `./js/features/timetable/controller.js` @32 → `./auth.js` @33 |
+| `staff-lesson-plans.html` | `staff-lesson-plans` | `./js/website/offerings.js` @25 → `./js/core/escape-html.js` @26 → `./js/website/practice-grid.js` @27 → `./js/website/why-grid.js` @28 → `./js/features/timetable/store.js` @29 → `./js/features/students/store.js` @30 → `./app.js` @31 → `./supabase-config.js` @31 → `./js/shared-ui/action-dialog.js` @31 → `./js/features/timetable/controller.js` @32 → `./auth.js` @33 |
+| `staff-messages.html` | `staff-messages` | `./js/website/offerings.js` @25 → `./js/core/escape-html.js` @26 → `./js/website/practice-grid.js` @27 → `./js/website/why-grid.js` @28 → `./js/features/timetable/store.js` @29 → `./js/features/students/store.js` @30 → `./app.js` @31 → `./supabase-config.js` @31 → `./js/shared-ui/action-dialog.js` @31 → `./js/features/timetable/controller.js` @32 → `./auth.js` @33 |
+| `staff-results.html` | `staff-results` | `./js/website/offerings.js` @25 → `./js/core/escape-html.js` @26 → `./js/website/practice-grid.js` @27 → `./js/website/why-grid.js` @28 → `./js/features/timetable/store.js` @29 → `./js/features/students/store.js` @30 → `./app.js` @31 → `./supabase-config.js` @31 → `./js/shared-ui/action-dialog.js` @31 → `./js/features/timetable/controller.js` @32 → `./auth.js` @33 |
+| `staff-settings.html` | `staff-settings` | `./js/website/offerings.js` @143 → `./js/core/escape-html.js` @144 → `./js/website/practice-grid.js` @145 → `./js/website/why-grid.js` @146 → `./js/features/timetable/store.js` @147 → `./js/features/students/store.js` @148 → `./app.js` @149 → `./supabase-config.js` @150 → `./js/shared-ui/action-dialog.js` @151 → `./js/features/timetable/controller.js` @152 → `./auth.js` @153 |
+| `staff-timetable.html` | `staff-timetable` | `./js/website/offerings.js` @53 → `./js/core/escape-html.js` @54 → `./js/website/practice-grid.js` @55 → `./js/website/why-grid.js` @56 → `./js/features/timetable/store.js` @57 → `./js/features/students/store.js` @58 → `./app.js` @59 → `./supabase-config.js` @60 → `./js/shared-ui/action-dialog.js` @61 → `./js/features/timetable/controller.js` @62 → `./auth.js` @63 |
+| `super-admin-accounts.html` | `super-admin-accounts` | `./js/website/offerings.js` @128 → `./js/core/escape-html.js` @129 → `./js/website/practice-grid.js` @130 → `./js/website/why-grid.js` @131 → `./js/features/timetable/store.js` @132 → `./js/features/students/store.js` @133 → `./app.js?v=20260611-student-messages` @134 → `./supabase-config.js` @135 → `./js/shared-ui/action-dialog.js` @136 → `./js/features/timetable/controller.js` @137 → `./auth.js?v=20260611-student-messages` @138 |
+| `super-admin-activity.html` | `super-admin-activity` | `./js/website/offerings.js` @102 → `./js/core/escape-html.js` @103 → `./js/website/practice-grid.js` @104 → `./js/website/why-grid.js` @105 → `./js/features/timetable/store.js` @106 → `./js/features/students/store.js` @107 → `./app.js?v=20260611-student-messages` @108 → `./supabase-config.js` @109 → `./js/shared-ui/action-dialog.js` @110 → `./js/features/timetable/controller.js` @111 → `./auth.js?v=20260611-student-messages` @112 |
+| `super-admin-schools.html` | `super-admin-schools` | `./js/website/offerings.js` @102 → `./js/core/escape-html.js` @103 → `./js/website/practice-grid.js` @104 → `./js/website/why-grid.js` @105 → `./js/features/timetable/store.js` @106 → `./js/features/students/store.js` @107 → `./app.js?v=20260611-student-messages` @108 → `./supabase-config.js` @109 → `./js/shared-ui/action-dialog.js` @110 → `./js/features/timetable/controller.js` @111 → `./auth.js?v=20260611-student-messages` @112 |
+| `super-admin.html` | `super-admin` | `./js/website/offerings.js` @105 → `./js/core/escape-html.js` @106 → `./js/website/practice-grid.js` @107 → `./js/website/why-grid.js` @108 → `./js/features/timetable/store.js` @109 → `./js/features/students/store.js` @110 → `./app.js?v=20260611-student-messages` @111 → `./supabase-config.js` @112 → `./js/shared-ui/action-dialog.js` @113 → `./js/features/timetable/controller.js` @114 → `./auth.js?v=20260611-student-messages` @115 |
+| `user-settings.html` | `user-settings` | `./js/website/offerings.js` @143 → `./js/core/escape-html.js` @144 → `./js/website/practice-grid.js` @145 → `./js/website/why-grid.js` @146 → `./js/features/timetable/store.js` @147 → `./js/features/students/store.js` @148 → `./app.js` @149 → `./supabase-config.js` @150 → `./js/shared-ui/action-dialog.js` @151 → `./js/features/timetable/controller.js` @152 → `./auth.js` @153 |
 | `why-it-works.html` | `why` | `./js/website/offerings.js` @41 → `./js/core/escape-html.js` @42 → `./js/website/practice-grid.js` @43 → `./js/website/why-grid.js` @44 → `./js/features/timetable/store.js` @45 → `./js/features/students/store.js` @46 → `./app.js` @47 |
 | `workflows.html` | `workflows` | `./js/website/offerings.js` @33 → `./js/core/escape-html.js` @34 → `./js/website/practice-grid.js` @35 → `./js/website/why-grid.js` @36 → `./js/features/timetable/store.js` @37 → `./js/features/students/store.js` @38 → `./app.js` @39 |
 
@@ -457,6 +457,10 @@ Classic top-level function declarations in app.js and extracted scripts are also
 
 Factory only: createController({ document, window, HTMLElement }) returns { openAppActionDialog, showAppConfirm, showAppPrompt }. Published at js/shared-ui/action-dialog.js:201. The sole app instance is created privately at auth.js:6312–6320. There is no globally exposed controller, resolver, state or close/ensure method. See the E08 boundary below for lazy DOM and Promise contracts.
 
+### window.SchoolSphereTimetableUI (E09)
+
+Factory only: createController(dependencies) returns { initTimetableControls }. Published at js/features/timetable/controller.js:1487. A single private auth bridge at auth.js:13697–13731 injects document/window/HTMLElement/HTMLSelectElement and the 29 functions listed in the controller inventory. No controller state or nested methods are exposed.
+
 ## Storage and school isolation
 
 - app.js:303–365 normalizes workspace identifiers (trim/lowercase, unsupported characters become hyphens), gives transient session precedence over persistent session, prefers session.workspaceId, and otherwise falls back to userId/email (including its explicit administrator fallback). resolveWorkspaceStorageKey builds baseKey::workspaceId. readWorkspaceState does not read legacy shared values unless allowLegacyFallback is true.
@@ -563,10 +567,10 @@ Names only; no stored values. Colons/hyphens/case are significant. Some event na
 | `inferAccessGrantWorkspaceId` | `auth.js:3204-3224` | `DEFAULT_AUTH_ROLE`, `getUsers`, `normalizeEmail`, `normalizeRoleLabel`, `normalizeWorkspaceId` |
 | `buildWorkspaceScopedStateKey` | `auth.js:3558-3560` | `getCurrentWorkspaceId`, `normalizeWorkspaceId` |
 | `getWorkspaceStateStorageKeyForState` | `auth.js:4936-4956` | `ACCESS_GRANTS_STORAGE_KEY`, `ADMISSIONS_STORAGE_KEY_BASE`, `NOTIFICATION_STORAGE_PREFIX`, `PARENT_FEES_STORAGE_PREFIX`, `SUPABASE_STATE_KEY_ACCESS_GRANTS`, `SUPABASE_STATE_KEY_ADMISSIONS`, `SUPABASE_STATE_KEY_NOTIFICATIONS`, `SUPABASE_STATE_KEY_PARENT_FEES`, `buildWorkspaceScopedStateKey`, `getCurrentWorkspaceId`, `normalizeWorkspaceId` |
-| `getPortalOnboardingStorageKey` | `auth.js:33102-33108` | `DEFAULT_AUTH_ROLE`, `PORTAL_ONBOARDING_STORAGE_KEY`, `getCurrentWorkspaceId`, `getPortalOnboardingRoleKey`, `normalizeWorkspaceId` |
-| `getParentSelectionStorageKey` | `auth.js:39334-39339` | `PARENT_SELECTION_STORAGE_PREFIX`, `getCurrentWorkspaceId`, `getSession`, `normalizeWorkspaceId` |
-| `getParentFeesStorageKey` | `auth.js:39357-39359` | `PARENT_FEES_STORAGE_PREFIX`, `getCurrentWorkspaceId`, `normalizeWorkspaceId` |
-| `getSuperAdminKnownWorkspaceIds` | `auth.js:41728-41756` | `ADMISSIONS_STORAGE_KEY_BASE`, `NOTIFICATION_STORAGE_PREFIX`, `WORKSPACE_SCOPED_STATE_KEYS`, `getUsers`, `normalizeWorkspaceId` |
+| `getPortalOnboardingStorageKey` | `auth.js:31691-31697` | `DEFAULT_AUTH_ROLE`, `PORTAL_ONBOARDING_STORAGE_KEY`, `getCurrentWorkspaceId`, `getPortalOnboardingRoleKey`, `normalizeWorkspaceId` |
+| `getParentSelectionStorageKey` | `auth.js:37923-37928` | `PARENT_SELECTION_STORAGE_PREFIX`, `getCurrentWorkspaceId`, `getSession`, `normalizeWorkspaceId` |
+| `getParentFeesStorageKey` | `auth.js:37946-37948` | `PARENT_FEES_STORAGE_PREFIX`, `getCurrentWorkspaceId`, `normalizeWorkspaceId` |
+| `getSuperAdminKnownWorkspaceIds` | `auth.js:40317-40345` | `ADMISSIONS_STORAGE_KEY_BASE`, `NOTIFICATION_STORAGE_PREFIX`, `WORKSPACE_SCOPED_STATE_KEYS`, `getUsers`, `normalizeWorkspaceId` |
 | `normalizeWorkspaceId` | `self-registration-links.js:15-22` |  |
 | `getSessionSnapshot` | `self-registration-links.js:24-30` | `SESSION_KEYS`, `parseJson` |
 | `getWorkspaceId` | `self-registration-links.js:32-35` | `getSessionSnapshot`, `normalizeWorkspaceId` |
@@ -605,9 +609,9 @@ Local data mutations generally write storage then emit an event. Native storage 
 | `auth.js:3291` | `saveAccessGrants` | `ACCESS_GRANTS_EVENT_NAME` | `{ workspaceId: targetWorkspaceId &#124;&#124; normalizeWorkspaceId(getCurrentWorkspaceId()), allWorkspaces: Boolean(options.allWorkspaces), }` |
 | `auth.js:3308` | `saveAccessGrants` | `ACCESS_GRANTS_EVENT_NAME` | `{ workspaceId: targetWorkspaceId, allWorkspaces: false, }` |
 | `auth.js:5024` | `emitHydratedWorkspaceStateEvent` | `eventName` | `{ workspaceId: normalizedWorkspaceId, source: "supabase-hydration", }` |
-| `auth.js:24783` | `syncAttendanceAbsenceNotifications` | `NOTIFICATION_EVENT_NAME` | `{ workspaceId: normalizedWorkspaceId }` |
-| `auth.js:39372` | `saveParentFeesState` | `PARENT_FEES_EVENT_NAME` | `{ workspaceId: resolvedWorkspaceId, }` |
-| `auth.js:46437` | `initUserSettingsPage` | `NOTIFICATION_EVENT_NAME` | `{ workspaceId: normalizeWorkspaceId(activeUser.workspaceId &#124;&#124; session.workspaceId &#124;&#124; getCurrentWorkspaceId()), }` |
+| `auth.js:23372` | `syncAttendanceAbsenceNotifications` | `NOTIFICATION_EVENT_NAME` | `{ workspaceId: normalizedWorkspaceId }` |
+| `auth.js:37961` | `saveParentFeesState` | `PARENT_FEES_EVENT_NAME` | `{ workspaceId: resolvedWorkspaceId, }` |
+| `auth.js:45026` | `initUserSettingsPage` | `NOTIFICATION_EVENT_NAME` | `{ workspaceId: normalizeWorkspaceId(activeUser.workspaceId &#124;&#124; session.workspaceId &#124;&#124; getCurrentWorkspaceId()), }` |
 | `admin-messages.html:inline@593:416` | `startup/inline` | `"schoolsphere:notifications:updated"` | `{ workspaceId: replyEntry.workspaceId }` |
 
 All listener/timer owners are enumerated in inventory.md. Inline admin-messages dispatch is dormant.
@@ -884,886 +888,886 @@ All 1095 AST lookup sites from parsable scripts, including template/dynamic expr
 | `auth.js:13459` | `initAdmissionSetupControls` | `querySelectorAll` | `'input[name="admissionClassOption"]:checked'` |
 | `auth.js:13541` | `initAdmissionSetupControls` | `querySelectorAll` | `'input[name="admissionClassOption"]'` |
 | `auth.js:13561` | `initAdmissionSetupControls` | `querySelector` | `"[data-admission-setup-recommended]"` |
-| `auth.js:13712` | `initTimetableControls` | `getElementById` | `"portal-timetable-lesson-overlay"` |
-| `auth.js:13713` | `initTimetableControls` | `getElementById` | `"portal-timetable-period-overlay"` |
-| `auth.js:13714` | `initTimetableControls` | `getElementById` | `"portal-calendar-substitution-log"` |
-| `auth.js:13715` | `initTimetableControls` | `getElementById` | `"portal-timetable-period-form"` |
-| `auth.js:13716` | `initTimetableControls` | `getElementById` | `"timetable-period-title"` |
-| `auth.js:13717` | `initTimetableControls` | `getElementById` | `"timetable-session-id"` |
-| `auth.js:13718` | `initTimetableControls` | `getElementById` | `"timetable-term-id"` |
-| `auth.js:13719` | `initTimetableControls` | `getElementById` | `"timetable-view-mode"` |
-| `auth.js:13720` | `initTimetableControls` | `getElementById` | `"timetable-class-level"` |
-| `auth.js:13721` | `initTimetableControls` | `getElementById` | `"timetable-teacher-view"` |
-| `auth.js:13722` | `initTimetableControls` | `getElementById` | `"timetable-week-type"` |
-| `auth.js:13723` | `initTimetableControls` | `querySelector` | `"[data-timetable-copy-term]"` |
-| `auth.js:13724` | `initTimetableControls` | `querySelector` | `"[data-timetable-period-add]"` |
-| `auth.js:13725` | `initTimetableControls` | `querySelector` | `"[data-timetable-save-class]"` |
-| `auth.js:13726` | `initTimetableControls` | `querySelector` | `"[data-timetable-print]"` |
-| `auth.js:13727` | `initTimetableControls` | `querySelector` | `"[data-timetable-delete]"` |
-| `auth.js:13728` | `initTimetableControls` | `getElementById` | `"timetable-form-title"` |
-| `auth.js:13729` | `initTimetableControls` | `getElementById` | `"timetable-form-context"` |
-| `auth.js:13745` | `initTimetableControls` | `getElementById` | `"portal-timetable-toast"` |
-| `auth.js:13764` | `initTimetableControls` | `getElementById` | `"portal-timetable-inline-status"` |
-| `auth.js:13828` | `initTimetableControls` | `getElementById` | `"portal-timetable-class-modal"` |
-| `auth.js:13829` | `initTimetableControls` | `getElementById` | `"portal-timetable-class-modal-body"` |
-| `auth.js:13831` | `initTimetableControls` | `closest` | `"[data-timetable-class-close]"` |
-| `auth.js:13835` | `initTimetableControls` | `closest` | `"[data-timetable-class-print-current]"` |
-| `auth.js:13846` | `initTimetableControls` | `querySelectorAll` | `".portal-field"` |
-| `auth.js:13847` | `initTimetableControls` | `querySelectorAll` | `"[data-period-error-for]"` |
-| `auth.js:13856` | `initTimetableControls` | `querySelector` | ``[data-period-error-for="${fieldName}"]`` |
-| `auth.js:13858` | `initTimetableControls` | `closest` | `".portal-field"` |
-| `auth.js:14115` | `initTimetableControls` | `querySelector` | `".portal-timetable-grid"` |
-| `auth.js:14280` | `initTimetableControls` | `closest` | `".portal-field"` |
-| `auth.js:14671` | `initTimetableControls` | `querySelector` | `"[data-timetable-cancel]"` |
-| `auth.js:14683` | `initTimetableControls` | `querySelectorAll` | `"[data-timetable-lesson-close]"` |
-| `auth.js:14694` | `initTimetableControls` | `querySelectorAll` | `"[data-timetable-period-close]"` |
-| `auth.js:14891` | `initTimetableControls` | `closest` | `"[data-timetable-inline-action]"` |
-| `auth.js:14892` | `initTimetableControls` | `closest` | `"[data-timetable-period-edit]"` |
-| `auth.js:14893` | `initTimetableControls` | `closest` | `"[data-timetable-slot]"` |
-| `auth.js:14894` | `initTimetableControls` | `closest` | `"[data-timetable-action]"` |
-| `auth.js:14895` | `initTimetableControls` | `closest` | `"[data-timetable-class-action]"` |
-| `auth.js:14896` | `initTimetableControls` | `closest` | `"[data-timetable-group-action]"` |
-| `auth.js:15159` | `initFeeManagementControls` | `querySelector` | `"[data-fee-form-toggle]"` |
-| `auth.js:15163` | `initFeeManagementControls` | `getElementById` | `"portal-fee-invoice-status"` |
-| `auth.js:15164` | `initFeeManagementControls` | `getElementById` | `"portal-fee-invoice-list"` |
-| `auth.js:15165` | `initFeeManagementControls` | `querySelector` | `"[data-fee-invoice-form-open]"` |
-| `auth.js:15166` | `initFeeManagementControls` | `getElementById` | `"portal-fee-invoice-form-overlay"` |
-| `auth.js:15168` | `initFeeManagementControls` | `getElementById` | `"fee-invoice-session"` |
-| `auth.js:15169` | `initFeeManagementControls` | `getElementById` | `"fee-invoice-term"` |
-| `auth.js:15170` | `initFeeManagementControls` | `getElementById` | `"fee-invoice-class"` |
-| `auth.js:15171` | `initFeeManagementControls` | `getElementById` | `"fee-invoice-student"` |
-| `auth.js:15172` | `initFeeManagementControls` | `getElementById` | `"fee-invoice-due-date"` |
-| `auth.js:15173` | `initFeeManagementControls` | `getElementById` | `"fee-invoice-whatsapp"` |
-| `auth.js:15174` | `initFeeManagementControls` | `querySelector` | `"[data-fee-invoice-generate-single]"` |
-| `auth.js:15176` | `initFeeManagementControls` | `getElementById` | `"portal-fee-invoice-overlay"` |
-| `auth.js:15177` | `initFeeManagementControls` | `getElementById` | `"portal-fee-invoice-modal-body"` |
-| `auth.js:15178` | `initFeeManagementControls` | `getElementById` | `"portal-fee-invoice-modal-title"` |
-| `auth.js:15179` | `initFeeManagementControls` | `getElementById` | `"portal-fee-category-options"` |
-| `auth.js:15180` | `initFeeManagementControls` | `getElementById` | `"portal-fee-form-overlay"` |
-| `auth.js:15181` | `initFeeManagementControls` | `getElementById` | `"portal-fee-form-modal-title"` |
-| `auth.js:15189` | `initFeeManagementControls` | `querySelector` | `".portal-overlay:not([hidden])"` |
-| `auth.js:15197` | `initFeeManagementControls` | `getElementById` | `"portal-fee-toast"` |
-| `auth.js:15683` | `initFeeManagementControls` | `querySelector` | `"[data-fee-invoice-close]"` |
-| `auth.js:16438` | `initFeeManagementControls` | `closest` | `"[data-fee-invoice-form-close]"` |
-| `auth.js:16444` | `initFeeManagementControls` | `closest` | `"[data-fee-invoice-generate-class]"` |
-| `auth.js:16453` | `initFeeManagementControls` | `closest` | `"[data-fee-invoice-generate-class-whatsapp]"` |
-| `auth.js:16462` | `initFeeManagementControls` | `closest` | `"[data-fee-invoice-action]"` |
-| `auth.js:16484` | `initFeeManagementControls` | `closest` | `"details[data-invoice-class-token]"` |
-| `auth.js:16504` | `initFeeManagementControls` | `closest` | `"[data-fee-invoice-close]"` |
-| `auth.js:16509` | `initFeeManagementControls` | `closest` | `"[data-fee-invoice-print-current]"` |
-| `auth.js:16518` | `initFeeManagementControls` | `closest` | `"[data-fee-invoice-print-with-history]"` |
-| `auth.js:16527` | `initFeeManagementControls` | `closest` | `"[data-fee-invoice-print-history]"` |
-| `auth.js:16536` | `initFeeManagementControls` | `closest` | `"[data-fee-invoice-download-history]"` |
-| `auth.js:16586` | `initFeeManagementControls` | `closest` | `"[data-fee-category]"` |
-| `auth.js:16603` | `initFeeManagementControls` | `closest` | `"[data-fee-form-close]"` |
-| `auth.js:16699` | `initFeeManagementControls` | `querySelector` | `"[data-fee-cancel]"` |
-| `auth.js:16704` | `initFeeManagementControls` | `querySelector` | `"[data-fee-modal-archive]"` |
-| `auth.js:16715` | `initFeeManagementControls` | `closest` | `"[data-fee-action]"` |
-| `auth.js:16741` | `initFeeManagementControls` | `closest` | `"[data-fee-action='edit']"` |
-| `auth.js:16780` | `initSchoolSettingsControls` | `querySelector` | `'input[name="logoFile"]'` |
-| `auth.js:16781` | `initSchoolSettingsControls` | `querySelector` | `"[data-clear-logo]"` |
-| `auth.js:16782` | `initSchoolSettingsControls` | `querySelector` | `"[data-school-type-all]"` |
-| `auth.js:16783` | `initSchoolSettingsControls` | `querySelectorAll` | `"[data-school-type-option]"` |
-| `auth.js:17030` | `initSchoolSettingsControls` | `querySelector` | `"[data-reset-school-settings]"` |
-| `auth.js:17311` | `initRolePermissionControls` | `matches` | `"[data-role-permission-role][data-role-permission-key]"` |
-| `auth.js:17426` | `initAcademicCycleControls` | `closest` | `"[data-term-period-type-wrap]"` |
-| `auth.js:17426` | `initAcademicCycleControls` | `closest` | `".portal-field"` |
-| `auth.js:17440` | `initAcademicCycleControls` | `querySelector` | `"[data-session-submit]"` |
-| `auth.js:17441` | `initAcademicCycleControls` | `querySelector` | `"[data-session-cancel]"` |
-| `auth.js:17454` | `initAcademicCycleControls` | `querySelector` | `"[data-term-submit]"` |
-| `auth.js:17455` | `initAcademicCycleControls` | `querySelector` | `"[data-term-cancel]"` |
-| `auth.js:17779` | `initAcademicCycleControls` | `closest` | `"[data-session-action]"` |
-| `auth.js:17799` | `initAcademicCycleControls` | `querySelector` | `"[data-session-submit]"` |
-| `auth.js:17800` | `initAcademicCycleControls` | `querySelector` | `"[data-session-cancel]"` |
-| `auth.js:17832` | `initAcademicCycleControls` | `closest` | `"[data-term-action]"` |
-| `auth.js:17857` | `initAcademicCycleControls` | `querySelector` | `"[data-term-submit]"` |
-| `auth.js:17858` | `initAcademicCycleControls` | `querySelector` | `"[data-term-cancel]"` |
-| `auth.js:17875` | `initAcademicCycleControls` | `querySelector` | `"[data-session-cancel]"` |
-| `auth.js:17884` | `initAcademicCycleControls` | `querySelector` | `"[data-term-cancel]"` |
-| `auth.js:17944` | `clearPortalSettingsErrors` | `querySelectorAll` | `".portal-field"` |
-| `auth.js:17945` | `clearPortalSettingsErrors` | `querySelectorAll` | `".portal-structure-block"` |
-| `auth.js:17946` | `clearPortalSettingsErrors` | `querySelectorAll` | `"[data-settings-error-for]"` |
-| `auth.js:17952` | `setPortalSettingsError` | `querySelector` | ``[data-settings-error-for="${fieldName}"]`` |
-| `auth.js:17955` | `setPortalSettingsError` | `closest` | `".portal-field"` |
-| `auth.js:17968` | `clearPortalSessionErrors` | `querySelectorAll` | `".portal-field"` |
-| `auth.js:17969` | `clearPortalSessionErrors` | `querySelectorAll` | `"[data-session-error-for]"` |
-| `auth.js:17975` | `setPortalSessionError` | `querySelector` | ``[data-session-error-for="${fieldName}"]`` |
-| `auth.js:17977` | `setPortalSessionError` | `closest` | `".portal-field"` |
-| `auth.js:17989` | `clearPortalTermErrors` | `querySelectorAll` | `".portal-field"` |
-| `auth.js:17990` | `clearPortalTermErrors` | `querySelectorAll` | `"[data-term-error-for]"` |
-| `auth.js:17996` | `setPortalTermError` | `querySelector` | ``[data-term-error-for="${fieldName}"]`` |
-| `auth.js:17998` | `setPortalTermError` | `closest` | `".portal-field"` |
-| `auth.js:18010` | `clearPortalClassErrors` | `querySelectorAll` | `".portal-field"` |
-| `auth.js:18011` | `clearPortalClassErrors` | `querySelectorAll` | `"[data-class-error-for]"` |
-| `auth.js:18017` | `setPortalClassError` | `querySelector` | ``[data-class-error-for="${fieldName}"]`` |
-| `auth.js:18019` | `setPortalClassError` | `closest` | `".portal-field"` |
-| `auth.js:18031` | `clearPortalCalendarErrors` | `querySelectorAll` | `".portal-field"` |
-| `auth.js:18032` | `clearPortalCalendarErrors` | `querySelectorAll` | `"[data-calendar-error-for]"` |
-| `auth.js:18038` | `setPortalCalendarError` | `querySelector` | ``[data-calendar-error-for="${fieldName}"]`` |
-| `auth.js:18040` | `setPortalCalendarError` | `closest` | `".portal-field"` |
-| `auth.js:18111` | `clearPortalCourseErrors` | `querySelectorAll` | `".portal-field"` |
-| `auth.js:18112` | `clearPortalCourseErrors` | `querySelectorAll` | `"[data-course-error-for]"` |
-| `auth.js:18118` | `setPortalCourseError` | `querySelector` | ``[data-course-error-for="${fieldName}"]`` |
-| `auth.js:18120` | `setPortalCourseError` | `closest` | `".portal-field"` |
-| `auth.js:18188` | `resetPortalClassForm` | `querySelector` | `".portal-class-advanced"` |
-| `auth.js:18197` | `resetPortalClassForm` | `querySelector` | `"[data-class-submit]"` |
-| `auth.js:18198` | `resetPortalClassForm` | `querySelector` | `"[data-class-cancel]"` |
-| `auth.js:18231` | `populatePortalClassForm` | `querySelector` | `".portal-class-advanced"` |
-| `auth.js:18236` | `populatePortalClassForm` | `querySelector` | `"[data-class-submit]"` |
-| `auth.js:18237` | `populatePortalClassForm` | `querySelector` | `"[data-class-cancel]"` |
-| `auth.js:18281` | `resetPortalCourseForm` | `querySelector` | `"[data-course-subject-select]"` |
-| `auth.js:18282` | `resetPortalCourseForm` | `querySelector` | `"[data-course-custom-subject]"` |
-| `auth.js:18310` | `resetPortalCourseForm` | `querySelector` | `"[data-course-submit]"` |
-| `auth.js:18311` | `resetPortalCourseForm` | `querySelector` | `"[data-course-cancel]"` |
-| `auth.js:18394` | `populatePortalCourseForm` | `querySelector` | `"[data-course-submit]"` |
-| `auth.js:18395` | `populatePortalCourseForm` | `querySelector` | `"[data-course-cancel]"` |
-| `auth.js:18427` | `resetPortalCalendarForm` | `querySelector` | `"[data-calendar-submit]"` |
-| `auth.js:18428` | `resetPortalCalendarForm` | `querySelector` | `"[data-calendar-cancel]"` |
-| `auth.js:18457` | `populatePortalCalendarForm` | `querySelector` | `"[data-calendar-submit]"` |
-| `auth.js:18458` | `populatePortalCalendarForm` | `querySelector` | `"[data-calendar-cancel]"` |
-| `auth.js:18476` | `clearPortalAdmissionConfigErrors` | `querySelectorAll` | `".portal-field"` |
-| `auth.js:18477` | `clearPortalAdmissionConfigErrors` | `querySelectorAll` | `"[data-admission-config-error-for]"` |
-| `auth.js:18483` | `setPortalAdmissionConfigError` | `querySelector` | ``[data-admission-config-error-for="${fieldName}"]`` |
-| `auth.js:18485` | `setPortalAdmissionConfigError` | `closest` | `".portal-field"` |
-| `auth.js:18496` | `clearPortalTimetableErrors` | `querySelectorAll` | `".portal-field"` |
-| `auth.js:18497` | `clearPortalTimetableErrors` | `querySelectorAll` | `"[data-timetable-error-for]"` |
-| `auth.js:18503` | `setPortalTimetableError` | `querySelector` | ``[data-timetable-error-for="${fieldName}"]`` |
-| `auth.js:18505` | `setPortalTimetableError` | `closest` | `".portal-field"` |
-| `auth.js:18516` | `clearPortalFeeErrors` | `querySelectorAll` | `".portal-field"` |
-| `auth.js:18517` | `clearPortalFeeErrors` | `querySelectorAll` | `"[data-fee-error-for]"` |
-| `auth.js:18523` | `setPortalFeeError` | `querySelector` | ``[data-fee-error-for="${fieldName}"]`` |
-| `auth.js:18525` | `setPortalFeeError` | `closest` | `".portal-field"` |
-| `auth.js:18550` | `resetPortalTimetableForm` | `querySelector` | `"[data-timetable-submit]"` |
-| `auth.js:18551` | `resetPortalTimetableForm` | `querySelector` | `"[data-timetable-cancel]"` |
-| `auth.js:18552` | `resetPortalTimetableForm` | `querySelector` | `"[data-timetable-delete]"` |
-| `auth.js:18553` | `resetPortalTimetableForm` | `getElementById` | `"timetable-form-title"` |
-| `auth.js:18554` | `resetPortalTimetableForm` | `getElementById` | `"timetable-form-context"` |
-| `auth.js:18588` | `populatePortalTimetableForm` | `getElementById` | `"timetable-session-id"` |
-| `auth.js:18589` | `populatePortalTimetableForm` | `getElementById` | `"timetable-term-id"` |
-| `auth.js:18590` | `populatePortalTimetableForm` | `getElementById` | `"timetable-class-level"` |
-| `auth.js:18591` | `populatePortalTimetableForm` | `getElementById` | `"timetable-teacher-view"` |
-| `auth.js:18592` | `populatePortalTimetableForm` | `getElementById` | `"timetable-week-type"` |
-| `auth.js:18593` | `populatePortalTimetableForm` | `getElementById` | `"timetable-form-title"` |
-| `auth.js:18594` | `populatePortalTimetableForm` | `getElementById` | `"timetable-form-context"` |
-| `auth.js:18641` | `populatePortalTimetableForm` | `querySelector` | `"[data-timetable-submit]"` |
-| `auth.js:18642` | `populatePortalTimetableForm` | `querySelector` | `"[data-timetable-cancel]"` |
-| `auth.js:18643` | `populatePortalTimetableForm` | `querySelector` | `"[data-timetable-delete]"` |
-| `auth.js:18679` | `resetPortalFeeForm` | `querySelector` | `"[data-fee-submit]"` |
-| `auth.js:18680` | `resetPortalFeeForm` | `querySelector` | `"[data-fee-cancel]"` |
-| `auth.js:18681` | `resetPortalFeeForm` | `querySelector` | `"[data-fee-modal-archive]"` |
-| `auth.js:18725` | `populatePortalFeeForm` | `querySelector` | `"[data-fee-submit]"` |
-| `auth.js:18726` | `populatePortalFeeForm` | `querySelector` | `"[data-fee-cancel]"` |
-| `auth.js:18727` | `populatePortalFeeForm` | `querySelector` | `"[data-fee-modal-archive]"` |
-| `auth.js:18768` | `getSelectedSchoolTypesFromForm` | `querySelectorAll` | `"[data-school-type-option]"` |
-| `auth.js:18781` | `syncSchoolTypeControls` | `querySelectorAll` | `"[data-school-type-option]"` |
-| `auth.js:18789` | `syncSchoolTypeControls` | `querySelector` | `"[data-school-type-all]"` |
-| `auth.js:18802` | `syncHigherInstitutionTypeField` | `querySelector` | `"[data-higher-institution-type-field]"` |
-| `auth.js:18948` | `updateLogoSwatch` | `querySelector` | `"[data-logo-swatch]"` |
-| `auth.js:18982` | `clearPortalAccessErrors` | `querySelectorAll` | `".portal-field"` |
-| `auth.js:18983` | `clearPortalAccessErrors` | `querySelectorAll` | `"[data-access-error-for]"` |
-| `auth.js:18989` | `setPortalAccessError` | `querySelector` | ``[data-access-error-for="${fieldName}"]`` |
-| `auth.js:18991` | `setPortalAccessError` | `closest` | `".portal-field"` |
-| `auth.js:19028` | `resetPortalAccessForm` | `querySelector` | `"[data-access-submit]"` |
-| `auth.js:19029` | `resetPortalAccessForm` | `querySelector` | `"[data-access-cancel]"` |
-| `auth.js:19065` | `populatePortalAccessForm` | `querySelector` | `"[data-access-submit]"` |
-| `auth.js:19066` | `populatePortalAccessForm` | `querySelector` | `"[data-access-cancel]"` |
-| `auth.js:19113` | `ensureAccessGrantModal` | `getElementById` | `"portal-access-grant-modal"` |
-| `auth.js:19114` | `ensureAccessGrantModal` | `getElementById` | `"portal-access-grant-modal-body"` |
-| `auth.js:19115` | `ensureAccessGrantModal` | `getElementById` | `"portal-access-grant-modal-title"` |
-| `auth.js:19117` | `ensureAccessGrantModal` | `closest` | `"[data-access-grant-close]"` |
-| `auth.js:19130` | `setAccessGrantModalOpen` | `querySelector` | `"[data-access-grant-close]"` |
-| `auth.js:19852` | `initAccessProvisioningControls` | `closest` | `"[data-access-action]"` |
-| `auth.js:19957` | `initAccessProvisioningControls` | `closest` | `"[data-access-id]"` |
-| `auth.js:19959` | `initAccessProvisioningControls` | `closest` | `"[data-access-action]"` |
-| `auth.js:19974` | `initAccessProvisioningControls` | `closest` | `"[data-access-id]"` |
-| `auth.js:19975` | `initAccessProvisioningControls` | `closest` | `"[data-access-action]"` |
-| `auth.js:19986` | `initAccessProvisioningControls` | `querySelector` | `"[data-access-cancel]"` |
-| `auth.js:20004` | `clearPortalStaffErrors` | `querySelectorAll` | `".portal-field"` |
-| `auth.js:20005` | `clearPortalStaffErrors` | `querySelectorAll` | `"[data-staff-error-for]"` |
-| `auth.js:20011` | `setPortalStaffError` | `querySelector` | ``[data-staff-error-for="${fieldName}"]`` |
-| `auth.js:20013` | `setPortalStaffError` | `closest` | `".portal-field"` |
-| `auth.js:20094` | `resetPortalStaffForm` | `querySelector` | `"[data-staff-submit]"` |
-| `auth.js:20095` | `resetPortalStaffForm` | `querySelector` | `"[data-staff-cancel]"` |
-| `auth.js:20160` | `populatePortalStaffForm` | `querySelector` | `"[data-staff-submit]"` |
-| `auth.js:20161` | `populatePortalStaffForm` | `querySelector` | `"[data-staff-cancel]"` |
-| `auth.js:20389` | `initStaffManagementControls` | `getElementById` | `"portal-staff-filter-search"` |
-| `auth.js:20390` | `initStaffManagementControls` | `getElementById` | `"portal-staff-filter-status"` |
-| `auth.js:20391` | `initStaffManagementControls` | `getElementById` | `"portal-staff-form-overlay"` |
-| `auth.js:20392` | `initStaffManagementControls` | `querySelector` | `"[data-staff-form-open]"` |
-| `auth.js:20393` | `initStaffManagementControls` | `getElementById` | `"portal-staff-form-title"` |
-| `auth.js:20412` | `initStaffManagementControls` | `querySelector` | `".portal-overlay:not([hidden])"` |
-| `auth.js:20446` | `initStaffManagementControls` | `getElementById` | `"portal-staff-view-overlay"` |
-| `auth.js:20482` | `initStaffManagementControls` | `getElementById` | `"portal-staff-view-overlay"` |
-| `auth.js:20486` | `initStaffManagementControls` | `getElementById` | `"portal-staff-view-grid"` |
-| `auth.js:20496` | `initStaffManagementControls` | `querySelector` | `".portal-overlay:not([hidden])"` |
-| `auth.js:20917` | `initStaffManagementControls` | `getElementById` | `"portal-staff-created-overlay"` |
-| `auth.js:20944` | `initStaffManagementControls` | `getElementById` | `"portal-staff-created-overlay"` |
-| `auth.js:20948` | `initStaffManagementControls` | `getElementById` | `"portal-staff-created-content"` |
-| `auth.js:20950` | `initStaffManagementControls` | `closest` | `"[data-staff-created-close]"` |
-| `auth.js:20952` | `initStaffManagementControls` | `querySelector` | `".portal-overlay:not([hidden])"` |
-| `auth.js:20958` | `initStaffManagementControls` | `closest` | `"[data-staff-created-print]"` |
-| `auth.js:20965` | `initStaffManagementControls` | `closest` | `"[data-staff-created-mail]"` |
-| `auth.js:20995` | `initStaffManagementControls` | `querySelector` | `"[data-staff-created-print]"` |
-| `auth.js:21132` | `initStaffManagementControls` | `querySelector` | `"[data-staff-view-edit]"` |
-| `auth.js:21133` | `initStaffManagementControls` | `querySelector` | `"[data-staff-view-status]"` |
-| `auth.js:21134` | `initStaffManagementControls` | `querySelector` | `"[data-staff-view-delete]"` |
-| `auth.js:21293` | `initStaffManagementControls` | `closest` | `"[data-staff-form-close]"` |
-| `auth.js:21633` | `initStaffManagementControls` | `closest` | `"[data-staff-open]"` |
-| `auth.js:21652` | `initStaffManagementControls` | `closest` | `"[data-staff-view-close]"` |
-| `auth.js:21658` | `initStaffManagementControls` | `closest` | `"[data-staff-job-letter-print]"` |
-| `auth.js:21667` | `initStaffManagementControls` | `closest` | `"[data-staff-job-letter-mail]"` |
-| `auth.js:21676` | `initStaffManagementControls` | `closest` | `"[data-staff-view-edit]"` |
-| `auth.js:21694` | `initStaffManagementControls` | `closest` | `"[data-staff-view-status]"` |
-| `auth.js:21717` | `initStaffManagementControls` | `closest` | `"[data-staff-view-delete]"` |
-| `auth.js:21741` | `initStaffManagementControls` | `querySelector` | `"[data-staff-cancel]"` |
-| `auth.js:21960` | `initAdminStaffLeaveReviewControls` | `getElementById` | `"portal-staff-leave-review-overlay"` |
-| `auth.js:21981` | `initAdminStaffLeaveReviewControls` | `getElementById` | `"portal-staff-leave-review-overlay"` |
-| `auth.js:21985` | `initAdminStaffLeaveReviewControls` | `getElementById` | `"portal-staff-leave-review-content"` |
-| `auth.js:21986` | `initAdminStaffLeaveReviewControls` | `getElementById` | `"portal-staff-leave-review-title"` |
-| `auth.js:21987` | `initAdminStaffLeaveReviewControls` | `getElementById` | `"portal-staff-leave-modal-status"` |
-| `auth.js:21997` | `initAdminStaffLeaveReviewControls` | `querySelector` | `".portal-overlay:not([hidden])"` |
-| `auth.js:22113` | `initAdminStaffLeaveReviewControls` | `closest` | `"[data-leave-open]"` |
-| `auth.js:22132` | `initAdminStaffLeaveReviewControls` | `closest` | `"[data-leave-review-close]"` |
-| `auth.js:22138` | `initAdminStaffLeaveReviewControls` | `closest` | `"[data-leave-approve]"` |
-| `auth.js:22144` | `initAdminStaffLeaveReviewControls` | `closest` | `"[data-leave-reject]"` |
-| `auth.js:22214` | `renderPortalFeatureToggleSection` | `querySelectorAll` | `"[data-feature-toggle]"` |
-| `auth.js:24304` | `clearPortalStudentErrors` | `querySelectorAll` | `".portal-field"` |
-| `auth.js:24305` | `clearPortalStudentErrors` | `querySelectorAll` | `"[data-student-error-for]"` |
-| `auth.js:24311` | `setPortalStudentError` | `querySelector` | ``[data-student-error-for="${fieldName}"]`` |
-| `auth.js:24313` | `setPortalStudentError` | `closest` | `".portal-field"` |
-| `auth.js:25053` | `resolveGuardianRelationshipFields` | `querySelector` | `'[data-guardian-field="relationshipType"]'` |
-| `auth.js:25055` | `resolveGuardianRelationshipFields` | `querySelector` | `'[data-guardian-field="relationshipOther"]'` |
-| `auth.js:25071` | `updateGuardianRelationshipCustomField` | `querySelector` | `'[data-guardian-field="relationshipType"]'` |
-| `auth.js:25072` | `updateGuardianRelationshipCustomField` | `querySelector` | `'[data-guardian-field="relationshipOther"]'` |
-| `auth.js:25146` | `parseGuardianRows` | `querySelectorAll` | `".portal-guardian-row"` |
-| `auth.js:25152` | `parseGuardianRows` | `querySelector` | `'[data-guardian-field="name"]'` |
-| `auth.js:25154` | `parseGuardianRows` | `querySelector` | `'[data-guardian-field="phone"]'` |
-| `auth.js:25155` | `parseGuardianRows` | `querySelector` | `'[data-guardian-field="email"]'` |
-| `auth.js:25217` | `resetPortalStudentForm` | `querySelector` | `"[data-student-submit]"` |
-| `auth.js:25218` | `resetPortalStudentForm` | `querySelector` | `"[data-student-cancel]"` |
-| `auth.js:25289` | `populatePortalStudentForm` | `querySelector` | `"[data-student-submit]"` |
-| `auth.js:25290` | `populatePortalStudentForm` | `querySelector` | `"[data-student-cancel]"` |
-| `auth.js:25371` | `parseSpreadsheetXmlRows` | `querySelector` | `"parsererror"` |
-| `auth.js:25398` | `parseSpreadsheetXmlRows` | `querySelector` | `"Data"` |
-| `auth.js:25399` | `parseSpreadsheetXmlRows` | `querySelector` | `"ss\\:Data"` |
-| `auth.js:25892` | `initStudentManagementControls` | `querySelector` | `"[data-add-guardian]"` |
-| `auth.js:25893` | `initStudentManagementControls` | `getElementById` | `"portal-student-quick-add-form"` |
-| `auth.js:25894` | `initStudentManagementControls` | `getElementById` | `"portal-student-quick-add-status"` |
-| `auth.js:25895` | `initStudentManagementControls` | `querySelector` | `"[data-student-import-toggle]"` |
-| `auth.js:25896` | `initStudentManagementControls` | `getElementById` | `"portal-student-import-panel"` |
-| `auth.js:25897` | `initStudentManagementControls` | `getElementById` | `"portal-student-create-overlay"` |
-| `auth.js:25898` | `initStudentManagementControls` | `getElementById` | `"portal-student-import-overlay"` |
-| `auth.js:25899` | `initStudentManagementControls` | `getElementById` | `"portal-student-view-overlay"` |
-| `auth.js:25900` | `initStudentManagementControls` | `getElementById` | `"portal-student-view-content"` |
-| `auth.js:25901` | `initStudentManagementControls` | `getElementById` | `"portal-student-docs-overlay"` |
-| `auth.js:25902` | `initStudentManagementControls` | `getElementById` | `"portal-student-docs-status"` |
-| `auth.js:25903` | `initStudentManagementControls` | `getElementById` | `"portal-student-doc-list"` |
-| `auth.js:25904` | `initStudentManagementControls` | `getElementById` | `"portal-student-docs-student-id"` |
-| `auth.js:25905` | `initStudentManagementControls` | `getElementById` | `"portal-student-docs-student-name"` |
-| `auth.js:25906` | `initStudentManagementControls` | `getElementById` | `"portal-student-doc-type"` |
-| `auth.js:25907` | `initStudentManagementControls` | `getElementById` | `"portal-student-doc-file"` |
-| `auth.js:25908` | `initStudentManagementControls` | `querySelector` | `"[data-student-doc-upload]"` |
-| `auth.js:25909` | `initStudentManagementControls` | `getElementById` | `"portal-student-class-filters"` |
-| `auth.js:25910` | `initStudentManagementControls` | `getElementById` | `"portal-student-search"` |
-| `auth.js:25911` | `initStudentManagementControls` | `getElementById` | `"portal-student-import-status"` |
-| `auth.js:25912` | `initStudentManagementControls` | `getElementById` | `"portal-student-import-file"` |
-| `auth.js:25913` | `initStudentManagementControls` | `querySelector` | `"[data-student-import-preview]"` |
-| `auth.js:25914` | `initStudentManagementControls` | `querySelector` | `"[data-student-import-confirm]"` |
-| `auth.js:25915` | `initStudentManagementControls` | `getElementById` | `"portal-student-import-preview"` |
-| `auth.js:25919` | `initStudentManagementControls` | `getElementById` | `"portal-student-create-title"` |
-| `auth.js:26143` | `initStudentManagementControls` | `closest` | `"[data-student-class]"` |
-| `auth.js:26154` | `initStudentManagementControls` | `querySelectorAll` | `"[data-student-create-close]"` |
-| `auth.js:26163` | `initStudentManagementControls` | `querySelectorAll` | `"[data-student-import-close]"` |
-| `auth.js:26169` | `initStudentManagementControls` | `querySelectorAll` | `"[data-student-view-close]"` |
-| `auth.js:26175` | `initStudentManagementControls` | `querySelectorAll` | `"[data-student-docs-close]"` |
-| `auth.js:26289` | `initStudentManagementControls` | `closest` | `"[data-student-doc-action]"` |
-| `auth.js:26371` | `initStudentManagementControls` | `closest` | `'[data-guardian-field="relationshipType"]'` |
-| `auth.js:26377` | `initStudentManagementControls` | `closest` | `".portal-guardian-row"` |
-| `auth.js:26382` | `initStudentManagementControls` | `closest` | `"[data-remove-guardian]"` |
-| `auth.js:26388` | `initStudentManagementControls` | `closest` | `".portal-guardian-row"` |
-| `auth.js:26644` | `initStudentManagementControls` | `querySelector` | `"[data-student-cancel]"` |
-| `auth.js:26656` | `initStudentManagementControls` | `closest` | `"[data-student-bulk-delete-level]"` |
-| `auth.js:26729` | `initStudentManagementControls` | `closest` | `"[data-student-class-toggle]"` |
-| `auth.js:26742` | `initStudentManagementControls` | `closest` | `".portal-student-group"` |
-| `auth.js:26743` | `initStudentManagementControls` | `querySelector` | `".portal-student-group-list"` |
-| `auth.js:26744` | `initStudentManagementControls` | `querySelector` | `".portal-student-group-toggle-arrow"` |
-| `auth.js:26763` | `initStudentManagementControls` | `closest` | `"[data-student-action]"` |
-| `auth.js:27412` | `initStudentManagementControls` | `closest` | `"[data-student-photo-action]"` |
-| `auth.js:27425` | `initStudentManagementControls` | `querySelector` | `"[data-student-photo-input]"` |
-| `auth.js:27452` | `initStudentManagementControls` | `querySelector` | `".portal-student-profile-photo-media"` |
-| `auth.js:27457` | `initStudentManagementControls` | `querySelector` | `'[data-student-photo-action="replace"]'` |
-| `auth.js:27465` | `initStudentManagementControls` | `closest` | `"[data-student-photo-input]"` |
-| `auth.js:27503` | `initStudentManagementControls` | `querySelector` | `".portal-student-profile-photo-media"` |
-| `auth.js:27509` | `initStudentManagementControls` | `querySelector` | `'[data-student-photo-action="remove"]'` |
-| `auth.js:27513` | `initStudentManagementControls` | `querySelector` | `'[data-student-photo-action="replace"]'` |
-| `auth.js:27521` | `initStudentManagementControls` | `querySelectorAll` | `"[data-student-template-download]"` |
-| `auth.js:27730` | `getSelectedRole` | `querySelector` | `".auth-role.is-active"` |
-| `auth.js:27740` | `getSelectedRole` | `querySelector` | `".auth-role-label"` |
-| `auth.js:27751` | `initRoleButtons` | `getElementById` | `"login-email"` |
-| `auth.js:27752` | `initRoleButtons` | `querySelector` | `'.auth-field-label[for="login-email"]'` |
-| `auth.js:27763` | `initRoleButtons` | `querySelectorAll` | `".auth-role"` |
-| `auth.js:27765` | `initRoleButtons` | `querySelectorAll` | `".auth-role"` |
-| `auth.js:27774` | `initPasswordToggles` | `querySelectorAll` | `"[data-password-toggle]"` |
-| `auth.js:27777` | `initPasswordToggles` | `getElementById` | `targetId` |
-| `auth.js:27809` | `getActionFeedbackTrigger` | `matches` | `[ "[data-no-inline-feedback]", "[data-password-toggle]", "[data-theme-toggle]", "[data-sidebar-toggle]", "[data-auth-modal-close]", "[data-auth-role]", ].join(",")` |
-| `auth.js:27865` | `getInlineActionFeedbackHost` | `getElementById` | `existingId` |
-| `auth.js:27879` | `getInlineActionFeedbackHost` | `closest` | `".inline-action-feedback-wrap"` |
-| `auth.js:27977` | `clearInlineActionFeedback` | `getElementById` | `hostId` |
-| `auth.js:28075` | `clearFieldErrors` | `querySelectorAll` | `".auth-line-field"` |
-| `auth.js:28076` | `clearFieldErrors` | `querySelectorAll` | `".auth-check"` |
-| `auth.js:28077` | `clearFieldErrors` | `querySelectorAll` | `".portal-field"` |
-| `auth.js:28078` | `clearFieldErrors` | `querySelectorAll` | `".auth-field-error"` |
-| `auth.js:28084` | `setFieldError` | `querySelector` | ``[data-error-for="${fieldName}"]`` |
-| `auth.js:28087` | `setFieldError` | `closest` | `".auth-line-field"` |
-| `auth.js:28088` | `setFieldError` | `closest` | `".auth-line-field"` |
-| `auth.js:28089` | `setFieldError` | `closest` | `".auth-check"` |
-| `auth.js:28090` | `setFieldError` | `closest` | `".auth-check"` |
-| `auth.js:28091` | `setFieldError` | `closest` | `".portal-field"` |
-| `auth.js:28092` | `setFieldError` | `closest` | `".portal-field"` |
-| `auth.js:28180` | `initSignupFlow` | `getElementById` | `"signup-form"` |
-| `auth.js:28181` | `initSignupFlow` | `getElementById` | `"signup-status"` |
-| `auth.js:28194` | `initSignupFlow` | `closest` | `"[data-supabase-resend-confirmation]"` |
-| `auth.js:28641` | `initLoginFlow` | `getElementById` | `"login-form"` |
-| `auth.js:28642` | `initLoginFlow` | `getElementById` | `"login-status"` |
-| `auth.js:28939` | `initOwnerAccessFlow` | `getElementById` | `"owner-login-form"` |
-| `auth.js:28940` | `initOwnerAccessFlow` | `getElementById` | `"owner-login-status"` |
-| `auth.js:28941` | `initOwnerAccessFlow` | `getElementById` | `"owner-confirm-block"` |
-| `auth.js:28942` | `initOwnerAccessFlow` | `getElementById` | `"owner-login-copy"` |
-| `auth.js:28943` | `initOwnerAccessFlow` | `getElementById` | `"owner-login-submit"` |
-| `auth.js:29040` | `initForgotPasswordFlow` | `getElementById` | `"forgot-form"` |
-| `auth.js:29041` | `initForgotPasswordFlow` | `getElementById` | `"forgot-status"` |
-| `auth.js:29042` | `initForgotPasswordFlow` | `getElementById` | `"forgot-form-view"` |
-| `auth.js:29043` | `initForgotPasswordFlow` | `getElementById` | `"forgot-sent-view"` |
-| `auth.js:29129` | `initResetPasswordFlow` | `getElementById` | `"reset-form"` |
-| `auth.js:29130` | `initResetPasswordFlow` | `getElementById` | `"reset-status"` |
-| `auth.js:29131` | `initResetPasswordFlow` | `getElementById` | `"reset-form-wrapper"` |
-| `auth.js:29132` | `initResetPasswordFlow` | `getElementById` | `"reset-invalid-view"` |
-| `auth.js:29133` | `initResetPasswordFlow` | `getElementById` | `"reset-success-view"` |
-| `auth.js:29310` | `ensureGoogleModal` | `getElementById` | `"auth-google-modal"` |
-| `auth.js:29340` | `ensureGoogleModal` | `getElementById` | `"auth-google-modal"` |
-| `auth.js:29342` | `ensureGoogleModal` | `querySelectorAll` | `"[data-auth-modal-close]"` |
-| `auth.js:29346` | `ensureGoogleModal` | `querySelector` | `"#auth-google-form"` |
-| `auth.js:29353` | `openGoogleModal` | `querySelector` | `"#auth-google-title"` |
-| `auth.js:29354` | `openGoogleModal` | `querySelector` | `"#auth-google-copy"` |
-| `auth.js:29355` | `openGoogleModal` | `querySelector` | `"#auth-google-error"` |
-| `auth.js:29356` | `openGoogleModal` | `querySelector` | `"#auth-google-email"` |
-| `auth.js:29373` | `closeGoogleModal` | `getElementById` | `"auth-google-modal"` |
-| `auth.js:29385` | `startSupabaseGoogleAuth` | `getElementById` | `page === "signup" ? "signup-status" : "login-status"` |
-| `auth.js:29386` | `startSupabaseGoogleAuth` | `getElementById` | `"login-remember"` |
-| `auth.js:29423` | `handleGoogleSubmit` | `getElementById` | `"auth-google-modal"` |
-| `auth.js:29425` | `handleGoogleSubmit` | `querySelector` | `"#auth-google-error"` |
-| `auth.js:29550` | `initGoogleButtons` | `querySelectorAll` | `"[data-google-auth]"` |
-| `auth.js:29569` | `initConfirmPage` | `getElementById` | `"confirm-status"` |
-| `auth.js:29570` | `initConfirmPage` | `getElementById` | `"confirm-heading"` |
-| `auth.js:29571` | `initConfirmPage` | `getElementById` | `"confirm-copy"` |
-| `auth.js:29572` | `initConfirmPage` | `getElementById` | `"confirm-details"` |
-| `auth.js:29626` | `initAdmissionsApplyPage` | `getElementById` | `"admissions-apply-form"` |
-| `auth.js:29627` | `initAdmissionsApplyPage` | `getElementById` | `"admissions-apply-status"` |
-| `auth.js:29628` | `initAdmissionsApplyPage` | `getElementById` | `"admissions-workspace-id"` |
-| `auth.js:29629` | `initAdmissionsApplyPage` | `getElementById` | `"admissions-apply-copy"` |
-| `auth.js:29630` | `initAdmissionsApplyPage` | `getElementById` | `"admissions-step-indicator"` |
-| `auth.js:29631` | `initAdmissionsApplyPage` | `getElementById` | `"admissions-review-panel"` |
-| `auth.js:29632` | `initAdmissionsApplyPage` | `getElementById` | `"apply-health-condition"` |
-| `auth.js:29633` | `initAdmissionsApplyPage` | `getElementById` | `"health-condition-details-wrap"` |
-| `auth.js:29634` | `initAdmissionsApplyPage` | `getElementById` | `"apply-health-condition-details"` |
-| `auth.js:29638` | `initAdmissionsApplyPage` | `querySelectorAll` | `'input[type="file"]'` |
-| `auth.js:29656` | `initAdmissionsApplyPage` | `getElementById` | `"admissions-apply-brand-mark"` |
-| `auth.js:29657` | `initAdmissionsApplyPage` | `getElementById` | `"admissions-apply-school-name"` |
-| `auth.js:29844` | `initAdmissionsApplyPage` | `querySelectorAll` | `"[data-admissions-step]"` |
-| `auth.js:29853` | `initAdmissionsApplyPage` | `getElementById` | `"admissions-apply-toast"` |
-| `auth.js:29890` | `initAdmissionsApplyPage` | `closest` | `".auth-field-block"` |
-| `auth.js:29926` | `initAdmissionsApplyPage` | `closest` | `".auth-field-block"` |
-| `auth.js:29928` | `initAdmissionsApplyPage` | `querySelector` | `"[data-apply-file-selection]"` |
-| `auth.js:30199` | `initAdmissionsApplyPage` | `closest` | `"[data-apply-file-remove]"` |
-| `auth.js:30221` | `initAdmissionsApplyPage` | `querySelectorAll` | `"[data-admission-step-next]"` |
-| `auth.js:30230` | `initAdmissionsApplyPage` | `querySelectorAll` | `"[data-admission-step-prev]"` |
-| `auth.js:30555` | `renderTeacherAttendanceWorkspace` | `querySelector` | `"[data-teacher-attendance-date]"` |
-| `auth.js:30556` | `renderTeacherAttendanceWorkspace` | `querySelector` | `"[data-teacher-attendance-lesson]"` |
-| `auth.js:30557` | `renderTeacherAttendanceWorkspace` | `querySelector` | `"[data-teacher-attendance-form]"` |
-| `auth.js:30558` | `renderTeacherAttendanceWorkspace` | `querySelector` | `"#teacher-attendance-status"` |
-| `auth.js:30586` | `renderTeacherAttendanceWorkspace` | `querySelectorAll` | `".attendance-status-option input"` |
-| `auth.js:30588` | `renderTeacherAttendanceWorkspace` | `closest` | `".attendance-status-picker"` |
-| `auth.js:30595` | `renderTeacherAttendanceWorkspace` | `querySelector` | `"[data-attendance-mark-all]"` |
-| `auth.js:30598` | `renderTeacherAttendanceWorkspace` | `querySelectorAll` | `'.attendance-status-option input[value="present"]'` |
-| `auth.js:30610` | `renderTeacherAttendanceWorkspace` | `querySelectorAll` | `"[data-attendance-student-row]"` |
-| `auth.js:30614` | `renderTeacherAttendanceWorkspace` | `querySelector` | `'input[type="radio"]:checked'` |
-| `auth.js:30623` | `renderTeacherAttendanceWorkspace` | `querySelector` | `"[data-attendance-note]"` |
-| `auth.js:30655` | `renderTeacherAttendanceWorkspace` | `querySelectorAll` | `"[data-attendance-student-row]"` |
-| `auth.js:30659` | `renderTeacherAttendanceWorkspace` | `querySelector` | `'input[type="radio"]:checked'` |
-| `auth.js:30660` | `renderTeacherAttendanceWorkspace` | `querySelector` | `"[data-attendance-note]"` |
-| `auth.js:32174` | `showReportCardToast` | `getElementById` | `"portal-report-card-toast"` |
-| `auth.js:32223` | `loadReportCardPdfLibrary` | `querySelector` | `'script[data-report-card-pdf-library="true"]'` |
-| `auth.js:32463` | `ensureReportCardModal` | `getElementById` | `"portal-report-card-overlay"` |
-| `auth.js:32490` | `ensureReportCardModal` | `getElementById` | `"portal-report-card-overlay"` |
-| `auth.js:32493` | `ensureReportCardModal` | `closest` | `"[data-report-card-close]"` |
-| `auth.js:32496` | `ensureReportCardModal` | `querySelector` | `".portal-overlay:not([hidden])"` |
-| `auth.js:32500` | `ensureReportCardModal` | `closest` | `"[data-report-card-print]"` |
-| `auth.js:32505` | `ensureReportCardModal` | `closest` | `"[data-report-card-download]"` |
-| `auth.js:32523` | `ensureReportCardModal` | `querySelector` | `"[data-report-card-close]"` |
-| `auth.js:32537` | `openReportCardModal` | `querySelector` | `"#portal-report-card-modal-body"` |
-| `auth.js:32538` | `openReportCardModal` | `querySelector` | `"#portal-report-card-modal-title"` |
-| `auth.js:32550` | `openReportCardModal` | `querySelector` | `"[data-report-card-close]"` |
-| `auth.js:32566` | `wireReportCardDocumentActions` | `closest` | `"[data-report-card-action]"` |
-| `auth.js:33394` | `showPortalOnboardingModal` | `getElementById` | `"portal-onboarding-modal"` |
-| `auth.js:33486` | `showPortalOnboardingModal` | `closest` | `"[data-onboarding-close]"` |
-| `auth.js:33487` | `showPortalOnboardingModal` | `closest` | `"[data-onboarding-skip]"` |
-| `auth.js:33488` | `showPortalOnboardingModal` | `closest` | `"[data-onboarding-prev]"` |
-| `auth.js:33489` | `showPortalOnboardingModal` | `closest` | `"[data-onboarding-next]"` |
-| `auth.js:33490` | `showPortalOnboardingModal` | `closest` | `"[data-onboarding-step]"` |
-| `auth.js:33491` | `showPortalOnboardingModal` | `closest` | `"[data-onboarding-open-section]"` |
-| `auth.js:33537` | `renderAdminPortalSetupChecklist` | `getElementById` | `"portal-metrics"` |
-| `auth.js:33544` | `renderAdminPortalSetupChecklist` | `getElementById` | `"portal-onboarding-checklist"` |
-| `auth.js:33594` | `renderAdminPortalSetupChecklist` | `querySelector` | `"[data-open-onboarding-guide]"` |
-| `auth.js:33597` | `renderAdminPortalSetupChecklist` | `querySelector` | `"[data-dismiss-onboarding-checklist]"` |
-| `auth.js:33614` | `initPortalOnboarding` | `getElementById` | `"portal-onboarding-modal"` |
-| `auth.js:33657` | `initPortalAnnouncementToasts` | `getElementById` | `"portal-announcement-toast"` |
-| `auth.js:33697` | `initPortalAnnouncementToasts` | `querySelector` | `".portal-announcement-toast-timer"` |
-| `auth.js:33703` | `initPortalAnnouncementToasts` | `querySelector` | `"[data-announcement-toast-title]"` |
-| `auth.js:33705` | `initPortalAnnouncementToasts` | `querySelector` | `"[data-announcement-toast-message]"` |
-| `auth.js:33707` | `initPortalAnnouncementToasts` | `querySelector` | `"[data-announcement-toast-meta]"` |
-| `auth.js:33731` | `initPortalAnnouncementToasts` | `querySelector` | `"[data-announcement-toast-close]"` |
-| `auth.js:33842` | `renderStudentEvents` | `closest` | `".admin-events-card"` |
-| `auth.js:33843` | `renderStudentEvents` | `closest` | `".admin-events-card"` |
-| `auth.js:34163` | `renderStudentClassesSection` | `getElementById` | `"student-class-roster-overlay"` |
-| `auth.js:34183` | `renderStudentClassesSection` | `getElementById` | `"student-class-roster-overlay"` |
-| `auth.js:34194` | `renderStudentClassesSection` | `querySelector` | `".portal-overlay:not([hidden])"` |
-| `auth.js:34199` | `renderStudentClassesSection` | `getElementById` | `"student-class-roster-title"` |
-| `auth.js:34200` | `renderStudentClassesSection` | `getElementById` | `"student-class-roster-body"` |
-| `auth.js:34211` | `renderStudentClassesSection` | `querySelectorAll` | `"[data-student-other-class-open]"` |
-| `auth.js:34226` | `renderStudentClassesSection` | `closest` | `"[data-student-class-roster-close]"` |
-| `auth.js:34564` | `renderStudentReportsSection` | `querySelector` | `".parent-report-card-command .admin-surface-head h2"` |
-| `auth.js:34565` | `renderStudentReportsSection` | `querySelector` | `".parent-report-card-command .admin-surface-head span"` |
-| `auth.js:34834` | `renderStaffEvents` | `closest` | `".admin-events-card"` |
-| `auth.js:34835` | `renderStaffEvents` | `closest` | `".admin-events-card"` |
-| `auth.js:35164` | `renderStaffTimetableWorkspace` | `querySelectorAll` | `"[data-staff-timetable-view]"` |
-| `auth.js:35285` | `renderStaffClassesWorkspace` | `getElementById` | `"staff-class-roster-overlay"` |
-| `auth.js:35305` | `renderStaffClassesWorkspace` | `getElementById` | `"staff-class-roster-overlay"` |
-| `auth.js:35309` | `renderStaffClassesWorkspace` | `getElementById` | `"staff-class-roster-title"` |
-| `auth.js:35310` | `renderStaffClassesWorkspace` | `getElementById` | `"staff-class-roster-body"` |
-| `auth.js:35320` | `renderStaffClassesWorkspace` | `querySelector` | `".portal-overlay:not([hidden])"` |
-| `auth.js:35345` | `renderStaffClassesWorkspace` | `closest` | `"[data-staff-class-open]"` |
-| `auth.js:35363` | `renderStaffClassesWorkspace` | `closest` | `"[data-staff-class-roster-close]"` |
-| `auth.js:35696` | `renderStaffGradebookWorkspace` | `querySelector` | `"#staff-gradebook-status"` |
-| `auth.js:35704` | `renderStaffGradebookWorkspace` | `querySelector` | `"[data-gradebook-class]"` |
-| `auth.js:35709` | `renderStaffGradebookWorkspace` | `querySelector` | `"[data-gradebook-subject]"` |
-| `auth.js:35713` | `renderStaffGradebookWorkspace` | `querySelector` | `"[data-gradebook-session]"` |
-| `auth.js:35718` | `renderStaffGradebookWorkspace` | `querySelector` | `"[data-gradebook-term]"` |
-| `auth.js:35725` | `renderStaffGradebookWorkspace` | `querySelector` | `"#staff-gradebook-status"` |
-| `auth.js:35726` | `renderStaffGradebookWorkspace` | `querySelector` | `"[data-gradebook-components]"` |
-| `auth.js:35728` | `renderStaffGradebookWorkspace` | `querySelectorAll` | `"[data-gradebook-component]"` |
-| `auth.js:35731` | `renderStaffGradebookWorkspace` | `querySelector` | `"[data-component-name]"` |
-| `auth.js:35732` | `renderStaffGradebookWorkspace` | `querySelector` | `"[data-component-maximum]"` |
-| `auth.js:35736` | `renderStaffGradebookWorkspace` | `querySelector` | ``[data-gradebook-heading="${CSS.escape(component.id)}"]`` |
-| `auth.js:35744` | `renderStaffGradebookWorkspace` | `querySelector` | `"[data-gradebook-component-total]"` |
-| `auth.js:35749` | `renderStaffGradebookWorkspace` | `querySelectorAll` | `"[data-gradebook-student]"` |
-| `auth.js:35752` | `renderStaffGradebookWorkspace` | `querySelector` | ``[data-gradebook-score="${CSS.escape(component.id)}"]`` |
-| `auth.js:35757` | `renderStaffGradebookWorkspace` | `querySelector` | `"[data-gradebook-student-total]"` |
-| `auth.js:35764` | `renderStaffGradebookWorkspace` | `closest` | `"[data-gradebook-component]"` |
-| `auth.js:35764` | `renderStaffGradebookWorkspace` | `matches` | `"[data-gradebook-score]"` |
-| `auth.js:35768` | `renderStaffGradebookWorkspace` | `querySelector` | `"[data-gradebook-add-component]"` |
-| `auth.js:35783` | `renderStaffGradebookWorkspace` | `querySelector` | `".staff-gradebook-table thead th:last-child"` |
-| `auth.js:35788` | `renderStaffGradebookWorkspace` | `querySelectorAll` | `"[data-gradebook-student]"` |
-| `auth.js:35799` | `renderStaffGradebookWorkspace` | `closest` | `"[data-gradebook-remove-component]"` |
-| `auth.js:35801` | `renderStaffGradebookWorkspace` | `querySelectorAll` | `"[data-gradebook-component]"` |
-| `auth.js:35805` | `renderStaffGradebookWorkspace` | `closest` | `"[data-gradebook-component]"` |
-| `auth.js:35808` | `renderStaffGradebookWorkspace` | `querySelector` | ``[data-gradebook-heading="${CSS.escape(componentId)}"]`` |
-| `auth.js:35809` | `renderStaffGradebookWorkspace` | `querySelectorAll` | ``[data-gradebook-score="${CSS.escape(componentId)}"]`` |
-| `auth.js:35810` | `renderStaffGradebookWorkspace` | `closest` | `"td"` |
-| `auth.js:35814` | `renderStaffGradebookWorkspace` | `querySelector` | `"[data-gradebook-save]"` |
-| `auth.js:35833` | `renderStaffGradebookWorkspace` | `querySelector` | ``[data-gradebook-student="${CSS.escape(student.id)}"]`` |
-| `auth.js:35947` | `collectStaffReportCardSubjects` | `querySelectorAll` | `"[data-report-subject-row]"` |
-| `auth.js:35951` | `collectStaffReportCardSubjects` | `querySelector` | `'[name="subjectName"]'` |
-| `auth.js:35952` | `collectStaffReportCardSubjects` | `querySelector` | `'[name="subjectCode"]'` |
-| `auth.js:35953` | `collectStaffReportCardSubjects` | `querySelector` | `'[name="caScore"]'` |
-| `auth.js:35954` | `collectStaffReportCardSubjects` | `querySelector` | `'[name="examScore"]'` |
-| `auth.js:36317` | `renderStaffResultsWorkspace` | `querySelector` | `"#staff-result-context-form"` |
-| `auth.js:36318` | `renderStaffResultsWorkspace` | `querySelector` | `"#staff-result-card-form"` |
-| `auth.js:36349` | `renderStaffResultsWorkspace` | `querySelector` | `"#staff-result-card-status"` |
-| `auth.js:36350` | `renderStaffResultsWorkspace` | `querySelector` | `"#staff-result-subject-rows"` |
-| `auth.js:36352` | `renderStaffResultsWorkspace` | `querySelectorAll` | `"[data-report-subject-row]"` |
-| `auth.js:36353` | `renderStaffResultsWorkspace` | `querySelector` | `'[name="caScore"]'` |
-| `auth.js:36354` | `renderStaffResultsWorkspace` | `querySelector` | `'[name="examScore"]'` |
-| `auth.js:36357` | `renderStaffResultsWorkspace` | `querySelector` | `"[data-report-row-total]"` |
-| `auth.js:36358` | `renderStaffResultsWorkspace` | `querySelector` | `"[data-report-row-grade]"` |
-| `auth.js:36362` | `renderStaffResultsWorkspace` | `querySelector` | `'[name="subjectName"]'` |
-| `auth.js:36375` | `renderStaffResultsWorkspace` | `querySelector` | ``[data-report-editor-summary="${key}"]`` |
-| `auth.js:36416` | `renderStaffResultsWorkspace` | `closest` | `"[data-report-subject-row]"` |
-| `auth.js:36421` | `renderStaffResultsWorkspace` | `closest` | `"[data-report-subject-add]"` |
-| `auth.js:36422` | `renderStaffResultsWorkspace` | `querySelectorAll` | `"[data-report-subject-row]"` |
-| `auth.js:36427` | `renderStaffResultsWorkspace` | `querySelectorAll` | `"[data-report-subject-row]"` |
-| `auth.js:36432` | `renderStaffResultsWorkspace` | `closest` | `"[data-report-subject-remove]"` |
-| `auth.js:36434` | `renderStaffResultsWorkspace` | `closest` | `"[data-report-subject-row]"` |
-| `auth.js:36435` | `renderStaffResultsWorkspace` | `querySelectorAll` | `"[data-report-subject-row]"` |
-| `auth.js:36436` | `renderStaffResultsWorkspace` | `querySelector` | `"td"` |
-| `auth.js:36443` | `renderStaffResultsWorkspace` | `closest` | `"[data-result-generate-summary]"` |
-| `auth.js:36471` | `renderStaffResultsWorkspace` | `closest` | `"[data-report-card-release]"` |
-| `auth.js:36509` | `renderStaffResultsWorkspace` | `closest` | `"[data-report-card-return-draft]"` |
-| `auth.js:36940` | `renderStaffLessonPlansWorkspace` | `querySelector` | `"#staff-lesson-plan-form"` |
-| `auth.js:36952` | `renderStaffLessonPlansWorkspace` | `querySelector` | `"[data-lesson-resource-input]"` |
-| `auth.js:36956` | `renderStaffLessonPlansWorkspace` | `querySelector` | `"[data-lesson-attachments]"` |
-| `auth.js:36974` | `renderStaffLessonPlansWorkspace` | `querySelector` | `"[data-lesson-resource-input]"` |
-| `auth.js:36978` | `renderStaffLessonPlansWorkspace` | `querySelector` | `"[data-lesson-attachments]"` |
-| `auth.js:36983` | `renderStaffLessonPlansWorkspace` | `querySelector` | `"#staff-lesson-plan-status"` |
-| `auth.js:36987` | `renderStaffLessonPlansWorkspace` | `querySelector` | `"[data-lesson-resource-input]"` |
-| `auth.js:37074` | `renderStaffLessonPlansWorkspace` | `querySelector` | `"#staff-lesson-plan-form"` |
-| `auth.js:37075` | `renderStaffLessonPlansWorkspace` | `querySelector` | `"#staff-lesson-plan-status"` |
-| `auth.js:37087` | `renderStaffLessonPlansWorkspace` | `querySelector` | `"[data-lesson-attachments]"` |
-| `auth.js:37088` | `renderStaffLessonPlansWorkspace` | `closest` | `"[data-lesson-attachment-remove]"` |
-| `auth.js:37091` | `renderStaffLessonPlansWorkspace` | `querySelector` | `"[data-lesson-attachments]"` |
-| `auth.js:37095` | `renderStaffLessonPlansWorkspace` | `querySelector` | `"[data-lesson-reset]"` |
-| `auth.js:37100` | `renderStaffLessonPlansWorkspace` | `querySelectorAll` | `"[data-lesson-save-status]"` |
-| `auth.js:37129` | `renderStaffLessonPlansWorkspace` | `querySelector` | `"#staff-lesson-plan-status"` |
-| `auth.js:37132` | `renderStaffLessonPlansWorkspace` | `querySelectorAll` | `"[data-lesson-action]"` |
-| `auth.js:37530` | `renderPortalMessageInbox` | `querySelector` | `"[data-message-history]"` |
-| `auth.js:37535` | `renderPortalMessageInbox` | `querySelector` | `"[data-message-recipient-picker]"` |
-| `auth.js:37536` | `renderPortalMessageInbox` | `querySelector` | `"[data-message-recipient-search]"` |
-| `auth.js:37542` | `renderPortalMessageInbox` | `querySelector` | `"[data-message-recipient-open]"` |
-| `auth.js:37548` | `renderPortalMessageInbox` | `querySelector` | `"[data-message-recipient-open]"` |
-| `auth.js:37551` | `renderPortalMessageInbox` | `querySelector` | `"[data-message-recipient-close]"` |
-| `auth.js:37557` | `renderPortalMessageInbox` | `querySelectorAll` | `"[data-message-recipient-key]"` |
-| `auth.js:37564` | `renderPortalMessageInbox` | `querySelectorAll` | `"[data-message-recipient-group]"` |
-| `auth.js:37565` | `renderPortalMessageInbox` | `querySelector` | `"[data-message-recipient-key]:not([hidden])"` |
-| `auth.js:37567` | `renderPortalMessageInbox` | `querySelector` | `"[data-message-recipient-empty]"` |
-| `auth.js:37572` | `renderPortalMessageInbox` | `querySelectorAll` | `"[data-message-recipient-key]"` |
-| `auth.js:37586` | `renderPortalMessageInbox` | `querySelectorAll` | `"[data-message-thread]"` |
-| `auth.js:37599` | `renderPortalMessageInbox` | `querySelector` | `"[data-message-delete-thread]"` |
-| `auth.js:37628` | `renderPortalMessageInbox` | `querySelector` | `"[data-message-composer]"` |
-| `auth.js:37659` | `renderPortalMessageInbox` | `querySelector` | `"[data-message-status]"` |
-| `auth.js:38211` | `renderStaffLeaveWorkspace` | `querySelector` | `"#staff-leave-form"` |
-| `auth.js:38212` | `renderStaffLeaveWorkspace` | `querySelector` | `"#staff-leave-status"` |
-| `auth.js:38218` | `renderStaffLeaveWorkspace` | `querySelector` | `"[data-leave-days-output]"` |
-| `auth.js:38612` | `wireNotificationReplyForms` | `closest` | `"[data-notification-parent-reply-form]"` |
-| `auth.js:38634` | `wireNotificationReplyForms` | `querySelector` | `"button[type='submit']"` |
-| `auth.js:38648` | `ensureDashboardNotificationsOverlay` | `getElementById` | `"admin-notification-overlay"` |
-| `auth.js:38675` | `ensureDashboardNotificationsOverlay` | `getElementById` | `"admin-notification-overlay"` |
-| `auth.js:38999` | `initDashboardGlobalSearch` | `getElementById` | `input.getAttribute("aria-controls") &#124;&#124; "admin-search-suggestions"` |
-| `auth.js:39052` | `initPortalNotifications` | `getElementById` | `"admin-notification-list"` |
-| `auth.js:39069` | `initPortalNotifications` | `getElementById` | `"admin-notification-dot"` |
-| `auth.js:39094` | `initPortalNotifications` | `querySelectorAll` | `"[data-notification-close]"` |
-| `auth.js:39149` | `initAdminSectionQuickNav` | `querySelector` | `".admin-dashboard-main"` |
-| `auth.js:39150` | `initAdminSectionQuickNav` | `querySelector` | `".admin-dashboard-topbar"` |
-| `auth.js:39156` | `initAdminSectionQuickNav` | `querySelector` | `".admin-section-quick-nav"` |
-| `auth.js:39162` | `initAdminSectionQuickNav` | `querySelectorAll` | `".admin-settings-subnav a"` |
-| `auth.js:39191` | `initAdminSectionQuickNav` | `querySelectorAll` | `".admin-surface-card"` |
-| `auth.js:39192` | `initAdminSectionQuickNav` | `querySelector` | `".admin-surface-head h2, .admin-report-heading h2"` |
-| `auth.js:39210` | `initAdminSectionQuickNav` | `querySelector` | `".admin-surface-head h2, .admin-report-heading h2"` |
-| `auth.js:39221` | `initAdminSectionQuickNav` | `getElementById` | `id` |
-| `auth.js:39221` | `initAdminSectionQuickNav` | `getElementById` | `id` |
-| `auth.js:39256` | `initAdminSectionQuickNav` | `querySelectorAll` | `".admin-section-quick-link"` |
-| `auth.js:39478` | `loadPaystackInline` | `querySelector` | `'script[src="https://js.paystack.co/v2/inline.js"]'` |
-| `auth.js:39944` | `renderParentChildSelector` | `querySelector` | `"#parent-child-switch"` |
-| `auth.js:40561` | `ensureParentFeeInvoiceModal` | `getElementById` | `"parent-fee-invoice-overlay"` |
-| `auth.js:40584` | `ensureParentFeeInvoiceModal` | `getElementById` | `"parent-fee-invoice-overlay"` |
-| `auth.js:40587` | `ensureParentFeeInvoiceModal` | `closest` | `"[data-parent-fee-invoice-close]"` |
-| `auth.js:40589` | `ensureParentFeeInvoiceModal` | `querySelector` | `".portal-overlay:not([hidden])"` |
-| `auth.js:40598` | `openParentFeeInvoiceModal` | `querySelector` | `"#parent-fee-invoice-modal-title"` |
-| `auth.js:40599` | `openParentFeeInvoiceModal` | `querySelector` | `"#parent-fee-invoice-modal-body"` |
-| `auth.js:40611` | `openParentFeeInvoiceModal` | `querySelector` | `"[data-parent-fee-invoice-download]"` |
-| `auth.js:40618` | `openParentFeeInvoiceModal` | `querySelector` | `"[data-parent-fee-invoice-close]"` |
-| `auth.js:40777` | `renderParentFeesPage` | `querySelector` | `"#parent-fee-payment-form"` |
-| `auth.js:40778` | `renderParentFeesPage` | `querySelector` | `"#parent-fee-payment-status"` |
-| `auth.js:40779` | `renderParentFeesPage` | `querySelector` | `"[data-parent-fee-invoice-view]"` |
-| `auth.js:40780` | `renderParentFeesPage` | `querySelector` | `"[data-parent-fee-invoice-download]"` |
-| `auth.js:40799` | `renderParentFeesPage` | `querySelector` | `"#parent-fee-payment-amount"` |
-| `auth.js:40819` | `renderParentFeesPage` | `querySelector` | `"button[type='submit']"` |
-| `auth.js:41437` | `initParentFloatingChatbot` | `getElementById` | `"parent-floating-chatbot"` |
-| `auth.js:41496` | `initParentFloatingChatbot` | `querySelector` | `"[data-parent-chatbot-toggle]"` |
-| `auth.js:41497` | `initParentFloatingChatbot` | `querySelector` | `"[data-parent-chatbot-panel]"` |
-| `auth.js:41498` | `initParentFloatingChatbot` | `querySelector` | `"[data-parent-chatbot-close]"` |
-| `auth.js:41499` | `initParentFloatingChatbot` | `querySelector` | `"[data-parent-chatbot-thread]"` |
-| `auth.js:41500` | `initParentFloatingChatbot` | `querySelector` | `"[data-parent-chatbot-form]"` |
-| `auth.js:41553` | `initParentFloatingChatbot` | `querySelectorAll` | `"[data-parent-chatbot-question]"` |
-| `auth.js:41600` | `initParentPages` | `getElementById` | `"admin-brand-mark"` |
-| `auth.js:41601` | `initParentPages` | `getElementById` | `"admin-brand-name"` |
-| `auth.js:41602` | `initParentPages` | `getElementById` | `"admin-brand-subtitle"` |
-| `auth.js:41603` | `initParentPages` | `getElementById` | `"admin-profile-avatar"` |
-| `auth.js:41604` | `initParentPages` | `getElementById` | `"admin-profile-name"` |
-| `auth.js:41605` | `initParentPages` | `getElementById` | `"admin-profile-role"` |
-| `auth.js:41606` | `initParentPages` | `getElementById` | `"portal-gate"` |
-| `auth.js:41607` | `initParentPages` | `getElementById` | `"portal-last-updated"` |
-| `auth.js:41638` | `initParentPages` | `getElementById` | `"parent-child-switcher"` |
-| `auth.js:41640` | `initParentPages` | `getElementById` | `"admin-notification-button"` |
-| `auth.js:41641` | `initParentPages` | `querySelector` | `".admin-dashboard-topbar"` |
-| `auth.js:41676` | `initParentPages` | `getElementById` | `"parent-page-content"` |
-| `auth.js:41894` | `renderSuperAdminUsers` | `getElementById` | `"super-admin-search"` |
-| `auth.js:41895` | `renderSuperAdminUsers` | `getElementById` | `"super-admin-role-filter"` |
-| `auth.js:41896` | `renderSuperAdminUsers` | `getElementById` | `"super-admin-status-filter"` |
-| `auth.js:42052` | `refreshSuperAdminConsole` | `getElementById` | `"super-admin-metrics"` |
-| `auth.js:42053` | `refreshSuperAdminConsole` | `getElementById` | `"super-admin-users"` |
-| `auth.js:42054` | `refreshSuperAdminConsole` | `getElementById` | `"super-admin-workspaces"` |
-| `auth.js:42055` | `refreshSuperAdminConsole` | `getElementById` | `"super-admin-activity"` |
-| `auth.js:42057` | `refreshSuperAdminConsole` | `getElementById` | `"portal-last-updated"` |
-| `auth.js:42064` | `handleSuperAdminUserAction` | `closest` | `"[data-super-user-action]"` |
-| `auth.js:42205` | `initSuperAdminPage` | `getElementById` | `"admin-brand-mark"` |
-| `auth.js:42206` | `initSuperAdminPage` | `getElementById` | `"admin-brand-name"` |
-| `auth.js:42207` | `initSuperAdminPage` | `getElementById` | `"admin-brand-subtitle"` |
-| `auth.js:42208` | `initSuperAdminPage` | `getElementById` | `"admin-profile-avatar"` |
-| `auth.js:42209` | `initSuperAdminPage` | `getElementById` | `"admin-profile-name"` |
-| `auth.js:42210` | `initSuperAdminPage` | `getElementById` | `"admin-profile-role"` |
-| `auth.js:42211` | `initSuperAdminPage` | `getElementById` | `"portal-gate"` |
-| `auth.js:42212` | `initSuperAdminPage` | `getElementById` | `"super-admin-status"` |
-| `auth.js:42213` | `initSuperAdminPage` | `getElementById` | `"super-admin-users"` |
-| `auth.js:42240` | `initSuperAdminPage` | `querySelectorAll` | `"[data-super-refresh]"` |
-| `auth.js:42247` | `initSuperAdminPage` | `getElementById` | `id` |
-| `auth.js:42248` | `initSuperAdminPage` | `getElementById` | `id` |
-| `auth.js:42266` | `initAdminShellPages` | `getElementById` | `"admin-brand-mark"` |
-| `auth.js:42267` | `initAdminShellPages` | `getElementById` | `"admin-brand-name"` |
-| `auth.js:42268` | `initAdminShellPages` | `getElementById` | `"admin-brand-subtitle"` |
-| `auth.js:42269` | `initAdminShellPages` | `getElementById` | `"admin-profile-avatar"` |
-| `auth.js:42270` | `initAdminShellPages` | `getElementById` | `"admin-profile-name"` |
-| `auth.js:42271` | `initAdminShellPages` | `getElementById` | `"admin-profile-role"` |
-| `auth.js:42272` | `initAdminShellPages` | `getElementById` | `"portal-last-updated"` |
-| `auth.js:42273` | `initAdminShellPages` | `getElementById` | `"portal-gate"` |
-| `auth.js:42656` | `initAdmissionsControls` | `querySelector` | `'[data-admission-delete-all="applications"]'` |
-| `auth.js:42657` | `initAdmissionsControls` | `querySelector` | `'[data-admission-delete-all="history"]'` |
-| `auth.js:42672` | `initAdmissionsControls` | `getElementById` | `"portal-admission-submit-button"` |
-| `auth.js:42672` | `initAdmissionsControls` | `querySelector` | `'button[type="submit"]'` |
-| `auth.js:42673` | `initAdmissionsControls` | `getElementById` | `"portal-admission-cancel-edit"` |
-| `auth.js:42674` | `initAdmissionsControls` | `getElementById` | `"portal-admission-form-overlay"` |
-| `auth.js:42675` | `initAdmissionsControls` | `getElementById` | `"portal-admission-form-title"` |
-| `auth.js:42676` | `initAdmissionsControls` | `querySelector` | `"[data-admission-form-open]"` |
-| `auth.js:42773` | `initAdmissionsControls` | `querySelectorAll` | `"[data-admission-form-close]"` |
-| `auth.js:42786` | `initAdmissionsControls` | `getElementById` | `"portal-admission-approval-toast"` |
-| `auth.js:42829` | `initAdmissionsControls` | `getElementById` | `"portal-admission-modal"` |
-| `auth.js:42830` | `initAdmissionsControls` | `getElementById` | `"portal-admission-modal-body"` |
-| `auth.js:42833` | `initAdmissionsControls` | `closest` | `"[data-admission-close]"` |
-| `auth.js:42839` | `initAdmissionsControls` | `closest` | `"[data-admission-action]"` |
-| `auth.js:42947` | `initAdmissionsControls` | `getElementById` | `"portal-admission-link-value"` |
-| `auth.js:42948` | `initAdmissionsControls` | `getElementById` | `"portal-admission-copy-link"` |
-| `auth.js:42949` | `initAdmissionsControls` | `getElementById` | `"portal-admission-open-link"` |
-| `auth.js:42950` | `initAdmissionsControls` | `getElementById` | `"portal-admission-qr-image"` |
-| `auth.js:43415` | `initAdmissionsControls` | `closest` | `"[data-admission-delete]"` |
-| `auth.js:43425` | `initAdmissionsControls` | `closest` | `"[data-admission-open]"` |
-| `auth.js:43441` | `initAdmissionsControls` | `querySelectorAll` | `"[data-admission-delete-all]"` |
-| `auth.js:43487` | `initAdminAdmissionsPage` | `getElementById` | `"portal-admission-form"` |
-| `auth.js:43488` | `initAdminAdmissionsPage` | `getElementById` | `"portal-admission-status"` |
-| `auth.js:43489` | `initAdminAdmissionsPage` | `getElementById` | `"portal-admission-summary"` |
-| `auth.js:43490` | `initAdminAdmissionsPage` | `getElementById` | `"portal-admission-list"` |
-| `auth.js:43491` | `initAdminAdmissionsPage` | `getElementById` | `"portal-admission-history"` |
-| `auth.js:43492` | `initAdminAdmissionsPage` | `getElementById` | `"portal-admission-apply-link"` |
-| `auth.js:43494` | `initAdminAdmissionsPage` | `getElementById` | `"portal-admission-config-summary"` |
-| `auth.js:43495` | `initAdminAdmissionsPage` | `getElementById` | `"portal-admission-setup-form"` |
-| `auth.js:43496` | `initAdminAdmissionsPage` | `getElementById` | `"portal-admission-setup-status"` |
-| `auth.js:43497` | `initAdminAdmissionsPage` | `getElementById` | `"portal-admission-class-picker"` |
-| `auth.js:43498` | `initAdminAdmissionsPage` | `getElementById` | `"portal-admission-setup-preview"` |
-| `auth.js:43665` | `setSelfRegistrationPageCopy` | `getElementById` | `"self-register-title"` |
-| `auth.js:43666` | `setSelfRegistrationPageCopy` | `getElementById` | `"self-register-copy"` |
-| `auth.js:43667` | `setSelfRegistrationPageCopy` | `getElementById` | `"self-register-school-name"` |
-| `auth.js:43668` | `setSelfRegistrationPageCopy` | `getElementById` | `"self-register-brand-mark"` |
-| `auth.js:43669` | `setSelfRegistrationPageCopy` | `getElementById` | `"self-register-side-kicker"` |
-| `auth.js:43670` | `setSelfRegistrationPageCopy` | `getElementById` | `"self-register-side-title"` |
-| `auth.js:43671` | `setSelfRegistrationPageCopy` | `getElementById` | `"self-register-side-copy"` |
-| `auth.js:43796` | `initSelfRegisterPage` | `getElementById` | `"self-register-form"` |
-| `auth.js:43797` | `initSelfRegisterPage` | `getElementById` | `"self-register-status"` |
-| `auth.js:43798` | `initSelfRegisterPage` | `querySelector` | `"[data-self-register-student]"` |
-| `auth.js:43799` | `initSelfRegisterPage` | `querySelector` | `"[data-self-register-staff]"` |
-| `auth.js:43800` | `initSelfRegisterPage` | `getElementById` | `"self-student-level"` |
-| `auth.js:43801` | `initSelfRegisterPage` | `getElementById` | `"self-register-submit"` |
-| `auth.js:43977` | `initAdminStudentsPage` | `getElementById` | `"portal-student-summary"` |
-| `auth.js:43978` | `initAdminStudentsPage` | `getElementById` | `"portal-student-form"` |
-| `auth.js:43979` | `initAdminStudentsPage` | `getElementById` | `"portal-student-status"` |
-| `auth.js:43980` | `initAdminStudentsPage` | `getElementById` | `"portal-student-list"` |
-| `auth.js:43981` | `initAdminStudentsPage` | `getElementById` | `"portal-guardian-list"` |
-| `auth.js:43982` | `initAdminStudentsPage` | `querySelector` | `"[data-student-form-toggle]"` |
-| `auth.js:43998` | `initAdminStudentsPage` | `getElementById` | `"student-self-registration-link"` |
-| `auth.js:43999` | `initAdminStudentsPage` | `querySelector` | `"[data-student-self-registration-copy]"` |
-| `auth.js:44000` | `initAdminStudentsPage` | `querySelector` | `"[data-student-self-registration-open]"` |
-| `auth.js:44001` | `initAdminStudentsPage` | `getElementById` | `"student-self-registration-status"` |
-| `auth.js:44012` | `initAdminTeachersPage` | `getElementById` | `"portal-staff-summary"` |
-| `auth.js:44013` | `initAdminTeachersPage` | `getElementById` | `"portal-staff-form"` |
-| `auth.js:44014` | `initAdminTeachersPage` | `getElementById` | `"portal-staff-status"` |
-| `auth.js:44015` | `initAdminTeachersPage` | `getElementById` | `"portal-staff-list"` |
-| `auth.js:44016` | `initAdminTeachersPage` | `getElementById` | `"portal-staff-leave-summary"` |
-| `auth.js:44017` | `initAdminTeachersPage` | `getElementById` | `"portal-staff-leave-list"` |
-| `auth.js:44018` | `initAdminTeachersPage` | `getElementById` | `"portal-staff-leave-review-status"` |
-| `auth.js:44019` | `initAdminTeachersPage` | `getElementById` | `"portal-staff-leave-status-filter"` |
-| `auth.js:44032` | `initAdminTeachersPage` | `getElementById` | `"staff-self-registration-link"` |
-| `auth.js:44033` | `initAdminTeachersPage` | `querySelector` | `"[data-staff-self-registration-copy]"` |
-| `auth.js:44034` | `initAdminTeachersPage` | `querySelector` | `"[data-staff-self-registration-open]"` |
-| `auth.js:44035` | `initAdminTeachersPage` | `getElementById` | `"staff-self-registration-status"` |
-| `auth.js:44055` | `initAdminClassesPage` | `getElementById` | `"portal-class-summary"` |
-| `auth.js:44056` | `initAdminClassesPage` | `getElementById` | `"portal-class-form"` |
-| `auth.js:44057` | `initAdminClassesPage` | `getElementById` | `"portal-class-status"` |
-| `auth.js:44058` | `initAdminClassesPage` | `getElementById` | `"portal-class-list"` |
-| `auth.js:44083` | `initAdminCoursesPage` | `getElementById` | `"portal-course-summary"` |
-| `auth.js:44084` | `initAdminCoursesPage` | `getElementById` | `"portal-course-form"` |
-| `auth.js:44085` | `initAdminCoursesPage` | `getElementById` | `"portal-course-status"` |
-| `auth.js:44086` | `initAdminCoursesPage` | `getElementById` | `"portal-course-list"` |
-| `auth.js:44109` | `initAdminSchedulePage` | `getElementById` | `"portal-calendar-summary"` |
-| `auth.js:44110` | `initAdminSchedulePage` | `getElementById` | `"portal-academic-calendar-form"` |
-| `auth.js:44111` | `initAdminSchedulePage` | `getElementById` | `"portal-academic-calendar-status"` |
-| `auth.js:44112` | `initAdminSchedulePage` | `getElementById` | `"portal-academic-calendar-list"` |
-| `auth.js:44114` | `initAdminSchedulePage` | `getElementById` | `"portal-timetable-summary"` |
-| `auth.js:44115` | `initAdminSchedulePage` | `getElementById` | `"portal-timetable-form"` |
-| `auth.js:44116` | `initAdminSchedulePage` | `getElementById` | `"portal-timetable-status"` |
-| `auth.js:44117` | `initAdminSchedulePage` | `getElementById` | `"portal-timetable-list"` |
-| `auth.js:44146` | `initAdminFeesPage` | `getElementById` | `"portal-fee-summary"` |
-| `auth.js:44147` | `initAdminFeesPage` | `getElementById` | `"portal-fee-form"` |
-| `auth.js:44148` | `initAdminFeesPage` | `getElementById` | `"portal-fee-status"` |
-| `auth.js:44149` | `initAdminFeesPage` | `getElementById` | `"portal-fee-list"` |
-| `auth.js:44150` | `initAdminFeesPage` | `getElementById` | `"portal-fee-setup-notice"` |
-| `auth.js:44175` | `initAdminAttendancePage` | `getElementById` | `"portal-attendance-summary"` |
-| `auth.js:44176` | `initAdminAttendancePage` | `getElementById` | `"portal-attendance-status"` |
-| `auth.js:44177` | `initAdminAttendancePage` | `getElementById` | `"portal-attendance-review-list"` |
-| `auth.js:44178` | `initAdminAttendancePage` | `getElementById` | `"portal-attendance-submission-list"` |
-| `auth.js:44179` | `initAdminAttendancePage` | `querySelector` | `"[data-attendance-review-view]"` |
-| `auth.js:44180` | `initAdminAttendancePage` | `querySelector` | `"[data-attendance-review-date]"` |
-| `auth.js:44181` | `initAdminAttendancePage` | `querySelector` | `"[data-attendance-review-term]"` |
-| `auth.js:44182` | `initAdminAttendancePage` | `querySelector` | `"[data-attendance-review-class]"` |
-| `auth.js:44183` | `initAdminAttendancePage` | `querySelector` | `"[data-attendance-review-student]"` |
-| `auth.js:44184` | `initAdminAttendancePage` | `querySelector` | `"[data-attendance-review-status]"` |
-| `auth.js:44185` | `initAdminAttendancePage` | `querySelector` | `"[data-attendance-review-search]"` |
-| `auth.js:44186` | `initAdminAttendancePage` | `querySelector` | `"[data-attendance-review-date-wrap]"` |
-| `auth.js:44187` | `initAdminAttendancePage` | `querySelector` | `"[data-attendance-review-term-wrap]"` |
-| `auth.js:44188` | `initAdminAttendancePage` | `querySelector` | `"[data-attendance-review-status-wrap]"` |
-| `auth.js:44189` | `initAdminAttendancePage` | `querySelector` | `"[data-attendance-review-copy]"` |
-| `auth.js:44190` | `initAdminAttendancePage` | `querySelector` | `"[data-attendance-submission-copy]"` |
-| `auth.js:44296` | `wireAdminReportParentMessages` | `closest` | `"[data-admin-report-parent-reply-form]"` |
-| `auth.js:44320` | `wireAdminReportParentMessages` | `querySelector` | `"button[type='submit']"` |
-| `auth.js:44712` | `renderEnrollmentReport` | `getElementById` | `"admin-report-enrollment"` |
-| `auth.js:44713` | `renderEnrollmentReport` | `getElementById` | `"admin-report-enrollment-session"` |
-| `auth.js:44714` | `renderEnrollmentReport` | `getElementById` | `"admin-report-enrollment-class"` |
-| `auth.js:44715` | `renderEnrollmentReport` | `getElementById` | `"admin-report-enrollment-gender"` |
-| `auth.js:44798` | `renderAcademicPerformanceReport` | `getElementById` | `"admin-report-performance"` |
-| `auth.js:44799` | `renderAcademicPerformanceReport` | `getElementById` | `"admin-report-performance-session"` |
-| `auth.js:44800` | `renderAcademicPerformanceReport` | `getElementById` | `"admin-report-performance-class"` |
-| `auth.js:44801` | `renderAcademicPerformanceReport` | `getElementById` | `"admin-report-performance-subject"` |
-| `auth.js:44928` | `renderAdminAnnouncementSection` | `getElementById` | `"admin-announcement-form"` |
-| `auth.js:44929` | `renderAdminAnnouncementSection` | `getElementById` | `"admin-announcement-status"` |
-| `auth.js:44930` | `renderAdminAnnouncementSection` | `querySelector` | `"[data-announcement-class-wrap]"` |
-| `auth.js:44931` | `renderAdminAnnouncementSection` | `getElementById` | `"admin-announcement-class-options"` |
-| `auth.js:44932` | `renderAdminAnnouncementSection` | `getElementById` | `"admin-announcement-list"` |
-| `auth.js:44939` | `renderAdminAnnouncementSection` | `querySelectorAll` | `'input[name="classTargets"]:checked'` |
-| `auth.js:45139` | `renderAdminReportsDashboard` | `getElementById` | `"admin-report-kpis"` |
-| `auth.js:45140` | `renderAdminReportsDashboard` | `getElementById` | `"admin-report-insights"` |
-| `auth.js:45141` | `renderAdminReportsDashboard` | `getElementById` | `"admin-report-health"` |
-| `auth.js:45142` | `renderAdminReportsDashboard` | `getElementById` | `"admin-report-areas"` |
-| `auth.js:45143` | `renderAdminReportsDashboard` | `getElementById` | `"admin-report-checklist"` |
-| `auth.js:45411` | `initAdminAnnouncementComposer` | `getElementById` | `"admin-announcement-form"` |
-| `auth.js:45412` | `initAdminAnnouncementComposer` | `getElementById` | `"admin-announcement-status"` |
-| `auth.js:45449` | `initAdminAnnouncementComposer` | `querySelectorAll` | `'input[name="roleTargets"]:checked'` |
-| `auth.js:45454` | `initAdminAnnouncementComposer` | `querySelectorAll` | `'input[name="classTargets"]:checked'` |
-| `auth.js:45574` | `initAdminReportsPage` | `querySelector` | `".admin-report-workspace"` |
-| `auth.js:45599` | `initAdminReportsPage` | `getElementById` | `id` |
-| `auth.js:45602` | `initAdminReportsPage` | `querySelectorAll` | `"[data-admin-report-export]"` |
-| `auth.js:45634` | `initAdminMessagesPage` | `getElementById` | `"admin-report-parent-messages"` |
-| `auth.js:45635` | `initAdminMessagesPage` | `querySelector` | `".admin-report-workspace"` |
-| `auth.js:45664` | `initAdminFeatureModulesPage` | `getElementById` | `"portal-feature-toggle-summary"` |
-| `auth.js:45665` | `initAdminFeatureModulesPage` | `getElementById` | `"portal-feature-toggle-grid"` |
-| `auth.js:45666` | `initAdminFeatureModulesPage` | `getElementById` | `"portal-feature-toggle-status"` |
-| `auth.js:45683` | `initReportConfigurationControls` | `querySelector` | `"[data-grading-scale-add]"` |
-| `auth.js:45684` | `initReportConfigurationControls` | `querySelector` | `"[data-report-configuration-reset]"` |
-| `auth.js:45687` | `initReportConfigurationControls` | `querySelector` | `"[data-score-structure-total]"` |
-| `auth.js:45688` | `initReportConfigurationControls` | `querySelectorAll` | `"[data-score-preset]"` |
-| `auth.js:45772` | `initReportConfigurationControls` | `querySelector` | `'input[name="minimum"]'` |
-| `auth.js:45776` | `initReportConfigurationControls` | `closest` | `"[data-grading-scale-remove]"` |
-| `auth.js:45778` | `initReportConfigurationControls` | `querySelectorAll` | `"[data-grading-scale-row]"` |
-| `auth.js:45782` | `initReportConfigurationControls` | `closest` | `"[data-grading-scale-row]"` |
-| `auth.js:45802` | `initReportConfigurationControls` | `querySelectorAll` | `"[data-grading-scale-row]"` |
-| `auth.js:45803` | `initReportConfigurationControls` | `querySelector` | `'[name="minimum"]'` |
-| `auth.js:45804` | `initReportConfigurationControls` | `querySelector` | `'[name="grade"]'` |
-| `auth.js:45805` | `initReportConfigurationControls` | `querySelector` | `'[name="remark"]'` |
-| `auth.js:45885` | `initReportSchoolCommentControls` | `querySelector` | `'button[type="submit"]'` |
-| `auth.js:46166` | `initAdminSettingsPage` | `getElementById` | `"portal-school-settings-preview"` |
-| `auth.js:46167` | `initAdminSettingsPage` | `getElementById` | `"portal-school-settings-form"` |
-| `auth.js:46168` | `initAdminSettingsPage` | `getElementById` | `"portal-school-settings-status"` |
-| `auth.js:46169` | `initAdminSettingsPage` | `getElementById` | `"portal-access-summary"` |
-| `auth.js:46170` | `initAdminSettingsPage` | `getElementById` | `"portal-access-form"` |
-| `auth.js:46171` | `initAdminSettingsPage` | `getElementById` | `"portal-access-status"` |
-| `auth.js:46172` | `initAdminSettingsPage` | `getElementById` | `"portal-access-list"` |
-| `auth.js:46173` | `initAdminSettingsPage` | `getElementById` | `"portal-role-permission-summary"` |
-| `auth.js:46174` | `initAdminSettingsPage` | `getElementById` | `"portal-role-permission-grid"` |
-| `auth.js:46175` | `initAdminSettingsPage` | `getElementById` | `"portal-role-permission-status"` |
-| `auth.js:46176` | `initAdminSettingsPage` | `querySelector` | `"[data-reset-role-permissions]"` |
-| `auth.js:46177` | `initAdminSettingsPage` | `querySelector` | `"[data-save-role-permissions]"` |
-| `auth.js:46178` | `initAdminSettingsPage` | `getElementById` | `"portal-academic-cycle-summary"` |
-| `auth.js:46179` | `initAdminSettingsPage` | `getElementById` | `"portal-session-form"` |
-| `auth.js:46180` | `initAdminSettingsPage` | `getElementById` | `"portal-session-status"` |
-| `auth.js:46181` | `initAdminSettingsPage` | `getElementById` | `"portal-session-list"` |
-| `auth.js:46182` | `initAdminSettingsPage` | `getElementById` | `"portal-term-form"` |
-| `auth.js:46183` | `initAdminSettingsPage` | `getElementById` | `"portal-term-status"` |
-| `auth.js:46184` | `initAdminSettingsPage` | `getElementById` | `"portal-term-list"` |
-| `auth.js:46185` | `initAdminSettingsPage` | `getElementById` | `"portal-report-configuration-form"` |
-| `auth.js:46186` | `initAdminSettingsPage` | `getElementById` | `"portal-report-configuration-status"` |
-| `auth.js:46187` | `initAdminSettingsPage` | `getElementById` | `"portal-grading-scale-list"` |
-| `auth.js:46188` | `initAdminSettingsPage` | `getElementById` | `"portal-report-school-comment-form"` |
-| `auth.js:46189` | `initAdminSettingsPage` | `getElementById` | `"portal-report-school-comment-status"` |
-| `auth.js:46190` | `initAdminSettingsPage` | `getElementById` | `"portal-report-school-comment-summary"` |
-| `auth.js:46191` | `initAdminSettingsPage` | `querySelector` | `"[data-delete-school-account]"` |
-| `auth.js:46192` | `initAdminSettingsPage` | `getElementById` | `"portal-account-delete-status"` |
-| `auth.js:46201` | `initAdminSettingsPage` | `getElementById` | `"admin-brand-mark"` |
-| `auth.js:46202` | `initAdminSettingsPage` | `getElementById` | `"admin-brand-name"` |
-| `auth.js:46203` | `initAdminSettingsPage` | `getElementById` | `"admin-brand-subtitle"` |
-| `auth.js:46269` | `initUserSettingsPage` | `getElementById` | `"user-settings-form"` |
-| `auth.js:46270` | `initUserSettingsPage` | `getElementById` | `"user-settings-status"` |
-| `auth.js:46271` | `initUserSettingsPage` | `getElementById` | `"user-settings-name"` |
-| `auth.js:46272` | `initUserSettingsPage` | `getElementById` | `"user-settings-role"` |
-| `auth.js:46273` | `initUserSettingsPage` | `getElementById` | `"user-settings-email"` |
-| `auth.js:46274` | `initUserSettingsPage` | `getElementById` | `"user-profile-form"` |
-| `auth.js:46275` | `initUserSettingsPage` | `getElementById` | `"user-profile-status"` |
-| `auth.js:46276` | `initUserSettingsPage` | `getElementById` | `"user-settings-photo-preview"` |
-| `auth.js:46277` | `initUserSettingsPage` | `getElementById` | `"user-profile-photo"` |
-| `auth.js:46278` | `initUserSettingsPage` | `querySelector` | `"[data-user-profile-remove-photo]"` |
-| `auth.js:46279` | `initUserSettingsPage` | `getElementById` | `"user-settings-hint"` |
-| `auth.js:46280` | `initUserSettingsPage` | `getElementById` | `"admin-brand-mark"` |
-| `auth.js:46281` | `initUserSettingsPage` | `getElementById` | `"admin-brand-name"` |
-| `auth.js:46282` | `initUserSettingsPage` | `getElementById` | `"admin-brand-subtitle"` |
-| `auth.js:46283` | `initUserSettingsPage` | `getElementById` | `"admin-profile-avatar"` |
-| `auth.js:46284` | `initUserSettingsPage` | `getElementById` | `"admin-profile-name"` |
-| `auth.js:46285` | `initUserSettingsPage` | `getElementById` | `"admin-profile-role"` |
-| `auth.js:46286` | `initUserSettingsPage` | `getElementById` | `"portal-heading"` |
-| `auth.js:46287` | `initUserSettingsPage` | `getElementById` | `"portal-copy"` |
-| `auth.js:46288` | `initUserSettingsPage` | `getElementById` | `"portal-last-updated"` |
-| `auth.js:46289` | `initUserSettingsPage` | `getElementById` | `"portal-gate"` |
-| `auth.js:46290` | `initUserSettingsPage` | `getElementById` | `"admin-notification-button"` |
-| `auth.js:46291` | `initUserSettingsPage` | `getElementById` | `"admin-global-search"` |
-| `auth.js:46292` | `initUserSettingsPage` | `getElementById` | `"user-notification-preferences-form"` |
-| `auth.js:46293` | `initUserSettingsPage` | `getElementById` | `"user-notification-preferences-status"` |
-| `auth.js:46318` | `initUserSettingsPage` | `querySelectorAll` | `"input, button"` |
-| `auth.js:46321` | `initUserSettingsPage` | `querySelectorAll` | `"input, button"` |
-| `auth.js:46391` | `initUserSettingsPage` | `querySelectorAll` | `"[data-notification-preference]"` |
-| `auth.js:46394` | `initUserSettingsPage` | `closest` | `".portal-toggle-card"` |
-| `auth.js:46402` | `initUserSettingsPage` | `matches` | `"[data-notification-preference]"` |
-| `auth.js:46403` | `initUserSettingsPage` | `closest` | `".portal-toggle-card"` |
-| `auth.js:46409` | `initUserSettingsPage` | `querySelectorAll` | `"[data-notification-preference]"` |
-| `auth.js:46579` | `initUserSettingsPage` | `closest` | `".admin-surface-card"` |
-| `auth.js:46581` | `initUserSettingsPage` | `querySelector` | `'button[type="submit"]'` |
-| `auth.js:46777` | `initStaffPortalPages` | `getElementById` | `"admin-brand-mark"` |
-| `auth.js:46778` | `initStaffPortalPages` | `getElementById` | `"admin-brand-name"` |
-| `auth.js:46779` | `initStaffPortalPages` | `getElementById` | `"admin-brand-subtitle"` |
-| `auth.js:46780` | `initStaffPortalPages` | `getElementById` | `"admin-profile-avatar"` |
-| `auth.js:46781` | `initStaffPortalPages` | `getElementById` | `"admin-profile-name"` |
-| `auth.js:46782` | `initStaffPortalPages` | `getElementById` | `"admin-profile-role"` |
-| `auth.js:46783` | `initStaffPortalPages` | `getElementById` | `"portal-heading"` |
-| `auth.js:46784` | `initStaffPortalPages` | `getElementById` | `"portal-copy"` |
-| `auth.js:46785` | `initStaffPortalPages` | `getElementById` | `"portal-last-updated"` |
-| `auth.js:46786` | `initStaffPortalPages` | `getElementById` | `"portal-gate"` |
-| `auth.js:46787` | `initStaffPortalPages` | `getElementById` | `"admin-notification-button"` |
-| `auth.js:46788` | `initStaffPortalPages` | `getElementById` | `"admin-global-search"` |
-| `auth.js:46789` | `initStaffPortalPages` | `getElementById` | `"staff-page-content"` |
-| `auth.js:46882` | `initPortalPage` | `getElementById` | `"admin-brand-mark"` |
-| `auth.js:46883` | `initPortalPage` | `getElementById` | `"admin-brand-name"` |
-| `auth.js:46884` | `initPortalPage` | `getElementById` | `"admin-brand-subtitle"` |
-| `auth.js:46885` | `initPortalPage` | `getElementById` | `"admin-profile-avatar"` |
-| `auth.js:46886` | `initPortalPage` | `getElementById` | `"admin-profile-name"` |
-| `auth.js:46887` | `initPortalPage` | `getElementById` | `"admin-profile-role"` |
-| `auth.js:46888` | `initPortalPage` | `getElementById` | `"portal-heading"` |
-| `auth.js:46889` | `initPortalPage` | `getElementById` | `"portal-copy"` |
-| `auth.js:46890` | `initPortalPage` | `getElementById` | `"portal-last-updated"` |
-| `auth.js:46891` | `initPortalPage` | `getElementById` | `"admin-notification-button"` |
-| `auth.js:46892` | `initPortalPage` | `getElementById` | `"admin-global-search"` |
-| `auth.js:46893` | `initPortalPage` | `getElementById` | `"portal-metrics"` |
-| `auth.js:46894` | `initPortalPage` | `getElementById` | `"admin-events"` |
-| `auth.js:46895` | `initPortalPage` | `getElementById` | `"admin-activity"` |
-| `auth.js:46896` | `initPortalPage` | `getElementById` | `"portal-links"` |
-| `auth.js:46897` | `initPortalPage` | `getElementById` | `"portal-details"` |
-| `auth.js:46898` | `initPortalPage` | `getElementById` | `"staff-portal-workspace"` |
-| `auth.js:46899` | `initPortalPage` | `getElementById` | `"student-portal-workspace"` |
-| `auth.js:46900` | `initPortalPage` | `getElementById` | `"teacher-attendance-workspace"` |
-| `auth.js:46901` | `initPortalPage` | `getElementById` | `"portal-gate"` |
-| `auth.js:47137` | `initPortalPage` | `closest` | `".admin-primary-grid"` |
-| `auth.js:47137` | `initPortalPage` | `closest` | `".admin-surface-card"` |
-| `auth.js:47151` | `initPortalPage` | `querySelector` | `".admin-sidebar-nav"` |
+| `js/features/timetable/controller.js:52` | `initTimetableControls` | `getElementById` | `"portal-timetable-lesson-overlay"` |
+| `js/features/timetable/controller.js:53` | `initTimetableControls` | `getElementById` | `"portal-timetable-period-overlay"` |
+| `js/features/timetable/controller.js:54` | `initTimetableControls` | `getElementById` | `"portal-calendar-substitution-log"` |
+| `js/features/timetable/controller.js:55` | `initTimetableControls` | `getElementById` | `"portal-timetable-period-form"` |
+| `js/features/timetable/controller.js:56` | `initTimetableControls` | `getElementById` | `"timetable-period-title"` |
+| `js/features/timetable/controller.js:57` | `initTimetableControls` | `getElementById` | `"timetable-session-id"` |
+| `js/features/timetable/controller.js:58` | `initTimetableControls` | `getElementById` | `"timetable-term-id"` |
+| `js/features/timetable/controller.js:59` | `initTimetableControls` | `getElementById` | `"timetable-view-mode"` |
+| `js/features/timetable/controller.js:60` | `initTimetableControls` | `getElementById` | `"timetable-class-level"` |
+| `js/features/timetable/controller.js:61` | `initTimetableControls` | `getElementById` | `"timetable-teacher-view"` |
+| `js/features/timetable/controller.js:62` | `initTimetableControls` | `getElementById` | `"timetable-week-type"` |
+| `js/features/timetable/controller.js:63` | `initTimetableControls` | `querySelector` | `"[data-timetable-copy-term]"` |
+| `js/features/timetable/controller.js:64` | `initTimetableControls` | `querySelector` | `"[data-timetable-period-add]"` |
+| `js/features/timetable/controller.js:65` | `initTimetableControls` | `querySelector` | `"[data-timetable-save-class]"` |
+| `js/features/timetable/controller.js:66` | `initTimetableControls` | `querySelector` | `"[data-timetable-print]"` |
+| `js/features/timetable/controller.js:67` | `initTimetableControls` | `querySelector` | `"[data-timetable-delete]"` |
+| `js/features/timetable/controller.js:68` | `initTimetableControls` | `getElementById` | `"timetable-form-title"` |
+| `js/features/timetable/controller.js:69` | `initTimetableControls` | `getElementById` | `"timetable-form-context"` |
+| `js/features/timetable/controller.js:85` | `initTimetableControls` | `getElementById` | `"portal-timetable-toast"` |
+| `js/features/timetable/controller.js:104` | `initTimetableControls` | `getElementById` | `"portal-timetable-inline-status"` |
+| `js/features/timetable/controller.js:168` | `initTimetableControls` | `getElementById` | `"portal-timetable-class-modal"` |
+| `js/features/timetable/controller.js:169` | `initTimetableControls` | `getElementById` | `"portal-timetable-class-modal-body"` |
+| `js/features/timetable/controller.js:171` | `initTimetableControls` | `closest` | `"[data-timetable-class-close]"` |
+| `js/features/timetable/controller.js:175` | `initTimetableControls` | `closest` | `"[data-timetable-class-print-current]"` |
+| `js/features/timetable/controller.js:186` | `initTimetableControls` | `querySelectorAll` | `".portal-field"` |
+| `js/features/timetable/controller.js:187` | `initTimetableControls` | `querySelectorAll` | `"[data-period-error-for]"` |
+| `js/features/timetable/controller.js:196` | `initTimetableControls` | `querySelector` | ``[data-period-error-for="${fieldName}"]`` |
+| `js/features/timetable/controller.js:198` | `initTimetableControls` | `closest` | `".portal-field"` |
+| `js/features/timetable/controller.js:455` | `initTimetableControls` | `querySelector` | `".portal-timetable-grid"` |
+| `js/features/timetable/controller.js:620` | `initTimetableControls` | `closest` | `".portal-field"` |
+| `js/features/timetable/controller.js:1011` | `initTimetableControls` | `querySelector` | `"[data-timetable-cancel]"` |
+| `js/features/timetable/controller.js:1023` | `initTimetableControls` | `querySelectorAll` | `"[data-timetable-lesson-close]"` |
+| `js/features/timetable/controller.js:1034` | `initTimetableControls` | `querySelectorAll` | `"[data-timetable-period-close]"` |
+| `js/features/timetable/controller.js:1231` | `initTimetableControls` | `closest` | `"[data-timetable-inline-action]"` |
+| `js/features/timetable/controller.js:1232` | `initTimetableControls` | `closest` | `"[data-timetable-period-edit]"` |
+| `js/features/timetable/controller.js:1233` | `initTimetableControls` | `closest` | `"[data-timetable-slot]"` |
+| `js/features/timetable/controller.js:1234` | `initTimetableControls` | `closest` | `"[data-timetable-action]"` |
+| `js/features/timetable/controller.js:1235` | `initTimetableControls` | `closest` | `"[data-timetable-class-action]"` |
+| `js/features/timetable/controller.js:1236` | `initTimetableControls` | `closest` | `"[data-timetable-group-action]"` |
+| `auth.js:13748` | `initFeeManagementControls` | `querySelector` | `"[data-fee-form-toggle]"` |
+| `auth.js:13752` | `initFeeManagementControls` | `getElementById` | `"portal-fee-invoice-status"` |
+| `auth.js:13753` | `initFeeManagementControls` | `getElementById` | `"portal-fee-invoice-list"` |
+| `auth.js:13754` | `initFeeManagementControls` | `querySelector` | `"[data-fee-invoice-form-open]"` |
+| `auth.js:13755` | `initFeeManagementControls` | `getElementById` | `"portal-fee-invoice-form-overlay"` |
+| `auth.js:13757` | `initFeeManagementControls` | `getElementById` | `"fee-invoice-session"` |
+| `auth.js:13758` | `initFeeManagementControls` | `getElementById` | `"fee-invoice-term"` |
+| `auth.js:13759` | `initFeeManagementControls` | `getElementById` | `"fee-invoice-class"` |
+| `auth.js:13760` | `initFeeManagementControls` | `getElementById` | `"fee-invoice-student"` |
+| `auth.js:13761` | `initFeeManagementControls` | `getElementById` | `"fee-invoice-due-date"` |
+| `auth.js:13762` | `initFeeManagementControls` | `getElementById` | `"fee-invoice-whatsapp"` |
+| `auth.js:13763` | `initFeeManagementControls` | `querySelector` | `"[data-fee-invoice-generate-single]"` |
+| `auth.js:13765` | `initFeeManagementControls` | `getElementById` | `"portal-fee-invoice-overlay"` |
+| `auth.js:13766` | `initFeeManagementControls` | `getElementById` | `"portal-fee-invoice-modal-body"` |
+| `auth.js:13767` | `initFeeManagementControls` | `getElementById` | `"portal-fee-invoice-modal-title"` |
+| `auth.js:13768` | `initFeeManagementControls` | `getElementById` | `"portal-fee-category-options"` |
+| `auth.js:13769` | `initFeeManagementControls` | `getElementById` | `"portal-fee-form-overlay"` |
+| `auth.js:13770` | `initFeeManagementControls` | `getElementById` | `"portal-fee-form-modal-title"` |
+| `auth.js:13778` | `initFeeManagementControls` | `querySelector` | `".portal-overlay:not([hidden])"` |
+| `auth.js:13786` | `initFeeManagementControls` | `getElementById` | `"portal-fee-toast"` |
+| `auth.js:14272` | `initFeeManagementControls` | `querySelector` | `"[data-fee-invoice-close]"` |
+| `auth.js:15027` | `initFeeManagementControls` | `closest` | `"[data-fee-invoice-form-close]"` |
+| `auth.js:15033` | `initFeeManagementControls` | `closest` | `"[data-fee-invoice-generate-class]"` |
+| `auth.js:15042` | `initFeeManagementControls` | `closest` | `"[data-fee-invoice-generate-class-whatsapp]"` |
+| `auth.js:15051` | `initFeeManagementControls` | `closest` | `"[data-fee-invoice-action]"` |
+| `auth.js:15073` | `initFeeManagementControls` | `closest` | `"details[data-invoice-class-token]"` |
+| `auth.js:15093` | `initFeeManagementControls` | `closest` | `"[data-fee-invoice-close]"` |
+| `auth.js:15098` | `initFeeManagementControls` | `closest` | `"[data-fee-invoice-print-current]"` |
+| `auth.js:15107` | `initFeeManagementControls` | `closest` | `"[data-fee-invoice-print-with-history]"` |
+| `auth.js:15116` | `initFeeManagementControls` | `closest` | `"[data-fee-invoice-print-history]"` |
+| `auth.js:15125` | `initFeeManagementControls` | `closest` | `"[data-fee-invoice-download-history]"` |
+| `auth.js:15175` | `initFeeManagementControls` | `closest` | `"[data-fee-category]"` |
+| `auth.js:15192` | `initFeeManagementControls` | `closest` | `"[data-fee-form-close]"` |
+| `auth.js:15288` | `initFeeManagementControls` | `querySelector` | `"[data-fee-cancel]"` |
+| `auth.js:15293` | `initFeeManagementControls` | `querySelector` | `"[data-fee-modal-archive]"` |
+| `auth.js:15304` | `initFeeManagementControls` | `closest` | `"[data-fee-action]"` |
+| `auth.js:15330` | `initFeeManagementControls` | `closest` | `"[data-fee-action='edit']"` |
+| `auth.js:15369` | `initSchoolSettingsControls` | `querySelector` | `'input[name="logoFile"]'` |
+| `auth.js:15370` | `initSchoolSettingsControls` | `querySelector` | `"[data-clear-logo]"` |
+| `auth.js:15371` | `initSchoolSettingsControls` | `querySelector` | `"[data-school-type-all]"` |
+| `auth.js:15372` | `initSchoolSettingsControls` | `querySelectorAll` | `"[data-school-type-option]"` |
+| `auth.js:15619` | `initSchoolSettingsControls` | `querySelector` | `"[data-reset-school-settings]"` |
+| `auth.js:15900` | `initRolePermissionControls` | `matches` | `"[data-role-permission-role][data-role-permission-key]"` |
+| `auth.js:16015` | `initAcademicCycleControls` | `closest` | `"[data-term-period-type-wrap]"` |
+| `auth.js:16015` | `initAcademicCycleControls` | `closest` | `".portal-field"` |
+| `auth.js:16029` | `initAcademicCycleControls` | `querySelector` | `"[data-session-submit]"` |
+| `auth.js:16030` | `initAcademicCycleControls` | `querySelector` | `"[data-session-cancel]"` |
+| `auth.js:16043` | `initAcademicCycleControls` | `querySelector` | `"[data-term-submit]"` |
+| `auth.js:16044` | `initAcademicCycleControls` | `querySelector` | `"[data-term-cancel]"` |
+| `auth.js:16368` | `initAcademicCycleControls` | `closest` | `"[data-session-action]"` |
+| `auth.js:16388` | `initAcademicCycleControls` | `querySelector` | `"[data-session-submit]"` |
+| `auth.js:16389` | `initAcademicCycleControls` | `querySelector` | `"[data-session-cancel]"` |
+| `auth.js:16421` | `initAcademicCycleControls` | `closest` | `"[data-term-action]"` |
+| `auth.js:16446` | `initAcademicCycleControls` | `querySelector` | `"[data-term-submit]"` |
+| `auth.js:16447` | `initAcademicCycleControls` | `querySelector` | `"[data-term-cancel]"` |
+| `auth.js:16464` | `initAcademicCycleControls` | `querySelector` | `"[data-session-cancel]"` |
+| `auth.js:16473` | `initAcademicCycleControls` | `querySelector` | `"[data-term-cancel]"` |
+| `auth.js:16533` | `clearPortalSettingsErrors` | `querySelectorAll` | `".portal-field"` |
+| `auth.js:16534` | `clearPortalSettingsErrors` | `querySelectorAll` | `".portal-structure-block"` |
+| `auth.js:16535` | `clearPortalSettingsErrors` | `querySelectorAll` | `"[data-settings-error-for]"` |
+| `auth.js:16541` | `setPortalSettingsError` | `querySelector` | ``[data-settings-error-for="${fieldName}"]`` |
+| `auth.js:16544` | `setPortalSettingsError` | `closest` | `".portal-field"` |
+| `auth.js:16557` | `clearPortalSessionErrors` | `querySelectorAll` | `".portal-field"` |
+| `auth.js:16558` | `clearPortalSessionErrors` | `querySelectorAll` | `"[data-session-error-for]"` |
+| `auth.js:16564` | `setPortalSessionError` | `querySelector` | ``[data-session-error-for="${fieldName}"]`` |
+| `auth.js:16566` | `setPortalSessionError` | `closest` | `".portal-field"` |
+| `auth.js:16578` | `clearPortalTermErrors` | `querySelectorAll` | `".portal-field"` |
+| `auth.js:16579` | `clearPortalTermErrors` | `querySelectorAll` | `"[data-term-error-for]"` |
+| `auth.js:16585` | `setPortalTermError` | `querySelector` | ``[data-term-error-for="${fieldName}"]`` |
+| `auth.js:16587` | `setPortalTermError` | `closest` | `".portal-field"` |
+| `auth.js:16599` | `clearPortalClassErrors` | `querySelectorAll` | `".portal-field"` |
+| `auth.js:16600` | `clearPortalClassErrors` | `querySelectorAll` | `"[data-class-error-for]"` |
+| `auth.js:16606` | `setPortalClassError` | `querySelector` | ``[data-class-error-for="${fieldName}"]`` |
+| `auth.js:16608` | `setPortalClassError` | `closest` | `".portal-field"` |
+| `auth.js:16620` | `clearPortalCalendarErrors` | `querySelectorAll` | `".portal-field"` |
+| `auth.js:16621` | `clearPortalCalendarErrors` | `querySelectorAll` | `"[data-calendar-error-for]"` |
+| `auth.js:16627` | `setPortalCalendarError` | `querySelector` | ``[data-calendar-error-for="${fieldName}"]`` |
+| `auth.js:16629` | `setPortalCalendarError` | `closest` | `".portal-field"` |
+| `auth.js:16700` | `clearPortalCourseErrors` | `querySelectorAll` | `".portal-field"` |
+| `auth.js:16701` | `clearPortalCourseErrors` | `querySelectorAll` | `"[data-course-error-for]"` |
+| `auth.js:16707` | `setPortalCourseError` | `querySelector` | ``[data-course-error-for="${fieldName}"]`` |
+| `auth.js:16709` | `setPortalCourseError` | `closest` | `".portal-field"` |
+| `auth.js:16777` | `resetPortalClassForm` | `querySelector` | `".portal-class-advanced"` |
+| `auth.js:16786` | `resetPortalClassForm` | `querySelector` | `"[data-class-submit]"` |
+| `auth.js:16787` | `resetPortalClassForm` | `querySelector` | `"[data-class-cancel]"` |
+| `auth.js:16820` | `populatePortalClassForm` | `querySelector` | `".portal-class-advanced"` |
+| `auth.js:16825` | `populatePortalClassForm` | `querySelector` | `"[data-class-submit]"` |
+| `auth.js:16826` | `populatePortalClassForm` | `querySelector` | `"[data-class-cancel]"` |
+| `auth.js:16870` | `resetPortalCourseForm` | `querySelector` | `"[data-course-subject-select]"` |
+| `auth.js:16871` | `resetPortalCourseForm` | `querySelector` | `"[data-course-custom-subject]"` |
+| `auth.js:16899` | `resetPortalCourseForm` | `querySelector` | `"[data-course-submit]"` |
+| `auth.js:16900` | `resetPortalCourseForm` | `querySelector` | `"[data-course-cancel]"` |
+| `auth.js:16983` | `populatePortalCourseForm` | `querySelector` | `"[data-course-submit]"` |
+| `auth.js:16984` | `populatePortalCourseForm` | `querySelector` | `"[data-course-cancel]"` |
+| `auth.js:17016` | `resetPortalCalendarForm` | `querySelector` | `"[data-calendar-submit]"` |
+| `auth.js:17017` | `resetPortalCalendarForm` | `querySelector` | `"[data-calendar-cancel]"` |
+| `auth.js:17046` | `populatePortalCalendarForm` | `querySelector` | `"[data-calendar-submit]"` |
+| `auth.js:17047` | `populatePortalCalendarForm` | `querySelector` | `"[data-calendar-cancel]"` |
+| `auth.js:17065` | `clearPortalAdmissionConfigErrors` | `querySelectorAll` | `".portal-field"` |
+| `auth.js:17066` | `clearPortalAdmissionConfigErrors` | `querySelectorAll` | `"[data-admission-config-error-for]"` |
+| `auth.js:17072` | `setPortalAdmissionConfigError` | `querySelector` | ``[data-admission-config-error-for="${fieldName}"]`` |
+| `auth.js:17074` | `setPortalAdmissionConfigError` | `closest` | `".portal-field"` |
+| `auth.js:17085` | `clearPortalTimetableErrors` | `querySelectorAll` | `".portal-field"` |
+| `auth.js:17086` | `clearPortalTimetableErrors` | `querySelectorAll` | `"[data-timetable-error-for]"` |
+| `auth.js:17092` | `setPortalTimetableError` | `querySelector` | ``[data-timetable-error-for="${fieldName}"]`` |
+| `auth.js:17094` | `setPortalTimetableError` | `closest` | `".portal-field"` |
+| `auth.js:17105` | `clearPortalFeeErrors` | `querySelectorAll` | `".portal-field"` |
+| `auth.js:17106` | `clearPortalFeeErrors` | `querySelectorAll` | `"[data-fee-error-for]"` |
+| `auth.js:17112` | `setPortalFeeError` | `querySelector` | ``[data-fee-error-for="${fieldName}"]`` |
+| `auth.js:17114` | `setPortalFeeError` | `closest` | `".portal-field"` |
+| `auth.js:17139` | `resetPortalTimetableForm` | `querySelector` | `"[data-timetable-submit]"` |
+| `auth.js:17140` | `resetPortalTimetableForm` | `querySelector` | `"[data-timetable-cancel]"` |
+| `auth.js:17141` | `resetPortalTimetableForm` | `querySelector` | `"[data-timetable-delete]"` |
+| `auth.js:17142` | `resetPortalTimetableForm` | `getElementById` | `"timetable-form-title"` |
+| `auth.js:17143` | `resetPortalTimetableForm` | `getElementById` | `"timetable-form-context"` |
+| `auth.js:17177` | `populatePortalTimetableForm` | `getElementById` | `"timetable-session-id"` |
+| `auth.js:17178` | `populatePortalTimetableForm` | `getElementById` | `"timetable-term-id"` |
+| `auth.js:17179` | `populatePortalTimetableForm` | `getElementById` | `"timetable-class-level"` |
+| `auth.js:17180` | `populatePortalTimetableForm` | `getElementById` | `"timetable-teacher-view"` |
+| `auth.js:17181` | `populatePortalTimetableForm` | `getElementById` | `"timetable-week-type"` |
+| `auth.js:17182` | `populatePortalTimetableForm` | `getElementById` | `"timetable-form-title"` |
+| `auth.js:17183` | `populatePortalTimetableForm` | `getElementById` | `"timetable-form-context"` |
+| `auth.js:17230` | `populatePortalTimetableForm` | `querySelector` | `"[data-timetable-submit]"` |
+| `auth.js:17231` | `populatePortalTimetableForm` | `querySelector` | `"[data-timetable-cancel]"` |
+| `auth.js:17232` | `populatePortalTimetableForm` | `querySelector` | `"[data-timetable-delete]"` |
+| `auth.js:17268` | `resetPortalFeeForm` | `querySelector` | `"[data-fee-submit]"` |
+| `auth.js:17269` | `resetPortalFeeForm` | `querySelector` | `"[data-fee-cancel]"` |
+| `auth.js:17270` | `resetPortalFeeForm` | `querySelector` | `"[data-fee-modal-archive]"` |
+| `auth.js:17314` | `populatePortalFeeForm` | `querySelector` | `"[data-fee-submit]"` |
+| `auth.js:17315` | `populatePortalFeeForm` | `querySelector` | `"[data-fee-cancel]"` |
+| `auth.js:17316` | `populatePortalFeeForm` | `querySelector` | `"[data-fee-modal-archive]"` |
+| `auth.js:17357` | `getSelectedSchoolTypesFromForm` | `querySelectorAll` | `"[data-school-type-option]"` |
+| `auth.js:17370` | `syncSchoolTypeControls` | `querySelectorAll` | `"[data-school-type-option]"` |
+| `auth.js:17378` | `syncSchoolTypeControls` | `querySelector` | `"[data-school-type-all]"` |
+| `auth.js:17391` | `syncHigherInstitutionTypeField` | `querySelector` | `"[data-higher-institution-type-field]"` |
+| `auth.js:17537` | `updateLogoSwatch` | `querySelector` | `"[data-logo-swatch]"` |
+| `auth.js:17571` | `clearPortalAccessErrors` | `querySelectorAll` | `".portal-field"` |
+| `auth.js:17572` | `clearPortalAccessErrors` | `querySelectorAll` | `"[data-access-error-for]"` |
+| `auth.js:17578` | `setPortalAccessError` | `querySelector` | ``[data-access-error-for="${fieldName}"]`` |
+| `auth.js:17580` | `setPortalAccessError` | `closest` | `".portal-field"` |
+| `auth.js:17617` | `resetPortalAccessForm` | `querySelector` | `"[data-access-submit]"` |
+| `auth.js:17618` | `resetPortalAccessForm` | `querySelector` | `"[data-access-cancel]"` |
+| `auth.js:17654` | `populatePortalAccessForm` | `querySelector` | `"[data-access-submit]"` |
+| `auth.js:17655` | `populatePortalAccessForm` | `querySelector` | `"[data-access-cancel]"` |
+| `auth.js:17702` | `ensureAccessGrantModal` | `getElementById` | `"portal-access-grant-modal"` |
+| `auth.js:17703` | `ensureAccessGrantModal` | `getElementById` | `"portal-access-grant-modal-body"` |
+| `auth.js:17704` | `ensureAccessGrantModal` | `getElementById` | `"portal-access-grant-modal-title"` |
+| `auth.js:17706` | `ensureAccessGrantModal` | `closest` | `"[data-access-grant-close]"` |
+| `auth.js:17719` | `setAccessGrantModalOpen` | `querySelector` | `"[data-access-grant-close]"` |
+| `auth.js:18441` | `initAccessProvisioningControls` | `closest` | `"[data-access-action]"` |
+| `auth.js:18546` | `initAccessProvisioningControls` | `closest` | `"[data-access-id]"` |
+| `auth.js:18548` | `initAccessProvisioningControls` | `closest` | `"[data-access-action]"` |
+| `auth.js:18563` | `initAccessProvisioningControls` | `closest` | `"[data-access-id]"` |
+| `auth.js:18564` | `initAccessProvisioningControls` | `closest` | `"[data-access-action]"` |
+| `auth.js:18575` | `initAccessProvisioningControls` | `querySelector` | `"[data-access-cancel]"` |
+| `auth.js:18593` | `clearPortalStaffErrors` | `querySelectorAll` | `".portal-field"` |
+| `auth.js:18594` | `clearPortalStaffErrors` | `querySelectorAll` | `"[data-staff-error-for]"` |
+| `auth.js:18600` | `setPortalStaffError` | `querySelector` | ``[data-staff-error-for="${fieldName}"]`` |
+| `auth.js:18602` | `setPortalStaffError` | `closest` | `".portal-field"` |
+| `auth.js:18683` | `resetPortalStaffForm` | `querySelector` | `"[data-staff-submit]"` |
+| `auth.js:18684` | `resetPortalStaffForm` | `querySelector` | `"[data-staff-cancel]"` |
+| `auth.js:18749` | `populatePortalStaffForm` | `querySelector` | `"[data-staff-submit]"` |
+| `auth.js:18750` | `populatePortalStaffForm` | `querySelector` | `"[data-staff-cancel]"` |
+| `auth.js:18978` | `initStaffManagementControls` | `getElementById` | `"portal-staff-filter-search"` |
+| `auth.js:18979` | `initStaffManagementControls` | `getElementById` | `"portal-staff-filter-status"` |
+| `auth.js:18980` | `initStaffManagementControls` | `getElementById` | `"portal-staff-form-overlay"` |
+| `auth.js:18981` | `initStaffManagementControls` | `querySelector` | `"[data-staff-form-open]"` |
+| `auth.js:18982` | `initStaffManagementControls` | `getElementById` | `"portal-staff-form-title"` |
+| `auth.js:19001` | `initStaffManagementControls` | `querySelector` | `".portal-overlay:not([hidden])"` |
+| `auth.js:19035` | `initStaffManagementControls` | `getElementById` | `"portal-staff-view-overlay"` |
+| `auth.js:19071` | `initStaffManagementControls` | `getElementById` | `"portal-staff-view-overlay"` |
+| `auth.js:19075` | `initStaffManagementControls` | `getElementById` | `"portal-staff-view-grid"` |
+| `auth.js:19085` | `initStaffManagementControls` | `querySelector` | `".portal-overlay:not([hidden])"` |
+| `auth.js:19506` | `initStaffManagementControls` | `getElementById` | `"portal-staff-created-overlay"` |
+| `auth.js:19533` | `initStaffManagementControls` | `getElementById` | `"portal-staff-created-overlay"` |
+| `auth.js:19537` | `initStaffManagementControls` | `getElementById` | `"portal-staff-created-content"` |
+| `auth.js:19539` | `initStaffManagementControls` | `closest` | `"[data-staff-created-close]"` |
+| `auth.js:19541` | `initStaffManagementControls` | `querySelector` | `".portal-overlay:not([hidden])"` |
+| `auth.js:19547` | `initStaffManagementControls` | `closest` | `"[data-staff-created-print]"` |
+| `auth.js:19554` | `initStaffManagementControls` | `closest` | `"[data-staff-created-mail]"` |
+| `auth.js:19584` | `initStaffManagementControls` | `querySelector` | `"[data-staff-created-print]"` |
+| `auth.js:19721` | `initStaffManagementControls` | `querySelector` | `"[data-staff-view-edit]"` |
+| `auth.js:19722` | `initStaffManagementControls` | `querySelector` | `"[data-staff-view-status]"` |
+| `auth.js:19723` | `initStaffManagementControls` | `querySelector` | `"[data-staff-view-delete]"` |
+| `auth.js:19882` | `initStaffManagementControls` | `closest` | `"[data-staff-form-close]"` |
+| `auth.js:20222` | `initStaffManagementControls` | `closest` | `"[data-staff-open]"` |
+| `auth.js:20241` | `initStaffManagementControls` | `closest` | `"[data-staff-view-close]"` |
+| `auth.js:20247` | `initStaffManagementControls` | `closest` | `"[data-staff-job-letter-print]"` |
+| `auth.js:20256` | `initStaffManagementControls` | `closest` | `"[data-staff-job-letter-mail]"` |
+| `auth.js:20265` | `initStaffManagementControls` | `closest` | `"[data-staff-view-edit]"` |
+| `auth.js:20283` | `initStaffManagementControls` | `closest` | `"[data-staff-view-status]"` |
+| `auth.js:20306` | `initStaffManagementControls` | `closest` | `"[data-staff-view-delete]"` |
+| `auth.js:20330` | `initStaffManagementControls` | `querySelector` | `"[data-staff-cancel]"` |
+| `auth.js:20549` | `initAdminStaffLeaveReviewControls` | `getElementById` | `"portal-staff-leave-review-overlay"` |
+| `auth.js:20570` | `initAdminStaffLeaveReviewControls` | `getElementById` | `"portal-staff-leave-review-overlay"` |
+| `auth.js:20574` | `initAdminStaffLeaveReviewControls` | `getElementById` | `"portal-staff-leave-review-content"` |
+| `auth.js:20575` | `initAdminStaffLeaveReviewControls` | `getElementById` | `"portal-staff-leave-review-title"` |
+| `auth.js:20576` | `initAdminStaffLeaveReviewControls` | `getElementById` | `"portal-staff-leave-modal-status"` |
+| `auth.js:20586` | `initAdminStaffLeaveReviewControls` | `querySelector` | `".portal-overlay:not([hidden])"` |
+| `auth.js:20702` | `initAdminStaffLeaveReviewControls` | `closest` | `"[data-leave-open]"` |
+| `auth.js:20721` | `initAdminStaffLeaveReviewControls` | `closest` | `"[data-leave-review-close]"` |
+| `auth.js:20727` | `initAdminStaffLeaveReviewControls` | `closest` | `"[data-leave-approve]"` |
+| `auth.js:20733` | `initAdminStaffLeaveReviewControls` | `closest` | `"[data-leave-reject]"` |
+| `auth.js:20803` | `renderPortalFeatureToggleSection` | `querySelectorAll` | `"[data-feature-toggle]"` |
+| `auth.js:22893` | `clearPortalStudentErrors` | `querySelectorAll` | `".portal-field"` |
+| `auth.js:22894` | `clearPortalStudentErrors` | `querySelectorAll` | `"[data-student-error-for]"` |
+| `auth.js:22900` | `setPortalStudentError` | `querySelector` | ``[data-student-error-for="${fieldName}"]`` |
+| `auth.js:22902` | `setPortalStudentError` | `closest` | `".portal-field"` |
+| `auth.js:23642` | `resolveGuardianRelationshipFields` | `querySelector` | `'[data-guardian-field="relationshipType"]'` |
+| `auth.js:23644` | `resolveGuardianRelationshipFields` | `querySelector` | `'[data-guardian-field="relationshipOther"]'` |
+| `auth.js:23660` | `updateGuardianRelationshipCustomField` | `querySelector` | `'[data-guardian-field="relationshipType"]'` |
+| `auth.js:23661` | `updateGuardianRelationshipCustomField` | `querySelector` | `'[data-guardian-field="relationshipOther"]'` |
+| `auth.js:23735` | `parseGuardianRows` | `querySelectorAll` | `".portal-guardian-row"` |
+| `auth.js:23741` | `parseGuardianRows` | `querySelector` | `'[data-guardian-field="name"]'` |
+| `auth.js:23743` | `parseGuardianRows` | `querySelector` | `'[data-guardian-field="phone"]'` |
+| `auth.js:23744` | `parseGuardianRows` | `querySelector` | `'[data-guardian-field="email"]'` |
+| `auth.js:23806` | `resetPortalStudentForm` | `querySelector` | `"[data-student-submit]"` |
+| `auth.js:23807` | `resetPortalStudentForm` | `querySelector` | `"[data-student-cancel]"` |
+| `auth.js:23878` | `populatePortalStudentForm` | `querySelector` | `"[data-student-submit]"` |
+| `auth.js:23879` | `populatePortalStudentForm` | `querySelector` | `"[data-student-cancel]"` |
+| `auth.js:23960` | `parseSpreadsheetXmlRows` | `querySelector` | `"parsererror"` |
+| `auth.js:23987` | `parseSpreadsheetXmlRows` | `querySelector` | `"Data"` |
+| `auth.js:23988` | `parseSpreadsheetXmlRows` | `querySelector` | `"ss\\:Data"` |
+| `auth.js:24481` | `initStudentManagementControls` | `querySelector` | `"[data-add-guardian]"` |
+| `auth.js:24482` | `initStudentManagementControls` | `getElementById` | `"portal-student-quick-add-form"` |
+| `auth.js:24483` | `initStudentManagementControls` | `getElementById` | `"portal-student-quick-add-status"` |
+| `auth.js:24484` | `initStudentManagementControls` | `querySelector` | `"[data-student-import-toggle]"` |
+| `auth.js:24485` | `initStudentManagementControls` | `getElementById` | `"portal-student-import-panel"` |
+| `auth.js:24486` | `initStudentManagementControls` | `getElementById` | `"portal-student-create-overlay"` |
+| `auth.js:24487` | `initStudentManagementControls` | `getElementById` | `"portal-student-import-overlay"` |
+| `auth.js:24488` | `initStudentManagementControls` | `getElementById` | `"portal-student-view-overlay"` |
+| `auth.js:24489` | `initStudentManagementControls` | `getElementById` | `"portal-student-view-content"` |
+| `auth.js:24490` | `initStudentManagementControls` | `getElementById` | `"portal-student-docs-overlay"` |
+| `auth.js:24491` | `initStudentManagementControls` | `getElementById` | `"portal-student-docs-status"` |
+| `auth.js:24492` | `initStudentManagementControls` | `getElementById` | `"portal-student-doc-list"` |
+| `auth.js:24493` | `initStudentManagementControls` | `getElementById` | `"portal-student-docs-student-id"` |
+| `auth.js:24494` | `initStudentManagementControls` | `getElementById` | `"portal-student-docs-student-name"` |
+| `auth.js:24495` | `initStudentManagementControls` | `getElementById` | `"portal-student-doc-type"` |
+| `auth.js:24496` | `initStudentManagementControls` | `getElementById` | `"portal-student-doc-file"` |
+| `auth.js:24497` | `initStudentManagementControls` | `querySelector` | `"[data-student-doc-upload]"` |
+| `auth.js:24498` | `initStudentManagementControls` | `getElementById` | `"portal-student-class-filters"` |
+| `auth.js:24499` | `initStudentManagementControls` | `getElementById` | `"portal-student-search"` |
+| `auth.js:24500` | `initStudentManagementControls` | `getElementById` | `"portal-student-import-status"` |
+| `auth.js:24501` | `initStudentManagementControls` | `getElementById` | `"portal-student-import-file"` |
+| `auth.js:24502` | `initStudentManagementControls` | `querySelector` | `"[data-student-import-preview]"` |
+| `auth.js:24503` | `initStudentManagementControls` | `querySelector` | `"[data-student-import-confirm]"` |
+| `auth.js:24504` | `initStudentManagementControls` | `getElementById` | `"portal-student-import-preview"` |
+| `auth.js:24508` | `initStudentManagementControls` | `getElementById` | `"portal-student-create-title"` |
+| `auth.js:24732` | `initStudentManagementControls` | `closest` | `"[data-student-class]"` |
+| `auth.js:24743` | `initStudentManagementControls` | `querySelectorAll` | `"[data-student-create-close]"` |
+| `auth.js:24752` | `initStudentManagementControls` | `querySelectorAll` | `"[data-student-import-close]"` |
+| `auth.js:24758` | `initStudentManagementControls` | `querySelectorAll` | `"[data-student-view-close]"` |
+| `auth.js:24764` | `initStudentManagementControls` | `querySelectorAll` | `"[data-student-docs-close]"` |
+| `auth.js:24878` | `initStudentManagementControls` | `closest` | `"[data-student-doc-action]"` |
+| `auth.js:24960` | `initStudentManagementControls` | `closest` | `'[data-guardian-field="relationshipType"]'` |
+| `auth.js:24966` | `initStudentManagementControls` | `closest` | `".portal-guardian-row"` |
+| `auth.js:24971` | `initStudentManagementControls` | `closest` | `"[data-remove-guardian]"` |
+| `auth.js:24977` | `initStudentManagementControls` | `closest` | `".portal-guardian-row"` |
+| `auth.js:25233` | `initStudentManagementControls` | `querySelector` | `"[data-student-cancel]"` |
+| `auth.js:25245` | `initStudentManagementControls` | `closest` | `"[data-student-bulk-delete-level]"` |
+| `auth.js:25318` | `initStudentManagementControls` | `closest` | `"[data-student-class-toggle]"` |
+| `auth.js:25331` | `initStudentManagementControls` | `closest` | `".portal-student-group"` |
+| `auth.js:25332` | `initStudentManagementControls` | `querySelector` | `".portal-student-group-list"` |
+| `auth.js:25333` | `initStudentManagementControls` | `querySelector` | `".portal-student-group-toggle-arrow"` |
+| `auth.js:25352` | `initStudentManagementControls` | `closest` | `"[data-student-action]"` |
+| `auth.js:26001` | `initStudentManagementControls` | `closest` | `"[data-student-photo-action]"` |
+| `auth.js:26014` | `initStudentManagementControls` | `querySelector` | `"[data-student-photo-input]"` |
+| `auth.js:26041` | `initStudentManagementControls` | `querySelector` | `".portal-student-profile-photo-media"` |
+| `auth.js:26046` | `initStudentManagementControls` | `querySelector` | `'[data-student-photo-action="replace"]'` |
+| `auth.js:26054` | `initStudentManagementControls` | `closest` | `"[data-student-photo-input]"` |
+| `auth.js:26092` | `initStudentManagementControls` | `querySelector` | `".portal-student-profile-photo-media"` |
+| `auth.js:26098` | `initStudentManagementControls` | `querySelector` | `'[data-student-photo-action="remove"]'` |
+| `auth.js:26102` | `initStudentManagementControls` | `querySelector` | `'[data-student-photo-action="replace"]'` |
+| `auth.js:26110` | `initStudentManagementControls` | `querySelectorAll` | `"[data-student-template-download]"` |
+| `auth.js:26319` | `getSelectedRole` | `querySelector` | `".auth-role.is-active"` |
+| `auth.js:26329` | `getSelectedRole` | `querySelector` | `".auth-role-label"` |
+| `auth.js:26340` | `initRoleButtons` | `getElementById` | `"login-email"` |
+| `auth.js:26341` | `initRoleButtons` | `querySelector` | `'.auth-field-label[for="login-email"]'` |
+| `auth.js:26352` | `initRoleButtons` | `querySelectorAll` | `".auth-role"` |
+| `auth.js:26354` | `initRoleButtons` | `querySelectorAll` | `".auth-role"` |
+| `auth.js:26363` | `initPasswordToggles` | `querySelectorAll` | `"[data-password-toggle]"` |
+| `auth.js:26366` | `initPasswordToggles` | `getElementById` | `targetId` |
+| `auth.js:26398` | `getActionFeedbackTrigger` | `matches` | `[ "[data-no-inline-feedback]", "[data-password-toggle]", "[data-theme-toggle]", "[data-sidebar-toggle]", "[data-auth-modal-close]", "[data-auth-role]", ].join(",")` |
+| `auth.js:26454` | `getInlineActionFeedbackHost` | `getElementById` | `existingId` |
+| `auth.js:26468` | `getInlineActionFeedbackHost` | `closest` | `".inline-action-feedback-wrap"` |
+| `auth.js:26566` | `clearInlineActionFeedback` | `getElementById` | `hostId` |
+| `auth.js:26664` | `clearFieldErrors` | `querySelectorAll` | `".auth-line-field"` |
+| `auth.js:26665` | `clearFieldErrors` | `querySelectorAll` | `".auth-check"` |
+| `auth.js:26666` | `clearFieldErrors` | `querySelectorAll` | `".portal-field"` |
+| `auth.js:26667` | `clearFieldErrors` | `querySelectorAll` | `".auth-field-error"` |
+| `auth.js:26673` | `setFieldError` | `querySelector` | ``[data-error-for="${fieldName}"]`` |
+| `auth.js:26676` | `setFieldError` | `closest` | `".auth-line-field"` |
+| `auth.js:26677` | `setFieldError` | `closest` | `".auth-line-field"` |
+| `auth.js:26678` | `setFieldError` | `closest` | `".auth-check"` |
+| `auth.js:26679` | `setFieldError` | `closest` | `".auth-check"` |
+| `auth.js:26680` | `setFieldError` | `closest` | `".portal-field"` |
+| `auth.js:26681` | `setFieldError` | `closest` | `".portal-field"` |
+| `auth.js:26769` | `initSignupFlow` | `getElementById` | `"signup-form"` |
+| `auth.js:26770` | `initSignupFlow` | `getElementById` | `"signup-status"` |
+| `auth.js:26783` | `initSignupFlow` | `closest` | `"[data-supabase-resend-confirmation]"` |
+| `auth.js:27230` | `initLoginFlow` | `getElementById` | `"login-form"` |
+| `auth.js:27231` | `initLoginFlow` | `getElementById` | `"login-status"` |
+| `auth.js:27528` | `initOwnerAccessFlow` | `getElementById` | `"owner-login-form"` |
+| `auth.js:27529` | `initOwnerAccessFlow` | `getElementById` | `"owner-login-status"` |
+| `auth.js:27530` | `initOwnerAccessFlow` | `getElementById` | `"owner-confirm-block"` |
+| `auth.js:27531` | `initOwnerAccessFlow` | `getElementById` | `"owner-login-copy"` |
+| `auth.js:27532` | `initOwnerAccessFlow` | `getElementById` | `"owner-login-submit"` |
+| `auth.js:27629` | `initForgotPasswordFlow` | `getElementById` | `"forgot-form"` |
+| `auth.js:27630` | `initForgotPasswordFlow` | `getElementById` | `"forgot-status"` |
+| `auth.js:27631` | `initForgotPasswordFlow` | `getElementById` | `"forgot-form-view"` |
+| `auth.js:27632` | `initForgotPasswordFlow` | `getElementById` | `"forgot-sent-view"` |
+| `auth.js:27718` | `initResetPasswordFlow` | `getElementById` | `"reset-form"` |
+| `auth.js:27719` | `initResetPasswordFlow` | `getElementById` | `"reset-status"` |
+| `auth.js:27720` | `initResetPasswordFlow` | `getElementById` | `"reset-form-wrapper"` |
+| `auth.js:27721` | `initResetPasswordFlow` | `getElementById` | `"reset-invalid-view"` |
+| `auth.js:27722` | `initResetPasswordFlow` | `getElementById` | `"reset-success-view"` |
+| `auth.js:27899` | `ensureGoogleModal` | `getElementById` | `"auth-google-modal"` |
+| `auth.js:27929` | `ensureGoogleModal` | `getElementById` | `"auth-google-modal"` |
+| `auth.js:27931` | `ensureGoogleModal` | `querySelectorAll` | `"[data-auth-modal-close]"` |
+| `auth.js:27935` | `ensureGoogleModal` | `querySelector` | `"#auth-google-form"` |
+| `auth.js:27942` | `openGoogleModal` | `querySelector` | `"#auth-google-title"` |
+| `auth.js:27943` | `openGoogleModal` | `querySelector` | `"#auth-google-copy"` |
+| `auth.js:27944` | `openGoogleModal` | `querySelector` | `"#auth-google-error"` |
+| `auth.js:27945` | `openGoogleModal` | `querySelector` | `"#auth-google-email"` |
+| `auth.js:27962` | `closeGoogleModal` | `getElementById` | `"auth-google-modal"` |
+| `auth.js:27974` | `startSupabaseGoogleAuth` | `getElementById` | `page === "signup" ? "signup-status" : "login-status"` |
+| `auth.js:27975` | `startSupabaseGoogleAuth` | `getElementById` | `"login-remember"` |
+| `auth.js:28012` | `handleGoogleSubmit` | `getElementById` | `"auth-google-modal"` |
+| `auth.js:28014` | `handleGoogleSubmit` | `querySelector` | `"#auth-google-error"` |
+| `auth.js:28139` | `initGoogleButtons` | `querySelectorAll` | `"[data-google-auth]"` |
+| `auth.js:28158` | `initConfirmPage` | `getElementById` | `"confirm-status"` |
+| `auth.js:28159` | `initConfirmPage` | `getElementById` | `"confirm-heading"` |
+| `auth.js:28160` | `initConfirmPage` | `getElementById` | `"confirm-copy"` |
+| `auth.js:28161` | `initConfirmPage` | `getElementById` | `"confirm-details"` |
+| `auth.js:28215` | `initAdmissionsApplyPage` | `getElementById` | `"admissions-apply-form"` |
+| `auth.js:28216` | `initAdmissionsApplyPage` | `getElementById` | `"admissions-apply-status"` |
+| `auth.js:28217` | `initAdmissionsApplyPage` | `getElementById` | `"admissions-workspace-id"` |
+| `auth.js:28218` | `initAdmissionsApplyPage` | `getElementById` | `"admissions-apply-copy"` |
+| `auth.js:28219` | `initAdmissionsApplyPage` | `getElementById` | `"admissions-step-indicator"` |
+| `auth.js:28220` | `initAdmissionsApplyPage` | `getElementById` | `"admissions-review-panel"` |
+| `auth.js:28221` | `initAdmissionsApplyPage` | `getElementById` | `"apply-health-condition"` |
+| `auth.js:28222` | `initAdmissionsApplyPage` | `getElementById` | `"health-condition-details-wrap"` |
+| `auth.js:28223` | `initAdmissionsApplyPage` | `getElementById` | `"apply-health-condition-details"` |
+| `auth.js:28227` | `initAdmissionsApplyPage` | `querySelectorAll` | `'input[type="file"]'` |
+| `auth.js:28245` | `initAdmissionsApplyPage` | `getElementById` | `"admissions-apply-brand-mark"` |
+| `auth.js:28246` | `initAdmissionsApplyPage` | `getElementById` | `"admissions-apply-school-name"` |
+| `auth.js:28433` | `initAdmissionsApplyPage` | `querySelectorAll` | `"[data-admissions-step]"` |
+| `auth.js:28442` | `initAdmissionsApplyPage` | `getElementById` | `"admissions-apply-toast"` |
+| `auth.js:28479` | `initAdmissionsApplyPage` | `closest` | `".auth-field-block"` |
+| `auth.js:28515` | `initAdmissionsApplyPage` | `closest` | `".auth-field-block"` |
+| `auth.js:28517` | `initAdmissionsApplyPage` | `querySelector` | `"[data-apply-file-selection]"` |
+| `auth.js:28788` | `initAdmissionsApplyPage` | `closest` | `"[data-apply-file-remove]"` |
+| `auth.js:28810` | `initAdmissionsApplyPage` | `querySelectorAll` | `"[data-admission-step-next]"` |
+| `auth.js:28819` | `initAdmissionsApplyPage` | `querySelectorAll` | `"[data-admission-step-prev]"` |
+| `auth.js:29144` | `renderTeacherAttendanceWorkspace` | `querySelector` | `"[data-teacher-attendance-date]"` |
+| `auth.js:29145` | `renderTeacherAttendanceWorkspace` | `querySelector` | `"[data-teacher-attendance-lesson]"` |
+| `auth.js:29146` | `renderTeacherAttendanceWorkspace` | `querySelector` | `"[data-teacher-attendance-form]"` |
+| `auth.js:29147` | `renderTeacherAttendanceWorkspace` | `querySelector` | `"#teacher-attendance-status"` |
+| `auth.js:29175` | `renderTeacherAttendanceWorkspace` | `querySelectorAll` | `".attendance-status-option input"` |
+| `auth.js:29177` | `renderTeacherAttendanceWorkspace` | `closest` | `".attendance-status-picker"` |
+| `auth.js:29184` | `renderTeacherAttendanceWorkspace` | `querySelector` | `"[data-attendance-mark-all]"` |
+| `auth.js:29187` | `renderTeacherAttendanceWorkspace` | `querySelectorAll` | `'.attendance-status-option input[value="present"]'` |
+| `auth.js:29199` | `renderTeacherAttendanceWorkspace` | `querySelectorAll` | `"[data-attendance-student-row]"` |
+| `auth.js:29203` | `renderTeacherAttendanceWorkspace` | `querySelector` | `'input[type="radio"]:checked'` |
+| `auth.js:29212` | `renderTeacherAttendanceWorkspace` | `querySelector` | `"[data-attendance-note]"` |
+| `auth.js:29244` | `renderTeacherAttendanceWorkspace` | `querySelectorAll` | `"[data-attendance-student-row]"` |
+| `auth.js:29248` | `renderTeacherAttendanceWorkspace` | `querySelector` | `'input[type="radio"]:checked'` |
+| `auth.js:29249` | `renderTeacherAttendanceWorkspace` | `querySelector` | `"[data-attendance-note]"` |
+| `auth.js:30763` | `showReportCardToast` | `getElementById` | `"portal-report-card-toast"` |
+| `auth.js:30812` | `loadReportCardPdfLibrary` | `querySelector` | `'script[data-report-card-pdf-library="true"]'` |
+| `auth.js:31052` | `ensureReportCardModal` | `getElementById` | `"portal-report-card-overlay"` |
+| `auth.js:31079` | `ensureReportCardModal` | `getElementById` | `"portal-report-card-overlay"` |
+| `auth.js:31082` | `ensureReportCardModal` | `closest` | `"[data-report-card-close]"` |
+| `auth.js:31085` | `ensureReportCardModal` | `querySelector` | `".portal-overlay:not([hidden])"` |
+| `auth.js:31089` | `ensureReportCardModal` | `closest` | `"[data-report-card-print]"` |
+| `auth.js:31094` | `ensureReportCardModal` | `closest` | `"[data-report-card-download]"` |
+| `auth.js:31112` | `ensureReportCardModal` | `querySelector` | `"[data-report-card-close]"` |
+| `auth.js:31126` | `openReportCardModal` | `querySelector` | `"#portal-report-card-modal-body"` |
+| `auth.js:31127` | `openReportCardModal` | `querySelector` | `"#portal-report-card-modal-title"` |
+| `auth.js:31139` | `openReportCardModal` | `querySelector` | `"[data-report-card-close]"` |
+| `auth.js:31155` | `wireReportCardDocumentActions` | `closest` | `"[data-report-card-action]"` |
+| `auth.js:31983` | `showPortalOnboardingModal` | `getElementById` | `"portal-onboarding-modal"` |
+| `auth.js:32075` | `showPortalOnboardingModal` | `closest` | `"[data-onboarding-close]"` |
+| `auth.js:32076` | `showPortalOnboardingModal` | `closest` | `"[data-onboarding-skip]"` |
+| `auth.js:32077` | `showPortalOnboardingModal` | `closest` | `"[data-onboarding-prev]"` |
+| `auth.js:32078` | `showPortalOnboardingModal` | `closest` | `"[data-onboarding-next]"` |
+| `auth.js:32079` | `showPortalOnboardingModal` | `closest` | `"[data-onboarding-step]"` |
+| `auth.js:32080` | `showPortalOnboardingModal` | `closest` | `"[data-onboarding-open-section]"` |
+| `auth.js:32126` | `renderAdminPortalSetupChecklist` | `getElementById` | `"portal-metrics"` |
+| `auth.js:32133` | `renderAdminPortalSetupChecklist` | `getElementById` | `"portal-onboarding-checklist"` |
+| `auth.js:32183` | `renderAdminPortalSetupChecklist` | `querySelector` | `"[data-open-onboarding-guide]"` |
+| `auth.js:32186` | `renderAdminPortalSetupChecklist` | `querySelector` | `"[data-dismiss-onboarding-checklist]"` |
+| `auth.js:32203` | `initPortalOnboarding` | `getElementById` | `"portal-onboarding-modal"` |
+| `auth.js:32246` | `initPortalAnnouncementToasts` | `getElementById` | `"portal-announcement-toast"` |
+| `auth.js:32286` | `initPortalAnnouncementToasts` | `querySelector` | `".portal-announcement-toast-timer"` |
+| `auth.js:32292` | `initPortalAnnouncementToasts` | `querySelector` | `"[data-announcement-toast-title]"` |
+| `auth.js:32294` | `initPortalAnnouncementToasts` | `querySelector` | `"[data-announcement-toast-message]"` |
+| `auth.js:32296` | `initPortalAnnouncementToasts` | `querySelector` | `"[data-announcement-toast-meta]"` |
+| `auth.js:32320` | `initPortalAnnouncementToasts` | `querySelector` | `"[data-announcement-toast-close]"` |
+| `auth.js:32431` | `renderStudentEvents` | `closest` | `".admin-events-card"` |
+| `auth.js:32432` | `renderStudentEvents` | `closest` | `".admin-events-card"` |
+| `auth.js:32752` | `renderStudentClassesSection` | `getElementById` | `"student-class-roster-overlay"` |
+| `auth.js:32772` | `renderStudentClassesSection` | `getElementById` | `"student-class-roster-overlay"` |
+| `auth.js:32783` | `renderStudentClassesSection` | `querySelector` | `".portal-overlay:not([hidden])"` |
+| `auth.js:32788` | `renderStudentClassesSection` | `getElementById` | `"student-class-roster-title"` |
+| `auth.js:32789` | `renderStudentClassesSection` | `getElementById` | `"student-class-roster-body"` |
+| `auth.js:32800` | `renderStudentClassesSection` | `querySelectorAll` | `"[data-student-other-class-open]"` |
+| `auth.js:32815` | `renderStudentClassesSection` | `closest` | `"[data-student-class-roster-close]"` |
+| `auth.js:33153` | `renderStudentReportsSection` | `querySelector` | `".parent-report-card-command .admin-surface-head h2"` |
+| `auth.js:33154` | `renderStudentReportsSection` | `querySelector` | `".parent-report-card-command .admin-surface-head span"` |
+| `auth.js:33423` | `renderStaffEvents` | `closest` | `".admin-events-card"` |
+| `auth.js:33424` | `renderStaffEvents` | `closest` | `".admin-events-card"` |
+| `auth.js:33753` | `renderStaffTimetableWorkspace` | `querySelectorAll` | `"[data-staff-timetable-view]"` |
+| `auth.js:33874` | `renderStaffClassesWorkspace` | `getElementById` | `"staff-class-roster-overlay"` |
+| `auth.js:33894` | `renderStaffClassesWorkspace` | `getElementById` | `"staff-class-roster-overlay"` |
+| `auth.js:33898` | `renderStaffClassesWorkspace` | `getElementById` | `"staff-class-roster-title"` |
+| `auth.js:33899` | `renderStaffClassesWorkspace` | `getElementById` | `"staff-class-roster-body"` |
+| `auth.js:33909` | `renderStaffClassesWorkspace` | `querySelector` | `".portal-overlay:not([hidden])"` |
+| `auth.js:33934` | `renderStaffClassesWorkspace` | `closest` | `"[data-staff-class-open]"` |
+| `auth.js:33952` | `renderStaffClassesWorkspace` | `closest` | `"[data-staff-class-roster-close]"` |
+| `auth.js:34285` | `renderStaffGradebookWorkspace` | `querySelector` | `"#staff-gradebook-status"` |
+| `auth.js:34293` | `renderStaffGradebookWorkspace` | `querySelector` | `"[data-gradebook-class]"` |
+| `auth.js:34298` | `renderStaffGradebookWorkspace` | `querySelector` | `"[data-gradebook-subject]"` |
+| `auth.js:34302` | `renderStaffGradebookWorkspace` | `querySelector` | `"[data-gradebook-session]"` |
+| `auth.js:34307` | `renderStaffGradebookWorkspace` | `querySelector` | `"[data-gradebook-term]"` |
+| `auth.js:34314` | `renderStaffGradebookWorkspace` | `querySelector` | `"#staff-gradebook-status"` |
+| `auth.js:34315` | `renderStaffGradebookWorkspace` | `querySelector` | `"[data-gradebook-components]"` |
+| `auth.js:34317` | `renderStaffGradebookWorkspace` | `querySelectorAll` | `"[data-gradebook-component]"` |
+| `auth.js:34320` | `renderStaffGradebookWorkspace` | `querySelector` | `"[data-component-name]"` |
+| `auth.js:34321` | `renderStaffGradebookWorkspace` | `querySelector` | `"[data-component-maximum]"` |
+| `auth.js:34325` | `renderStaffGradebookWorkspace` | `querySelector` | ``[data-gradebook-heading="${CSS.escape(component.id)}"]`` |
+| `auth.js:34333` | `renderStaffGradebookWorkspace` | `querySelector` | `"[data-gradebook-component-total]"` |
+| `auth.js:34338` | `renderStaffGradebookWorkspace` | `querySelectorAll` | `"[data-gradebook-student]"` |
+| `auth.js:34341` | `renderStaffGradebookWorkspace` | `querySelector` | ``[data-gradebook-score="${CSS.escape(component.id)}"]`` |
+| `auth.js:34346` | `renderStaffGradebookWorkspace` | `querySelector` | `"[data-gradebook-student-total]"` |
+| `auth.js:34353` | `renderStaffGradebookWorkspace` | `closest` | `"[data-gradebook-component]"` |
+| `auth.js:34353` | `renderStaffGradebookWorkspace` | `matches` | `"[data-gradebook-score]"` |
+| `auth.js:34357` | `renderStaffGradebookWorkspace` | `querySelector` | `"[data-gradebook-add-component]"` |
+| `auth.js:34372` | `renderStaffGradebookWorkspace` | `querySelector` | `".staff-gradebook-table thead th:last-child"` |
+| `auth.js:34377` | `renderStaffGradebookWorkspace` | `querySelectorAll` | `"[data-gradebook-student]"` |
+| `auth.js:34388` | `renderStaffGradebookWorkspace` | `closest` | `"[data-gradebook-remove-component]"` |
+| `auth.js:34390` | `renderStaffGradebookWorkspace` | `querySelectorAll` | `"[data-gradebook-component]"` |
+| `auth.js:34394` | `renderStaffGradebookWorkspace` | `closest` | `"[data-gradebook-component]"` |
+| `auth.js:34397` | `renderStaffGradebookWorkspace` | `querySelector` | ``[data-gradebook-heading="${CSS.escape(componentId)}"]`` |
+| `auth.js:34398` | `renderStaffGradebookWorkspace` | `querySelectorAll` | ``[data-gradebook-score="${CSS.escape(componentId)}"]`` |
+| `auth.js:34399` | `renderStaffGradebookWorkspace` | `closest` | `"td"` |
+| `auth.js:34403` | `renderStaffGradebookWorkspace` | `querySelector` | `"[data-gradebook-save]"` |
+| `auth.js:34422` | `renderStaffGradebookWorkspace` | `querySelector` | ``[data-gradebook-student="${CSS.escape(student.id)}"]`` |
+| `auth.js:34536` | `collectStaffReportCardSubjects` | `querySelectorAll` | `"[data-report-subject-row]"` |
+| `auth.js:34540` | `collectStaffReportCardSubjects` | `querySelector` | `'[name="subjectName"]'` |
+| `auth.js:34541` | `collectStaffReportCardSubjects` | `querySelector` | `'[name="subjectCode"]'` |
+| `auth.js:34542` | `collectStaffReportCardSubjects` | `querySelector` | `'[name="caScore"]'` |
+| `auth.js:34543` | `collectStaffReportCardSubjects` | `querySelector` | `'[name="examScore"]'` |
+| `auth.js:34906` | `renderStaffResultsWorkspace` | `querySelector` | `"#staff-result-context-form"` |
+| `auth.js:34907` | `renderStaffResultsWorkspace` | `querySelector` | `"#staff-result-card-form"` |
+| `auth.js:34938` | `renderStaffResultsWorkspace` | `querySelector` | `"#staff-result-card-status"` |
+| `auth.js:34939` | `renderStaffResultsWorkspace` | `querySelector` | `"#staff-result-subject-rows"` |
+| `auth.js:34941` | `renderStaffResultsWorkspace` | `querySelectorAll` | `"[data-report-subject-row]"` |
+| `auth.js:34942` | `renderStaffResultsWorkspace` | `querySelector` | `'[name="caScore"]'` |
+| `auth.js:34943` | `renderStaffResultsWorkspace` | `querySelector` | `'[name="examScore"]'` |
+| `auth.js:34946` | `renderStaffResultsWorkspace` | `querySelector` | `"[data-report-row-total]"` |
+| `auth.js:34947` | `renderStaffResultsWorkspace` | `querySelector` | `"[data-report-row-grade]"` |
+| `auth.js:34951` | `renderStaffResultsWorkspace` | `querySelector` | `'[name="subjectName"]'` |
+| `auth.js:34964` | `renderStaffResultsWorkspace` | `querySelector` | ``[data-report-editor-summary="${key}"]`` |
+| `auth.js:35005` | `renderStaffResultsWorkspace` | `closest` | `"[data-report-subject-row]"` |
+| `auth.js:35010` | `renderStaffResultsWorkspace` | `closest` | `"[data-report-subject-add]"` |
+| `auth.js:35011` | `renderStaffResultsWorkspace` | `querySelectorAll` | `"[data-report-subject-row]"` |
+| `auth.js:35016` | `renderStaffResultsWorkspace` | `querySelectorAll` | `"[data-report-subject-row]"` |
+| `auth.js:35021` | `renderStaffResultsWorkspace` | `closest` | `"[data-report-subject-remove]"` |
+| `auth.js:35023` | `renderStaffResultsWorkspace` | `closest` | `"[data-report-subject-row]"` |
+| `auth.js:35024` | `renderStaffResultsWorkspace` | `querySelectorAll` | `"[data-report-subject-row]"` |
+| `auth.js:35025` | `renderStaffResultsWorkspace` | `querySelector` | `"td"` |
+| `auth.js:35032` | `renderStaffResultsWorkspace` | `closest` | `"[data-result-generate-summary]"` |
+| `auth.js:35060` | `renderStaffResultsWorkspace` | `closest` | `"[data-report-card-release]"` |
+| `auth.js:35098` | `renderStaffResultsWorkspace` | `closest` | `"[data-report-card-return-draft]"` |
+| `auth.js:35529` | `renderStaffLessonPlansWorkspace` | `querySelector` | `"#staff-lesson-plan-form"` |
+| `auth.js:35541` | `renderStaffLessonPlansWorkspace` | `querySelector` | `"[data-lesson-resource-input]"` |
+| `auth.js:35545` | `renderStaffLessonPlansWorkspace` | `querySelector` | `"[data-lesson-attachments]"` |
+| `auth.js:35563` | `renderStaffLessonPlansWorkspace` | `querySelector` | `"[data-lesson-resource-input]"` |
+| `auth.js:35567` | `renderStaffLessonPlansWorkspace` | `querySelector` | `"[data-lesson-attachments]"` |
+| `auth.js:35572` | `renderStaffLessonPlansWorkspace` | `querySelector` | `"#staff-lesson-plan-status"` |
+| `auth.js:35576` | `renderStaffLessonPlansWorkspace` | `querySelector` | `"[data-lesson-resource-input]"` |
+| `auth.js:35663` | `renderStaffLessonPlansWorkspace` | `querySelector` | `"#staff-lesson-plan-form"` |
+| `auth.js:35664` | `renderStaffLessonPlansWorkspace` | `querySelector` | `"#staff-lesson-plan-status"` |
+| `auth.js:35676` | `renderStaffLessonPlansWorkspace` | `querySelector` | `"[data-lesson-attachments]"` |
+| `auth.js:35677` | `renderStaffLessonPlansWorkspace` | `closest` | `"[data-lesson-attachment-remove]"` |
+| `auth.js:35680` | `renderStaffLessonPlansWorkspace` | `querySelector` | `"[data-lesson-attachments]"` |
+| `auth.js:35684` | `renderStaffLessonPlansWorkspace` | `querySelector` | `"[data-lesson-reset]"` |
+| `auth.js:35689` | `renderStaffLessonPlansWorkspace` | `querySelectorAll` | `"[data-lesson-save-status]"` |
+| `auth.js:35718` | `renderStaffLessonPlansWorkspace` | `querySelector` | `"#staff-lesson-plan-status"` |
+| `auth.js:35721` | `renderStaffLessonPlansWorkspace` | `querySelectorAll` | `"[data-lesson-action]"` |
+| `auth.js:36119` | `renderPortalMessageInbox` | `querySelector` | `"[data-message-history]"` |
+| `auth.js:36124` | `renderPortalMessageInbox` | `querySelector` | `"[data-message-recipient-picker]"` |
+| `auth.js:36125` | `renderPortalMessageInbox` | `querySelector` | `"[data-message-recipient-search]"` |
+| `auth.js:36131` | `renderPortalMessageInbox` | `querySelector` | `"[data-message-recipient-open]"` |
+| `auth.js:36137` | `renderPortalMessageInbox` | `querySelector` | `"[data-message-recipient-open]"` |
+| `auth.js:36140` | `renderPortalMessageInbox` | `querySelector` | `"[data-message-recipient-close]"` |
+| `auth.js:36146` | `renderPortalMessageInbox` | `querySelectorAll` | `"[data-message-recipient-key]"` |
+| `auth.js:36153` | `renderPortalMessageInbox` | `querySelectorAll` | `"[data-message-recipient-group]"` |
+| `auth.js:36154` | `renderPortalMessageInbox` | `querySelector` | `"[data-message-recipient-key]:not([hidden])"` |
+| `auth.js:36156` | `renderPortalMessageInbox` | `querySelector` | `"[data-message-recipient-empty]"` |
+| `auth.js:36161` | `renderPortalMessageInbox` | `querySelectorAll` | `"[data-message-recipient-key]"` |
+| `auth.js:36175` | `renderPortalMessageInbox` | `querySelectorAll` | `"[data-message-thread]"` |
+| `auth.js:36188` | `renderPortalMessageInbox` | `querySelector` | `"[data-message-delete-thread]"` |
+| `auth.js:36217` | `renderPortalMessageInbox` | `querySelector` | `"[data-message-composer]"` |
+| `auth.js:36248` | `renderPortalMessageInbox` | `querySelector` | `"[data-message-status]"` |
+| `auth.js:36800` | `renderStaffLeaveWorkspace` | `querySelector` | `"#staff-leave-form"` |
+| `auth.js:36801` | `renderStaffLeaveWorkspace` | `querySelector` | `"#staff-leave-status"` |
+| `auth.js:36807` | `renderStaffLeaveWorkspace` | `querySelector` | `"[data-leave-days-output]"` |
+| `auth.js:37201` | `wireNotificationReplyForms` | `closest` | `"[data-notification-parent-reply-form]"` |
+| `auth.js:37223` | `wireNotificationReplyForms` | `querySelector` | `"button[type='submit']"` |
+| `auth.js:37237` | `ensureDashboardNotificationsOverlay` | `getElementById` | `"admin-notification-overlay"` |
+| `auth.js:37264` | `ensureDashboardNotificationsOverlay` | `getElementById` | `"admin-notification-overlay"` |
+| `auth.js:37588` | `initDashboardGlobalSearch` | `getElementById` | `input.getAttribute("aria-controls") &#124;&#124; "admin-search-suggestions"` |
+| `auth.js:37641` | `initPortalNotifications` | `getElementById` | `"admin-notification-list"` |
+| `auth.js:37658` | `initPortalNotifications` | `getElementById` | `"admin-notification-dot"` |
+| `auth.js:37683` | `initPortalNotifications` | `querySelectorAll` | `"[data-notification-close]"` |
+| `auth.js:37738` | `initAdminSectionQuickNav` | `querySelector` | `".admin-dashboard-main"` |
+| `auth.js:37739` | `initAdminSectionQuickNav` | `querySelector` | `".admin-dashboard-topbar"` |
+| `auth.js:37745` | `initAdminSectionQuickNav` | `querySelector` | `".admin-section-quick-nav"` |
+| `auth.js:37751` | `initAdminSectionQuickNav` | `querySelectorAll` | `".admin-settings-subnav a"` |
+| `auth.js:37780` | `initAdminSectionQuickNav` | `querySelectorAll` | `".admin-surface-card"` |
+| `auth.js:37781` | `initAdminSectionQuickNav` | `querySelector` | `".admin-surface-head h2, .admin-report-heading h2"` |
+| `auth.js:37799` | `initAdminSectionQuickNav` | `querySelector` | `".admin-surface-head h2, .admin-report-heading h2"` |
+| `auth.js:37810` | `initAdminSectionQuickNav` | `getElementById` | `id` |
+| `auth.js:37810` | `initAdminSectionQuickNav` | `getElementById` | `id` |
+| `auth.js:37845` | `initAdminSectionQuickNav` | `querySelectorAll` | `".admin-section-quick-link"` |
+| `auth.js:38067` | `loadPaystackInline` | `querySelector` | `'script[src="https://js.paystack.co/v2/inline.js"]'` |
+| `auth.js:38533` | `renderParentChildSelector` | `querySelector` | `"#parent-child-switch"` |
+| `auth.js:39150` | `ensureParentFeeInvoiceModal` | `getElementById` | `"parent-fee-invoice-overlay"` |
+| `auth.js:39173` | `ensureParentFeeInvoiceModal` | `getElementById` | `"parent-fee-invoice-overlay"` |
+| `auth.js:39176` | `ensureParentFeeInvoiceModal` | `closest` | `"[data-parent-fee-invoice-close]"` |
+| `auth.js:39178` | `ensureParentFeeInvoiceModal` | `querySelector` | `".portal-overlay:not([hidden])"` |
+| `auth.js:39187` | `openParentFeeInvoiceModal` | `querySelector` | `"#parent-fee-invoice-modal-title"` |
+| `auth.js:39188` | `openParentFeeInvoiceModal` | `querySelector` | `"#parent-fee-invoice-modal-body"` |
+| `auth.js:39200` | `openParentFeeInvoiceModal` | `querySelector` | `"[data-parent-fee-invoice-download]"` |
+| `auth.js:39207` | `openParentFeeInvoiceModal` | `querySelector` | `"[data-parent-fee-invoice-close]"` |
+| `auth.js:39366` | `renderParentFeesPage` | `querySelector` | `"#parent-fee-payment-form"` |
+| `auth.js:39367` | `renderParentFeesPage` | `querySelector` | `"#parent-fee-payment-status"` |
+| `auth.js:39368` | `renderParentFeesPage` | `querySelector` | `"[data-parent-fee-invoice-view]"` |
+| `auth.js:39369` | `renderParentFeesPage` | `querySelector` | `"[data-parent-fee-invoice-download]"` |
+| `auth.js:39388` | `renderParentFeesPage` | `querySelector` | `"#parent-fee-payment-amount"` |
+| `auth.js:39408` | `renderParentFeesPage` | `querySelector` | `"button[type='submit']"` |
+| `auth.js:40026` | `initParentFloatingChatbot` | `getElementById` | `"parent-floating-chatbot"` |
+| `auth.js:40085` | `initParentFloatingChatbot` | `querySelector` | `"[data-parent-chatbot-toggle]"` |
+| `auth.js:40086` | `initParentFloatingChatbot` | `querySelector` | `"[data-parent-chatbot-panel]"` |
+| `auth.js:40087` | `initParentFloatingChatbot` | `querySelector` | `"[data-parent-chatbot-close]"` |
+| `auth.js:40088` | `initParentFloatingChatbot` | `querySelector` | `"[data-parent-chatbot-thread]"` |
+| `auth.js:40089` | `initParentFloatingChatbot` | `querySelector` | `"[data-parent-chatbot-form]"` |
+| `auth.js:40142` | `initParentFloatingChatbot` | `querySelectorAll` | `"[data-parent-chatbot-question]"` |
+| `auth.js:40189` | `initParentPages` | `getElementById` | `"admin-brand-mark"` |
+| `auth.js:40190` | `initParentPages` | `getElementById` | `"admin-brand-name"` |
+| `auth.js:40191` | `initParentPages` | `getElementById` | `"admin-brand-subtitle"` |
+| `auth.js:40192` | `initParentPages` | `getElementById` | `"admin-profile-avatar"` |
+| `auth.js:40193` | `initParentPages` | `getElementById` | `"admin-profile-name"` |
+| `auth.js:40194` | `initParentPages` | `getElementById` | `"admin-profile-role"` |
+| `auth.js:40195` | `initParentPages` | `getElementById` | `"portal-gate"` |
+| `auth.js:40196` | `initParentPages` | `getElementById` | `"portal-last-updated"` |
+| `auth.js:40227` | `initParentPages` | `getElementById` | `"parent-child-switcher"` |
+| `auth.js:40229` | `initParentPages` | `getElementById` | `"admin-notification-button"` |
+| `auth.js:40230` | `initParentPages` | `querySelector` | `".admin-dashboard-topbar"` |
+| `auth.js:40265` | `initParentPages` | `getElementById` | `"parent-page-content"` |
+| `auth.js:40483` | `renderSuperAdminUsers` | `getElementById` | `"super-admin-search"` |
+| `auth.js:40484` | `renderSuperAdminUsers` | `getElementById` | `"super-admin-role-filter"` |
+| `auth.js:40485` | `renderSuperAdminUsers` | `getElementById` | `"super-admin-status-filter"` |
+| `auth.js:40641` | `refreshSuperAdminConsole` | `getElementById` | `"super-admin-metrics"` |
+| `auth.js:40642` | `refreshSuperAdminConsole` | `getElementById` | `"super-admin-users"` |
+| `auth.js:40643` | `refreshSuperAdminConsole` | `getElementById` | `"super-admin-workspaces"` |
+| `auth.js:40644` | `refreshSuperAdminConsole` | `getElementById` | `"super-admin-activity"` |
+| `auth.js:40646` | `refreshSuperAdminConsole` | `getElementById` | `"portal-last-updated"` |
+| `auth.js:40653` | `handleSuperAdminUserAction` | `closest` | `"[data-super-user-action]"` |
+| `auth.js:40794` | `initSuperAdminPage` | `getElementById` | `"admin-brand-mark"` |
+| `auth.js:40795` | `initSuperAdminPage` | `getElementById` | `"admin-brand-name"` |
+| `auth.js:40796` | `initSuperAdminPage` | `getElementById` | `"admin-brand-subtitle"` |
+| `auth.js:40797` | `initSuperAdminPage` | `getElementById` | `"admin-profile-avatar"` |
+| `auth.js:40798` | `initSuperAdminPage` | `getElementById` | `"admin-profile-name"` |
+| `auth.js:40799` | `initSuperAdminPage` | `getElementById` | `"admin-profile-role"` |
+| `auth.js:40800` | `initSuperAdminPage` | `getElementById` | `"portal-gate"` |
+| `auth.js:40801` | `initSuperAdminPage` | `getElementById` | `"super-admin-status"` |
+| `auth.js:40802` | `initSuperAdminPage` | `getElementById` | `"super-admin-users"` |
+| `auth.js:40829` | `initSuperAdminPage` | `querySelectorAll` | `"[data-super-refresh]"` |
+| `auth.js:40836` | `initSuperAdminPage` | `getElementById` | `id` |
+| `auth.js:40837` | `initSuperAdminPage` | `getElementById` | `id` |
+| `auth.js:40855` | `initAdminShellPages` | `getElementById` | `"admin-brand-mark"` |
+| `auth.js:40856` | `initAdminShellPages` | `getElementById` | `"admin-brand-name"` |
+| `auth.js:40857` | `initAdminShellPages` | `getElementById` | `"admin-brand-subtitle"` |
+| `auth.js:40858` | `initAdminShellPages` | `getElementById` | `"admin-profile-avatar"` |
+| `auth.js:40859` | `initAdminShellPages` | `getElementById` | `"admin-profile-name"` |
+| `auth.js:40860` | `initAdminShellPages` | `getElementById` | `"admin-profile-role"` |
+| `auth.js:40861` | `initAdminShellPages` | `getElementById` | `"portal-last-updated"` |
+| `auth.js:40862` | `initAdminShellPages` | `getElementById` | `"portal-gate"` |
+| `auth.js:41245` | `initAdmissionsControls` | `querySelector` | `'[data-admission-delete-all="applications"]'` |
+| `auth.js:41246` | `initAdmissionsControls` | `querySelector` | `'[data-admission-delete-all="history"]'` |
+| `auth.js:41261` | `initAdmissionsControls` | `getElementById` | `"portal-admission-submit-button"` |
+| `auth.js:41261` | `initAdmissionsControls` | `querySelector` | `'button[type="submit"]'` |
+| `auth.js:41262` | `initAdmissionsControls` | `getElementById` | `"portal-admission-cancel-edit"` |
+| `auth.js:41263` | `initAdmissionsControls` | `getElementById` | `"portal-admission-form-overlay"` |
+| `auth.js:41264` | `initAdmissionsControls` | `getElementById` | `"portal-admission-form-title"` |
+| `auth.js:41265` | `initAdmissionsControls` | `querySelector` | `"[data-admission-form-open]"` |
+| `auth.js:41362` | `initAdmissionsControls` | `querySelectorAll` | `"[data-admission-form-close]"` |
+| `auth.js:41375` | `initAdmissionsControls` | `getElementById` | `"portal-admission-approval-toast"` |
+| `auth.js:41418` | `initAdmissionsControls` | `getElementById` | `"portal-admission-modal"` |
+| `auth.js:41419` | `initAdmissionsControls` | `getElementById` | `"portal-admission-modal-body"` |
+| `auth.js:41422` | `initAdmissionsControls` | `closest` | `"[data-admission-close]"` |
+| `auth.js:41428` | `initAdmissionsControls` | `closest` | `"[data-admission-action]"` |
+| `auth.js:41536` | `initAdmissionsControls` | `getElementById` | `"portal-admission-link-value"` |
+| `auth.js:41537` | `initAdmissionsControls` | `getElementById` | `"portal-admission-copy-link"` |
+| `auth.js:41538` | `initAdmissionsControls` | `getElementById` | `"portal-admission-open-link"` |
+| `auth.js:41539` | `initAdmissionsControls` | `getElementById` | `"portal-admission-qr-image"` |
+| `auth.js:42004` | `initAdmissionsControls` | `closest` | `"[data-admission-delete]"` |
+| `auth.js:42014` | `initAdmissionsControls` | `closest` | `"[data-admission-open]"` |
+| `auth.js:42030` | `initAdmissionsControls` | `querySelectorAll` | `"[data-admission-delete-all]"` |
+| `auth.js:42076` | `initAdminAdmissionsPage` | `getElementById` | `"portal-admission-form"` |
+| `auth.js:42077` | `initAdminAdmissionsPage` | `getElementById` | `"portal-admission-status"` |
+| `auth.js:42078` | `initAdminAdmissionsPage` | `getElementById` | `"portal-admission-summary"` |
+| `auth.js:42079` | `initAdminAdmissionsPage` | `getElementById` | `"portal-admission-list"` |
+| `auth.js:42080` | `initAdminAdmissionsPage` | `getElementById` | `"portal-admission-history"` |
+| `auth.js:42081` | `initAdminAdmissionsPage` | `getElementById` | `"portal-admission-apply-link"` |
+| `auth.js:42083` | `initAdminAdmissionsPage` | `getElementById` | `"portal-admission-config-summary"` |
+| `auth.js:42084` | `initAdminAdmissionsPage` | `getElementById` | `"portal-admission-setup-form"` |
+| `auth.js:42085` | `initAdminAdmissionsPage` | `getElementById` | `"portal-admission-setup-status"` |
+| `auth.js:42086` | `initAdminAdmissionsPage` | `getElementById` | `"portal-admission-class-picker"` |
+| `auth.js:42087` | `initAdminAdmissionsPage` | `getElementById` | `"portal-admission-setup-preview"` |
+| `auth.js:42254` | `setSelfRegistrationPageCopy` | `getElementById` | `"self-register-title"` |
+| `auth.js:42255` | `setSelfRegistrationPageCopy` | `getElementById` | `"self-register-copy"` |
+| `auth.js:42256` | `setSelfRegistrationPageCopy` | `getElementById` | `"self-register-school-name"` |
+| `auth.js:42257` | `setSelfRegistrationPageCopy` | `getElementById` | `"self-register-brand-mark"` |
+| `auth.js:42258` | `setSelfRegistrationPageCopy` | `getElementById` | `"self-register-side-kicker"` |
+| `auth.js:42259` | `setSelfRegistrationPageCopy` | `getElementById` | `"self-register-side-title"` |
+| `auth.js:42260` | `setSelfRegistrationPageCopy` | `getElementById` | `"self-register-side-copy"` |
+| `auth.js:42385` | `initSelfRegisterPage` | `getElementById` | `"self-register-form"` |
+| `auth.js:42386` | `initSelfRegisterPage` | `getElementById` | `"self-register-status"` |
+| `auth.js:42387` | `initSelfRegisterPage` | `querySelector` | `"[data-self-register-student]"` |
+| `auth.js:42388` | `initSelfRegisterPage` | `querySelector` | `"[data-self-register-staff]"` |
+| `auth.js:42389` | `initSelfRegisterPage` | `getElementById` | `"self-student-level"` |
+| `auth.js:42390` | `initSelfRegisterPage` | `getElementById` | `"self-register-submit"` |
+| `auth.js:42566` | `initAdminStudentsPage` | `getElementById` | `"portal-student-summary"` |
+| `auth.js:42567` | `initAdminStudentsPage` | `getElementById` | `"portal-student-form"` |
+| `auth.js:42568` | `initAdminStudentsPage` | `getElementById` | `"portal-student-status"` |
+| `auth.js:42569` | `initAdminStudentsPage` | `getElementById` | `"portal-student-list"` |
+| `auth.js:42570` | `initAdminStudentsPage` | `getElementById` | `"portal-guardian-list"` |
+| `auth.js:42571` | `initAdminStudentsPage` | `querySelector` | `"[data-student-form-toggle]"` |
+| `auth.js:42587` | `initAdminStudentsPage` | `getElementById` | `"student-self-registration-link"` |
+| `auth.js:42588` | `initAdminStudentsPage` | `querySelector` | `"[data-student-self-registration-copy]"` |
+| `auth.js:42589` | `initAdminStudentsPage` | `querySelector` | `"[data-student-self-registration-open]"` |
+| `auth.js:42590` | `initAdminStudentsPage` | `getElementById` | `"student-self-registration-status"` |
+| `auth.js:42601` | `initAdminTeachersPage` | `getElementById` | `"portal-staff-summary"` |
+| `auth.js:42602` | `initAdminTeachersPage` | `getElementById` | `"portal-staff-form"` |
+| `auth.js:42603` | `initAdminTeachersPage` | `getElementById` | `"portal-staff-status"` |
+| `auth.js:42604` | `initAdminTeachersPage` | `getElementById` | `"portal-staff-list"` |
+| `auth.js:42605` | `initAdminTeachersPage` | `getElementById` | `"portal-staff-leave-summary"` |
+| `auth.js:42606` | `initAdminTeachersPage` | `getElementById` | `"portal-staff-leave-list"` |
+| `auth.js:42607` | `initAdminTeachersPage` | `getElementById` | `"portal-staff-leave-review-status"` |
+| `auth.js:42608` | `initAdminTeachersPage` | `getElementById` | `"portal-staff-leave-status-filter"` |
+| `auth.js:42621` | `initAdminTeachersPage` | `getElementById` | `"staff-self-registration-link"` |
+| `auth.js:42622` | `initAdminTeachersPage` | `querySelector` | `"[data-staff-self-registration-copy]"` |
+| `auth.js:42623` | `initAdminTeachersPage` | `querySelector` | `"[data-staff-self-registration-open]"` |
+| `auth.js:42624` | `initAdminTeachersPage` | `getElementById` | `"staff-self-registration-status"` |
+| `auth.js:42644` | `initAdminClassesPage` | `getElementById` | `"portal-class-summary"` |
+| `auth.js:42645` | `initAdminClassesPage` | `getElementById` | `"portal-class-form"` |
+| `auth.js:42646` | `initAdminClassesPage` | `getElementById` | `"portal-class-status"` |
+| `auth.js:42647` | `initAdminClassesPage` | `getElementById` | `"portal-class-list"` |
+| `auth.js:42672` | `initAdminCoursesPage` | `getElementById` | `"portal-course-summary"` |
+| `auth.js:42673` | `initAdminCoursesPage` | `getElementById` | `"portal-course-form"` |
+| `auth.js:42674` | `initAdminCoursesPage` | `getElementById` | `"portal-course-status"` |
+| `auth.js:42675` | `initAdminCoursesPage` | `getElementById` | `"portal-course-list"` |
+| `auth.js:42698` | `initAdminSchedulePage` | `getElementById` | `"portal-calendar-summary"` |
+| `auth.js:42699` | `initAdminSchedulePage` | `getElementById` | `"portal-academic-calendar-form"` |
+| `auth.js:42700` | `initAdminSchedulePage` | `getElementById` | `"portal-academic-calendar-status"` |
+| `auth.js:42701` | `initAdminSchedulePage` | `getElementById` | `"portal-academic-calendar-list"` |
+| `auth.js:42703` | `initAdminSchedulePage` | `getElementById` | `"portal-timetable-summary"` |
+| `auth.js:42704` | `initAdminSchedulePage` | `getElementById` | `"portal-timetable-form"` |
+| `auth.js:42705` | `initAdminSchedulePage` | `getElementById` | `"portal-timetable-status"` |
+| `auth.js:42706` | `initAdminSchedulePage` | `getElementById` | `"portal-timetable-list"` |
+| `auth.js:42735` | `initAdminFeesPage` | `getElementById` | `"portal-fee-summary"` |
+| `auth.js:42736` | `initAdminFeesPage` | `getElementById` | `"portal-fee-form"` |
+| `auth.js:42737` | `initAdminFeesPage` | `getElementById` | `"portal-fee-status"` |
+| `auth.js:42738` | `initAdminFeesPage` | `getElementById` | `"portal-fee-list"` |
+| `auth.js:42739` | `initAdminFeesPage` | `getElementById` | `"portal-fee-setup-notice"` |
+| `auth.js:42764` | `initAdminAttendancePage` | `getElementById` | `"portal-attendance-summary"` |
+| `auth.js:42765` | `initAdminAttendancePage` | `getElementById` | `"portal-attendance-status"` |
+| `auth.js:42766` | `initAdminAttendancePage` | `getElementById` | `"portal-attendance-review-list"` |
+| `auth.js:42767` | `initAdminAttendancePage` | `getElementById` | `"portal-attendance-submission-list"` |
+| `auth.js:42768` | `initAdminAttendancePage` | `querySelector` | `"[data-attendance-review-view]"` |
+| `auth.js:42769` | `initAdminAttendancePage` | `querySelector` | `"[data-attendance-review-date]"` |
+| `auth.js:42770` | `initAdminAttendancePage` | `querySelector` | `"[data-attendance-review-term]"` |
+| `auth.js:42771` | `initAdminAttendancePage` | `querySelector` | `"[data-attendance-review-class]"` |
+| `auth.js:42772` | `initAdminAttendancePage` | `querySelector` | `"[data-attendance-review-student]"` |
+| `auth.js:42773` | `initAdminAttendancePage` | `querySelector` | `"[data-attendance-review-status]"` |
+| `auth.js:42774` | `initAdminAttendancePage` | `querySelector` | `"[data-attendance-review-search]"` |
+| `auth.js:42775` | `initAdminAttendancePage` | `querySelector` | `"[data-attendance-review-date-wrap]"` |
+| `auth.js:42776` | `initAdminAttendancePage` | `querySelector` | `"[data-attendance-review-term-wrap]"` |
+| `auth.js:42777` | `initAdminAttendancePage` | `querySelector` | `"[data-attendance-review-status-wrap]"` |
+| `auth.js:42778` | `initAdminAttendancePage` | `querySelector` | `"[data-attendance-review-copy]"` |
+| `auth.js:42779` | `initAdminAttendancePage` | `querySelector` | `"[data-attendance-submission-copy]"` |
+| `auth.js:42885` | `wireAdminReportParentMessages` | `closest` | `"[data-admin-report-parent-reply-form]"` |
+| `auth.js:42909` | `wireAdminReportParentMessages` | `querySelector` | `"button[type='submit']"` |
+| `auth.js:43301` | `renderEnrollmentReport` | `getElementById` | `"admin-report-enrollment"` |
+| `auth.js:43302` | `renderEnrollmentReport` | `getElementById` | `"admin-report-enrollment-session"` |
+| `auth.js:43303` | `renderEnrollmentReport` | `getElementById` | `"admin-report-enrollment-class"` |
+| `auth.js:43304` | `renderEnrollmentReport` | `getElementById` | `"admin-report-enrollment-gender"` |
+| `auth.js:43387` | `renderAcademicPerformanceReport` | `getElementById` | `"admin-report-performance"` |
+| `auth.js:43388` | `renderAcademicPerformanceReport` | `getElementById` | `"admin-report-performance-session"` |
+| `auth.js:43389` | `renderAcademicPerformanceReport` | `getElementById` | `"admin-report-performance-class"` |
+| `auth.js:43390` | `renderAcademicPerformanceReport` | `getElementById` | `"admin-report-performance-subject"` |
+| `auth.js:43517` | `renderAdminAnnouncementSection` | `getElementById` | `"admin-announcement-form"` |
+| `auth.js:43518` | `renderAdminAnnouncementSection` | `getElementById` | `"admin-announcement-status"` |
+| `auth.js:43519` | `renderAdminAnnouncementSection` | `querySelector` | `"[data-announcement-class-wrap]"` |
+| `auth.js:43520` | `renderAdminAnnouncementSection` | `getElementById` | `"admin-announcement-class-options"` |
+| `auth.js:43521` | `renderAdminAnnouncementSection` | `getElementById` | `"admin-announcement-list"` |
+| `auth.js:43528` | `renderAdminAnnouncementSection` | `querySelectorAll` | `'input[name="classTargets"]:checked'` |
+| `auth.js:43728` | `renderAdminReportsDashboard` | `getElementById` | `"admin-report-kpis"` |
+| `auth.js:43729` | `renderAdminReportsDashboard` | `getElementById` | `"admin-report-insights"` |
+| `auth.js:43730` | `renderAdminReportsDashboard` | `getElementById` | `"admin-report-health"` |
+| `auth.js:43731` | `renderAdminReportsDashboard` | `getElementById` | `"admin-report-areas"` |
+| `auth.js:43732` | `renderAdminReportsDashboard` | `getElementById` | `"admin-report-checklist"` |
+| `auth.js:44000` | `initAdminAnnouncementComposer` | `getElementById` | `"admin-announcement-form"` |
+| `auth.js:44001` | `initAdminAnnouncementComposer` | `getElementById` | `"admin-announcement-status"` |
+| `auth.js:44038` | `initAdminAnnouncementComposer` | `querySelectorAll` | `'input[name="roleTargets"]:checked'` |
+| `auth.js:44043` | `initAdminAnnouncementComposer` | `querySelectorAll` | `'input[name="classTargets"]:checked'` |
+| `auth.js:44163` | `initAdminReportsPage` | `querySelector` | `".admin-report-workspace"` |
+| `auth.js:44188` | `initAdminReportsPage` | `getElementById` | `id` |
+| `auth.js:44191` | `initAdminReportsPage` | `querySelectorAll` | `"[data-admin-report-export]"` |
+| `auth.js:44223` | `initAdminMessagesPage` | `getElementById` | `"admin-report-parent-messages"` |
+| `auth.js:44224` | `initAdminMessagesPage` | `querySelector` | `".admin-report-workspace"` |
+| `auth.js:44253` | `initAdminFeatureModulesPage` | `getElementById` | `"portal-feature-toggle-summary"` |
+| `auth.js:44254` | `initAdminFeatureModulesPage` | `getElementById` | `"portal-feature-toggle-grid"` |
+| `auth.js:44255` | `initAdminFeatureModulesPage` | `getElementById` | `"portal-feature-toggle-status"` |
+| `auth.js:44272` | `initReportConfigurationControls` | `querySelector` | `"[data-grading-scale-add]"` |
+| `auth.js:44273` | `initReportConfigurationControls` | `querySelector` | `"[data-report-configuration-reset]"` |
+| `auth.js:44276` | `initReportConfigurationControls` | `querySelector` | `"[data-score-structure-total]"` |
+| `auth.js:44277` | `initReportConfigurationControls` | `querySelectorAll` | `"[data-score-preset]"` |
+| `auth.js:44361` | `initReportConfigurationControls` | `querySelector` | `'input[name="minimum"]'` |
+| `auth.js:44365` | `initReportConfigurationControls` | `closest` | `"[data-grading-scale-remove]"` |
+| `auth.js:44367` | `initReportConfigurationControls` | `querySelectorAll` | `"[data-grading-scale-row]"` |
+| `auth.js:44371` | `initReportConfigurationControls` | `closest` | `"[data-grading-scale-row]"` |
+| `auth.js:44391` | `initReportConfigurationControls` | `querySelectorAll` | `"[data-grading-scale-row]"` |
+| `auth.js:44392` | `initReportConfigurationControls` | `querySelector` | `'[name="minimum"]'` |
+| `auth.js:44393` | `initReportConfigurationControls` | `querySelector` | `'[name="grade"]'` |
+| `auth.js:44394` | `initReportConfigurationControls` | `querySelector` | `'[name="remark"]'` |
+| `auth.js:44474` | `initReportSchoolCommentControls` | `querySelector` | `'button[type="submit"]'` |
+| `auth.js:44755` | `initAdminSettingsPage` | `getElementById` | `"portal-school-settings-preview"` |
+| `auth.js:44756` | `initAdminSettingsPage` | `getElementById` | `"portal-school-settings-form"` |
+| `auth.js:44757` | `initAdminSettingsPage` | `getElementById` | `"portal-school-settings-status"` |
+| `auth.js:44758` | `initAdminSettingsPage` | `getElementById` | `"portal-access-summary"` |
+| `auth.js:44759` | `initAdminSettingsPage` | `getElementById` | `"portal-access-form"` |
+| `auth.js:44760` | `initAdminSettingsPage` | `getElementById` | `"portal-access-status"` |
+| `auth.js:44761` | `initAdminSettingsPage` | `getElementById` | `"portal-access-list"` |
+| `auth.js:44762` | `initAdminSettingsPage` | `getElementById` | `"portal-role-permission-summary"` |
+| `auth.js:44763` | `initAdminSettingsPage` | `getElementById` | `"portal-role-permission-grid"` |
+| `auth.js:44764` | `initAdminSettingsPage` | `getElementById` | `"portal-role-permission-status"` |
+| `auth.js:44765` | `initAdminSettingsPage` | `querySelector` | `"[data-reset-role-permissions]"` |
+| `auth.js:44766` | `initAdminSettingsPage` | `querySelector` | `"[data-save-role-permissions]"` |
+| `auth.js:44767` | `initAdminSettingsPage` | `getElementById` | `"portal-academic-cycle-summary"` |
+| `auth.js:44768` | `initAdminSettingsPage` | `getElementById` | `"portal-session-form"` |
+| `auth.js:44769` | `initAdminSettingsPage` | `getElementById` | `"portal-session-status"` |
+| `auth.js:44770` | `initAdminSettingsPage` | `getElementById` | `"portal-session-list"` |
+| `auth.js:44771` | `initAdminSettingsPage` | `getElementById` | `"portal-term-form"` |
+| `auth.js:44772` | `initAdminSettingsPage` | `getElementById` | `"portal-term-status"` |
+| `auth.js:44773` | `initAdminSettingsPage` | `getElementById` | `"portal-term-list"` |
+| `auth.js:44774` | `initAdminSettingsPage` | `getElementById` | `"portal-report-configuration-form"` |
+| `auth.js:44775` | `initAdminSettingsPage` | `getElementById` | `"portal-report-configuration-status"` |
+| `auth.js:44776` | `initAdminSettingsPage` | `getElementById` | `"portal-grading-scale-list"` |
+| `auth.js:44777` | `initAdminSettingsPage` | `getElementById` | `"portal-report-school-comment-form"` |
+| `auth.js:44778` | `initAdminSettingsPage` | `getElementById` | `"portal-report-school-comment-status"` |
+| `auth.js:44779` | `initAdminSettingsPage` | `getElementById` | `"portal-report-school-comment-summary"` |
+| `auth.js:44780` | `initAdminSettingsPage` | `querySelector` | `"[data-delete-school-account]"` |
+| `auth.js:44781` | `initAdminSettingsPage` | `getElementById` | `"portal-account-delete-status"` |
+| `auth.js:44790` | `initAdminSettingsPage` | `getElementById` | `"admin-brand-mark"` |
+| `auth.js:44791` | `initAdminSettingsPage` | `getElementById` | `"admin-brand-name"` |
+| `auth.js:44792` | `initAdminSettingsPage` | `getElementById` | `"admin-brand-subtitle"` |
+| `auth.js:44858` | `initUserSettingsPage` | `getElementById` | `"user-settings-form"` |
+| `auth.js:44859` | `initUserSettingsPage` | `getElementById` | `"user-settings-status"` |
+| `auth.js:44860` | `initUserSettingsPage` | `getElementById` | `"user-settings-name"` |
+| `auth.js:44861` | `initUserSettingsPage` | `getElementById` | `"user-settings-role"` |
+| `auth.js:44862` | `initUserSettingsPage` | `getElementById` | `"user-settings-email"` |
+| `auth.js:44863` | `initUserSettingsPage` | `getElementById` | `"user-profile-form"` |
+| `auth.js:44864` | `initUserSettingsPage` | `getElementById` | `"user-profile-status"` |
+| `auth.js:44865` | `initUserSettingsPage` | `getElementById` | `"user-settings-photo-preview"` |
+| `auth.js:44866` | `initUserSettingsPage` | `getElementById` | `"user-profile-photo"` |
+| `auth.js:44867` | `initUserSettingsPage` | `querySelector` | `"[data-user-profile-remove-photo]"` |
+| `auth.js:44868` | `initUserSettingsPage` | `getElementById` | `"user-settings-hint"` |
+| `auth.js:44869` | `initUserSettingsPage` | `getElementById` | `"admin-brand-mark"` |
+| `auth.js:44870` | `initUserSettingsPage` | `getElementById` | `"admin-brand-name"` |
+| `auth.js:44871` | `initUserSettingsPage` | `getElementById` | `"admin-brand-subtitle"` |
+| `auth.js:44872` | `initUserSettingsPage` | `getElementById` | `"admin-profile-avatar"` |
+| `auth.js:44873` | `initUserSettingsPage` | `getElementById` | `"admin-profile-name"` |
+| `auth.js:44874` | `initUserSettingsPage` | `getElementById` | `"admin-profile-role"` |
+| `auth.js:44875` | `initUserSettingsPage` | `getElementById` | `"portal-heading"` |
+| `auth.js:44876` | `initUserSettingsPage` | `getElementById` | `"portal-copy"` |
+| `auth.js:44877` | `initUserSettingsPage` | `getElementById` | `"portal-last-updated"` |
+| `auth.js:44878` | `initUserSettingsPage` | `getElementById` | `"portal-gate"` |
+| `auth.js:44879` | `initUserSettingsPage` | `getElementById` | `"admin-notification-button"` |
+| `auth.js:44880` | `initUserSettingsPage` | `getElementById` | `"admin-global-search"` |
+| `auth.js:44881` | `initUserSettingsPage` | `getElementById` | `"user-notification-preferences-form"` |
+| `auth.js:44882` | `initUserSettingsPage` | `getElementById` | `"user-notification-preferences-status"` |
+| `auth.js:44907` | `initUserSettingsPage` | `querySelectorAll` | `"input, button"` |
+| `auth.js:44910` | `initUserSettingsPage` | `querySelectorAll` | `"input, button"` |
+| `auth.js:44980` | `initUserSettingsPage` | `querySelectorAll` | `"[data-notification-preference]"` |
+| `auth.js:44983` | `initUserSettingsPage` | `closest` | `".portal-toggle-card"` |
+| `auth.js:44991` | `initUserSettingsPage` | `matches` | `"[data-notification-preference]"` |
+| `auth.js:44992` | `initUserSettingsPage` | `closest` | `".portal-toggle-card"` |
+| `auth.js:44998` | `initUserSettingsPage` | `querySelectorAll` | `"[data-notification-preference]"` |
+| `auth.js:45168` | `initUserSettingsPage` | `closest` | `".admin-surface-card"` |
+| `auth.js:45170` | `initUserSettingsPage` | `querySelector` | `'button[type="submit"]'` |
+| `auth.js:45366` | `initStaffPortalPages` | `getElementById` | `"admin-brand-mark"` |
+| `auth.js:45367` | `initStaffPortalPages` | `getElementById` | `"admin-brand-name"` |
+| `auth.js:45368` | `initStaffPortalPages` | `getElementById` | `"admin-brand-subtitle"` |
+| `auth.js:45369` | `initStaffPortalPages` | `getElementById` | `"admin-profile-avatar"` |
+| `auth.js:45370` | `initStaffPortalPages` | `getElementById` | `"admin-profile-name"` |
+| `auth.js:45371` | `initStaffPortalPages` | `getElementById` | `"admin-profile-role"` |
+| `auth.js:45372` | `initStaffPortalPages` | `getElementById` | `"portal-heading"` |
+| `auth.js:45373` | `initStaffPortalPages` | `getElementById` | `"portal-copy"` |
+| `auth.js:45374` | `initStaffPortalPages` | `getElementById` | `"portal-last-updated"` |
+| `auth.js:45375` | `initStaffPortalPages` | `getElementById` | `"portal-gate"` |
+| `auth.js:45376` | `initStaffPortalPages` | `getElementById` | `"admin-notification-button"` |
+| `auth.js:45377` | `initStaffPortalPages` | `getElementById` | `"admin-global-search"` |
+| `auth.js:45378` | `initStaffPortalPages` | `getElementById` | `"staff-page-content"` |
+| `auth.js:45471` | `initPortalPage` | `getElementById` | `"admin-brand-mark"` |
+| `auth.js:45472` | `initPortalPage` | `getElementById` | `"admin-brand-name"` |
+| `auth.js:45473` | `initPortalPage` | `getElementById` | `"admin-brand-subtitle"` |
+| `auth.js:45474` | `initPortalPage` | `getElementById` | `"admin-profile-avatar"` |
+| `auth.js:45475` | `initPortalPage` | `getElementById` | `"admin-profile-name"` |
+| `auth.js:45476` | `initPortalPage` | `getElementById` | `"admin-profile-role"` |
+| `auth.js:45477` | `initPortalPage` | `getElementById` | `"portal-heading"` |
+| `auth.js:45478` | `initPortalPage` | `getElementById` | `"portal-copy"` |
+| `auth.js:45479` | `initPortalPage` | `getElementById` | `"portal-last-updated"` |
+| `auth.js:45480` | `initPortalPage` | `getElementById` | `"admin-notification-button"` |
+| `auth.js:45481` | `initPortalPage` | `getElementById` | `"admin-global-search"` |
+| `auth.js:45482` | `initPortalPage` | `getElementById` | `"portal-metrics"` |
+| `auth.js:45483` | `initPortalPage` | `getElementById` | `"admin-events"` |
+| `auth.js:45484` | `initPortalPage` | `getElementById` | `"admin-activity"` |
+| `auth.js:45485` | `initPortalPage` | `getElementById` | `"portal-links"` |
+| `auth.js:45486` | `initPortalPage` | `getElementById` | `"portal-details"` |
+| `auth.js:45487` | `initPortalPage` | `getElementById` | `"staff-portal-workspace"` |
+| `auth.js:45488` | `initPortalPage` | `getElementById` | `"student-portal-workspace"` |
+| `auth.js:45489` | `initPortalPage` | `getElementById` | `"teacher-attendance-workspace"` |
+| `auth.js:45490` | `initPortalPage` | `getElementById` | `"portal-gate"` |
+| `auth.js:45726` | `initPortalPage` | `closest` | `".admin-primary-grid"` |
+| `auth.js:45726` | `initPortalPage` | `closest` | `".admin-surface-card"` |
+| `auth.js:45740` | `initPortalPage` | `querySelector` | `".admin-sidebar-nav"` |
 | `self-registration-links.js:77` | `initRegistrationLinkCard` | `getElementById` | `inputId` |
 | `self-registration-links.js:78` | `initRegistrationLinkCard` | `querySelector` | `copySelector` |
 | `self-registration-links.js:79` | `initRegistrationLinkCard` | `querySelector` | `openSelector` |
@@ -1790,24 +1794,24 @@ Keep root HTML routes and document-relative paths. Do not replace window.locatio
 | `auth.js:3429` | `buildSupabaseRedirectUrl` | `new URL("./", window.location.href)` |
 | `auth.js:3431` | `buildSupabaseRedirectUrl` | `new URL(targetPath, baseUrl)` |
 | `auth.js:7727` | `getPageIdFromHref` | `new URL(href, window.location.href)` |
-| `auth.js:29134` | `initResetPasswordFlow` | `new URLSearchParams(window.location.search)` |
-| `auth.js:29135` | `initResetPasswordFlow` | `params.get("token")` |
-| `auth.js:29136` | `initResetPasswordFlow` | `params.get("code")` |
-| `auth.js:29148` | `initResetPasswordFlow` | `params.get("type")` |
-| `auth.js:29573` | `initConfirmPage` | `new URLSearchParams(window.location.search)` |
-| `auth.js:29574` | `initConfirmPage` | `params.get("token")` |
-| `auth.js:29644` | `initAdmissionsApplyPage` | `new URLSearchParams(window.location.search)` |
-| `auth.js:29645` | `initAdmissionsApplyPage` | `params.get("workspace")` |
-| `auth.js:29646` | `initAdmissionsApplyPage` | `params.get("institution")` |
-| `auth.js:42954` | `initAdmissionsControls` | `new URL("./admissions-apply.html", window.location.href)` |
-| `auth.js:42955` | `initAdmissionsControls` | `linkUrl.searchParams.set("workspace", workspaceId)` |
-| `auth.js:42957` | `initAdmissionsControls` | `linkUrl.searchParams.set("institution", institutionId)` |
-| `auth.js:43524` | `buildSelfRegistrationUrl` | `new URL("./self-register.html", window.location.href)` |
-| `auth.js:43525` | `buildSelfRegistrationUrl` | `url.searchParams.set("type", registrationType)` |
-| `auth.js:43526` | `buildSelfRegistrationUrl` | `url.searchParams.set("workspace", getCurrentWorkspaceId())` |
-| `auth.js:43793` | `initSelfRegisterPage` | `new URLSearchParams(window.location.search)` |
-| `auth.js:43794` | `initSelfRegisterPage` | `params.get("type")` |
-| `auth.js:43795` | `initSelfRegisterPage` | `params.get("workspace")` |
+| `auth.js:27723` | `initResetPasswordFlow` | `new URLSearchParams(window.location.search)` |
+| `auth.js:27724` | `initResetPasswordFlow` | `params.get("token")` |
+| `auth.js:27725` | `initResetPasswordFlow` | `params.get("code")` |
+| `auth.js:27737` | `initResetPasswordFlow` | `params.get("type")` |
+| `auth.js:28162` | `initConfirmPage` | `new URLSearchParams(window.location.search)` |
+| `auth.js:28163` | `initConfirmPage` | `params.get("token")` |
+| `auth.js:28233` | `initAdmissionsApplyPage` | `new URLSearchParams(window.location.search)` |
+| `auth.js:28234` | `initAdmissionsApplyPage` | `params.get("workspace")` |
+| `auth.js:28235` | `initAdmissionsApplyPage` | `params.get("institution")` |
+| `auth.js:41543` | `initAdmissionsControls` | `new URL("./admissions-apply.html", window.location.href)` |
+| `auth.js:41544` | `initAdmissionsControls` | `linkUrl.searchParams.set("workspace", workspaceId)` |
+| `auth.js:41546` | `initAdmissionsControls` | `linkUrl.searchParams.set("institution", institutionId)` |
+| `auth.js:42113` | `buildSelfRegistrationUrl` | `new URL("./self-register.html", window.location.href)` |
+| `auth.js:42114` | `buildSelfRegistrationUrl` | `url.searchParams.set("type", registrationType)` |
+| `auth.js:42115` | `buildSelfRegistrationUrl` | `url.searchParams.set("workspace", getCurrentWorkspaceId())` |
+| `auth.js:42382` | `initSelfRegisterPage` | `new URLSearchParams(window.location.search)` |
+| `auth.js:42383` | `initSelfRegisterPage` | `params.get("type")` |
+| `auth.js:42384` | `initSelfRegisterPage` | `params.get("workspace")` |
 | `self-registration-links.js:39` | `buildRegistrationUrl` | `new URL("./self-register.html", window.location.href)` |
 | `self-registration-links.js:40` | `buildRegistrationUrl` | `url.searchParams.set("type", registrationType)` |
 | `self-registration-links.js:41` | `buildRegistrationUrl` | `url.searchParams.set("workspace", getWorkspaceId())` |
@@ -1855,7 +1859,7 @@ getSupabaseClient (auth.js:3494) caches the client promise; persistSession, auto
 | --- | --- |
 | `classes` | `loadTableNativeStatePayloadFromSupabase` @`auth.js:4219` |
 | `feature_modules` | `loadTableNativeStatePayloadFromSupabase` @`auth.js:4169`, `saveTableNativeStatePayloadToSupabase` @`auth.js:4335` |
-| `institutions` | `ensureSupabaseInstitutionId` @`auth.js:3793`, `syncInstitutionSnapshot` @`auth.js:3846`, `hydrateSchoolSettingsFromSupabase` @`auth.js:3927`, `initAdmissionsApplyPage` @`auth.js:29726` |
+| `institutions` | `ensureSupabaseInstitutionId` @`auth.js:3793`, `syncInstitutionSnapshot` @`auth.js:3846`, `hydrateSchoolSettingsFromSupabase` @`auth.js:3927`, `initAdmissionsApplyPage` @`auth.js:28315` |
 | `profiles` | `ensureSupabaseInstitutionId` @`auth.js:3776`, `ensureSupabaseInstitutionId` @`auth.js:3808`, `hydrateSchoolSettingsFromSupabase` @`auth.js:3915` |
 | `role_permissions` | `loadTableNativeStatePayloadFromSupabase` @`auth.js:4192`, `saveTableNativeStatePayloadToSupabase` @`auth.js:4364` |
 | `workspace_migration_runs` | `migrateWorkspaceStateToSupabase` @`auth.js:5331` |
@@ -2365,7 +2369,7 @@ function getWorkspaceStateStorageKeyForState(stateKey, workspaceId) {
 
 ### getParentSelectionStorageKey
 
-`auth.js:39334`
+`auth.js:37923`
 
 ```js
 function getParentSelectionStorageKey(user = null) {
@@ -2378,7 +2382,7 @@ function getParentSelectionStorageKey(user = null) {
 
 ### getParentFeesStorageKey
 
-`auth.js:39357`
+`auth.js:37946`
 
 ```js
 function getParentFeesStorageKey(workspaceId = null) {
@@ -2451,7 +2455,7 @@ Relevant consumers are recorded in the inventory. Verification covers synthetic 
 
 The 194-line original dialog feature is retained inside createController in js/shared-ui/action-dialog.js. The controller owns one private appActionDialogState initialized to null. Inject document/window/HTMLElement once; read document.body and document.activeElement live on use. Standard Promise/String/Boolean remain unchanged. The exported namespace contains only createController. Do not create multiple controllers against the shared DOM ID.
 
-Load the factory once immediately before auth.js on all 49 auth consumers. Evaluation only publishes the factory; construction only establishes private bindings. The original state location is replaced by a single construction/destructuring statement. No awaiting, ready handler, auto-open, eager element creation or extra async forwarding wrapper is added. The original DOMContentLoaded registration and later bootstrap sequence are unchanged. All 20 external calls occur after the original declaration location and still resolve to private auth names.
+Load the dialog factory once before timetable/controller.js and auth.js on all 49 auth consumers. Evaluation only publishes the factory; construction only establishes private bindings. The original state location is replaced by a single construction/destructuring statement. No awaiting, ready handler, auto-open, eager element creation or extra async forwarding wrapper is added. The original DOMContentLoaded registration and later bootstrap sequence are unchanged. All 20 external calls occur after the original declaration location and still resolve to private auth names.
 
 Preserve IDs/classes/ARIA and template bytes: app-action-dialog plus its form, kicker/title/message/details, prompt/input-label/input/error and cancel/confirm children; [data-app-action-cancel]; body class app-action-dialog-open; danger/success/primary variants. Text still uses textContent, and styles.css is unchanged. Do not add a focus trap, new validation, revised labels, timer cancellation or other unrelated accessibility/behavior changes during this move.
 
@@ -2459,4 +2463,19 @@ openAppActionDialog returns a Promise of { confirmed, value }; missing body reso
 
 Three DOM handlers are installed only during initial element creation: delegated click, form submit and dialog keydown. Reopening reuses the element/listeners while reading the current private state; closing clears that state before resolving. auth.js account-deletion/provisioning/permission/business operations remain outside this controller. Tests use synthetic DOM only and never confirm a live destructive action.
 
-E07 browser acceptance is user-reported; E08 actual browser keyboard/focus/layout and authentication startup are NOT TESTED. Source/Promise/DOM-fixture parity is not a substitute for those checks. No storage key, data format, database, Supabase or route changes.
+E08 browser keyboard/focus/layout and authentication startup checks passed according to the user and were checkpointed as f06543b. This is not independent observation. Source/Promise/DOM-fixture parity is not a substitute for those checks. No storage key, data format, database, Supabase or route changes.
+
+
+## E09 timetable-controller boundary
+
+Load controller.js synchronously once after action-dialog.js and before auth.js on 49 auth pages. No async/defer/module conversion or added ready callback. Publication and factory construction have no DOM/storage/timer/listener effects. Original DOMContentLoaded bootstrap is byte-identical; it awaits the same auth bridge and invokes initAdminSchedulePage in the same position. The function alias is established during synchronous auth evaluation before that callback can run. The sole controller call remains auth.js:42717; no extra auto-initializer or new idempotence guard is introduced.
+
+Page/access contract stays at initAdminSchedulePage (auth.js:42690): getPage() must equal admin-schedule; isAdmin comes from the existing access context and canManageSchedule remains isAdmin && canAccessPermission(roleLabel, PAGE_PERMISSION_KEYS["admin-schedule"]). That key remains classes_manage. Preserve the existing role matching/permission semantics rather than redesigning them. The controller still takes { isAdmin, manager, summaryTarget, form, status, listTarget }. Missing any of the four DOM targets returns immediately; optional elements and missing managers retain existing paths.
+
+Keep all per-invocation state and nested closures in the original initializer: selected/editing IDs, toast timer, inline status, modal elements and active print criteria. 19 listener-registration sites (some loop over controls), two setTimeout sites (3,600 ms toast and 50 ms edit scroll) and one clearTimeout site move unchanged. The separate load handler embedded in the print-window HTML remains byte-identical too. Refreshes do not re-run initialization; repeated direct initializer calls were not guarded before and must not be newly introduced by composition.
+
+The four injected browser objects and 29 unchanged private functions are listed exhaustively in inventory.md and in the factory signature. Capture function identities, not results: getCurrentWorkspaceId/getUsers/getConfiguredSchoolSettings keep reading live state, and injected helpers retain their original auth closures. Preserve the private auth escapeHtml and E08 showAppPrompt. Cycle/class/course managers are obtained at the original invocation point, not on import.
+
+DOM IDs, data attributes, form field names, templates, body portal-overlay-open class, week types, selections, validation text and print markup are unchanged. The complete HTML IDs catalog above remains intact. Lesson payloads retain IDs/session/term/period/class/subject/teacher/status/week fields and existing empty roomId/room values. There is no new room editor or inferred room behavior. Class-teacher assignment, audit entries and draft clearing remain part of the same save sequence. Substitution still has two awaited prompts; either cancellation avoids logging. Preserve publish/archive/copy grouping criteria and all method-call ordering, even synchronous manager events that refresh during a write.
+
+SchoolSphereTimetable and the other app managers are not moved/replaced. Storage keys/workspace suffixes, local event { entries }, hydration { workspaceId, source }, sync fan-out/debounce/eligibility and Supabase interfaces are untouched. The controller subscribes to timetable, academic-cycle, class and course manager event names in the same order. No direct storage/network/DB calls are introduced. Mock/in-memory tests prove parity only for tested cases, not actual browser delivery or hosted permissions.
