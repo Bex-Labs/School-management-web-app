@@ -1,17 +1,17 @@
 # Safe staged extraction plan
 
-Original plan: 2026-10-02 at e1eb094; updated 2026-10-04 for approved E09 timetable-controller extraction from clean f06543b. E08 is checkpointed and browser checks passed according to the user, not independent observation. E09 moves one complete controller with explicit dependencies. No commit, push, deploy or database operation. Stop after E09.
+Original plan: 2026-10-02 at e1eb094; updated 2026-10-04 for the approved E10 course-controller unit from clean 8a74f15. E09 is checkpointed and browser checks passed according to the user. E10 moves one complete controller with explicit dependencies. No commit, push, deploy or database operation. Stop after this unit.
 
 ## Non-negotiable boundaries
 
-Preserve functionality, UI, URLs, selectors, data formats, storage keys, role permissions and Supabase behavior. Preserve unrelated edits. Do not push, deploy, modify database state or run migrations. Commit only on an explicit request: the earlier commit authorization covered E04 only; E09 approval does not authorize a commit. Future work is one agreed cohesive extraction per turn, then a report and stop. Check the current repository again before each step; line numbers here are snapshot anchors.
+Preserve functionality, UI, URLs, selectors, data formats, storage keys, role permissions and Supabase behavior. Preserve unrelated edits. Do not push, deploy, modify database state or run migrations. Commit only on an explicit request: the earlier commit authorization covered E04 only; E10 approval does not authorize a commit. Future work is one agreed cohesive extraction per turn, then a report and stop. Check the current repository again before each step; line numbers here are snapshot anchors.
 
 The documentation itself is not a blanket green baseline: contact.html has an existing parse failure and browser/backend workflows have not been run. Keep fixes in separate changes. No framework conversion, database redesign, key renaming, password policy change, mass formatting or speculative dead-code deletion belongs in a move-only extraction.
 
 ## Evidence and why a gradual approach is necessary
 
 - app.js defines shared models and 18 explicit manager interfaces used by auth.js, not just public-site rendering.
-- auth.js is now a 45,925-line IIFE; private feature extractions require explicit closure boundaries, as used for the E08 dialog factory. Moving arbitrary private functions directly to a classic script or ES module breaks implicit closure access.
+- auth.js is now a 44,736-line IIFE; private feature extractions require explicit closure boundaries, as used for the E08 dialog factory. Moving arbitrary private functions directly to a classic script or ES module breaks implicit closure access.
 - Eight functions exceed 650 lines; the largest class controller closes over templates, assignments, several modals, calculations and print flows. Inventory nested responsibilities before splitting their state.
 - Startup awaits the auth bridge but not every async initializer, and later launches background hydration. Script type/timing changes are a separate migration.
 - Browser storage and remote synchronization intentionally use different representations and workspace mappings.
@@ -153,8 +153,8 @@ Each row is a planning group. Rows containing several features MUST be expanded 
 | E06 | Implemented: complete timetable store (43 declarations, 591 lines) | Original storage API/keys and SchoolSphereTimetable adapter retained; seven local const defaults moved together | 14 fixture groups and four synthetic app-startup comparisons pass; browser acceptance passed according to user | New store.js, original block removal, 57 script additions and E06 docs |
 | E07 | Implemented: student store (16 functions, 314 lines) | Existing storage API/constants, student adapter, attendance/date helper and auth consumers retained | 15 fixture groups and four synthetic startups pass; browser acceptance passed according to user | New students/store.js, original function removals, 57 script additions and E07 docs |
 | E08 | Implemented: action-dialog controller (one state binding, six functions) | Private factory with one instance; injected browser objects; 20 callers and lazy listeners retained | 16 synthetic DOM/Promise fixtures and bridge check pass; browser acceptance user-reported; checkpoint f06543b | New action-dialog.js, private auth bridge/block replacement, 49 tags and E08 docs |
-| E09 | Implemented: complete timetable controller, 1,446 original lines | Private dependency factory; retained page caller/state and unchanged E06 store | 24 parity fixture groups plus exact bridge pass; browser acceptance pending | controller.js, auth block/bridge, 49 tags and E09 docs against f06543b |
-| E10 | Additional feature units one at a time | Review interleaved helpers in full inventory; include registration companion and page-specific inline consumers | Relevant F/R/S checklist rows for each feature | Per-feature implementation + wiring |
+| E09 | Implemented: complete timetable controller, 1,446 original lines | Private dependency factory; retained page caller/state and unchanged E06 store | 24 parity fixture groups plus exact bridge pass; browser acceptance user-reported; checkpoint 8a74f15 | controller.js, auth block/bridge, 49 tags and E09 docs against f06543b |
+| E10 | Implemented approved unit: complete course controller, 1,231 original lines; further units require approval | Private factory, original page/record guards and all 36 application dependencies retained | 24 course fixtures, exact bridge, six page/access compositions and 24 timetable regressions pass; browser pending | courses/controller.js, auth block/bridge, 49 tags and E10 docs against 8a74f15 |
 | E11 | Authentication/session/client units one at a time | Explicit live session/workspace access; SDK promise and auth callback singletons preserved | All A checks and cross-role isolation | Single lifecycle owner + consumers |
 | E12 | Workspace synchronization and individual table adapters | Shared client/institution context stable; hydrate/echo suppression and local mappings preserved | S05–S09, role-specific writes and partial failures | One adapter or sync lifecycle unit |
 | E13 | Page composition and ready-once startup | Existing initializers and guards mapped; all global callers known | Direct loads, async init ordering, hash navigation, duplicate-init checks | Bootstrap/entry-point and affected pages |
@@ -179,7 +179,7 @@ Run the full checklist on representative roles and two synthetic school workspac
 
 ## Current completion boundary
 
-E01–E09 are implemented. E08 is checkpointed at f06543b and its browser checks passed according to the user. E09 is uncommitted and needs manual browser acceptance; no later stage started. E03/E04 browser evidence remains separately unverified. Next: focused schedule filters/edit-cancel/preview/print and auth startup checks, with all mutating workflows confined to isolated no-backend fixtures. Stop after E09.
+E01–E09 and the approved E10 course-controller unit are implemented. E09 is checkpointed at 8a74f15 with browser checks passed according to the user. E10 is uncommitted and needs focused browser acceptance; no additional unit/stage started. E03/E04 browser evidence remains separately unverified. Next: course selection/edit-cancel/teacher scope, deletion cancellation, timetable and auth startup checks. Real mutations require isolated no-backend fixtures. Stop after this E10 unit.
 
 
 ## E06 — implemented: complete timetable store (historical execution record)
@@ -237,6 +237,8 @@ Rollback: reverse only the new factory file, the auth block/bridge, 49 script in
 
 ## E09 — implemented: complete timetable controller
 
+Follow-up: the user checkpointed E09 as 8a74f15 and reported browser checks passed before E10. Source locations/results below are historical execution-time evidence.
+
 Approved boundary: move initTimetableControls from pre-E09 auth.js:13697–15142 (1,446 lines) as one complete unit. New js/features/timetable/controller.js has 1,488 lines; the function is at 37–1482 inside createController. A 35-line private bridge at auth.js:13697–13731 replaces it, reducing auth.js by 1,411 lines to 45,925. The function AST and template raw/cooked values match; the auth remainder is byte-identical. No framework, module conversion, deduplication, redesign or unrelated fix.
 
 Dependencies/ownership: four browser objects and 29 private functions are explicitly injected, exhaustively listed in inventory.md and the signature. Keep private helper closures and live identity/workspace/settings getters. All selection, modal, toast and print state remains inside the original initializer, not factory scope or window. Managers, renderers, form helpers, audit/draft services, permission logic, synchronization and database interfaces remain unchanged. The one caller is initAdminSchedulePage at auth.js:42717, after its original page/access checks.
@@ -248,3 +250,18 @@ Completed acceptance: source/template/remainder parity; exhaustive dependency/ca
 Remaining acceptance: actual browser HTTP/cache/MIME, desktop/mobile schedule layout, selector changes, modal close/preview/print and login/portal startup. Create/update/archive/substitution/publish/copy tests require a verified no-backend fixture environment; do not mutate production-connected records. Browser permissions, real cross-tab transport and hosted Supabase behavior are NOT TESTED. Existing Contact inline parse failure remains separate and unchanged; older E03/E04 browser evidence remains unverified.
 
 Rollback boundary: reverse only new controller.js, the auth function-to-bridge replacement, 49 script additions and E09 documentation hunks together against f06543b. Preserve prior extractions and unrelated work. No data migration, clearing or database rollback. No commit/push/deploy/database operation. Stop after E09; E10 requires separate review and approval.
+
+
+## E10 — implemented unit: complete course-management controller
+
+Approved scope: move pre-E10 auth.js:11338–12568, all 1,231 lines of initCourseManagementControls, into js/features/courses/controller.js:44–1274. New file has 1,280 lines including factory/wiring. A 42-line private bridge replaces the original declaration at auth.js:11338–11379; auth.js is reduced by 1,189 lines to 44,736. Function AST/template raw/cooked values and auth remainder are unchanged. Keep currentUser even though unused; no cleanup, deduplication, redesign or unrelated fix.
+
+Dependency boundary: inject 34 original callables, DEFAULT_AUTH_ROLE, original STORAGE_KEYS and four browser bindings. Inventory lists every dependency. Templates, faculty/department map, scoped class records, DOM state and nested callbacks remain inside the original initializer. Managers, renderers, form helpers, permission functions, course store, sync/backend and E09 implementation remain untouched. One page caller remains at auth.js:41488; preserve canManageCourses passed as isAdmin, canManageAllCourses, assigned-class scope and visible-versus-editable distinctions.
+
+Loading: one synchronous courses/controller.js tag after timetable/controller.js and immediately before auth.js on all 49 auth pages. Other nine HTML files unchanged; no modules/async/defer/ready callbacks. Factory load/construction only establishes bindings and returns the initializer. Original bootstrap owns initialization and its 22 listener sites; no timers or duplicate instance added.
+
+Completed acceptance: exact source/AST/template/remainder/dependency/caller checks; 49 exact HTML insertions, 13 parsable scripts and 646 resolving paths. 24 before/after synthetic-DOM fixture groups use actual course store/adapter/render/form helpers with in-memory workspace storage: school-type/custom setup, teacher multiselect, validation/duplicates, all-arms and assigned-teacher scopes, create/edit/status/delete/cancel, live A/B/A isolation and stable refresh listeners. Exact bridge and six page/access compositions pass. E09's 24 timetable behavioral fixtures and exact bridge also rerun successfully. No actual browser/backend pass is claimed.
+
+Remaining checks: real HTTP/cache/MIME, desktop/mobile course wizard, native selection events, edit/reset/cancel, delete-dialog cancellation, assigned/unassigned Teacher and Admin browser scope, timetable and login/portal startup. All mutating workflows need isolated no-backend fixtures. Native cross-tab behavior, remote hydration and hosted permissions remain NOT TESTED. Existing Contact inline syntax failure stays unchanged; prior E03/E04 browser gaps remain separate.
+
+Rollback: reverse new courses/controller.js, the auth function/bridge replacement, 49 inserted tags and E10 documentation hunks together against 8a74f15. Preserve E01–E09 and unrelated changes. No migration/storage clear/database rollback. No commit/push/deploy/database action. Stop after this unit. E10 allows further cohesive feature units only with separate review/approval; do not automatically jump to E11 authentication work.

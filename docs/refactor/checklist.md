@@ -413,3 +413,38 @@ Summary: 24 original-versus-extracted fixture groups plus the exact compatibilit
 4. Check a permission-restricted test session without altering production permissions. Create/edit/save/copy/publish/archive/substitution flows must only run in an explicitly isolated fixture with backend synchronization disabled. A localhost page can still connect to production; localhost alone is not isolation.
 5. In that isolated environment verify one intended mutation/audit sequence per action, reload persistence and school A/B separation. Otherwise mark these browser mutation checks NOT TESTED rather than using real records.
 6. Report PASS/FAIL/NOT TESTED with any errors. Keep the known Contact defect separate. After acceptance, the user may checkpoint locally in GitHub Desktop; no automatic commit/push or E10 work.
+
+
+## E09 checkpoint follow-up
+
+E09 browser checks passed according to the user, who committed locally as 8a74f15. Clean checkpoint verified before E10. This is user-reported acceptance, not independent browser observation; no agent commit/push.
+
+## E10 result log — course-management controller, 2026-10-04
+
+Baseline: clean 8a74f15. Tests use synthetic DOM and in-memory storage only; no user data/account/network/database action.
+
+| Check | Result | Evidence / limitation |
+| --- | --- | --- |
+| Source/dependencies/consumers | PASS — source | Complete 1,231-line function; AST and template raw/cooked equality; auth remainder byte-identical after 42-line bridge. 34 callables, two original constants/objects and four browser bindings; one retained page caller. |
+| Startup/private ownership | PASS — source/isolated | Exact bridge constructs once with zero load/construction DOM/storage/listener effects. Local templates/map/scoped records and callbacks initialized only by original page call. Original bootstrap order retained. |
+| F05 school-type/course wizard | PASS — synthetic | Actual render/form helpers; nursery/primary/secondary/higher creation, custom subject/department, academic selections, teacher multi-select toggling/bubbling and legacy selections. Missing required elements/manager/auxiliaries/optional controls checked. |
+| F05/F16 data/actions | PASS — in-memory | Actual course store/adapter: validation, duplicates across period/arm/all-arms, ID/status preservation, uppercased code, archive/reactivate, delete cancellation/confirmation/API-unavailable, audit/reset/draft effects and mutation counts match. |
+| A07/R02 scoped permissions | PASS — source/synthetic | Six exact page/access compositions and controller Admin/assigned-Teacher/denied fixtures. All-arms visibility is not editability; other-arm actions and forged all-arms selection denied as before. Not a production security audit. |
+| S01/S02/S04 isolation/events | PASS — in-memory only | Existing courses key/::workspace storage, payloads and synchronous store event refresh preserved. Live getter A/B/A fixtures retain school separation. Native cross-tab delivery/remote persistence untested. |
+| S11 listeners | PASS — source/synthetic | 22 registration sites and no timers; repeated course/users/settings/cycle refreshes leave listener counts unchanged. No new initialization path. |
+| E09/F06 regression | PASS — synthetic | 24 timetable before/after behavioral groups plus exact timetable bridge rerun on current code. Timetable implementation and app adapter remain byte-identical; actual browser integration untested. |
+| P06 scripts/syntax | PASS — source/filesystem | Exactly 49 synchronous additions; other nine HTML files unchanged, previous tags/query strings/inline bodies preserved. 13 scripts parse and all 646 local references resolve. HTTP/cache/MIME untested. |
+| Contact syntax | FAIL — pre-existing | Same inline failure at relative line 53/contact.html:964. Contact is untouched; other inline scripts parse. |
+| Scope/documentation | PASS — source | Current declaration/nested responsibility/state/listener anchors and manifest verified, HTML ID catalog preserved. Only controller, auth bridge, 49 tags and four docs changed. HEAD/index unchanged. |
+| Browser/backend | NOT TESTED | Actual layout/native events, authenticated roles, HTTP/cache, cross-tab synchronization, remote hydration and Supabase behavior require manual/authorized checks. No real write or database change. |
+
+Summary: 24 course parity groups, six page/access compositions, exact course bridge, plus 24 timetable regression groups and its bridge pass. Temporary checks live outside the repo; no dependencies/framework added. This is not a whole-site or hosted-permission pass.
+
+### Focused E10 manual browser acceptance
+
+1. Confirm courses/controller.js loads once after timetable/controller.js and before auth.js. Check Courses, Schedule and login/another portal page for new console/network errors.
+2. Compare the course wizard on desktop/mobile: school type, session/term, stream or faculty/department, level/arm, subject/custom subject and teacher multi-selection. Changing selections should show/reset the same fields as before.
+3. Open an existing record for editing and cancel. Open its delete confirmation and cancel without deleting. Repeat to check there is one dialog/action response and no duplicate handlers.
+4. Use already-authorized test sessions to compare Admin, assigned class teacher and unassigned teacher access. Verify all-arms visibility is not mistaken for edit permission; do not alter real permissions to test.
+5. Only in an explicitly isolated no-backend environment test create/update/archive/reactivate/delete, duplicate prevention, save/reload and A/B isolation. Localhost alone does not prevent production synchronization. Otherwise mark these browser mutation checks NOT TESTED.
+6. Record PASS/FAIL/NOT TESTED and errors. Keep Contact's existing defect separate. After acceptance the user may checkpoint locally using GitHub Desktop; no automatic commit/push or next extraction.
