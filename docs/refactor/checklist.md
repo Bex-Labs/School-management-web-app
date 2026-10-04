@@ -344,3 +344,36 @@ Summary: 15 behavioral fixture groups plus four synthetic full-app startup compa
 3. Check Student own-record view and Parent linked-child view remain correctly scoped; restricted actions and visible controls must match the checkpoint.
 4. Reload and use authorized test sessions for school A → B → A; verify no cross-school records. Check another-tab refresh. Mutating create/edit/promote/archive/transfer/delete/import flows require an explicitly isolated fixture with backend sync disabled, not a production-connected preview.
 5. Report PASS/FAIL/NOT TESTED only for what was exercised. Simulated sync is not live Supabase evidence. Stop after E07; no automatic commit or next extraction.
+
+
+## E07 checkpoint follow-up
+
+The user checkpointed E07 as faefa57 before E08. E07 browser checks passed according to the user; this is user-reported only. Historical logs retain earlier commit/test states. No agent commit or push was performed.
+
+## E08 result log — shared action dialog, 2026-10-04
+
+Baseline: clean faefa57. Tests run original and extracted declarations in isolated VMs with synthetic DOM elements, events and timers. They never click/confirm a real action, access account data or call the database.
+
+| Check | Result | Evidence / limitation |
+| --- | --- | --- |
+| Source/dependency boundary | PASS — source | One state binding/six functions; AST-equivalent apart from positional metadata, exact template raw/cooked strings preserved. Only browser document/window/HTMLElement plus Promise/String/Boolean. Original auth remainder byte-identical after the nine-line bridge replacement. |
+| Consumers/private API | PASS — source/isolated | All 20 external call sites retained; none precedes original initialization. Three local aliases reference original functions; no extra async wrapper. Internal state/ensure/close methods are not globally exposed. |
+| Single initialization | PASS — isolated/source | Factory load/construction performs no DOM/listener/timer work. Exact new auth bridge creates one controller. Original ready callback/startup remains unchanged. No full authenticated bootstrap tested. |
+| Result/validation behavior | PASS — synthetic | Confirm boolean, prompt trimmed string/optional empty/null cancellation, direct object shapes, defaults/variants/coercion, required-empty validation without settlement and absent-body cancellation match baseline. |
+| Event/focus behavior | PASS — synthetic | Submit, cancel button/backdrop/Escape, inert click/key, focus/select/restoration, non-HTMLElement active element, absent then available body all match DOM traces. Real keyboard/browser focus not tested. |
+| Overlap and Promise timing | PASS — synthetic | Prior pending dialog cancels before replacement; resolution order and existing rapid zero-delay focus behavior match. Repeated cancellation resolves once. No timer/race fix added. |
+| Listener lifetime | PASS — synthetic | Twelve mixed-mode reopen cycles reuse one dialog and exactly three DOM handlers. State stays in the same controller closure, reset errors/details/mode behavior matches. |
+| HTML/syntax/paths | PASS — source/local | All 58 HTML files compared: 49 gain one synchronous tag immediately before auth.js; remaining nine unchanged. Original attributes/query strings/inline bodies/order retained. Eleven scripts parse, all 548 external paths exist locally; HTTP/MIME/cache not tested. |
+| Existing Contact issue | FAIL — pre-existing | Same inline parse failure at relative line 53/current contact.html:964; Contact has no auth tag and is unchanged. Other inline scripts parse. |
+| Scope/docs | PASS — source | Current declaration/state/listener/consumer locations and manifest checked; HTML ID catalog preserved. app.js, earlier extracts, styles/config/backend and unrelated files unchanged. Index empty, HEAD faefa57 unchanged; git diff --check clean. |
+| Browser/role/backend acceptance | NOT TESTED | Actual dialog appearance, keyboard/focus/selection, login/portal startup and authenticated consumer flows need manual verification. No live deletion or backend operation; prior browser restrictions not bypassed. |
+
+Summary: 16 synthetic DOM/Promise fixture groups plus one exact compatibility-bridge test pass. This is behavioral parity for the tested cases, not proof of full browser accessibility or all async edge cases.
+
+### Focused E08 manual browser acceptance
+
+1. Confirm action-dialog.js loads once immediately before auth.js on a login/portal page, with no new console/reference/network errors. Public-only pages should not gain the dialog script.
+2. Open a representative confirmation, then cancel via button, backdrop and Escape. Check unchanged layout/text and focus returning to the trigger. Never confirm deletion on production.
+3. Open a class-arm or student-transfer prompt and inspect default text/selection; cancel it. Required-empty validation and submit/result tests belong in an isolated fixture where completing the dialog cannot mutate production records.
+4. Repeat open/cancel several times; verify one visible dialog and one response per action. Spot-check login and portal navigation. Keep the known Contact error separate.
+5. Report PASS/FAIL/NOT TESTED. Stop after E08; no automatic commit, push or E09 extraction.
